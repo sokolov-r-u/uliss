@@ -1,0 +1,1 @@
+// modules configuration is moved to libs/gradle-plugins
