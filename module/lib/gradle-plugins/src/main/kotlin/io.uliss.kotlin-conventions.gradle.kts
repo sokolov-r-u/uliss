@@ -42,7 +42,7 @@ tasks.withType<KotlinCompile>().configureEach {
     }
 }
 
-tasks.withType<Test> {
+tasks.named<Test>("test") {
     useJUnitPlatform() {
         excludeTags("integration")
     }
@@ -50,8 +50,10 @@ tasks.withType<Test> {
 
 tasks.register<Test>("integrationTest") {
     description = "./gradlew integrationTest - now starts "
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
     useJUnitPlatform() {
         includeTags("integration")
-        shouldRunAfter(tasks.named("test"))
     }
+    shouldRunAfter(tasks.named("test"))
 }
