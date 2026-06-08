@@ -1,4 +1,4 @@
-package io.uliss.database.config
+package io.uliss.database
 
 import io.uliss.database.audit.AuditorAwareImpl
 import org.springframework.boot.autoconfigure.AutoConfiguration
