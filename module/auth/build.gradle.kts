@@ -7,6 +7,7 @@ version = "0.0.1"
 dependencies {
 	implementation(project(":database"))
 	implementation(project(":exception"))
+	implementation(project(":logging"))
 
 	implementation("org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server")
 	implementation("org.springframework.boot:spring-boot-starter-validation")

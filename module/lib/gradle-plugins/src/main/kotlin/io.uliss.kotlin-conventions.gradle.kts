@@ -1,6 +1,6 @@
+import org.gradle.api.artifacts.VersionCatalogsExtension
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.springframework.boot.gradle.plugin.SpringBootPlugin
 
 plugins {
     id("org.jetbrains.kotlin.jvm")
@@ -8,16 +8,21 @@ plugins {
     id("io.spring.dependency-management")
 }
 
+val libs = the<VersionCatalogsExtension>().named("libs")
+val javaVersion = libs.findVersion("java").get().requiredVersion.toInt()
+val javaCompileVersion = libs.findVersion("java-compile").get().requiredVersion.toInt()
+val springBootVersion = libs.findVersion("spring-boot").get().requiredVersion
+
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
+    implementation(libs.findLibrary("kotlin-reflect").get())
 }
 
 group = "io.uliss"
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(javaVersion)
     }
 }
 
@@ -27,18 +32,22 @@ repositories {
 
 dependencyManagement {
     imports {
-        mavenBom(SpringBootPlugin.BOM_COORDINATES)
+        mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
     }
 }
 
 tasks.withType<JavaCompile>().configureEach {
-    options.release = 24
+    options.release = javaCompileVersion
 }
 
 tasks.withType<KotlinCompile>().configureEach {
     compilerOptions {
-        jvmTarget = JvmTarget.JVM_24
-        freeCompilerArgs.addAll("-Xjsr305=strict", "-Xannotation-default-target=param-property")
+        jvmTarget = JvmTarget.fromTarget(javaCompileVersion.toString())
+        freeCompilerArgs.addAll(
+            "-Xjsr305=strict",
+            "-Xannotation-default-target=param-property",
+            "-Xmulti-dollar-interpolation",
+        )
     }
 }
 

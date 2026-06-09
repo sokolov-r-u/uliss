@@ -8,6 +8,7 @@ dependencies {
     implementation(project(":security"))
     implementation(project(":database"))
     implementation(project(":exception"))
+    implementation(project(":logging"))
 
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
