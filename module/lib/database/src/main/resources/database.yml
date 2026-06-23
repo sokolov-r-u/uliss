@@ -3,7 +3,6 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
-    url: ${POSTGRES_URL}
   jpa:
     hibernate:
       ddl-auto: none
