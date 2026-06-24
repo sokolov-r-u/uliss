@@ -5,16 +5,14 @@ import jakarta.persistence.Entity
 import jakarta.persistence.Table
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetails
-import java.util.UUID
 
 @Entity
 @Table(name = "users", schema = "auth")
 class UserEntity(
-    id: UUID,
     var email: String,
     var passwordHash: String,
     var status: UserStatus
-) : UuidEntity(id) {
+) : UuidEntity() {
 
     override fun toString(): String {
         return "User(id=${id}, status=$status, email='$email'" + super.toString()
