@@ -1,0 +1,18 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: ${AUTH_SERVER_URL}/.well-known/jwks.json
+
+security:
+  cors:
+    allowed-urls: ${ALLOWED_CORS_URLS}
+    allowed-headers: "*"
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    register: "/**"

@@ -35,7 +35,7 @@ class DataInitializer(
             .clientId(clientId)
             .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+//            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
             .redirectUri(redirectUri)
             .scope(OidcScopes.OPENID)
             .scope(OidcScopes.PROFILE)
