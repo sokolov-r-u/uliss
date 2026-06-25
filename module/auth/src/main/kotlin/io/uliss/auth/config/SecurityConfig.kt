@@ -35,7 +35,7 @@ class SecurityConfig {
     fun defaultSecurityFilterChain(http: HttpSecurity): SecurityFilterChain = http
         .authorizeHttpRequests { auth ->
             auth
-                .requestMatchers("/login").permitAll()
+                .requestMatchers("/login", "/auth/register").permitAll()
                 .anyRequest().authenticated()
         }
         .formLogin(Customizer.withDefaults())
