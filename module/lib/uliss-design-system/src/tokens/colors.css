@@ -1,0 +1,41 @@
+:root {
+  /* ── Backgrounds ─────────────────────────────────── */
+  --bg-deep:    #0e0a07;   /* deepest dark — dropshadow panels, full bleed */
+  --bg:         #1a1310;   /* primary surface */
+  --bg-surface: #211812;   /* slightly lifted surface (right panels) */
+  --bg-panel:   #15110e;   /* inset panel, e.g. left red-figure block */
+  --bg-muted:   #2a2218;   /* chip/badge background */
+
+  /* ── Brand ───────────────────────────────────────── */
+  --terracotta-deep: #a04527;
+  --terracotta:      #c8643c;   /* primary brand accent */
+  --ochre:           #d99a4e;   /* secondary accent: post nums, nodes */
+  --ochre-bright:    #f0c06a;   /* hover / hot-node highlight */
+
+  /* ── Text ────────────────────────────────────────── */
+  --cream:       #e8d3a8;   /* primary text */
+  --cream-dim:   #b9a888;   /* secondary text */
+  --text-muted:  #8b9098;   /* tertiary / label */
+  --text-faint:  #6b7079;   /* placeholder, footnote */
+
+  /* ── Lines / Borders ─────────────────────────────── */
+  --line:        rgba(232, 211, 168, 0.14);
+  --line-strong: rgba(232, 211, 168, 0.30);
+  --border-chip: #3a3022;   /* badge border */
+
+  /* ── Wordmark gradient ───────────────────────────── */
+  --gradient-wordmark: linear-gradient(
+    180deg,
+    #ecbf72 0%,
+    #dca455 34%,
+    #c8643c 78%,
+    #b8512e 100%
+  );
+
+  /* ── Semantic aliases ────────────────────────────── */
+  --color-accent:      var(--ochre);
+  --color-accent-warm: var(--terracotta);
+  --surface-card:      var(--bg-surface);
+  --text-body:         var(--cream);
+  --text-secondary:    var(--cream-dim);
+}

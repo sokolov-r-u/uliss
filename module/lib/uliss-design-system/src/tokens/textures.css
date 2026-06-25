@@ -1,0 +1,59 @@
+:root {
+  /* ── Craquelure ──────────────────────────────────── */
+  /* Aged ceramic crackle. Apply as background-image on
+     an ::after or .craquelure child:
+       mix-blend-mode: overlay; opacity: 0.5; */
+  --texture-craquelure: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='c'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' seed='4'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.35 0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23c)'/%3E%3C/svg%3E");
+
+  /* ── Film grain ──────────────────────────────────── */
+  /* Warm ochre-tinted noise. Apply:
+       mix-blend-mode: soft-light; opacity: 0.35; */
+  --texture-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='2' seed='9'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 0.85 0 0 0 0 0.6 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23g)'/%3E%3C/svg%3E");
+
+  /* ── Meander (Greek key) — horizontal strip ──────── */
+  /* background-repeat: repeat-x; background-position: center;
+     height: 24px; Used as top/bottom decorative border. */
+  --meander-h: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='48' height='24' viewBox='0 0 48 24'%3E%3Cpath d='M2 22 L2 6 L18 6 L18 18 L10 18 L10 12 L14 12 M26 22 L26 6 L42 6 L42 18 L34 18 L34 12 L38 12' fill='none' stroke='%23d99a4e' stroke-width='2'/%3E%3C/svg%3E");
+
+  /* ── Meander — vertical strip ────────────────────── */
+  /* background-repeat: repeat-y; background-position: center;
+     width: 24px; Used as left/right decorative border. */
+  --meander-v: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='48' viewBox='0 0 24 48'%3E%3Cpath d='M22 2 L6 2 L6 18 L18 18 L18 10 L12 10 L12 14 M22 26 L6 26 L6 42 L18 42 L18 34 L12 34 L12 38' fill='none' stroke='%23c8643c' stroke-width='2'/%3E%3C/svg%3E");
+}
+
+/* ── Utility classes ─────────────────────────────────── */
+.craquelure {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: overlay;
+  opacity: 0.5;
+  background-image: var(--texture-craquelure);
+}
+
+.grain {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: soft-light;
+  opacity: 0.35;
+  background-image: var(--texture-grain);
+}
+
+.meander-top,
+.meander-bottom {
+  height: 24px;
+  background-image: var(--meander-h);
+  background-repeat: repeat-x;
+  background-position: center;
+  opacity: 0.5;
+}
+
+.meander-left,
+.meander-right {
+  width: 24px;
+  background-image: var(--meander-v);
+  background-repeat: repeat-y;
+  background-position: center;
+  opacity: 0.55;
+}

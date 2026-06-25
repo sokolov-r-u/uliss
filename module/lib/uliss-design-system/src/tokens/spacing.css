@@ -1,0 +1,27 @@
+:root {
+  /* ── Spacing scale (px) ──────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* ── Radii — brand uses NONE (sharp ceramic cuts) ── */
+  --radius: 0px;
+
+  /* ── Warm glow shadows (ochre / terracotta) ──────── */
+  --glow-ochre:          0 0 10px 1px rgba(217, 154, 78, 0.55);
+  --glow-ochre-strong:   0 0 16px 3px rgba(255, 200, 120, 0.80);
+  --glow-terracotta:     0 0 12px 2px rgba(200, 100, 60, 0.40);
+
+  /* ── Inset border shorthand ──────────────────────── */
+  --border-frame:   1px solid var(--line);
+  --border-strong:  1px solid var(--line-strong);
+  --border-chip:    1px solid var(--border-chip, #3a3022);
+}

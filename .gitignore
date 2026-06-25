@@ -41,4 +41,12 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Node / frontend ###
+node_modules/
+**/dist/
+.vite/
+
+### macOS ###
+.DS_Store
+
 /CLAUDE.md
