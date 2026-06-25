@@ -6,5 +6,5 @@ version = "0.0.1"
 
 dependencies {
 	implementation(project(":exception"))
-	implementation("org.springframework.boot:spring-boot-starter-validation")
+	api("org.springframework.boot:spring-boot-starter-validation")
 }

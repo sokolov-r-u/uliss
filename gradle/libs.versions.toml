@@ -5,10 +5,14 @@ java-compile = "25"
 spring-boot = "4.1.0"
 spring-dependency-management = "1.1.7"
 spring-retry = "2.0.11"
+fasterxml-uuid-generator = "5.2.0"
+
 
 [libraries]
 spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlin-noarg = { module = "org.jetbrains.kotlin:kotlin-noarg", version.ref = "kotlin" }
+fasterxml-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "fasterxml-uuid-generator" }
 
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-allopen = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlin" }

@@ -1,11 +1,10 @@
 package io.uliss.exception.common
 
-import org.springframework.http.HttpStatus
 import io.uliss.exception.utils.ErrorCode
+import org.springframework.http.HttpStatus
 
-class NotFoundException(
+open class NotFoundException(
     message: String,
     httpStatus: HttpStatus = HttpStatus.NOT_FOUND,
     code: String = ErrorCode.NOT_FOUND_ERROR
-    ) : ServerException(message, httpStatus, code) {
-}
+) : ServerException(message, httpStatus, code)

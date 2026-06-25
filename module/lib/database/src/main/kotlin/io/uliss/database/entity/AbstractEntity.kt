@@ -11,14 +11,14 @@ import java.time.Instant
 @MappedSuperclass
 @EntityListeners(AuditingEntityListener::class)
 abstract class AbstractEntity(
-    @CreatedDate
-    var createdAt: Instant?,
-    @LastModifiedDate
-    var updatedAt: Instant?,
-    @Version
-    var version: Long?
 ) {
-    override fun toString(): String {
-        return ", createdAt=$createdAt, updatedAt=$updatedAt, version=$version)"
-    }
+    @CreatedDate
+    var createdAt: Instant? = null
+
+    @LastModifiedDate
+    var updatedAt: Instant? = null
+
+    @Version
+    var version: Long? = null
+
 }

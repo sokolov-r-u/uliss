@@ -1,5 +1,6 @@
 plugins {
     id("io.uliss.spring-boot-app")
+    id("io.uliss.jpa-conventions")
 }
 
 version = "0.0.1"
