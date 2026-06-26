@@ -70,11 +70,15 @@
       padding: 46px 44px;
     }
     .brand .orion-layer {
-      position: absolute; inset: 0;
-      padding: 40px 24px;
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px 8px;
       pointer-events: none;
     }
-    .brand .orion-layer svg { width: 100%; height: 100%; opacity: .85; }
+    .brand .orion-layer svg { width: 100%; height: 100%; max-height: 360px; opacity: .85; }
     .brand .meander {
       position: absolute; top: 0; right: 0;
       width: 14px; height: 100%;
@@ -82,13 +86,15 @@
       background-repeat: repeat-y;
       background-size: 14px auto;
       opacity: .3;
+      z-index: 0;
     }
-    .brand-head { position: relative; }
+    .brand-head { position: relative; z-index: 1; }
     .brand-quote {
       position: relative;
-      flex: 1;
+      z-index: 1;
       display: flex;
-      align-items: flex-end;
+      justify-content: center;
+      padding-bottom: 2px;
     }
     .brand-quote p {
       font-family: var(--font-serif);
@@ -134,36 +140,45 @@
     }
     .form-inner { width: 100%; max-width: 344px; }
 
+    /* ── Tabs (client-side switch) ─────────────────────── */
     .auth-tabs {
       display: flex;
       border: var(--border-strong);
       margin-bottom: 28px;
     }
-    .auth-tabs a {
+    .auth-tab {
       flex: 1;
       height: 38px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      border: 0;
       border-bottom: 2px solid transparent;
+      background: transparent;
+      color: var(--text-muted);
       font-family: var(--font-mono);
       font-size: 10.5px;
       letter-spacing: 2px;
       text-transform: uppercase;
-      text-decoration: none;
-      color: var(--text-muted);
+      cursor: pointer;
       transition: color .2s, background .2s;
     }
-    .auth-tabs a:hover { color: var(--cream-dim); }
-    .auth-tabs a.is-active {
+    .auth-tab:hover { color: var(--cream-dim); }
+    .auth-tab.is-active {
       border-bottom-color: var(--ochre);
       background: var(--bg-surface);
       color: var(--cream);
       font-weight: var(--weight-medium);
     }
 
+    /* ── Tab panels ────────────────────────────────────── */
+    .tab-panel--off { display: none; }
+
     /* ── Form body ─────────────────────────────────────── */
-    .auth-body { display: flex; flex-direction: column; }
+    .auth-body {
+      min-height: 404px;       /* identical height across tabs (matches design) */
+      display: flex;
+      flex-direction: column;
+    }
+    .spacer { flex: 1; min-height: 8px; }   /* pushes button block to the bottom */
+
     .greek {
       margin: 0;
       font-family: var(--font-serif);
@@ -251,7 +266,6 @@
     .auth-button {
       width: 100%;
       height: 50px;
-      margin-top: 4px;
       border: 1px solid rgba(240,192,106,.5);
       background: linear-gradient(160deg, var(--ochre-bright), var(--ochre) 75%, var(--terracotta-deep));
       color: var(--bg-deep);
@@ -305,13 +319,18 @@
       letter-spacing: .5px;
     }
     .auth-footer .pre { color: var(--text-faint); }
-    .auth-footer a {
+    .auth-footer .linklike {
+      border: 0;
+      background: transparent;
+      cursor: pointer;
       color: var(--ochre-bright);
       border-bottom: 1px solid var(--ochre);
-      padding-bottom: 1px;
-      text-decoration: none;
+      padding: 0 0 1px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      letter-spacing: .5px;
     }
-    .auth-footer a:hover { color: var(--cream); }
+    .auth-footer .linklike:hover { color: var(--cream); }
 
     /* ── Notices ───────────────────────────────────────── */
     .auth-note {
@@ -341,6 +360,7 @@
       .brand .wordmark { font-size: 48px; }
       .brand-quote { display: none; }
       .form-panel { padding: 36px 32px 40px; }
+      .auth-body { min-height: 0; }
     }
     @media (prefers-reduced-motion: reduce) {
       .auth-window { animation: none; }
@@ -349,50 +369,186 @@
   </style>
 </head>
 <body>
-<!--/* Shared auth shell. active = 'signin' | 'register'; content = the <form> fragment. */-->
-<div th:fragment="page(active, content)" class="auth-stage">
+<!--/* Single auth page. active = 'signin' | 'register' — chooses the initially visible tab.
+       Both forms live in the DOM; switching is client-side (no reload). */-->
+<div th:fragment="page(active)" class="auth-stage">
   <main class="auth-window">
     <aside class="brand">
-      <div class="orion-layer" th:replace="~{fragments/orion :: orion}"></div>
       <div class="meander"></div>
       <div class="brand-head">
         <span class="wordmark">Uliss</span>
         <div class="brand-kicker kicker">Voice journal</div>
       </div>
+      <div class="orion-layer" th:insert="~{fragments/orion :: orion}"></div>
       <div class="brand-quote">
         <p>Speak a thought. Watch it find its place among the stars.</p>
       </div>
     </aside>
 
     <section class="form-panel">
-      <div class="form-inner">
+      <div class="form-inner" th:attr="data-active=${active}">
         <nav class="auth-tabs">
-          <a th:href="@{/login}"    th:classappend="${active == 'signin'}   ? 'is-active'">Sign in</a>
-          <a th:href="@{/register}" th:classappend="${active == 'register'} ? 'is-active'">Register</a>
+          <button type="button" class="auth-tab" data-tab="signin"
+                  th:classappend="${active == 'signin'} ? 'is-active'">Sign in</button>
+          <button type="button" class="auth-tab" data-tab="register"
+                  th:classappend="${active == 'register'} ? 'is-active'">Register</button>
         </nav>
 
-        <div th:replace="${content}">form goes here</div>
+        <!-- ── Sign in panel ─────────────────────────────── -->
+        <div class="tab-panel" data-panel="signin"
+             th:classappend="${active == 'register'} ? 'tab-panel--off'">
+          <form method="post" th:action="@{/login}" class="auth-body" novalidate>
+            <p class="greek">χαῖρε · <span>welcome back</span></p>
+            <h1 class="auth-heading">Return to your sky</h1>
 
-        <div class="auth-footer" th:if="${active == 'signin'}">
-          <span class="pre">New here?</span>
-          <a th:href="@{/register}">Create an account</a>
+            <div class="auth-note auth-note--ok" th:if="${param.registered}">
+              Account created. Sign in below.
+            </div>
+            <div class="auth-note" th:if="${param.logout}">
+              You have signed out.
+            </div>
+            <div class="auth-note auth-note--err" th:if="${param.error}">
+              Wrong email or passphrase.
+            </div>
+
+            <div class="field">
+              <label class="kicker" for="username">Email</label>
+              <div class="field-box">
+                <input id="username" name="username" type="email" autocomplete="email"
+                       placeholder="wayfarer@uliss.app" required/>
+              </div>
+            </div>
+
+            <div class="field">
+              <label class="kicker" for="password">Passphrase</label>
+              <div class="field-box">
+                <input id="password" name="password" type="password" autocomplete="current-password"
+                       placeholder="your passphrase" required/>
+                <button type="button" class="eye" data-toggle="password" aria-label="Show passphrase">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div class="field-aux">
+              <span class="muted" title="Coming soon">Forgot passphrase?</span>
+            </div>
+
+            <div class="spacer"></div>
+
+            <button type="submit" class="auth-button">Enter</button>
+            <div class="divider"><span></span><em class="kicker">or</em><span></span></div>
+            <button type="button" class="sso" disabled title="Coming soon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="square"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+              Email me a sign-in link
+            </button>
+          </form>
+          <div class="auth-footer">
+            <span class="pre">New here?</span>
+            <button type="button" class="linklike" data-tab="register">Create an account</button>
+          </div>
         </div>
-        <div class="auth-footer" th:if="${active == 'register'}">
-          <span class="pre">Already a wayfarer?</span>
-          <a th:href="@{/login}">Sign in</a>
+
+        <!-- ── Register panel ────────────────────────────── -->
+        <div class="tab-panel" data-panel="register"
+             th:classappend="${active == 'signin'} ? 'tab-panel--off'">
+          <form method="post" th:action="@{/register}" th:object="${registerForm}" class="auth-body" novalidate>
+            <p class="greek">ἀρχή · <span>begin</span></p>
+            <h1 class="auth-heading">Trace your first star</h1>
+
+            <div class="auth-note auth-note--err" th:if="${#fields.hasAnyErrors()}">
+              Please fix the highlighted fields.
+            </div>
+
+            <div class="field">
+              <label class="kicker" for="email">Email</label>
+              <div class="field-box" th:classappend="${#fields.hasErrors('email')} ? 'has-error'">
+                <input id="email" type="email" th:field="*{email}" autocomplete="email"
+                       placeholder="you@uliss.app" required/>
+              </div>
+              <p class="field-error" th:if="${#fields.hasErrors('email')}" th:errors="*{email}">Email error</p>
+            </div>
+
+            <div class="field">
+              <label class="kicker" for="reg-password">Passphrase</label>
+              <div class="field-box" th:classappend="${#fields.hasErrors('password')} ? 'has-error'">
+                <input id="reg-password" type="password" th:field="*{password}" autocomplete="new-password"
+                       placeholder="choose a passphrase" required/>
+                <button type="button" class="eye" data-toggle="reg-password" aria-label="Show passphrase">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                       stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/>
+                    <circle cx="12" cy="12" r="3"/>
+                  </svg>
+                </button>
+              </div>
+              <p class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">Password error</p>
+            </div>
+
+            <!--/* Reserves the exact vertical space the "Forgot passphrase?" row occupies in
+                   the Sign-in tab, so Begin and Enter sit at the same height (no jump). */-->
+            <div class="field-aux" aria-hidden="true" style="visibility: hidden">
+              <span class="muted">Forgot passphrase?</span>
+            </div>
+
+            <div class="spacer"></div>
+
+            <button type="submit" class="auth-button">Begin</button>
+            <div class="divider"><span></span><em class="kicker">or</em><span></span></div>
+            <button type="button" class="sso" disabled title="Coming soon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                   stroke-width="1.6" stroke-linecap="square"><path d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+              Email me a sign-in link
+            </button>
+          </form>
+          <div class="auth-footer">
+            <span class="pre">Already a wayfarer?</span>
+            <button type="button" class="linklike" data-tab="signin">Sign in</button>
+          </div>
         </div>
       </div>
     </section>
   </main>
 
   <script>
-    document.querySelectorAll('.eye[data-toggle]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var input = document.getElementById(btn.getAttribute('data-toggle'));
-        if (!input) return;
-        input.type = input.type === 'password' ? 'text' : 'password';
+    (function () {
+      var inner = document.querySelector('.form-inner');
+      if (!inner) return;
+
+      function focusFirst(name) {
+        var f = inner.querySelector('.tab-panel[data-panel="' + name + '"] input:not([type=hidden])');
+        if (f) f.focus();
+      }
+
+      function switchTab(name) {
+        inner.querySelectorAll('.auth-tab').forEach(function (t) {
+          t.classList.toggle('is-active', t.dataset.tab === name);
+        });
+        inner.querySelectorAll('.tab-panel').forEach(function (p) {
+          p.classList.toggle('tab-panel--off', p.dataset.panel !== name);
+        });
+        try { history.replaceState(null, '', name === 'register' ? '/register' : '/login'); } catch (e) {}
+        focusFirst(name);
+      }
+
+      inner.querySelectorAll('[data-tab]').forEach(function (el) {
+        el.addEventListener('click', function () { switchTab(el.dataset.tab); });
       });
-    });
+
+      document.querySelectorAll('.eye[data-toggle]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var input = document.getElementById(btn.getAttribute('data-toggle'));
+          if (input) input.type = input.type === 'password' ? 'text' : 'password';
+        });
+      });
+
+      focusFirst(inner.getAttribute('data-active') || 'signin');
+    })();
   </script>
 </body>
 </html>
