@@ -10,9 +10,11 @@ dependencies {
 	implementation(project(":exception"))
 	implementation(project(":logging"))
 	implementation(project(":validation"))
+	implementation(project(":uliss-design-system"))
 
 	implementation("org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server")
 	implementation("org.springframework.boot:spring-boot-starter-webmvc")
+	implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 	implementation("tools.jackson.module:jackson-module-kotlin")
 
 	testImplementation("org.testcontainers:testcontainers-junit-jupiter")
