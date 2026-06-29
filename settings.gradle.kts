@@ -11,7 +11,8 @@ include(
     "database",
     "exception",
     "logging",
-    "validation"
+    "validation",
+    "uliss-design-system"
 )
 
 project(":auth").projectDir = file("module/auth")
@@ -21,3 +22,4 @@ project(":database").projectDir = file("module/lib/database")
 project(":exception").projectDir = file("module/lib/exception")
 project(":logging").projectDir = file("module/lib/logging")
 project(":validation").projectDir = file("module/lib/validation")
+project(":uliss-design-system").projectDir = file("module/lib/uliss-design-system")

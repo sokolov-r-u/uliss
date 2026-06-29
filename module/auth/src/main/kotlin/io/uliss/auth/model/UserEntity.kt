@@ -2,6 +2,8 @@ package io.uliss.auth.model
 
 import io.uliss.database.entity.UuidEntity
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import org.springframework.security.core.userdetails.User
 import org.springframework.security.core.userdetails.UserDetails
@@ -11,6 +13,7 @@ import org.springframework.security.core.userdetails.UserDetails
 class UserEntity(
     var email: String,
     var passwordHash: String,
+    @Enumerated(EnumType.STRING)
     var status: UserStatus
 ) : UuidEntity() {
 

@@ -5,6 +5,7 @@ spring:
   application:
     name: auth
   config:
+    # noinspection SpringBootApplicationYaml
     import:
       - classpath:database.yml
       - classpath:exception.yml
@@ -20,10 +21,14 @@ spring:
     properties:
       hibernate:
         default_schema: auth
+  thymeleaf:
+    cache: false   #todo dev: always re-render templates; enable in prod
 
 app:
   auth:
     issuer: ${AUTH_SERVER_ISSUER}
+  cors:
+    allowed-origins: ${AUTH_ALLOWED_CORS_URLS:http://localhost:3000}
   clients:
     spa:
       client-id: ${APP_CLIENTS_SPA_CLIENT_ID}

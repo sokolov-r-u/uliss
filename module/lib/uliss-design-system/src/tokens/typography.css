@@ -1,0 +1,147 @@
+/* ── Self-hosted fonts (OFL 1.1 — see src/fonts/OFL.txt) ──────────────────────
+   Paths are relative to this file (tokens/), pointing one level up to fonts/.
+   Resolves identically in the auth jar (/ds/tokens/ -> /ds/fonts/) and in Vite. */
+
+/* IM Fell English — brand wordmark, irregular serifs */
+@font-face {
+  font-family: 'IM Fell English';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/im-fell-english-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'IM Fell English';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/im-fell-english-400-italic.woff2') format('woff2');
+}
+
+/* Marcellus — warmer alternate display */
+@font-face {
+  font-family: 'Marcellus';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/marcellus-400.woff2') format('woff2');
+}
+
+/* Cinzel — architectural Roman caps */
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/cinzel-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/cinzel-700.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cinzel';
+  font-style: normal;
+  font-weight: 900;
+  font-display: swap;
+  src: url('../fonts/cinzel-900.woff2') format('woff2');
+}
+
+/* Cormorant Garamond — body editorial, italic topics */
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/cormorant-garamond-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/cormorant-garamond-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('../fonts/cormorant-garamond-600.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/cormorant-garamond-500-italic.woff2') format('woff2');
+}
+
+/* JetBrains Mono — all UI chrome */
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('../fonts/jetbrains-mono-400.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('../fonts/jetbrains-mono-500.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('../fonts/jetbrains-mono-700.woff2') format('woff2');
+}
+
+:root {
+  /* ── Families ────────────────────────────────────── */
+  --font-display:        'IM Fell English', serif;  /* brand wordmark, irregular serifs */
+  --font-display-round:  'Marcellus', serif;        /* warmer alternate display */
+  --font-display-strong: 'Cinzel', serif;           /* architectural Roman caps */
+  --font-serif:          'Cormorant Garamond', serif; /* body editorial, italic topics */
+  --font-mono:           'JetBrains Mono', monospace; /* all UI chrome */
+
+  /* ── Scale (px) ──────────────────────────────────── */
+  --text-2xs:  10.5px;
+  --text-xs:   11px;
+  --text-sm:   12.5px;
+  --text-base: 14px;
+  --text-md:   16px;
+  --text-lg:   18px;
+  --text-xl:   24px;
+  --text-2xl:  33px;
+  --text-3xl:  48px;
+  --text-4xl:  72px;
+  --text-display-sm:  100px;
+  --text-display:     138px;
+  --text-display-lg:  178px;
+
+  /* ── Weights ─────────────────────────────────────── */
+  --weight-regular: 400;
+  --weight-medium:  500;
+  --weight-bold:    700;
+
+  /* ── Letter spacing ──────────────────────────────── */
+  --tracking-tight:   0.02em;
+  --tracking-normal:  0.3px;
+  --tracking-wide:    3px;
+  --tracking-wider:   5px;
+  --tracking-kicker:  6px;
+  --tracking-widest:  11px;
+
+  /* ── Line height ─────────────────────────────────── */
+  --leading-tight:   0.9;
+  --leading-snug:    1.05;
+  --leading-normal:  1.4;
+  --leading-relaxed: 1.7;
+}
