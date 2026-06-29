@@ -10,7 +10,9 @@ import org.springframework.security.oauth2.core.oidc.OidcScopes
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.security.oauth2.server.authorization.settings.ClientSettings
+import org.springframework.security.oauth2.server.authorization.settings.TokenSettings
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.util.UUID
 
 @Component
@@ -35,11 +37,18 @@ class DataInitializer(
             .clientId(clientId)
             .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-//            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
             .redirectUri(redirectUri)
             .scope(OidcScopes.OPENID)
             .scope(OidcScopes.PROFILE)
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
+            .tokenSettings(
+                TokenSettings.builder()
+                    .accessTokenTimeToLive(Duration.ofMinutes(15))
+                    .refreshTokenTimeToLive(Duration.ofDays(30))
+                    .reuseRefreshTokens(false)
+                    .build()
+            )
             .build()
 
         registeredClientRepository.save(client)

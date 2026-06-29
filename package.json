@@ -2,6 +2,7 @@
   "name": "uliss-frontend",
   "private": true,
   "workspaces": [
-    "module/lib/uliss-design-system"
+    "module/lib/uliss-design-system",
+    "module/web"
   ]
 }

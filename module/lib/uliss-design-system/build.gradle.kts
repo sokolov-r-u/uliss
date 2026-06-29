@@ -31,6 +31,5 @@ tasks.processResources {
 	into("META-INF/resources/ds") {
 		from(layout.projectDirectory.dir("dist"))
 		from(layout.projectDirectory.dir("src/fonts")) { into("fonts") }
-		from(layout.projectDirectory.dir("src/assets")) { into("assets") }
 	}
 }
