@@ -30,10 +30,19 @@ app:
   cors:
     allowed-origins: ${AUTH_ALLOWED_CORS_URLS:http://localhost:3000}
   clients:
-    spa:
-      client-id: ${APP_CLIENTS_SPA_CLIENT_ID}
-      redirect-uri: ${APP_CLIENTS_SPA_REDIRECT_URI}
+    authorization-code:
+      client-id: ${APP_CLIENTS_AUTH_CODE_CLIENT_ID}
+      client-secret: ${APP_CLIENTS_AUTH_CODE_CLIENT_SECRET}
+      redirect-uri:
+        - ${USER_SERVICE_URL}/oauth2/callback
+        - ${NOTE_SERVICE_URL}/oauth2/callback
 
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}
       client-secret: ${APP_CLIENTS_M2M_CLIENT_SECRET}
+
+security:
+  oauth2:
+    client:
+      # noinspection SpringBootApplicationYaml
+      redirect-uri: ${SERVER_URL}/oauth2/callback

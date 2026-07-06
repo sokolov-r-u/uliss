@@ -1,26 +1,35 @@
 sequenceDiagram
     actor User as User
-    participant React as React SPA
+    participant Browser as Browser (JS memory)
+    participant BS as Backend Service
     participant AS as Authorization Server
     participant DB as auth.users (PostgreSQL)
     participant US as User Service
 
-    User->>React: Click "Sign in"
-    React->>AS: GET /oauth2/authorize<br/>(client_id, redirect_uri, code_challenge)
-    AS->>User: Login page (form login)
+    User->>BS: GET /any-endpoint (no token)
+    BS->>BS: Generate PKCE (code_verifier + code_challenge)
+    BS->>User: redirect → AS /oauth2/authorize<br/>(client_id, redirect_uri, code_challenge)
+    User->>AS: Login page
     User->>AS: POST /login (email + password)
     AS->>DB: loadUserByUsername(email)
-    DB-->>AS: UserDetails (passwordHash, roles)
-    AS->>AS: BCrypt.verify(password, passwordHash)
-    AS-->>React: redirect → /callback?code=xyz
-    React->>AS: POST /oauth2/token<br/>(code, code_verifier)
+    DB-->>AS: UserDetails
+    AS->>AS: BCrypt.verify(password, hash)
+    AS-->>BS: redirect → /callback?code=xyz
+    BS->>AS: POST /oauth2/token<br/>(code + code_verifier)
     AS->>AS: OAuth2TokenCustomizer triggered
     AS->>US: GET /users/{sub}/profile<br/>(internal M2M token)
     US-->>AS: user_id, display_name
-    AS->>AS: Adds roles, user_id, display_name to JWT
-    AS->>AS: Signs JWT with RSA private key<br/>(from auth.signing_keys)
-    AS-->>React: Access Token + ID Token + Refresh Token
-    React->>React: Reads ID Token<br/>(display_name for UI)
-    React->>US: GET /me<br/>Authorization: Bearer <access_token>
-    US->>US: Validates JWT with public key<br/>via GET /oauth2/jwks
-    US-->>React: User profile data
+    AS->>AS: Adds user_id, display_name to JWT
+    AS->>AS: Signs JWT with RSA private key
+    AS-->>BS: access_token + refresh_token
+    BS-->>Browser: access_token + refresh_token
+
+    Browser->>BS: GET /any-endpoint<br/>Authorization: Bearer <access_token>
+    BS->>BS: Validates JWT via public key (/oauth2/jwks)
+    BS-->>Browser: Response
+
+    Note over Browser,BS: When access_token expires
+    Browser->>BS: POST /refresh<br/>(refresh_token)
+    BS->>AS: POST /oauth2/token<br/>(refresh_token grant)
+    AS-->>BS: new access_token + new refresh_token
+    BS-->>Browser: new access_token + new refresh_token

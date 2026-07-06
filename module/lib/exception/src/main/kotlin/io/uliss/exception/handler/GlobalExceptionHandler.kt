@@ -1,7 +1,7 @@
 package io.uliss.exception.handler
 
 import io.uliss.exception.common.ServerException
-import io.uliss.exception.dto.ErrorResponse
+import io.uliss.exception.dto.response.ErrorResponse
 import io.uliss.exception.utils.ErrorCode
 import io.uliss.exception.utils.MESSAGE_KEY
 import io.uliss.exception.utils.UNKNOWN_PATH
@@ -56,7 +56,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             details = getDetails(ex),
         )
 
-    private fun getErrorCode(ex: Exception): String = when (ex) {
+    private fun getErrorCode(ex: Exception): ErrorCode = when (ex) {
         is ServerException -> ex.code
         is BindException -> ErrorCode.VALIDATION_ERROR
         is ConstraintViolationException -> ErrorCode.VALIDATION_ERROR
