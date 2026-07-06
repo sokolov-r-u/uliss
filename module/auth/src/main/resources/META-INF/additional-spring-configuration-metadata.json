@@ -1,0 +1,39 @@
+{
+  "properties": [
+    {
+      "name": "app.auth.issuer",
+      "type": "java.lang.String",
+      "description": "OAuth2 Authorization Server issuer URI (e.g. http://localhost:9000). Used as the `iss` claim and to build OIDC discovery/JWKS endpoints."
+    },
+    {
+      "name": "app.cors.allowed-origins",
+      "type": "java.util.List<java.lang.String>",
+      "description": "Allowed CORS origins for the OAuth2/OIDC endpoints (/oauth2/**, /.well-known/**). Comma-separated list of scheme+host+port entries."
+    },
+    {
+      "name": "app.clients.authorization-code.client-id",
+      "type": "java.lang.String",
+      "description": "Client id of the Authorization Code + PKCE client seeded on startup by DataInitializer."
+    },
+    {
+      "name": "app.clients.authorization-code.client-secret",
+      "type": "java.lang.String",
+      "description": "Raw client secret of the Authorization Code client. Stored BCrypt-hashed in the registered client repository."
+    },
+    {
+      "name": "app.clients.authorization-code.redirect-uri",
+      "type": "java.util.Set<java.lang.String>",
+      "description": "Allowed redirect URIs for the Authorization Code client (OAuth2 callback endpoints of the SPA/downstream services)."
+    },
+    {
+      "name": "app.clients.m2m.client-id",
+      "type": "java.lang.String",
+      "description": "Client id of the machine-to-machine (client_credentials) client seeded on startup by DataInitializer."
+    },
+    {
+      "name": "app.clients.m2m.client-secret",
+      "type": "java.lang.String",
+      "description": "Raw client secret of the m2m client. Stored BCrypt-hashed in the registered client repository."
+    }
+  ]
+}

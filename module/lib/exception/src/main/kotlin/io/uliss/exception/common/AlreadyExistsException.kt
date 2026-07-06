@@ -1,10 +1,11 @@
 package io.uliss.exception.common
 
+import io.uliss.exception.utils.ErrorCode
 import org.springframework.http.HttpStatus
 
 open class AlreadyExistsException(
     message: String,
     httpStatus: HttpStatus,
-    code: String,
+    code: ErrorCode,
     details: Map<Any, Any> = emptyMap()
-) : ServerException(message, httpStatus, code, details)
+) : ServerException(message, null, httpStatus, code, details)
