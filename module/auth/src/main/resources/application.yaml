@@ -33,9 +33,7 @@ app:
     authorization-code:
       client-id: ${APP_CLIENTS_AUTH_CODE_CLIENT_ID}
       client-secret: ${APP_CLIENTS_AUTH_CODE_CLIENT_SECRET}
-      redirect-uri:
-        - ${USER_SERVICE_URL}/oauth2/callback
-        - ${NOTE_SERVICE_URL}/oauth2/callback
+      callback-url: ${APP_CLIENTS_AUTH_CODE_CALLBACK_URL}
 
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}

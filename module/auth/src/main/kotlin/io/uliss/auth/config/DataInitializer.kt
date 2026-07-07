@@ -21,22 +21,18 @@ class DataInitializer(
     private val passwordEncoder: PasswordEncoder,
     @Value($$"${app.clients.authorization-code.client-id}") private val webClientId: String,
     @Value($$"${app.clients.authorization-code.client-secret}") private val webClientSecret: String,
-    @Value($$"${app.clients.authorization-code.redirect-uri}") private val redirectUris: Set<String>,
+    @Value($$"${app.clients.authorization-code.callback-url}") private val callbackUrl: String,
     @Value($$"${app.clients.m2m.client-id}") private val m2mClientId: String,
     @Value($$"${app.clients.m2m.client-secret}") private val m2mClientSecret: String
 ) : ApplicationRunner {
 
     override fun run(args: ApplicationArguments) {
-        saveAuthCodeClientIfNotExists(webClientId, webClientSecret, redirectUris)
+        saveAuthCodeClientIfNotExists(webClientId, webClientSecret, callbackUrl)
         saveClientCredentialsClientIfNotExists(m2mClientId, m2mClientSecret)
     }
 
-    private fun saveAuthCodeClientIfNotExists(clientId: String, clientSecret: String, redirectUris: Set<String>) {
-        val existing = registeredClientRepository.findByClientId(clientId)
-        if (existing != null) {
-            updateUrisIfDifferent(existing)
-            return
-        }
+    private fun saveAuthCodeClientIfNotExists(clientId: String, clientSecret: String, callbackUrl: String) {
+        if (registeredClientRepository.findByClientId(clientId) != null) return
 
         val client = RegisteredClient.withId(UUID.randomUUID().toString())
             .clientId(clientId)
@@ -44,7 +40,7 @@ class DataInitializer(
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .redirectUris { it.addAll(redirectUris) }
+            .redirectUri(callbackUrl)
             .scope(OidcScopes.OPENID)
             .scope(OidcScopes.PROFILE)
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
@@ -58,18 +54,6 @@ class DataInitializer(
             .build()
 
         registeredClientRepository.save(client)
-    }
-
-    private fun updateUrisIfDifferent(existing: RegisteredClient) {
-        if (existing.redirectUris != redirectUris) {
-            val updated = RegisteredClient.from(existing)
-                .redirectUris { uris ->
-                    uris.clear()
-                    uris.addAll(redirectUris)
-                }
-                .build()
-            registeredClientRepository.save(updated)
-        }
     }
 
     private fun saveClientCredentialsClientIfNotExists(clientId: String, clientSecret: String) {
