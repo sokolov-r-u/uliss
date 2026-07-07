@@ -6,7 +6,6 @@ import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidRefreshTokenException
-import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.resilience.annotation.Retryable
@@ -16,9 +15,11 @@ import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import org.springframework.web.client.body
+import utils.CODE_VERIFIER
+import utils.MAX_COOKIE_AGE
 import utils.generateCodeChallenge
 import utils.generateCodeVerifier
-import utils.getCodeVerifierCookie
+import utils.setCookie
 import java.net.URI
 import java.time.Duration
 
@@ -26,6 +27,7 @@ import java.time.Duration
 class AuthService(
     private val securityProperties: SecurityProperties,
 ) {
+
     private val restClient: RestClient = RestClient.builder()
         .requestFactory(
             SimpleClientHttpRequestFactory().apply {
@@ -34,11 +36,11 @@ class AuthService(
             })
         .build()
 
-    fun createLoginRedirectUrl(response: HttpServletResponse): String {
+    fun createLoginRedirectUrl(): String {
         val verifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(verifier)
 
-        response.addCookie(getCodeVerifierCookie(verifier, securityProperties.secureCookie))
+        setCookie(CODE_VERIFIER, verifier, securityProperties.secureCookie, MAX_COOKIE_AGE)
 
         return "${securityProperties.authServerUrl}/oauth2/authorize?" +
                 "response_type=code" +

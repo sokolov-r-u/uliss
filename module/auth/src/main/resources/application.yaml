@@ -40,9 +40,3 @@ app:
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}
       client-secret: ${APP_CLIENTS_M2M_CLIENT_SECRET}
-
-security:
-  oauth2:
-    client:
-      # noinspection SpringBootApplicationYaml
-      redirect-uri: ${SERVER_URL}/oauth2/callback

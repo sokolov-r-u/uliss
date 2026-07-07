@@ -1,16 +1,14 @@
 package io.uliss.security.config
 
+import jakarta.servlet.http.HttpServletResponse
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
-import org.springframework.security.oauth2.server.resource.InvalidBearerTokenException
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
-import org.springframework.security.web.savedrequest.CookieRequestCache
-import org.springframework.security.web.savedrequest.RequestCache
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
@@ -21,7 +19,7 @@ class SecurityConfig {
 
     @Bean
     @ConditionalOnMissingBean
-    fun securityFilterChain(http: HttpSecurity, requestCache: RequestCache): SecurityFilterChain =
+    fun securityFilterChain(http: HttpSecurity): SecurityFilterChain =
         http
             .anonymous { it.disable() }
             .httpBasic { it.disable() }
@@ -29,9 +27,13 @@ class SecurityConfig {
             .csrf { it.disable() }
             .cors { }
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
-            .authorizeHttpRequests { it.anyRequest().authenticated() }
+            .authorizeHttpRequests { auth ->
+                auth
+                    .requestMatchers("/oauth2/**").permitAll()
+                    .anyRequest().authenticated()
+            }
             .oauth2ResourceServer { it.jwt { } }
-            .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint(requestCache)) }
+            .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint()) }
             .build()
 
     @Bean
@@ -44,19 +46,9 @@ class SecurityConfig {
         return UrlBasedCorsConfigurationSource().apply { registerCorsConfiguration(props.register, configuration) }
     }
 
-    @Bean
-//    saves original URI to the cookie
-    fun requestCache(): RequestCache = CookieRequestCache()
-}
-
-private fun authenticationEntryPoint(requestCache: RequestCache) = AuthenticationEntryPoint { request, response, ex ->
-    requestCache.saveRequest(request, response)
-    when (ex) {
-//        todo double check errorCode
-        is InvalidBearerTokenException if (ex.error.errorCode != "invalid_token")
-            -> response.sendRedirect("/oauth2/refresh")
-
-        else -> response.sendRedirect("/oauth2/login")
-    }
+    private fun authenticationEntryPoint() =
+        AuthenticationEntryPoint { _, response, _ ->
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED)
+        }
 }
 

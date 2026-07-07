@@ -56,7 +56,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             details = getDetails(ex),
         )
 
-    private fun getErrorCode(ex: Exception): ErrorCode = when (ex) {
+    private fun getErrorCode(ex: Exception): String = when (ex) {
         is ServerException -> ex.code
         is BindException -> ErrorCode.VALIDATION_ERROR
         is ConstraintViolationException -> ErrorCode.VALIDATION_ERROR
