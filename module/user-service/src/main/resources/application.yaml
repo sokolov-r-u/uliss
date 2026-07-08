@@ -18,9 +18,3 @@ spring:
   flyway:
     schemas: profile
     default-schema: profile
-security:
-  oauth2:
-    client:
-      # noinspection SpringBootApplicationYaml
-      redirect-uri: ${USER_SERVICE_URL}/oauth2/callback
-

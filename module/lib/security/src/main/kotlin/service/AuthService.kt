@@ -1,6 +1,7 @@
 package service
 
 import io.uliss.exception.common.InternalException
+import io.uliss.logging.logger.AppLogger
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
@@ -9,6 +10,7 @@ import io.uliss.security.exception.InvalidRefreshTokenException
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.resilience.annotation.Retryable
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.stereotype.Service
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
@@ -28,6 +30,10 @@ class AuthService(
     private val securityProperties: SecurityProperties,
 ) {
 
+    private val clientId get() = securityProperties.authorizationCode.clientId
+    private val clientSecret get() = securityProperties.authorizationCode.clientSecret
+    private val log = AppLogger.of(AuthService::class)
+
     private val restClient: RestClient = RestClient.builder()
         .requestFactory(
             SimpleClientHttpRequestFactory().apply {
@@ -35,6 +41,7 @@ class AuthService(
                 setReadTimeout(Duration.ofSeconds(5))
             })
         .build()
+
 
     fun createLoginRedirectUrl(): String {
         val verifier = generateCodeVerifier()
@@ -61,18 +68,18 @@ class AuthService(
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerUrl}/oauth2/token") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
                     "grant_type=authorization_code" +
                             "&code=$code" +
                             "&redirect_uri=${securityProperties.redirectUri}" +
-                            "&code_verifier=$codeVerifier" +
-                            "&client_id=${securityProperties.authorizationCode.clientId}" +
-                            "&client_secret=${securityProperties.authorizationCode.clientSecret}"
+                            "&code_verifier=$codeVerifier"
                 )
                 .retrieve()
                 .body<TokenResponse>()
                 ?: throw InternalException("empty response from auth server")
         } catch (ex: HttpClientErrorException) {
+            log.warn("auth server rejected exchange code ${ex.statusCode}:${ex.responseBodyAsString}", "exchangeCode")
             throw InvalidAuthorizationCodeException("authorization code is invalid or expired", ex)
         } catch (ex: HttpServerErrorException) {
             throw AuthServerUnavailableException("auth server unavailable", ex)
@@ -90,17 +97,21 @@ class AuthService(
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerUrl}/oauth2/token") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
                     "grant_type=refresh_token" +
-                            "&refresh_token=$refreshToken" +
-                            "&client_id=${securityProperties.authorizationCode.clientId}" +
-                            "&client_secret=${securityProperties.authorizationCode.clientSecret}"
+                            "&refresh_token=$refreshToken"
                 )
                 .retrieve()
                 .body<TokenResponse>()
                 ?: throw InternalException("empty response from auth server")
         } catch (ex: HttpClientErrorException) {
-            throw InvalidRefreshTokenException("refresh token is invalid or expired", ex)
+            log.warn("auth service reject refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
+            val err = errorCode(ex)
+            if (err == OAuth2ErrorCodes.INVALID_GRANT) {
+                throw InvalidRefreshTokenException("refresh token is invalid or expired", ex)
+            }
+            throw InternalException("auth server error: $err", ex)
         } catch (ex: HttpServerErrorException) {
             throw AuthServerUnavailableException("auth server unavailable", ex)
         }
@@ -117,17 +128,22 @@ class AuthService(
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerUrl}/oauth2/revoke") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
                     "token=$refreshToken" +
-                            "&token_type_hint=refresh_token" +
-                            "&client_id=${securityProperties.authorizationCode.clientId}" +
-                            "&client_secret=${securityProperties.authorizationCode.clientSecret}"
+                            "&token_type_hint=refresh_token"
                 )
                 .retrieve()
-        } catch (_: HttpClientErrorException) {
+        } catch (ex: HttpClientErrorException) {
 //            token is already invalid. Ignore exception
+            log.warn("auth server refused logout ${ex.statusCode}:${ex.responseBodyAsString}; ignoring", "logout")
         } catch (ex: HttpServerErrorException) {
             throw AuthServerUnavailableException("auth server unavailable", ex)
         }
     }
+
+    private fun errorCode(ex: HttpClientErrorException): String? =
+        runCatching { ex.getResponseBodyAs(OAuth2ErrorBody::class.java)?.error }.getOrNull()
+
+    private data class OAuth2ErrorBody(val error: String? = null)
 }

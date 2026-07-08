@@ -1,3 +1,3 @@
-package io.uliss.exception.dto.request
+package io.uliss.security.dto.request
 
 data class LogoutRequest(val refreshToken: String)

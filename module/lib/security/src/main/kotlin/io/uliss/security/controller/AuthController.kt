@@ -1,7 +1,7 @@
 package io.uliss.security.controller
 
-import io.uliss.exception.dto.request.LogoutRequest
-import io.uliss.exception.dto.request.RefreshRequst
+import io.uliss.security.dto.request.LogoutRequest
+import io.uliss.security.dto.request.RefreshRequest
 import io.uliss.security.dto.response.TokenResponse
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.ResponseEntity
@@ -37,7 +37,7 @@ class AuthController(
 
     @PostMapping("/refresh")
     fun refresh(
-        @RequestBody request: RefreshRequst
+        @RequestBody request: RefreshRequest
     ): ResponseEntity<TokenResponse> {
         val tokenResponse = authService.refresh(request.refreshToken)
         return ResponseEntity.ok(tokenResponse)
