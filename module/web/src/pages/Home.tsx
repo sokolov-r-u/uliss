@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '../auth/AuthContext'
-import { fetchMe, UnauthorizedError } from '../api/users'
+import { fetchMe } from '../api/users'
+import { AuthRequiredError } from '../auth/apiClient'
 import { Shell } from '../ui/Shell'
 
 type MeState =
@@ -8,46 +9,38 @@ type MeState =
   | { status: 'ok'; body: string }
   | { status: 'error'; message: string }
 
-/** Protected landing screen: pulls `/users/me` and renders it in the design-system shell. */
+/** Protected landing screen: pulls `/users/me` (via authFetch) and renders it in the shell. */
 export function Home() {
-  const { user, signIn, signOut } = useAuth()
+  const { logout } = useAuth()
   const [me, setMe] = useState<MeState>({ status: 'loading' })
 
   useEffect(() => {
-    if (!user) return
     let active = true
     setMe({ status: 'loading' })
-    fetchMe(user.access_token)
+    fetchMe()
       .then((body) => {
         if (active) setMe({ status: 'ok', body })
       })
       .catch((e: unknown) => {
         if (!active) return
-        if (e instanceof UnauthorizedError) {
-          void signIn()
-          return
-        }
+        // authFetch already kicked off a login/refresh redirect — nothing to render.
+        if (e instanceof AuthRequiredError) return
         setMe({ status: 'error', message: e instanceof Error ? e.message : String(e) })
       })
     return () => {
       active = false
     }
-  }, [user, signIn])
-
-  const profile = user?.profile
-  const displayName = (profile?.name ?? profile?.preferred_username ?? profile?.sub) as string | undefined
+  }, [])
 
   return (
     <Shell
       kicker="authenticated"
       actions={
-        <button type="button" className="link-btn" onClick={() => void signOut()}>
+        <button type="button" className="link-btn" onClick={() => void logout()}>
           sign out
         </button>
       }
     >
-      {displayName ? <p className="auth-muted">χαῖρε · {displayName}</p> : null}
-
       {me.status === 'loading' && <p className="auth-muted">loading…</p>}
       {me.status === 'error' && <p className="auth-error">{me.message}</p>}
       {me.status === 'ok' && <p className="me-result">{me.body}</p>}

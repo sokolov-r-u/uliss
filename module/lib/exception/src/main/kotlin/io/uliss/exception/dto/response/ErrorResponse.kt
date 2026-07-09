@@ -1,4 +1,4 @@
-package io.uliss.exception.dto
+package io.uliss.exception.dto.response
 
 import java.time.Instant
 

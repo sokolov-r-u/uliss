@@ -6,6 +6,17 @@ spring:
           jwk-set-uri: ${AUTH_SERVER_URL}/oauth2/jwks
 
 security:
+  oauth2:
+    client:
+      authorization-code:
+        client-id: ${FRONTEND_CLIENT_ID}
+        client-secret: ${FRONTEND_CLIENT_SECRET}
+      m2m:
+        client-id: ${APP_CLIENTS_M2M_CLIENT_ID}
+        client-secret: ${APP_CLIENTS_M2M_CLIENT_SECRET}
+      redirect-uri: ${FRONTEND_URL}/callback
+      auth-server-url: ${AUTH_SERVER_URL}
+      secure-cookie: ${AUTH_SECURE_COOKIE}
   cors:
     allowed-origins: ${ALLOWED_CORS_URLS}
     allowed-headers: "*"

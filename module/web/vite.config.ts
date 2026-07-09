@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { defineConfig, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
@@ -38,26 +38,42 @@ function noStoreHtml(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), noStoreHtml()],
+export default defineConfig(({ mode }) => {
   // Read env from the shared infra/.env so all config lives in one file. Only VITE_*-prefixed
   // vars reach the browser bundle — backend secrets in the same file stay server-side.
-  envDir: path.resolve(import.meta.dirname, '../../infra'),
-  server: {
-    port: 3000,
-    strictPort: true,
-  },
-  preview: {
-    port: 3000,
-    strictPort: true,
-  },
-  build: {
-    rollupOptions: {
-      output: {
-        entryFileNames: 'assets/[name].[hash].js',
-        chunkFileNames: 'assets/[name].[hash].js',
-        assetFileNames: 'assets/[name].[hash][extname]',
+  const envDir = path.resolve(import.meta.dirname, '../../infra')
+  const env = loadEnv(mode, envDir, '')
+  const serviceTarget = env.USER_SERVICE_URL ?? 'http://localhost:8080'
+
+  // Proxy the service auth/API paths so the browser talks to the service same-origin (:3000).
+  // This keeps the code_verifier / session cookies first-party and avoids CORS in dev.
+  const proxyTarget: ProxyOptions = { target: serviceTarget, changeOrigin: true }
+  const proxy: Record<string, ProxyOptions> = {
+    '/oauth2': proxyTarget,
+    '/users': proxyTarget,
+  }
+
+  return {
+    plugins: [react(), noStoreHtml()],
+    envDir,
+    server: {
+      port: 3000,
+      strictPort: true,
+      proxy,
+    },
+    preview: {
+      port: 3000,
+      strictPort: true,
+      proxy,
+    },
+    build: {
+      rollupOptions: {
+        output: {
+          entryFileNames: 'assets/[name].[hash].js',
+          chunkFileNames: 'assets/[name].[hash].js',
+          assetFileNames: 'assets/[name].[hash][extname]',
+        },
       },
     },
-  },
+  }
 })

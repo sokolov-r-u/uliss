@@ -19,26 +19,28 @@ import java.util.UUID
 class DataInitializer(
     private val registeredClientRepository: RegisteredClientRepository,
     private val passwordEncoder: PasswordEncoder,
-    @Value($$"${app.clients.spa.client-id}") private val spaClient: String,
-    @Value($$"${app.clients.spa.redirect-uri}") private val spaRedirectUri: String,
-    @Value($$"${app.clients.m2m.client-id}") private val m2mClient: String,
-    @Value($$"${app.clients.m2m.client-secret}") private val m2mSecret: String
+    @Value($$"${app.clients.authorization-code.client-id}") private val webClientId: String,
+    @Value($$"${app.clients.authorization-code.client-secret}") private val webClientSecret: String,
+    @Value($$"${app.clients.authorization-code.callback-url}") private val callbackUrl: String,
+    @Value($$"${app.clients.m2m.client-id}") private val m2mClientId: String,
+    @Value($$"${app.clients.m2m.client-secret}") private val m2mClientSecret: String
 ) : ApplicationRunner {
 
     override fun run(args: ApplicationArguments) {
-        saveSpaClientIfNotExists(spaClient, spaRedirectUri)
-        saveM2mClientIfNotExists(m2mClient, m2mSecret)
+        saveAuthCodeClientIfNotExists(webClientId, webClientSecret, callbackUrl)
+        saveClientCredentialsClientIfNotExists(m2mClientId, m2mClientSecret)
     }
 
-    private fun saveSpaClientIfNotExists(clientId: String, redirectUri: String) {
+    private fun saveAuthCodeClientIfNotExists(clientId: String, clientSecret: String, callbackUrl: String) {
         if (registeredClientRepository.findByClientId(clientId) != null) return
 
         val client = RegisteredClient.withId(UUID.randomUUID().toString())
             .clientId(clientId)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.NONE)
+            .clientSecret(passwordEncoder.encode(clientSecret)!!)
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .redirectUri(redirectUri)
+            .redirectUri(callbackUrl)
             .scope(OidcScopes.OPENID)
             .scope(OidcScopes.PROFILE)
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
@@ -54,7 +56,7 @@ class DataInitializer(
         registeredClientRepository.save(client)
     }
 
-    private fun saveM2mClientIfNotExists(clientId: String, clientSecret: String) {
+    private fun saveClientCredentialsClientIfNotExists(clientId: String, clientSecret: String) {
         if (registeredClientRepository.findByClientId(clientId) != null) return
 
         val client = RegisteredClient.withId(UUID.randomUUID().toString())

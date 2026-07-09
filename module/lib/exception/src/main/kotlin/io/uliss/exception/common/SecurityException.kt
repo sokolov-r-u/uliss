@@ -1,11 +1,11 @@
 package io.uliss.exception.common
 
+import io.uliss.exception.utils.ErrorCode.SECURITY_ERROR
 import org.springframework.http.HttpStatus
-import io.uliss.exception.utils.ErrorCode
 
-class SecurityException(
+open class SecurityException(
     message: String,
+    cause: Throwable? = null,
     httpStatus: HttpStatus = HttpStatus.FORBIDDEN,
-    code: String = ErrorCode.SECURITY_ERROR
-    ) : ServerException(message, httpStatus, code) {
-}
+    code: String = SECURITY_ERROR
+) : ServerException(message, cause, httpStatus, code)

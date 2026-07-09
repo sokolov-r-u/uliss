@@ -7,4 +7,4 @@ open class AlreadyExistsException(
     httpStatus: HttpStatus,
     code: String,
     details: Map<Any, Any> = emptyMap()
-) : ServerException(message, httpStatus, code, details)
+) : ServerException(message, null, httpStatus, code, details)

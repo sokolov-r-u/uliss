@@ -30,9 +30,10 @@ app:
   cors:
     allowed-origins: ${AUTH_ALLOWED_CORS_URLS:http://localhost:3000}
   clients:
-    spa:
-      client-id: ${APP_CLIENTS_SPA_CLIENT_ID}
-      redirect-uri: ${APP_CLIENTS_SPA_REDIRECT_URI}
+    authorization-code:
+      client-id: ${FRONTEND_CLIENT_ID}
+      client-secret: ${FRONTEND_CLIENT_SECRET}
+      callback-url: ${FRONTEND_URL}/callback
 
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}

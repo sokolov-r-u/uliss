@@ -5,6 +5,7 @@ spring:
   application:
     name: user-service
   config:
+    # noinspection SpringBootApplicationYaml
     import:
       - classpath:database.yml
       - classpath:exception.yml
@@ -17,4 +18,3 @@ spring:
   flyway:
     schemas: profile
     default-schema: profile
-

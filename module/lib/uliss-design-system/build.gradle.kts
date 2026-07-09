@@ -13,6 +13,7 @@ node {
 	nodeProjectDir.set(rootProject.layout.projectDirectory)
 	// Use the Node/npm already installed on the machine (set to true to let Gradle manage Node, e.g. on CI)
 	download.set(false)
+	version.set("24.15.0")
 }
 
 // Runs the design-system npm build (postcss autoprefixer -> dist/**, structure preserved)

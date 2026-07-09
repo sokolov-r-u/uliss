@@ -1,19 +1,22 @@
 import { useEffect, type ReactNode } from 'react'
 import { Routes, Route } from 'react-router-dom'
 import { useAuth } from './auth/AuthContext'
+import { getTokens } from './auth/tokenStore'
 import { Home } from './pages/Home'
 import { Callback } from './pages/Callback'
 import { Shell } from './ui/Shell'
 
-/** Gate: kicks off an OAuth2 redirect when there is no authenticated user. */
+/** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
-  const { user, loading, signIn } = useAuth()
+  const { isAuthenticated, login } = useAuth()
 
   useEffect(() => {
-    if (!loading && !user) void signIn()
-  }, [loading, user, signIn])
+    // Double-check storage so a transient state desync (e.g. right after code exchange)
+    // never triggers a spurious full-page redirect.
+    if (!isAuthenticated && getTokens() == null) login()
+  }, [isAuthenticated, login])
 
-  if (loading || !user) {
+  if (!isAuthenticated) {
     return (
       <Shell kicker="redirecting">
         <p className="auth-muted">χαῖρε · taking you to sign in…</p>

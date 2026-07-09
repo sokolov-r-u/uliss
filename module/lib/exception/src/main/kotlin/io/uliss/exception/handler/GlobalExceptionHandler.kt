@@ -1,7 +1,7 @@
 package io.uliss.exception.handler
 
 import io.uliss.exception.common.ServerException
-import io.uliss.exception.dto.ErrorResponse
+import io.uliss.exception.dto.response.ErrorResponse
 import io.uliss.exception.utils.ErrorCode
 import io.uliss.exception.utils.MESSAGE_KEY
 import io.uliss.exception.utils.UNKNOWN_PATH
