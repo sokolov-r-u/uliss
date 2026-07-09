@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    driver-class-name: org.postgresql.Driver
+    username: postgres
+    password: postgres
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      jdbc:
+        batch_size: 50
+        batch_versioned_data: true
+      order_inserts: true
+      order_updates: true
+  flyway:
+    enabled: true

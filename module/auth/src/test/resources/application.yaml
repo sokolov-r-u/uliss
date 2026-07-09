@@ -1,0 +1,38 @@
+server:
+  port: 9000
+
+spring:
+  application:
+    name: auth
+  config:
+    import:
+      - classpath:database-test.yml
+      - classpath:exception.yml
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: # заполнит @ServiceConnection автоматически
+  flyway:
+    schemas: auth
+    default-schema: auth
+  jpa:
+    properties:
+      hibernate:
+        default_schema: auth
+  thymeleaf:
+    cache: false
+
+app:
+  auth:
+    issuer: http://localhost:9000
+  cors:
+    allowed-origins: http://localhost:3000
+  clients:
+    authorization-code:
+      client-id: test-web-client
+      client-secret: test-web-secret
+      callback-url: http://localhost:3000/callback
+    m2m:
+      client-id: test-m2m-client
+      client-secret: test-m2m-secret

@@ -11,8 +11,8 @@ import org.springframework.context.annotation.Import
 @Import(TestContainersConfiguration::class)
 class AuthApplicationTests {
 
-	@Test
-	fun contextLoads() {
-	}
+    @Test
+    fun contextLoads() {
+    }
 
 }

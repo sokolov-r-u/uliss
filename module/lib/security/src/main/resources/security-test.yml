@@ -1,0 +1,29 @@
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: http://localhost:9000/oauth2/jwks
+
+security:
+  oauth2:
+    client:
+      authorization-code:
+        client-id: test-web-client
+        client-secret: test-web-secret
+      m2m:
+        client-id: test-m2m-client
+        client-secret: test-m2m-secret
+      redirect-uri: http://localhost:3000/callback
+      auth-server-url: http://localhost:9000
+      secure-cookie: false
+  cors:
+    allowed-origins: http://localhost:3000
+    allowed-headers: "*"
+    allowed-methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+    register: "/**"
