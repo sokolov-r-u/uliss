@@ -134,6 +134,7 @@ class AuthService(
                             "&token_type_hint=refresh_token"
                 )
                 .retrieve()
+                .toBodilessEntity()
         } catch (ex: HttpClientErrorException) {
 //            token is already invalid. Ignore exception
             log.warn("auth server refused logout ${ex.statusCode}:${ex.responseBodyAsString}; ignoring", "logout")
