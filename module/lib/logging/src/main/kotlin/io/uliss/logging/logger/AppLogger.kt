@@ -7,19 +7,19 @@ import kotlin.reflect.KClass
 class AppLogger(private val logger: Logger, private val clazz: KClass<*>) {
 
     fun debug(message: String, method: String) {
-        logger.debug("method='{}.{}' message={}", clazz, method, message)
+        logger.debug("method='{}.{}' message='{}'", clazz, method, message)
     }
 
     fun info(message: String, method: String) {
-        logger.info("method='{}.{}' message={}", clazz, method, message)
+        logger.info("method='{}.{}' message='{}'", clazz, method, message)
     }
 
     fun warn(message: String, method: String) {
-        logger.warn("method='{}.{}' message={}", clazz, method, message)
+        logger.warn("method='{}.{}' message='{}'", clazz, method, message)
     }
 
     fun error(message: String, method: String) {
-        logger.error("method='{}.{}' message={}", clazz, method, message)
+        logger.error("method='{}.{}' message='{}'", clazz, method, message)
 
     }
 

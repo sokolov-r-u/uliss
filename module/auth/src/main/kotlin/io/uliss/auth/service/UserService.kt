@@ -1,10 +1,12 @@
 package io.uliss.auth.service
 
 import dto.RegisterUserRequest
+import exception.EmailAlreadyExistsException
 import io.uliss.auth.model.UserEntity
 import io.uliss.auth.model.UserStatus
-import io.uliss.auth.repository.UserRepository
 import io.uliss.auth.model.toUserDetails
+import io.uliss.auth.repository.UserRepository
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.core.userdetails.UsernameNotFoundException
@@ -29,6 +31,10 @@ class UserService(
             passwordHash = passwordEncoder.encode(request.password)!!,
             status = UserStatus.PENDING_VERIFICATION
         )
-        userRepository.save(user)
+        try {
+            userRepository.save(user)
+        } catch (_: DataIntegrityViolationException) {
+            throw EmailAlreadyExistsException()
+        }
     }
 }

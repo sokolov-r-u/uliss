@@ -7,20 +7,24 @@ import io.uliss.exception.utils.MESSAGE_KEY
 import io.uliss.exception.utils.UNKNOWN_PATH
 import io.uliss.exception.utils.URI_PREFIX
 import jakarta.validation.ConstraintViolationException
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.BindException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingRequestCookieException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.context.request.WebRequest
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler
 import java.time.Instant
 
 @ControllerAdvice
 class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
+    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.simpleName)
 
     @ExceptionHandler(ServerException::class)
     fun handleServerException(ex: ServerException, request: WebRequest): ResponseEntity<Any>? =
@@ -33,6 +37,19 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
     ): ResponseEntity<Any>? =
         handleException(ex, HttpStatus.BAD_REQUEST, request)
 
+    @ExceptionHandler(ResourceAccessException::class)
+    fun handleRetryException(ex: ResourceAccessException, request: WebRequest): ResponseEntity<Any>? =
+        handleException(ex, HttpStatus.SERVICE_UNAVAILABLE, request)
+
+    @ExceptionHandler(MissingRequestCookieException::class)
+    fun handleMissingCookie(ex: MissingRequestCookieException, request: WebRequest): ResponseEntity<Any>? =
+        handleException(ex, HttpStatus.BAD_REQUEST, request)
+
+    @ExceptionHandler(RuntimeException::class)
+    fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
+        return handleException(ex, HttpStatus.INTERNAL_SERVER_ERROR, request)
+    }
+
     override fun handleMethodArgumentNotValid(
         ex: MethodArgumentNotValidException,
         headers: HttpHeaders,
@@ -44,6 +61,9 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun handleException(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ResponseEntity<Any>? {
         val response = getExceptionResponse(ex, httpStatus, request)
+        if (httpStatus.is5xxServerError) {
+            log.error("server error on ${response.path}", ex)
+        }
         return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
     }
 
@@ -60,6 +80,8 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
         is ServerException -> ex.code
         is BindException -> ErrorCode.VALIDATION_ERROR
         is ConstraintViolationException -> ErrorCode.VALIDATION_ERROR
+        is ResourceAccessException -> ErrorCode.INTERNAL_ERROR
+        is MissingRequestCookieException -> ErrorCode.BAD_REQUEST_ERROR
         else -> ErrorCode.UNKNOWN_ERROR
     }
 

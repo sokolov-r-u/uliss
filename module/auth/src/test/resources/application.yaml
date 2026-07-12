@@ -12,7 +12,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: # заполнит @ServiceConnection автоматически
+    url: # testcontainers fill it automatically
   flyway:
     schemas: auth
     default-schema: auth
