@@ -7,6 +7,7 @@ import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidRefreshTokenException
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.resilience.annotation.Retryable
@@ -16,13 +17,13 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
-import org.springframework.web.client.body
 import utils.CODE_VERIFIER
 import utils.MAX_COOKIE_AGE
 import utils.generateCodeChallenge
 import utils.generateCodeVerifier
 import utils.setCookie
 import java.net.URI
+import java.net.URLEncoder
 import java.time.Duration
 
 @Service
@@ -71,13 +72,11 @@ class AuthService(
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
                     "grant_type=authorization_code" +
-                            "&code=$code" +
+                            "&code=${URLEncoder.encode(code, Charsets.UTF_8)}" +
                             "&redirect_uri=${securityProperties.redirectUri}" +
                             "&code_verifier=$codeVerifier"
                 )
-                .retrieve()
-                .body<TokenResponse>()
-                ?: throw InternalException("empty response from auth server")
+                .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
             log.warn("auth server rejected exchange code ${ex.statusCode}:${ex.responseBodyAsString}", "exchangeCode")
             throw InvalidAuthorizationCodeException("authorization code is invalid or expired", ex)
@@ -102,9 +101,7 @@ class AuthService(
                     "grant_type=refresh_token" +
                             "&refresh_token=$refreshToken"
                 )
-                .retrieve()
-                .body<TokenResponse>()
-                ?: throw InternalException("empty response from auth server")
+                .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
             log.warn("auth service reject refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
             val err = errorCode(ex)
@@ -112,8 +109,6 @@ class AuthService(
                 throw InvalidRefreshTokenException("refresh token is invalid or expired", ex)
             }
             throw InternalException("auth server error: $err", ex)
-        } catch (ex: HttpServerErrorException) {
-            throw AuthServerUnavailableException("auth server unavailable", ex)
         }
     }
 
@@ -130,21 +125,39 @@ class AuthService(
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
-                    "token=$refreshToken" +
+                    "token=${URLEncoder.encode(refreshToken, Charsets.UTF_8.name())}" +
                             "&token_type_hint=refresh_token"
                 )
-                .retrieve()
-                .toBodilessEntity()
+                .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
 //            token is already invalid. Ignore exception
             log.warn("auth server refused logout ${ex.statusCode}:${ex.responseBodyAsString}; ignoring", "logout")
-        } catch (ex: HttpServerErrorException) {
-            throw AuthServerUnavailableException("auth server unavailable", ex)
         }
     }
 
+    // read the OAuth2 error from the raw body: a manually built exception has no body converter
     private fun errorCode(ex: HttpClientErrorException): String? =
-        runCatching { ex.getResponseBodyAs(OAuth2ErrorBody::class.java)?.error }.getOrNull()
-
-    private data class OAuth2ErrorBody(val error: String? = null)
+        OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
+
+private val OAUTH2_ERROR = Regex(""""error"\s*:\s*"([^"]+)"""")
+
+inline fun <reified T : Any> RestClient.RequestBodySpec.getResponseOrThrow(): T =
+    this.exchange { _, res ->
+        when {
+            res.statusCode.is2xxSuccessful ->
+                if (T::class == Unit::class) Unit as T
+                else res.bodyTo(T::class.java) ?: throw InternalException("empty response")
+
+            res.statusCode == HttpStatus.UNAUTHORIZED ->
+                throw InternalException("invalid client credentials")
+
+            res.statusCode.is5xxServerError ->
+                throw AuthServerUnavailableException("auth server unavailable")
+
+            else -> {
+                val body = res.bodyTo(ByteArray::class.java) ?: ByteArray(0)
+                throw HttpClientErrorException.create(res.statusCode, "", res.headers, body, null)
+            }
+        }
+    }

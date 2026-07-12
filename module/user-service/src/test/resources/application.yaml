@@ -1,0 +1,19 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: user-service
+  config:
+    import:
+      - classpath:database-test.yml
+      - classpath:exception.yml
+      - classpath:security-test.yml
+  threads:
+    virtual:
+      enabled: true
+  flyway:
+    schemas: profile
+    default-schema: profile
+    locations: classpath:db/migration
+    create-schemas: true

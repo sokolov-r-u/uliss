@@ -1,6 +1,7 @@
 package io.uliss.auth.controller
 
 import dto.RegisterUserRequest
+import exception.EmailAlreadyExistsException
 import io.uliss.auth.service.UserService
 import jakarta.validation.Valid
 import org.springframework.stereotype.Controller
@@ -35,7 +36,12 @@ class AuthController(
         if (bindingResult.hasErrors()) {
             return "register"
         }
-        userService.register(form)
+        try {
+            userService.register(form)
+        } catch (_: EmailAlreadyExistsException) {
+            bindingResult.rejectValue("email", "duplicate", "Email already in use")
+            return "register"
+        }
         return "redirect:/login?registered"
     }
 

@@ -15,5 +15,5 @@ class TestContainersConfiguration {
             "pgvector/pgvector:0.8.2-pg18-trixie"
         )
             .asCompatibleSubstituteFor("postgres")
-    )
+    ).apply { withUrlParam("currentSchema", "profile") }
 }

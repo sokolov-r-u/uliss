@@ -7,9 +7,11 @@ spring-dependency-management = "1.1.7"
 spring-retry = "2.0.11"
 fasterxml-uuid-generator = "5.2.0"
 node-gradle = "7.1.0"
+wiremock = "3.13.2"
 
 
 [libraries]
+wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlin-noarg = { module = "org.jetbrains.kotlin:kotlin-noarg", version.ref = "kotlin" }
