@@ -34,6 +34,16 @@
       "name": "app.clients.m2m.client-secret",
       "type": "java.lang.String",
       "description": "Raw client secret of the m2m client. Stored BCrypt-hashed in the registered client repository."
+    },
+    {
+      "name": "grpc.user-service.host",
+      "type": "java.lang.String",
+      "description": "Host of the user-service gRPC server. Used by GrpcConfig to build the ManagedChannel for enriching access tokens with the user's displayName."
+    },
+    {
+      "name": "grpc.user-service.port",
+      "type": "java.lang.Integer",
+      "description": "Port of the user-service gRPC server. Used by GrpcConfig to build the ManagedChannel for enriching access tokens with the user's displayName."
     }
   ]
 }

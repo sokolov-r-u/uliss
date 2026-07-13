@@ -9,6 +9,12 @@ fasterxml-uuid-generator = "5.2.0"
 node-gradle = "7.1.0"
 wiremock = "3.13.2"
 
+protobuf = "4.34.2"
+grpc = "1.80.0"
+protobufPlugin = "0.9.6"
+springGrpc = "1.1.0"
+tomcat-annotations = "6.0.53"
+
 
 [libraries]
 wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
@@ -21,6 +27,15 @@ kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", v
 kotlin-allopen = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlin" }
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
 spring-dependency-management-plugin = { module = "io.spring.gradle:dependency-management-plugin", version.ref = "spring-dependency-management" }
+
+grpc-stub = { module = "io.grpc:grpc-stub" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf" }
+protobuf-java = { module = "com.google.protobuf:protobuf-java" }
+
+spring-grpc-bom = { module = "org.springframework.grpc:spring-grpc-dependencies", version.ref = "springGrpc" }
+tomcat-annotations-api = { module = "org.apache.tomcat:annotations-api", version.ref = "tomcat-annotations" }
+
+protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobufPlugin" }
 
 [plugins]
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }

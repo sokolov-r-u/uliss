@@ -6,6 +6,7 @@ plugins {
 version = "0.0.1"
 
 dependencies {
+    implementation(project(":user-api"))
     implementation(project(":security"))
     implementation(project(":database"))
     implementation(project(":exception"))
@@ -14,6 +15,7 @@ dependencies {
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("tools.jackson.module:jackson-module-kotlin")
+    implementation("org.springframework.boot:spring-boot-starter-grpc-server")
 
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")

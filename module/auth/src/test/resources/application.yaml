@@ -36,3 +36,8 @@ app:
     m2m:
       client-id: test-m2m-client
       client-secret: test-m2m-secret
+
+grpc:
+  user-service:
+    host: localhost
+    port: 8080

@@ -12,13 +12,14 @@ node {
 	// npm workspaces live in the repo root package.json
 	nodeProjectDir.set(rootProject.layout.projectDirectory)
 	// Use the Node/npm already installed on the machine (set to true to let Gradle manage Node, e.g. on CI)
-	download.set(false)
+	download.set(true)
 	version.set("24.15.0")
 }
 
 // Runs the design-system npm build (postcss autoprefixer -> dist/**, structure preserved)
 val buildDesignSystem by tasks.registering(NpmTask::class) {
 	dependsOn(tasks.named("npmInstall"))
+	workingDir.set(rootProject.layout.projectDirectory.asFile)
 	args.set(listOf("run", "build", "-w", "@uliss/design-system"))
 	inputs.dir(layout.projectDirectory.dir("src"))
 	inputs.file(layout.projectDirectory.file("package.json"))

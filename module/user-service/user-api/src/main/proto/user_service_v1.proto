@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package io.uliss.user.v1;
+
+option java_multiple_files = true;
+option java_package = "io.uliss.api.user.v1";
+option java_outer_classname = "UserServiceProto";
+
+service UserService {
+  rpc GetDisplayName(DisplayNameRequest) returns (DisplayNameResponse);
+}
+
+message DisplayNameRequest {
+  string auth_id = 1;
+}
+message DisplayNameResponse {
+  string display_name = 1;
+}
