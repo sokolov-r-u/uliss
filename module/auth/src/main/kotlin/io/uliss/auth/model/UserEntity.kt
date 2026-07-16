@@ -18,7 +18,7 @@ class UserEntity(
 ) : UuidEntity() {
 
     override fun toString(): String {
-        return "User(id=${id}, status=$status, email='$email'" + super.toString()
+        return "UserEntity(id=${id}, status=$status, email='$email'" + super.toString()
     }
 }
 

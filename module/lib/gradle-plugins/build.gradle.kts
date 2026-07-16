@@ -13,4 +13,5 @@ dependencies {
     implementation(libs.kotlin.noarg)
     implementation(libs.spring.boot.gradle.plugin)
     implementation(libs.spring.dependency.management.plugin)
+    implementation(libs.protobuf.gradle.plugin)
 }

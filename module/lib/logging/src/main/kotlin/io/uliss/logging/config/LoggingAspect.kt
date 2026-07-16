@@ -25,13 +25,13 @@ class LoggingAspect {
         val methodName = proceedingJoinPoint.signature.name
         val args = proceedingJoinPoint.args
 
-        val logger = LoggerFactory.getLogger(className)
-        logger.debug("called method='{}.{}' with args='{}'", className, methodName, args.contentToString())
+        val logger = LoggerFactory.getLogger(proceedingJoinPoint.signature.declaringType)
+        logger.debug("call method='{}.{}' with args='{}'", className, methodName, args.contentToString())
         try {
             result = proceedingJoinPoint.proceed()
-            logger.debug("method='{}.{}' return value='{}'", className, methodName, result)
+            logger.debug("finish method='{}.{}' return value='{}'", className, methodName, result)
         } catch (ex: Throwable) {
-            logger.error("error occurred during method='{}.{}' ex='{}'", className, methodName, ex.message)
+            logger.error("error in method='{}.{}' ex='{}'", className, methodName, ex.message)
             throw ex
         }
         return result

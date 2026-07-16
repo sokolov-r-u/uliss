@@ -1,5 +1,5 @@
 import path from 'node:path'
-import { defineConfig, loadEnv, type Plugin, type ProxyOptions } from 'vite'
+import {defineConfig, loadEnv, type Plugin, type ProxyOptions} from 'vite'
 import react from '@vitejs/plugin-react'
 
 /**
@@ -43,7 +43,7 @@ export default defineConfig(({ mode }) => {
   // vars reach the browser bundle — backend secrets in the same file stay server-side.
   const envDir = path.resolve(import.meta.dirname, '../../infra')
   const env = loadEnv(mode, envDir, '')
-  const serviceTarget = env.USER_SERVICE_URL ?? 'http://localhost:8080'
+  const serviceTarget = `${env.USER_SERVICE_URL ?? 'http://localhost'}:${env.USER_SERVICE_PORT ?? '8080'}`
 
   // Proxy the service auth/API paths so the browser talks to the service same-origin (:3000).
   // This keeps the code_verifier / session cookies first-party and avoids CORS in dev.
