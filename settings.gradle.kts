@@ -6,7 +6,7 @@ rootProject.name = "uliss"
 
 include(
     "auth",
-    "user-service",
+    "user",
     "user-api",
     "security",
     "database",
@@ -17,8 +17,8 @@ include(
 )
 
 project(":auth").projectDir = file("module/auth")
-project(":user-service").projectDir = file("module/user-service/user-app")
-project(":user-api").projectDir = file("module/user-service/user-api")
+project(":user").projectDir = file("module/user/user-app")
+project(":user-api").projectDir = file("module/user/user-api")
 project(":security").projectDir = file("module/lib/security")
 project(":database").projectDir = file("module/lib/database")
 project(":exception").projectDir = file("module/lib/exception")

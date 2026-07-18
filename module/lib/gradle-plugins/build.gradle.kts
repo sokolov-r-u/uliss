@@ -14,4 +14,5 @@ dependencies {
     implementation(libs.spring.boot.gradle.plugin)
     implementation(libs.spring.dependency.management.plugin)
     implementation(libs.protobuf.gradle.plugin)
+    implementation(libs.jib.gradle.plugin)
 }
