@@ -302,7 +302,8 @@ class AuthMediatorTest {
         @JvmStatic
         @DynamicPropertySource
         fun props(registry: DynamicPropertyRegistry) {
-            registry.add("security.oauth2.client.auth-server-url") { wireMock.baseUrl() }
+            registry.add("security.oauth2.client.auth-server-public-url") { wireMock.baseUrl() }
+            registry.add("security.oauth2.client.auth-server-internal-url") { wireMock.baseUrl() }
         }
 
         @JvmStatic

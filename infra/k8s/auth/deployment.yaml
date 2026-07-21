@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: auth
-          image: uliss/auth:0.0.1
+          image: uliss/auth:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 9000

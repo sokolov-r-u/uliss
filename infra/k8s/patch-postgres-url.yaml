@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: Secret
-metadata:
-  name: uliss-secret
-stringData:
-  POSTGRES_URL: "jdbc:postgresql://host.minikube.internal:5432/uliss"

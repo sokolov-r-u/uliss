@@ -1,5 +1,5 @@
-apiversion: networking.k8s.io/v1
-kind: ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
 metadata:
   name: ingress-uliss-host
 spec:
@@ -7,7 +7,7 @@ spec:
     - host: "auth.uliss.local"
       http:
         paths:
-          - pathtype: prefix
+          - pathType: Prefix
             path: "/"
             backend:
               service:
@@ -17,10 +17,35 @@ spec:
     - host: "user.uliss.local"
       http:
         paths:
-          - pathtype: prefix
+          - pathType: Prefix
             path: "/"
             backend:
               service:
                 name: user
                 port:
                   number: 8080
+    - host: "uliss.local"
+      http:
+        paths:
+          # same-origin: SPA calls relative /oauth2 and /users -> user-service
+          - pathType: Prefix
+            path: "/oauth2"
+            backend:
+              service:
+                name: user
+                port:
+                  number: 8080
+          - pathType: Prefix
+            path: "/users"
+            backend:
+              service:
+                name: user
+                port:
+                  number: 8080
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80

@@ -1,29 +1,26 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: user
+  name: web
   labels:
-    app: user
+    app: web
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: user
+      app: web
   template:
     metadata:
-      name: user
+      name: web
       labels:
-        app: user
+        app: web
     spec:
       containers:
-        - name: user
-          image: uliss/user:latest
+        - name: web
+          image: uliss/web:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080
+            - containerPort: 80
               protocol: TCP
-          envFrom:
-            - secretRef:
-                name: uliss-secret
       restartPolicy: Always
       

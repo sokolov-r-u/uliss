@@ -32,7 +32,7 @@ app:
     authorization-code:
       client-id: test-web-client
       client-secret: test-web-secret
-      callback-url: http://localhost:3000/callback
+      callback-urls: http://localhost:3000/callback
     m2m:
       client-id: test-m2m-client
       client-secret: test-m2m-secret

@@ -6,6 +6,9 @@ resources:
   - k8s/auth/service.yaml
   - k8s/user/deployment.yaml
   - k8s/user/service.yaml
+  - k8s/web/deployment.yaml
+  - k8s/web/service.yaml
+  - k8s/ingress.yaml
 
 secretGenerator:
   - name: uliss-secret
@@ -15,4 +18,4 @@ secretGenerator:
       disableNameSuffixHash: true
 
 patches:
-  - path: k8s/patch-postgres-url.yaml
+  - path: k8s/patch-k8s-secret.yaml

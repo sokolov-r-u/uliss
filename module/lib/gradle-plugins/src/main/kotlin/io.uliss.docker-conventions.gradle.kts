@@ -13,6 +13,7 @@ afterEvaluate {
         }
         to {
             image = "uliss/${project.name}:${project.version}"
+            tags = setOf("latest")
         }
         dockerClient {
             executable = requiredProperty("docker.executable")

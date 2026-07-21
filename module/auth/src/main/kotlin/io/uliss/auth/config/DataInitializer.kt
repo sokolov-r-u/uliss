@@ -21,18 +21,26 @@ class DataInitializer(
     private val passwordEncoder: PasswordEncoder,
     @Value($$"${app.clients.authorization-code.client-id}") private val webClientId: String,
     @Value($$"${app.clients.authorization-code.client-secret}") private val webClientSecret: String,
-    @Value($$"${app.clients.authorization-code.callback-url}") private val callbackUrl: String,
+    @Value($$"${app.clients.authorization-code.callback-urls}") private val callbackUrls: List<String>,
     @Value($$"${app.clients.m2m.client-id}") private val m2mClientId: String,
     @Value($$"${app.clients.m2m.client-secret}") private val m2mClientSecret: String
 ) : ApplicationRunner {
 
     override fun run(args: ApplicationArguments) {
-        saveAuthCodeClientIfNotExists(webClientId, webClientSecret, callbackUrl)
+        saveOrUpdateAuthCodeClient(webClientId, webClientSecret, callbackUrls)
         saveClientCredentialsClientIfNotExists(m2mClientId, m2mClientSecret)
     }
 
-    private fun saveAuthCodeClientIfNotExists(clientId: String, clientSecret: String, callbackUrl: String) {
-        if (registeredClientRepository.findByClientId(clientId) != null) return
+    private fun saveOrUpdateAuthCodeClient(clientId: String, clientSecret: String, callbackUrls: List<String>) {
+        val existing = registeredClientRepository.findByClientId(clientId)
+        if (existing != null) {
+            val missing = callbackUrls.filter { it !in existing.redirectUris }
+            if (missing.isEmpty()) return
+            val updated = RegisteredClient.from(existing)
+            missing.forEach { updated.redirectUri(it) }
+            registeredClientRepository.save(updated.build())
+            return
+        }
 
         val client = RegisteredClient.withId(UUID.randomUUID().toString())
             .clientId(clientId)
@@ -40,7 +48,7 @@ class DataInitializer(
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
             .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
             .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .redirectUri(callbackUrl)
+            .apply { callbackUrls.forEach { redirectUri(it) } }
             .scope(OidcScopes.OPENID)
             .scope(OidcScopes.PROFILE)
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
