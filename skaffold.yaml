@@ -1,0 +1,26 @@
+apiVersion: skaffold/v4beta14
+kind: Config
+metadata:
+  name: uliss
+build:
+  local:
+    push: false
+  artifacts:
+    - image: uliss/auth
+      context: .
+      jib:
+        project: "auth"
+    - image: uliss/user
+      context: .
+      jib:
+        project: "user"
+    - image: uliss/web
+      context: .
+      docker:
+        dockerfile: module/web/Dockerfile
+manifests:
+  kustomize:
+    paths:
+      - infra
+deploy:
+  kubectl: {}
