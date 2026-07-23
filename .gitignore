@@ -50,3 +50,4 @@ node_modules/
 .DS_Store
 
 /CLAUDE.md
+/gradle.properties

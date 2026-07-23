@@ -1,0 +1,5 @@
+# for local development. Add this lines to /etc/hosts
+127.0.0.1  auth.uliss.local
+127.0.0.1  user.uliss.local
+127.0.0.1  note.uliss.local
+127.0.0.1  postgres

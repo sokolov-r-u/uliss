@@ -14,6 +14,7 @@ grpc = "1.80.0"
 protobufPlugin = "0.9.6"
 springGrpc = "1.1.0"
 tomcat-annotations = "6.0.53"
+jib = "3.5.4"
 
 
 [libraries]
@@ -26,6 +27,7 @@ fasterxml-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", 
 kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
 kotlin-allopen = { module = "org.jetbrains.kotlin:kotlin-allopen", version.ref = "kotlin" }
 spring-boot-gradle-plugin = { module = "org.springframework.boot:spring-boot-gradle-plugin", version.ref = "spring-boot" }
+jib-gradle-plugin = { module = "com.google.cloud.tools:jib-gradle-plugin", version.ref = "jib" }
 spring-dependency-management-plugin = { module = "io.spring.gradle:dependency-management-plugin", version.ref = "spring-dependency-management" }
 
 grpc-stub = { module = "io.grpc:grpc-stub" }

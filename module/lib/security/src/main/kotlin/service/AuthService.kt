@@ -50,7 +50,7 @@ class AuthService(
 
         setCookie(CODE_VERIFIER, verifier, securityProperties.secureCookie, MAX_COOKIE_AGE)
 
-        return "${securityProperties.authServerUrl}/oauth2/authorize?" +
+        return "${securityProperties.authServerPublicUrl}/oauth2/authorize?" +
                 "response_type=code" +
                 "&redirect_uri=${securityProperties.redirectUri}" +
                 "&client_id=${securityProperties.authorizationCode.clientId}" +
@@ -67,7 +67,7 @@ class AuthService(
     fun exchangeCode(code: String, codeVerifier: String): TokenResponse {
         return try {
             restClient.post()
-                .uri { URI.create("${securityProperties.authServerUrl}/oauth2/token") }
+                .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
@@ -94,7 +94,7 @@ class AuthService(
     fun refresh(refreshToken: String): TokenResponse {
         return try {
             restClient.post()
-                .uri { URI.create("${securityProperties.authServerUrl}/oauth2/token") }
+                .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
@@ -121,7 +121,7 @@ class AuthService(
     fun logout(refreshToken: String) {
         try {
             restClient.post()
-                .uri { URI.create("${securityProperties.authServerUrl}/oauth2/revoke") }
+                .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/revoke") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(

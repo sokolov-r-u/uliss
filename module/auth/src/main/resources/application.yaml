@@ -26,14 +26,14 @@ spring:
 
 app:
   auth:
-    issuer: ${AUTH_SERVER_ISSUER}
+    issuer: ${AUTH_PUBLIC_URL}
   cors:
     allowed-origins: ${AUTH_ALLOWED_CORS_URLS:http://localhost:3000}
   clients:
     authorization-code:
       client-id: ${FRONTEND_CLIENT_ID}
       client-secret: ${FRONTEND_CLIENT_SECRET}
-      callback-url: ${FRONTEND_URL}/callback
+      callback-urls: ${AUTH_CLIENT_CALLBACK_URLS:${FRONTEND_URL}/callback}
 
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}

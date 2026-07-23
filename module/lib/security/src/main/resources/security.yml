@@ -3,7 +3,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: ${AUTH_SERVER_URL}/oauth2/jwks
+          jwk-set-uri: ${AUTH_INTERNAL_URL}/oauth2/jwks
 
 security:
   oauth2:
@@ -15,7 +15,8 @@ security:
         client-id: ${APP_CLIENTS_M2M_CLIENT_ID}
         client-secret: ${APP_CLIENTS_M2M_CLIENT_SECRET}
       redirect-uri: ${FRONTEND_URL}/callback
-      auth-server-url: ${AUTH_SERVER_URL}
+      auth-server-public-url: ${AUTH_PUBLIC_URL}
+      auth-server-internal-url: ${AUTH_INTERNAL_URL}
       secure-cookie: ${AUTH_SECURE_COOKIE}
   cors:
     allowed-origins: ${ALLOWED_CORS_URLS}
