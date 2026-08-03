@@ -15,6 +15,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration
 import org.springframework.security.core.Authentication
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext
@@ -35,10 +36,14 @@ class TokenConfig {
 
                 try {
                     val displayNameRequest = DisplayNameRequest.newBuilder().setAuthId(principal.name).build()
-                    val displayNameResponse = userChanel.getDisplayName(displayNameRequest)
-                    context.claims.claim("displayName", displayNameResponse.displayName)
+                    val response = userChanel.getDisplayName(displayNameRequest)
+                    context.claims.claim("userId", response.userId)
+                    if (response.hasDisplayName()) {
+                        context.claims.claim("displayName", response.displayName)
+                    }
                 } catch (ex: StatusRuntimeException) {
-                    logger.warn("user service returns an error. proceed with login", "tokenCustomizer", ex)
+                    logger.error("user service unavailable, blocking login", "tokenCustomizer", ex)
+                    throw OAuth2AuthenticationException("user_service_unavailable")
                 }
             }
         }

@@ -1,12 +1,12 @@
 package io.uliss.user_service.service
 
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
 import io.grpc.stub.StreamObserver
-import io.uliss.api.user.v1.DisplayNameRequest
-import io.uliss.api.user.v1.DisplayNameResponse
+import io.uliss.api.user.v1.UserInfoRequest
+import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.logging.logger.AppLogger
+import io.uliss.user_service.model.UserEntity
 import io.uliss.user_service.repository.UserRepository
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -17,16 +17,18 @@ class UserService(
 ) : UserServiceGrpc.UserServiceImplBase() {
     private val log = AppLogger.of(UserService::class)
 
-    override fun getDisplayName(
-        request: DisplayNameRequest,
-        responseObserver: StreamObserver<DisplayNameResponse>
+    override fun getUserInfo(
+        request: UserInfoRequest,
+        responseObserver: StreamObserver<UserInfoResponse>
     ) {
         try {
-            val userEntity = userRepository.findByAuthId(UUID.fromString(request.authId))
-                ?: throw StatusRuntimeException(Status.NOT_FOUND.withDescription("user not found"))
+            val authId = UUID.fromString(request.authId)
+            val userEntity = userRepository.findByAuthId(authId)
+                ?: createUser(authId)
 
-            val response = DisplayNameResponse.newBuilder()
-                .setDisplayName(userEntity.displayName)
+            val response = UserInfoResponse.newBuilder()
+                .setUserId(userEntity.id.toString())
+                .apply { userEntity.displayName?.let { setDisplayName(it) } }
                 .build()
 
             responseObserver.onNext(response)
@@ -37,5 +39,14 @@ class UserService(
                 Status.INTERNAL.withDescription("internal error").withCause(ex).asRuntimeException()
             )
         }
+    }
+
+    private fun createUser(authId: UUID): UserEntity {
+        return userRepository.save(
+            UserEntity(
+                authId = authId,
+                displayName = null
+            )
+        )
     }
 }

@@ -8,8 +8,8 @@ import java.util.UUID
 @Entity
 @Table(name = "users", schema = "profile")
 class UserEntity(
-    var displayName: String,
-    var authId: UUID
+    var authId: UUID,
+    var displayName: String?,
 ) : UuidEntity() {
 
     override fun toString(): String {
