@@ -2,7 +2,7 @@ create table if not exists profile.messages
 (
     id         uuid primary key,
     code       varchar(50) not null unique,
-    blocking   boolean default false,
+    blocking   boolean     not null default false,
     created_at timestamptz not null,
     updated_at timestamptz not null
 );
@@ -18,6 +18,3 @@ create table if not exists profile.user_message
     foreign key (user_id) references profile.users (id),
     foreign key (message_id) references profile.messages (id)
 );
-
-
-

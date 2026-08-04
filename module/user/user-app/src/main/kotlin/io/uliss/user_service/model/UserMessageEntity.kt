@@ -1,9 +1,12 @@
 package io.uliss.user_service.model
 
+import io.uliss.database.entity.AbstractEntity
 import jakarta.persistence.Column
 import jakarta.persistence.Embeddable
 import jakarta.persistence.EmbeddedId
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.util.UUID
 
@@ -12,8 +15,9 @@ import java.util.UUID
 class UserMessageEntity(
     @EmbeddedId
     var userMessageId: UserMessageId,
-    var status: String = "PENDING"
-)
+    @Enumerated(EnumType.STRING)
+    var status: UserMessageStatus = UserMessageStatus.PENDING,
+) : AbstractEntity()
 
 
 @Embeddable

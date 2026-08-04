@@ -1,15 +1,20 @@
 package io.uliss.auth
 
 import com.jayway.jsonpath.JsonPath
+import io.uliss.api.user.v1.UserInfoResponse
+import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.TestContainersConfiguration
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
@@ -17,6 +22,7 @@ import org.springframework.web.util.UriComponentsBuilder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.Base64
+import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
@@ -29,6 +35,15 @@ class OAuth2ErrorContractTests {
 
     @Autowired
     lateinit var mockMvc: MockMvc
+
+    @MockitoBean
+    lateinit var userServiceBlockingStub: UserServiceGrpc.UserServiceBlockingStub
+
+    @BeforeEach
+    fun stubUserService() {
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
+            .thenReturn(UserInfoResponse.newBuilder().setUserId(UUID.randomUUID().toString()).build())
+    }
 
     @Test
     fun `jwks endpoints returns public keys`() {
