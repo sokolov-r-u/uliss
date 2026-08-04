@@ -23,7 +23,7 @@ class UserEntity(
 }
 
 fun UserEntity.toUserDetails(): UserDetails = User.builder()
-    .username(email)
+    .username(id.toString())
     .password(passwordHash)
     .accountLocked(status == UserStatus.DISABLED)
     .roles(UserRole.USER.toString())

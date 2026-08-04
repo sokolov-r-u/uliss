@@ -7,12 +7,13 @@ option java_package = "io.uliss.api.user.v1";
 option java_outer_classname = "UserServiceProto";
 
 service UserService {
-  rpc GetDisplayName(DisplayNameRequest) returns (DisplayNameResponse);
+  rpc GetUserInfo(UserInfoRequest) returns (UserInfoResponse);
 }
 
-message DisplayNameRequest {
+message UserInfoRequest {
   string auth_id = 1;
 }
-message DisplayNameResponse {
-  string display_name = 1;
+message UserInfoResponse {
+  string user_id = 1;
+  optional string display_name = 2;
 }
