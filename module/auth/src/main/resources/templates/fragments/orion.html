@@ -3,9 +3,17 @@
 <body>
 <svg th:fragment="orion" class="orion" viewBox="0 0 120 180" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
 <defs>
-<radialGradient id="orionGlow"><stop offset="0%" stop-color="#fff" stop-opacity="0.95"/><stop offset="28%" stop-color="var(--cream)" stop-opacity="0.45"/><stop offset="65%" stop-color="var(--ochre)" stop-opacity="0.18"/><stop offset="100%" stop-color="var(--ochre)" stop-opacity="0"/></radialGradient>
+    <radialGradient id="orionGlow">
+        <stop offset="0%" stop-color="#fff" stop-opacity="0.95"/>
+        <stop offset="28%" stop-color="var(--cream)" stop-opacity="0.45"/>
+        <stop offset="65%" stop-color="var(--star-glow, var(--ochre))" stop-opacity="0.18"/>
+        <stop offset="100%" stop-color="var(--star-glow, var(--ochre))" stop-opacity="0"/>
+    </radialGradient>
 <radialGradient id="orionNebA"><stop offset="0%" stop-color="#7fa8c8" stop-opacity="0.16"/><stop offset="100%" stop-color="#7fa8c8" stop-opacity="0"/></radialGradient>
-<radialGradient id="orionNebB"><stop offset="0%" stop-color="var(--ochre)" stop-opacity="0.14"/><stop offset="100%" stop-color="var(--ochre)" stop-opacity="0"/></radialGradient>
+    <radialGradient id="orionNebB">
+        <stop offset="0%" stop-color="var(--star-glow, var(--ochre))" stop-opacity="0.14"/>
+        <stop offset="100%" stop-color="var(--star-glow, var(--ochre))" stop-opacity="0"/>
+    </radialGradient>
 </defs>
 <ellipse cx="58" cy="60" rx="62" ry="54" fill="url(#orionNebA)"/>
 <ellipse cx="66" cy="120" rx="50" ry="58" fill="url(#orionNebB)"/>

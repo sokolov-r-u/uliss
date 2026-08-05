@@ -1,10 +1,11 @@
 :root {
-  /* ── Backgrounds ─────────────────────────────────── */
-  --bg-deep:    #0e0a07;   /* deepest dark — dropshadow panels, full bleed */
-  --bg:         #1a1310;   /* primary surface */
-  --bg-surface: #211812;   /* slightly lifted surface (right panels) */
-  --bg-panel:   #15110e;   /* inset panel, e.g. left red-figure block */
-  --bg-muted:   #2a2218;   /* chip/badge background */
+  /* ── Backgrounds — deep-navy "deepsea" tone × 0.85 brightness ─────
+     Cool Milky-Way ground; warm accent + cream text sit on top. */
+  --bg-deep: #050a0e; /* deepest dark — dropshadow panels, full bleed */
+  --bg: #0e141b; /* primary surface */
+  --bg-surface: #141c24; /* slightly lifted surface (right panels) */
+  --bg-panel: #090e13; /* inset panel, e.g. left red-figure block */
+  --bg-muted: #1a242b; /* chip/badge background */
 
   /* ── Brand ───────────────────────────────────────── */
   --terracotta-deep: #a04527;
@@ -32,9 +33,25 @@
     #b8512e 100%
   );
 
+  /* ── Semantic accent (themeable) ─────────────────────
+     Brand accent stays warm even on the navy ground. Alias onto the
+     warm ramp so there is a single source of truth. */
+  --accent: var(--terracotta); /* primary accent  (#c8643c) */
+  --accent-2: var(--ochre); /* secondary accent (#d99a4e) */
+
+  /* ── Tone-aware ambient — cool defaults (navy ground) ─
+     Washes/glows/scrim follow the surface temperature, so nothing warm
+     bleeds over the navy. Star-glow tints constellation halos cool. */
+  --amb-wash: radial-gradient(120% 90% at 50% 0%, rgba(96, 138, 200, 0.07), rgba(6, 12, 16, 0) 60%);
+  --sky-glow-a: rgba(126, 164, 214, 0.16);
+  --sky-glow-b: rgba(92, 132, 192, 0.06);
+  --star-glow: #8fb4e0;
+  --scrim: rgba(4, 7, 11, 0.62);
+  --sky: #070a13; /* Milky-Way constellation backdrop (#080c16 × 0.85) */
+
   /* ── Semantic aliases ────────────────────────────── */
-  --color-accent:      var(--ochre);
-  --color-accent-warm: var(--terracotta);
+  --color-accent: var(--accent-2);
+  --color-accent-warm: var(--accent);
   --surface-card:      var(--bg-surface);
   --text-body:         var(--cream);
   --text-secondary:    var(--cream-dim);
