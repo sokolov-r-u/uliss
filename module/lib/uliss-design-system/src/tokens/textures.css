@@ -1,4 +1,7 @@
 :root {
+  /* ── Texture opacity — themeable on/off ──────────── */
+  --tex-opacity: 0.5;
+
   /* ── Craquelure ──────────────────────────────────── */
   /* Aged ceramic crackle. Apply as background-image on
      an ::after or .craquelure child:

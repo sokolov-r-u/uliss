@@ -6,7 +6,7 @@ plugins {
 }
 
 group = "io.uliss"
-version = "0.0.1"
+version = "0.0.2"
 
 node {
 	// npm workspaces live in the repo root package.json

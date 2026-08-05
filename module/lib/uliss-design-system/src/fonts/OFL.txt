@@ -14,14 +14,6 @@ IM Fell English (im-fell-english-*.woff2)
     Copyright (c) 2010, Igino Marini (www.iginomarini.com),
     with Reserved Font Name "IM FELL".
 
-Marcellus (marcellus-400.woff2)
-    Copyright (c) 2011, Astigmatic (AOETI) (astigmatic.com),
-    with Reserved Font Name "Marcellus".
-
-Cinzel (cinzel-*.woff2)
-    Copyright (c) 2012, Natanael Gama (www.ndiscovered.com),
-    with Reserved Font Name "Cinzel".
-
 Cormorant Garamond (cormorant-garamond-*.woff2)
     Copyright 2015 The Cormorant Project Authors
     (https://github.com/CatharsisFonts/Cormorant),

@@ -26,10 +26,11 @@
       padding: var(--space-8);
       overflow: hidden;
     }
-    .auth-stage::before {           /* warm top glow */
+
+    .auth-stage::before { /* tone-aware ambient wash */
       content: "";
       position: absolute; inset: 0;
-      background: radial-gradient(120% 90% at 50% 0%, rgba(200,100,60,.06), rgba(14,10,7,0) 60%);
+      background: var(--amb-wash);
       pointer-events: none;
     }
     .auth-stage::after {            /* ceramic craquelure */

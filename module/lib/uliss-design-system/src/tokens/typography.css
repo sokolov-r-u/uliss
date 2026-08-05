@@ -18,38 +18,6 @@
   src: url('../fonts/im-fell-english-400-italic.woff2') format('woff2');
 }
 
-/* Marcellus — warmer alternate display */
-@font-face {
-  font-family: 'Marcellus';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('../fonts/marcellus-400.woff2') format('woff2');
-}
-
-/* Cinzel — architectural Roman caps */
-@font-face {
-  font-family: 'Cinzel';
-  font-style: normal;
-  font-weight: 500;
-  font-display: swap;
-  src: url('../fonts/cinzel-500.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Cinzel';
-  font-style: normal;
-  font-weight: 700;
-  font-display: swap;
-  src: url('../fonts/cinzel-700.woff2') format('woff2');
-}
-@font-face {
-  font-family: 'Cinzel';
-  font-style: normal;
-  font-weight: 900;
-  font-display: swap;
-  src: url('../fonts/cinzel-900.woff2') format('woff2');
-}
-
 /* Cormorant Garamond — body editorial, italic topics */
 @font-face {
   font-family: 'Cormorant Garamond';
@@ -104,10 +72,10 @@
 }
 
 :root {
-  /* ── Families ────────────────────────────────────── */
+  /* ── Families — three families, three roles ──────────
+     display (brand only), serif (human/editorial), mono (system/UI). */
   --font-display:        'IM Fell English', serif;  /* brand wordmark, irregular serifs */
-  --font-display-round:  'Marcellus', serif;        /* warmer alternate display */
-  --font-display-strong: 'Cinzel', serif;           /* architectural Roman caps */
+  --font-display-active: var(--font-display); /* themeable display slot */
   --font-serif:          'Cormorant Garamond', serif; /* body editorial, italic topics */
   --font-mono:           'JetBrains Mono', monospace; /* all UI chrome */
 
