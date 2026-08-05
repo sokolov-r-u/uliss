@@ -1,10 +1,11 @@
-import { useEffect, type ReactNode } from 'react'
-import { Routes, Route } from 'react-router-dom'
-import { useAuth } from './auth/AuthContext'
-import { getTokens } from './auth/tokenStore'
-import { Home } from './pages/Home'
-import { Callback } from './pages/Callback'
-import { Shell } from './ui/Shell'
+import {type ReactNode, useEffect} from 'react'
+import {Route, Routes} from 'react-router-dom'
+import {useAuth} from './auth/AuthContext'
+import {getTokens} from './auth/tokenStore'
+import {Home} from './pages/Home'
+import {Callback} from './pages/Callback'
+import {OnboardingDriver} from './onboarding/OnboardingDriver'
+import {Shell} from './ui/Shell'
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -35,6 +36,7 @@ export function App() {
         element={
           <RequireAuth>
             <Home />
+              <OnboardingDriver/>
           </RequireAuth>
         }
       />
