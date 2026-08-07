@@ -7,6 +7,9 @@ import {authFetch} from '../auth/apiClient'
 export type OnboardingCode = 'SET_DISPLAY_NAME' | 'COMPLETE_PROFILE'
 export type Gender = 'MALE' | 'FEMALE' | 'OTHER'
 
+/** Max display-name length, matching the backend `profile.users.display_name` column (varchar(32)). */
+export const DISPLAY_NAME_MAX_LENGTH = 32
+
 /** One pending onboarding message (blocking ones come first). */
 export type OnboardingMessage = {
     code: OnboardingCode

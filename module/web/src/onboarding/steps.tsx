@@ -7,7 +7,7 @@ import {AuthRequiredError} from '../auth/apiClient'
 import {Notice} from '../ui/notice/Notice'
 import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect, type SelectOption} from '../ui/notice/fields'
 import {maxBirthDateIso, MIN_AGE_YEARS} from './age'
-import {type Gender, OnboardingSubmitError, submit} from './onboardingApi'
+import {DISPLAY_NAME_MAX_LENGTH, type Gender, OnboardingSubmitError, submit} from './onboardingApi'
 
 type StepProps = {
     progress: { current: number; total: number }
@@ -64,7 +64,8 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
             busy={busy}
             onPrimary={() => run(() => ({command: 'SET_DISPLAY_NAME', displayName: trimmed}))}
         >
-            <NoticeField label="Display name" placeholder="e.g. Wayfarer" value={name} onChange={setName} max={24}/>
+            <NoticeField label="Display name" placeholder="e.g. Wayfarer" value={name} onChange={setName}
+                         max={DISPLAY_NAME_MAX_LENGTH}/>
             {error && <ErrorLine>{error}</ErrorLine>}
         </Notice>
     )

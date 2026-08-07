@@ -42,4 +42,4 @@ app:
 grpc:
   user-service:
     host: ${USER_SERVICE_HOST}
-    port: ${USER_SERVER_PORT}
+    port: ${USER_GRPC_PORT}

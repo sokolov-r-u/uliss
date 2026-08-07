@@ -1,6 +1,7 @@
 package io.uliss.user_service.model
 
 import io.uliss.database.entity.UuidEntity
+import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -8,10 +9,13 @@ import jakarta.persistence.Table
 import java.time.LocalDate
 import java.util.UUID
 
+const val DISPLAY_NAME_MAX_LENGTH = 32
+
 @Entity
 @Table(name = "users", schema = "profile")
 class UserEntity(
     var authId: UUID,
+    @Column(length = DISPLAY_NAME_MAX_LENGTH)
     var displayName: String?,
     var birthDate: LocalDate? = null,
     @Enumerated(EnumType.STRING)

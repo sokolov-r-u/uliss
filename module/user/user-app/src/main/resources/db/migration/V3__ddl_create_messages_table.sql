@@ -4,7 +4,8 @@ create table if not exists profile.messages
     code       varchar(50) not null unique,
     blocking   boolean     not null default false,
     created_at timestamptz not null,
-    updated_at timestamptz not null
+    updated_at timestamptz not null,
+    version    bigint
 );
 
 create table if not exists profile.user_message
@@ -14,6 +15,7 @@ create table if not exists profile.user_message
     status     varchar(15) not null default 'PENDING',
     created_at timestamptz not null,
     updated_at timestamptz not null,
+    version bigint,
     primary key (user_id, message_id),
     foreign key (user_id) references profile.users (id),
     foreign key (message_id) references profile.messages (id)
