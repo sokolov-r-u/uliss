@@ -4,6 +4,7 @@ import io.uliss.user_service.dto.OnboardingMessageView
 import io.uliss.user_service.dto.OnboardingRequest
 import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
@@ -33,7 +34,7 @@ class ProfileController(
 
     @PostMapping("/me/onboarding")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun submitOnboarding(@AuthenticationPrincipal jwt: Jwt, @RequestBody request: OnboardingRequest) =
+    fun submitOnboarding(@AuthenticationPrincipal jwt: Jwt, @Valid @RequestBody request: OnboardingRequest) =
         userProfileService.submit(currentUserId(jwt), request)
 
     private fun currentUserId(jwt: Jwt): UUID = UUID.fromString(jwt.getClaimAsString("userId"))
