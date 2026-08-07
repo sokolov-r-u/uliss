@@ -6,5 +6,6 @@ create table if not exists profile.users
     birth_date date,
     gender     varchar(16),
     created_at   timestamptz not null,
-    updated_at   timestamptz not null
+    updated_at timestamptz not null,
+    version    bigint
 )
