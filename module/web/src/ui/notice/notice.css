@@ -1,0 +1,52 @@
+/* Notice mechanism — animations and reset bits awkward to inline. Styling lives inline on
+   the components (mirrors the Claude Design source), tokens come from @uliss/design-system. */
+
+@keyframes uNoticeIn {
+    0% {
+        opacity: 0;
+        transform: translateY(14px) scale(0.985);
+    }
+    100% {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+@keyframes uNoticeBackdropIn {
+    0% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+/* Bare text input styled to match the design's field; the frame is drawn by the wrapper. */
+.notice-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--cream);
+    font-family: var(--font-mono);
+    font-size: 14px;
+    letter-spacing: 0.4px;
+    caret-color: var(--accent-2);
+}
+
+.notice-input::placeholder {
+    color: var(--text-faint);
+}
+
+/* Reset for the notice buttons (design draws all visuals inline). */
+.notice-btn {
+    cursor: pointer;
+    border: none;
+    appearance: none;
+}
+
+.notice-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
