@@ -1,0 +1,26 @@
+server:
+  port: ${NOTE_SERVER_PORT:8081}
+
+spring:
+  application:
+    name: note-service
+  config:
+    # noinspection SpringBootApplicationYaml
+    import:
+      - classpath:database.yml
+      - classpath:exception.yml
+      - classpath:security.yml
+  threads:
+    virtual:
+      enabled: true
+  datasource:
+    url: ${POSTGRES_URL}?currentSchema=note
+  flyway:
+    schemas: note
+    default-schema: note
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: ${ANTHROPIC_MODEL:claude-haiku-4-5}

@@ -1,15 +1,12 @@
 package io.uliss.database.entity
 
-import jakarta.persistence.EntityListeners
 import jakarta.persistence.MappedSuperclass
 import org.springframework.data.annotation.CreatedBy
 import org.springframework.data.annotation.LastModifiedBy
-import org.springframework.data.jpa.domain.support.AuditingEntityListener
 
 @MappedSuperclass
-@EntityListeners(AuditingEntityListener::class)
 abstract class AuditEntity(
-) : AbstractEntity() {
+) : UuidEntity() {
     @CreatedBy
     var createdBy: String? = null
 

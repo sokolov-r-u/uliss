@@ -1,0 +1,22 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: note-service
+  config:
+    import:
+      - classpath:database-test.yml
+      - classpath:exception.yml
+      - classpath:security-test.yml
+  threads:
+    virtual:
+      enabled: true
+  flyway:
+    schemas: note
+    default-schema: note
+    locations: classpath:db/migration
+    create-schemas: true
+  ai:
+    anthropic:
+      api-key: test
