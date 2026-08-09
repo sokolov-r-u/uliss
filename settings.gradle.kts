@@ -8,6 +8,7 @@ include(
     "auth",
     "user",
     "user-api",
+    "note",
     "security",
     "database",
     "exception",
@@ -19,6 +20,7 @@ include(
 project(":auth").projectDir = file("module/auth")
 project(":user").projectDir = file("module/user/user-app")
 project(":user-api").projectDir = file("module/user/user-api")
+project(":note").projectDir = file("module/note/note-app")
 project(":security").projectDir = file("module/lib/security")
 project(":database").projectDir = file("module/lib/database")
 project(":exception").projectDir = file("module/lib/exception")
