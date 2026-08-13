@@ -1,13 +1,12 @@
 package io.uliss.security.config
 
+import io.uliss.security.utils.USER_ID_CLAIM
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.domain.AuditorAware
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.oauth2.jwt.Jwt
 import java.util.Optional
-
-private const val USER_ID_CLAIM = "userId"
 
 // Auditor recorded when no user performed the write (service/m2m token or background task).
 // Kept in sync with :database's AuditorAwareImpl fallback (no dependency in that direction).
