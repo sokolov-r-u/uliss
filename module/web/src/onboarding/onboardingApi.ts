@@ -1,6 +1,6 @@
 /**
- * Client for the user-service onboarding endpoints (`/users/me/onboarding`). Uses `authFetch`
- * so JWT + proactive/reactive refresh are handled centrally (see auth/apiClient.ts).
+ * Client for the user-service onboarding endpoints (`/user/users/me/onboarding`). Uses
+ * `authFetch` so JWT + proactive/reactive refresh are handled centrally (see auth/apiClient.ts).
  */
 import {authFetch} from '../auth/apiClient'
 
@@ -17,7 +17,7 @@ export type OnboardingMessage = {
     status: string
 }
 
-/** Body for `POST /users/me/onboarding`. `command` selects the step; fields are per-command. */
+/** Body for `POST /user/users/me/onboarding`. `command` selects the step; fields are per-command. */
 export type OnboardingSubmit = {
     command: OnboardingCode
     displayName?: string
@@ -31,13 +31,13 @@ export class OnboardingSubmitError extends Error {
 }
 
 export async function fetchPending(): Promise<OnboardingMessage[]> {
-    const res = await authFetch('/users/me/onboarding')
+    const res = await authFetch('/user/users/me/onboarding')
     if (!res.ok) throw new Error(`onboarding fetch failed (${res.status})`)
     return (await res.json()) as OnboardingMessage[]
 }
 
 export async function submit(request: OnboardingSubmit): Promise<void> {
-    const res = await authFetch('/users/me/onboarding', {
+    const res = await authFetch('/user/users/me/onboarding', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(request),

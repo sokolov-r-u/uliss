@@ -3,12 +3,13 @@ package io.uliss.exception.config
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
 import org.aspectj.lang.annotation.Aspect
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.retry.support.RetryTemplate
 import org.springframework.stereotype.Component
 
 @Aspect
 @Component
-class RetryAspect(val retryTemplate: RetryTemplate) {
+class RetryAspect(@Qualifier("optimisticLockRetryTemplate") val retryTemplate: RetryTemplate) {
 
     @Around("@annotation(org.springframework.retry.annotation.Retryable)")
     fun retryOnOptimisticLockException(joinPoint: ProceedingJoinPoint): Any = retryTemplate.execute<Any, Exception> {

@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
-import { useAuth } from '../auth/AuthContext'
-import { fetchMe } from '../api/users'
-import { AuthRequiredError } from '../auth/apiClient'
-import { Shell } from '../ui/Shell'
+import {useEffect, useState} from 'react'
+import {useAuth} from '../auth/AuthContext'
+import {fetchMe} from '../api/users'
+import {AuthRequiredError} from '../auth/apiClient'
+import {Shell} from '../ui/Shell'
 
 type MeState =
   | { status: 'loading' }
   | { status: 'ok'; body: string }
   | { status: 'error'; message: string }
 
-/** Protected landing screen: pulls `/users/me` (via authFetch) and renders it in the shell. */
+/** Protected landing screen: pulls `/user/users/me` (via authFetch) and renders it in the shell. */
 export function Home() {
   const { logout } = useAuth()
   const [me, setMe] = useState<MeState>({ status: 'loading' })

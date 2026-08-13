@@ -6,6 +6,8 @@ resources:
   - k8s/auth/service.yaml
   - k8s/user/deployment.yaml
   - k8s/user/service.yaml
+  - k8s/note/deployment.yaml
+  - k8s/note/service.yaml
   - k8s/web/deployment.yaml
   - k8s/web/service.yaml
   - k8s/ingress.yaml

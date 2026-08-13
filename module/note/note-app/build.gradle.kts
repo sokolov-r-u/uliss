@@ -13,7 +13,7 @@ dependencies {
     implementation(project(":logging"))
     implementation(project(":validation"))
 
-    implementation(libs.spring.ai.starter.anthropic)
+    implementation(libs.spring.ai.starter.deepseek)
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("tools.jackson.module:jackson-module-kotlin")
@@ -25,6 +25,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-flyway-test")
     testImplementation("org.springframework.boot:spring-boot-starter-validation-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
+    testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

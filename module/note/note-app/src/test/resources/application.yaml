@@ -5,6 +5,7 @@ spring:
   application:
     name: note-service
   config:
+    # noinspection SpringBootApplicationYaml
     import:
       - classpath:database-test.yml
       - classpath:exception.yml
@@ -18,5 +19,5 @@ spring:
     locations: classpath:db/migration
     create-schemas: true
   ai:
-    anthropic:
+    deepseek:
       api-key: test
