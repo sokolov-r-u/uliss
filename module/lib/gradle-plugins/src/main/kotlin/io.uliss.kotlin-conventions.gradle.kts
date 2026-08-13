@@ -72,12 +72,19 @@ tasks.register<Test>("integrationTest") {
     shouldRunAfter(tasks.named("test"))
 }
 
-// Coverage is sourced from `test` only, not `integrationTest` (Docker/Testcontainers) — keeps
-// local coverage runs fast and dependency-free. Report-only for now: no jacocoTestCoverageVerification,
-// no threshold — see CLAUDE.md "Known deviations" for the tracked follow-up.
+// Coverage merges `test.exec` and `integrationTest.exec` (both are `Test`-type tasks, JaCoCo
+// attaches to both automatically) when present. `dependsOn` is deliberately only on `test` —
+// `integrationTest` (Docker/Testcontainers) is not forced here, so `./gradlew check`/`build` stay
+// Docker-independent; the `fileTree` below just picks up `integrationTest.exec` if it's already
+// on disk from a prior run. No jacocoTestCoverageVerification/threshold yet — see CLAUDE.md
+// "Known deviations" for the tracked follow-up.
 tasks.named<JacocoReport>("jacocoTestReport") {
     dependsOn(tasks.named("test"))
-    executionData(tasks.named<Test>("test").map { it.the<JacocoTaskExtension>().destinationFile!! })
+    executionData(
+        fileTree(layout.buildDirectory.dir("jacoco")) {
+            include("test.exec", "integrationTest.exec")
+        },
+    )
     sourceSets(sourceSets["main"])
 
     reports {
@@ -85,10 +92,12 @@ tasks.named<JacocoReport>("jacocoTestReport") {
         html.required.set(true)
     }
 
-    // No-op everywhere except user-api: excludes generated protobuf/gRPC stubs from coverage.
+    // Excludes generated protobuf/gRPC stubs (user-api) and the Kotlin file-class holding the
+    // top-level `main()` — that entrypoint is never invoked by any test (@SpringBootTest boots the
+    // context via SpringApplicationBuilder directly) and running the app for real is off-limits.
     classDirectories.setFrom(
         classDirectories.files.map { dir ->
-            fileTree(dir) { exclude("io/uliss/api/**") }
+            fileTree(dir) { exclude("io/uliss/api/**", "**/*ApplicationKt.class") }
         },
     )
 }
