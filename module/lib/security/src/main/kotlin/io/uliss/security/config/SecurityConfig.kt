@@ -29,7 +29,10 @@ class SecurityConfig {
             .sessionManagement { it.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests { auth ->
                 auth
-                    .requestMatchers("/oauth2/**").permitAll()
+                    // bare /oauth2/** matches this module's own tests (no app-level prefix applied);
+                    // /*/oauth2/** matches it under whatever prefix a consuming app applies to its
+                    // controllers (WebMvcPathPrefixConfig), e.g. /user/oauth2/**
+                    .requestMatchers("/oauth2/**", "/*/oauth2/**").permitAll()
                     .anyRequest().authenticated()
             }
             .oauth2ResourceServer { it.jwt { } }

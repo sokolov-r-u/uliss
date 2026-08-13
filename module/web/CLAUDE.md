@@ -10,11 +10,11 @@ decisions) — в корневом `CLAUDE.md`, читать сначала ег
   `oidc-client-ts` — вся auth-логика своя), дизайн-система через `@uliss/design-system`
   (`module/lib/uliss-design-system/CLAUDE.md`).
 - **Структура `auth/`:** `tokenStore.ts` — токены в `sessionStorage`; `authApi.ts` — вызовы
-  сервисных `/oauth2/*` (`login`/`exchangeCode`/`refreshTokens`/`logout`, `returnTo`);
+  сервисных `/user/oauth2/*` (`login`/`exchangeCode`/`refreshTokens`/`logout`, `returnTo`);
   `apiClient.ts` — `authFetch` (единая точка для защищённых вызовов: Bearer + проактивный/реактивный
   refresh); `AuthContext.tsx` — React-обвязка. `pages/Callback.tsx` — принимает `?code`, POST-ит на
-  сервис `/oauth2/callback`, возвращает пользователя на `returnTo` (guard от StrictMode double-invoke).
-  `api/users.ts` — `GET /users/me` через `authFetch`; `ui/Shell.tsx` — каркас.
+  сервис `/user/oauth2/callback`, возвращает пользователя на `returnTo` (guard от StrictMode
+  double-invoke). `api/users.ts` — `GET /user/users/me` через `authFetch`; `ui/Shell.tsx` — каркас.
 - **Notice-механизм + онбординг (см. «User onboarding · web UI» ниже):** переиспользуемая
   модалка-уведомление поверх затемнённо-размытого приложения. `ui/notice/` — презентация
   (`NoticeOverlay` — portal-backdrop с `backdrop-filter: blur`, `Notice` — карточка с вариантами
@@ -22,9 +22,11 @@ decisions) — в корневом `CLAUDE.md`, читать сначала ег
   `notifications/NotificationProvider.tsx` — очередь generic-уведомлений (`useNotice().notify`);
   `onboarding/` — фича онбординга (`OnboardingDriver` смонтирован в authed-области `App.tsx`).
   Дизайн-источник — Claude Design `uliss-notify.jsx` (MCP `DesignSync`).
-- **Same-origin, без URL сервисов в браузере:** все вызовы — **относительные** (`/oauth2/*`, `/users/*`).
-  В dev их проксирует Vite (`vite.config.ts`: `/oauth2` и `/users` → `USER_SERVICE_URL`); в prod фронт
-  раздаётся за тем же origin, что и сервисы (nginx/gateway). Браузер не знает адрес AS/сервисов.
+- **Same-origin, без URL сервисов в браузере:** все вызовы — **относительные**, каждый сервис под своим
+  именем (`/user/oauth2/*`, `/user/users/*` — user-service; см. «Path-prefix convention» в корневом
+  `CLAUDE.md`). В dev их проксирует Vite (`vite.config.ts`: `/user` → `USER_SERVICE_URL`, `/note` →
+  `NOTE_SERVICE_URL`); в prod фронт раздаётся за тем же origin, что и сервисы (nginx/gateway). Браузер
+  не знает адрес AS/сервисов.
 - **Конфиг через env:** `VITE_*`-переменных для auth **больше нет** (удалены вместе с `oidc.ts`).
   `USER_SERVICE_URL` (**без** `VITE_`-префикса) читает только `vite.config.ts` (node-side, `loadEnv(…, '')`)
   для target dev-прокси — в браузерный бандл она не попадает. Dev-порт `3000` (`strictPort`).
@@ -43,7 +45,7 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
 дизайн-источник — Claude Design `uliss-notify.jsx`. Бэкенд онбординга — `module/user/user-app/CLAUDE.md`.
 
 - **`onboarding/OnboardingDriver`** смонтирован в authed-области (`App.tsx`, рядом с `Home`). При
-  монтировании тянет `GET /users/me/onboarding` (через `authFetch`) и прогоняет pending-сообщения по
+  монтировании тянет `GET /user/users/me/onboarding` (через `authFetch`) и прогоняет pending-сообщения по
   одному через `NoticeOverlay` (blocking-backdrop поверх `Home`); по опустошению очереди рендерит
   `null` — приложение под ним снова доступно. StrictMode-double-fetch отсекается `useRef`-guard'ом.
 - **Шаги (`onboarding/steps.tsx`)** — каждый владеет своим локальным состоянием и сам POST-ит:

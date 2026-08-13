@@ -5,9 +5,11 @@
 
 ## Note service (scaffold, RAG-ready)
 
-`note-service` — заготовка сервиса заметок: рабочий срез `POST /ask` через Spring AI поверх
-DeepSeek, плюс схема БД под будущий RAG. RAG-обогащение (embedding-модель, retrieval, advisor) —
-не реализовано, это следующая итерация.
+`note-service` — заготовка сервиса заметок: рабочий срез `POST /note/ask` через Spring AI поверх
+DeepSeek, плюс схема БД под будущий RAG. Префикс `/note` даёт `WebMvcPathPrefixConfig`
+(`AskController` объявлен без своего `@RequestMapping`, только `@PostMapping("/ask")` — см.
+«Path-prefix convention» в корневом `CLAUDE.md`). RAG-обогащение (embedding-модель, retrieval,
+advisor) — не реализовано, это следующая итерация.
 
 - **AI-провайдер — DeepSeek** (не Anthropic, с которого начинали): стартер `spring-ai-starter-model-deepseek`
   (каталог `spring-ai-starter-deepseek`, `version.ref = "spring-ai"`, версия — только в
@@ -29,7 +31,6 @@ DeepSeek, плюс схема БД под будущий RAG. RAG-обогаще
   ON DELETE CASCADE`, `vector(384)` — размерность-заглушка под будущую embedding-модель).
 - **Старт без ключа:** `DEEPSEEK_API_KEY` может быть пустым — приложение поднимается, ключ нужен
   только на сам вызов `/ask` (иначе DeepSeek ответит ошибкой авторизации).
-- **Известные пробелы (не RAG-фичи, долг scaffold):** `/ask` не привязан к текущему пользователю
-  (`AskService.ask(prompt)` без `userId`, хотя в `notes` уже есть `user_id`); `/actuator/health`
-  по-прежнему под аутентификацией (см. общее правило `:security`, `module/lib/security/CLAUDE.md`);
-  нет k8s-манифестов/ingress-роутинга для `note` (образ Jib собирается, задеплоить пока нечем).
+- **Известные пробелы (не RAG-фичи, долг scaffold):** `/actuator/health` по-прежнему под
+  аутентификацией (см. общее правило `:security`, `module/lib/security/CLAUDE.md`) — открытие для
+  k8s-проб ещё предстоит.

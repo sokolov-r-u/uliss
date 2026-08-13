@@ -24,24 +24,36 @@ spec:
                 name: user
                 port:
                   number: 8080
+    - host: "note.uliss.local"
+      http:
+        paths:
+          - pathType: Prefix
+            path: "/"
+            backend:
+              service:
+                name: note
+                port:
+                  number: 8081
     - host: "uliss.local"
       http:
         paths:
-          # same-origin: SPA calls relative /oauth2 and /users -> user-service
+          # same-origin: SPA calls relative /user/* -> user-service (oauth2 mediator + profile),
+          # /note/* -> note-service. Each service's whole path space starts with its own name
+          # (WebMvcPathPrefixConfig on the backend).
           - pathType: Prefix
-            path: "/oauth2"
+            path: "/user"
             backend:
               service:
                 name: user
                 port:
                   number: 8080
           - pathType: Prefix
-            path: "/users"
+            path: "/note"
             backend:
               service:
-                name: user
+                name: note
                 port:
-                  number: 8080
+                  number: 8081
           - pathType: Prefix
             path: "/"
             backend:

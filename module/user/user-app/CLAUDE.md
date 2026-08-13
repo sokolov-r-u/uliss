@@ -29,8 +29,10 @@
   (`V4__dml_seed_onboarding_messages.sql`, фикс. UUID): `SET_DISPLAY_NAME` (blocking) +
   `COMPLETE_PROFILE` (optional: birthDate+gender одним экраном). `getPending` — nativeQuery с
   interface-проекцией `OnboardingMessageView`, blocking первым.
-- **API:** `GET /users/me/onboarding` → список pending; `POST /users/me/onboarding` (204) с телом
-  `{command, displayName?, birthDate?, gender?}` — дискриминатор `command` **в теле** (не в пути),
-  skip = submit `COMPLETE_PROFILE` с пустыми полями (отдельного endpoint нет).
+- **API:** `GET /user/users/me/onboarding` → список pending; `POST /user/users/me/onboarding` (204) с
+  телом `{command, displayName?, birthDate?, gender?}` — дискриминатор `command` **в теле** (не в
+  пути), skip = submit `COMPLETE_PROFILE` с пустыми полями (отдельного endpoint нет). Префикс `/user`
+  добавляет `WebMvcPathPrefixConfig` (см. «Path-prefix convention» в корневом `CLAUDE.md`) —
+  `ProfileController` объявлен как `@RequestMapping("/users")`, без префикса в самом классе.
 
 Веб-часть онбординга (SPA) — `module/web/CLAUDE.md`.

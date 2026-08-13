@@ -14,6 +14,10 @@ build:
       context: .
       jib:
         project: "user"
+    - image: uliss/note
+      context: .
+      jib:
+        project: "note"
     - image: uliss/web
       context: .
       docker:

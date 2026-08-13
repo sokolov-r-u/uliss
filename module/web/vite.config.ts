@@ -43,14 +43,16 @@ export default defineConfig(({ mode }) => {
   // vars reach the browser bundle — backend secrets in the same file stay server-side.
   const envDir = path.resolve(import.meta.dirname, '../../infra')
   const env = loadEnv(mode, envDir, '')
-  const serviceTarget = `${env.USER_SERVICE_URL ?? 'http://localhost'}:${env.USER_SERVICE_PORT ?? '8080'}`
+  const userServiceTarget = `${env.USER_SERVICE_URL ?? 'http://localhost'}:${env.USER_SERVICE_PORT ?? '8080'}`
+  const noteServiceTarget = `${env.NOTE_SERVICE_URL ?? 'http://localhost'}:${env.NOTE_SERVICE_PORT ?? '8081'}`
 
   // Proxy the service auth/API paths so the browser talks to the service same-origin (:3000).
-  // This keeps the code_verifier / session cookies first-party and avoids CORS in dev.
-  const proxyTarget: ProxyOptions = { target: serviceTarget, changeOrigin: true }
+  // This keeps the code_verifier / session cookies first-party and avoids CORS in dev. Each
+  // service's whole path space starts with its own name (/user, /note — WebMvcPathPrefixConfig
+  // on the backend), so one proxy entry per service covers all of its routes.
   const proxy: Record<string, ProxyOptions> = {
-    '/oauth2': proxyTarget,
-    '/users': proxyTarget,
+    '/user': {target: userServiceTarget, changeOrigin: true},
+    '/note': {target: noteServiceTarget, changeOrigin: true},
   }
 
   return {

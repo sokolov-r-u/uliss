@@ -37,7 +37,7 @@ class AskControllerTest {
 
     @Test
     fun `unauthenticated request is rejected with 401`() {
-        mockMvc.post("/ask") {
+        mockMvc.post("/note/ask") {
             contentType = MediaType.APPLICATION_JSON
             content = """{"prompt":"hello"}"""
         }.andExpect {
@@ -47,7 +47,7 @@ class AskControllerTest {
 
     @Test
     fun `blank prompt is rejected with 400`() {
-        mockMvc.post("/ask") {
+        mockMvc.post("/note/ask") {
             with(jwt())
             contentType = MediaType.APPLICATION_JSON
             content = """{"prompt":""}"""
@@ -65,7 +65,7 @@ class AskControllerTest {
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.content()).thenReturn("42")
 
-        mockMvc.post("/ask") {
+        mockMvc.post("/note/ask") {
             with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
             contentType = MediaType.APPLICATION_JSON
             content = """{"prompt":"What is 6*7?"}"""

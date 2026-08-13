@@ -1,6 +1,6 @@
 /**
  * Token storage for the thin frontend. The service delivers tokens as JSON
- * (`POST /oauth2/callback`), the SPA holds them here and attaches `Authorization: Bearer`.
+ * (`POST /user/oauth2/callback`), the SPA holds them here and attaches `Authorization: Bearer`.
  * sessionStorage keeps the current convention (cleared when the tab closes).
  */
 

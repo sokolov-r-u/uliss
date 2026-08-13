@@ -62,18 +62,19 @@ Server (сущности, контроллеры, сервисы, персист
   `:user-api` (`module/user/user-api`, пакет `io.uliss.api.user.v1`). Подробности —
   `module/user/user-app/CLAUDE.md`.
 - `note-service` (`io.uliss.note_service`, gradle-модуль `:note` → `module/note/note-app`) — Spring Boot
-  приложение, **scaffold**: `POST /ask` через Spring AI поверх DeepSeek (модель `deepseek-v4-flash`),
-  плюс схема `note` под будущий RAG (pgvector). Зависит от `:security`, `:database`, `:exception`,
-  `:logging`, `:validation`. Подробности — `module/note/note-app/CLAUDE.md`.
+  приложение, **scaffold**: `POST /note/ask` через Spring AI поверх DeepSeek (модель
+  `deepseek-v4-flash`), плюс схема `note` под будущий RAG (pgvector). Зависит от `:security`,
+  `:database`, `:exception`, `:logging`, `:validation`. Подробности — `module/note/note-app/CLAUDE.md`.
 - `web` (`@uliss/web`, `module/web`) — React SPA (Vite), фронтенд поверх `auth`/`user-service`.
   Same-origin, не знает адресов сервисов напрямую. Подробности — `module/web/CLAUDE.md`.
 
 Библиотеки (не исполняемые, директория `module/lib/<name>`):
 
 - `security` (`io.uliss.security`) — общий модуль безопасности с **двойной ролью**: (1) OAuth2
-  Resource Server (валидирует JWT); (2) **auth-посредник** — `AuthController` (`/oauth2/**`) +
-  `AuthService` делают за фронт весь OAuth-танец с auth-сервером (confidential-клиент + PKCE).
-  Подробности — `module/lib/security/CLAUDE.md`.
+  Resource Server (валидирует JWT); (2) **auth-посредник** — `AuthController` (`/oauth2/**` внутри
+  библиотеки; наружу отдаётся под префиксом приложения, которое его подключает — см. «Path-prefix
+  convention» ниже) + `AuthService` делают за фронт весь OAuth-танец с auth-сервером (confidential-
+  клиент + PKCE). Подробности — `module/lib/security/CLAUDE.md`.
 - `database` (`io.uliss.database`) — JPA + Flyway + PostgreSQL.
 - `exception` (`io.uliss.exception`) — глобальная обработка ошибок + Spring Retry. Бин
   `RetryTemplate` называется `optimisticLockRetryTemplate` (не `retryTemplate`) — намеренно, чтобы не
@@ -147,8 +148,10 @@ issuer) / **`AUTH_INTERNAL_URL`** (service-to-service: token/revoke/jwks) — л
   побеждает `data` при apply. Так локаль и k8s не мешают друг другу без второго env-файла/overlay
   (overlay внутри `infra/` невозможен — kustomize ловит cycle; поэтому именно патч).
 - **Ingress** (`k8s/ingress.yaml`) — по хостам `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
-  `user:8080`, а на `uliss.local` **path-routing** (same-origin для SPA): `/oauth2`, `/users` → `user:8080`,
-  `/` → `web:80`.
+  `user:8080`, `note.uliss.local` → `note:8081`, а на `uliss.local` **path-routing** (same-origin для
+  SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Каждый сервис отдаёт весь свой
+  путь под собственным именем (см. «Path-prefix convention» ниже) — одно правило на сервис вместо
+  одного на каждый ресурс.
 - **`web`** — образ из `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), где
   `module/web/nginx.conf` даёт SPA-fallback (`try_files $uri /index.html`) + `no-store` на `index.html`,
   immutable на `/assets/`. Без него клиентские роуты (`/callback`) отдавали бы 404.
@@ -287,6 +290,21 @@ verification step. Ask the user and get explicit approval each time before cross
 
 ## Conventions
 
+- **Path-prefix convention:** each executable app whose paths are shared under `uliss.local` (`user`,
+  `note`) declares its own `WebMvcPathPrefixConfig` (`WebMvcConfigurer` + `addPathPrefix`, scoped to
+  `HandlerTypePredicate.forAnnotation(RestController::class)`) that prefixes **every** `@RestController`
+  bean in that app's context — including imported library controllers like `:security`'s
+  `AuthController` — with the app's own name (`/user`, `/note`). A new controller in `user`/`note` never
+  needs its own path prefix; add the config once per app, not per class. `:security`'s permitAll matcher
+  (`/oauth2/**, /*/oauth2/**` — bare for `:security`'s own tests, wildcard-prefixed for the mediator
+  under a consuming app) is written prefix-agnostic for the same reason. `auth` (the real Authorization Server)
+  intentionally has **no** such config — it lives on its own host (`auth.uliss.local`), and its
+  `/oauth2/**` paths are Spring Authorization Server's own spec/library-fixed endpoints, unrelated to
+  this convention.
+  - Rejected `server.servlet.context-path`: it is wired only through
+    `ServletWebServerFactoryCustomizer` for the real embedded container and is **not** applied to
+    `MockMvc` under `@WebMvcTest`/`@SpringBootTest`+`@AutoConfigureMockMvc` (`MockServletContext` never
+    receives it) — tests would silently diverge from production routing.
 - Package root: `io.uliss.<module>`.
 - Persistence: Flyway-миграции + PostgreSQL. Миграции лежат в
   `src/main/resources/db/migration`, именование `V<n>__ddl_*.sql` (есть в `auth` и

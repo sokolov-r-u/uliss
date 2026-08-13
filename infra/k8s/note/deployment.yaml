@@ -1,0 +1,29 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: note
+  labels:
+    app: note
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: note
+  template:
+    metadata:
+      name: note
+      labels:
+        app: note
+    spec:
+      containers:
+        - name: note
+          image: uliss/note:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8081
+              protocol: TCP
+          envFrom:
+            - secretRef:
+                name: uliss-secret
+      restartPolicy: Always
