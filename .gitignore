@@ -49,5 +49,4 @@ node_modules/
 ### macOS ###
 .DS_Store
 
-/CLAUDE.md
 /gradle.properties

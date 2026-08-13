@@ -19,7 +19,7 @@ class RetryConfig {
     private val backOffPeriod: Long = 0
 
     @Bean
-    fun retryTemplate(): RetryTemplate {
+    fun optimisticLockRetryTemplate(): RetryTemplate {
         val optimisticLockRetryPolicy = SimpleRetryPolicy()
         optimisticLockRetryPolicy.maxAttempts = numberOfAttempts
 
