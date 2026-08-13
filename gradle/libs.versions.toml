@@ -16,6 +16,7 @@ springGrpc = "1.1.0"
 tomcat-annotations = "6.0.53"
 jib = "3.5.4"
 spring-ai = "2.0.0"
+jacoco = "0.8.15"
 
 
 [libraries]

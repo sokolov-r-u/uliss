@@ -107,7 +107,13 @@ Kotlin 2.3.21, Spring Boot 4.1.0. Конкретные версии — в `grad
 ./gradlew :auth:integrationTest      # integration-тесты (нужен Docker — Testcontainers)
 ./gradlew :auth:bootRun              # запустить приложение auth
 ./gradlew :user:bootRun              # запустить user-service
+./gradlew jacocoRootReport           # смёрженный JaCoCo-отчёт по всем модулям (только test, не integrationTest)
 ```
+
+`jacocoRootReport` (root `build.gradle.kts`) объединяет per-module `build/jacoco/test.exec` +
+`build/classes/kotlin/main` всех подпроектов, кроме `uliss-design-system`, в один
+`build/reports/jacoco/jacocoRootReport/{html/index.html,jacocoRootReport.xml}`. Модули без
+`test.exec` (нет тестов) пропускаются лениво (`.filter { it.exists() }`), не валят таск.
 
 Integration-тесты поднимают PostgreSQL через Testcontainers
 (`TestContainersConfiguration`, образ `pgvector/pgvector`), поэтому требуется запущенный
@@ -207,7 +213,7 @@ issuer) / **`AUTH_INTERNAL_URL`** (service-to-service: token/revoke/jwks) — л
 - `io.uliss.kotlin-conventions` — базовый Kotlin/Spring модуль (библиотека): toolchain,
   `group = io.uliss`, Spring BOM через dependency-management, компиляторные флаги
   (`-Xjsr305=strict`, строгий null-safety, `-Xmulti-dollar-interpolation`), JUnit Platform,
-  задача `integrationTest`.
+  задача `integrationTest`, JaCoCo coverage report (только `test`).
 - `io.uliss.spring-boot-app` — наследует `kotlin-conventions` + применяет плагин
   `org.springframework.boot`. Для исполняемых приложений (`auth`, `user-service`).
 - `io.uliss.jpa-conventions` — применяет `org.jetbrains.kotlin.plugin.jpa` (no-arg для
@@ -287,6 +293,10 @@ verification step. Ask the user and get explicit approval each time before cross
   `module/auth/.../config/DataInitializer.kt:47,72` и `module/auth/.../service/UserService.kt:31`
   (platform-type от `passwordEncoder.encode` — безопасно, дообосновать комментарием).
 - Пакет `utils` в `SecurityUtils.kt` вместо `io.uliss.security.utils` — переименовать при рефакторинге.
+- JaCoCo (`jacocoTestReport`, `io.uliss.kotlin-conventions`) собирает coverage только с `test`
+  (не `integrationTest`) и подключён к `check`, но `jacocoTestCoverageVerification` — **не** настроен
+  (нет порога, сборка не падает по coverage). Добавить порог + gate, когда покрытие тестами вырастет
+  настолько, что порог будет осмысленным, а не произвольным числом.
 
 ## Conventions
 
