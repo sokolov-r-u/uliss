@@ -46,5 +46,4 @@ CREATE TABLE note.chat_note
     PRIMARY KEY (chat_id, note_id)
 );
 
-CREATE INDEX idx_chat_note_chat_id ON note.chat_note (chat_id);
 CREATE INDEX idx_chat_note_note_id ON note.chat_note (note_id);
