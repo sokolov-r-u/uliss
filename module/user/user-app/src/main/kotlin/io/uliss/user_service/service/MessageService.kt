@@ -37,4 +37,6 @@ class MessageService(
             userMessageRepository.save(userMessage)
         }
     }
+
+//    todo add registration new messages to all existing users
 }

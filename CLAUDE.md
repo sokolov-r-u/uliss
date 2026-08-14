@@ -10,9 +10,20 @@ Every task follows this process:
 2. Read relevant module files before writing any code — never generate blind
 3. Create or update CURRENT_TASK.md with the plan before writing any code
 4. If plan has 5+ steps or touches 3+ modules — stop and confirm with user
-5. Execute plan step by step, marking each item done as you go
-6. Run ./gradlew :<module>:test after each logical step — fix production code, not tests
-7. After completion — update CURRENT_TASK.md
+5. Execute plan one step at a time:
+
+- Research/exploration steps: execute without stopping
+- Code steps:
+  a. Write code
+  b. Write unit tests for new/changed behaviour if testable
+  c. Run ./gradlew :<module>:test — fix production code, not tests;
+  never delete or weaken existing tests;
+  if tests break or reveal bugs — stop and ask user
+  d. Update CURRENT_TASK.md
+  e. Stop and wait for user review before proceeding
+
+6. After all steps complete — write integration tests covering
+   end-to-end flow if applicable
 
 ## CURRENT_TASK.md structure
 
