@@ -8,7 +8,7 @@ class AppLogger(private val logger: Logger, private val clazz: KClass<*>) {
 
     fun debug(method: String, message: () -> String) {
         if (logger.isDebugEnabled) {
-            logger.debug("method='{}.{}' message='$message'", clazz, method)
+            logger.debug("method='{}.{}' message='${message()}'", clazz, method)
         }
     }
 
