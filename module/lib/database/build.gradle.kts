@@ -12,4 +12,7 @@ dependencies {
     api("org.flywaydb:flyway-database-postgresql")
     api(libs.fasterxml.uuid.generator)
     runtimeOnly("org.postgresql:postgresql")
+
+    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
