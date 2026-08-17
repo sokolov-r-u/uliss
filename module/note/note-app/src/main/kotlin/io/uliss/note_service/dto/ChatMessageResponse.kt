@@ -1,5 +1,6 @@
 package io.uliss.note_service.dto
 
+import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import java.time.Instant
@@ -12,3 +13,5 @@ data class ChatMessageResponse(
     val content: String,
     val createdAt: Instant?,
 )
+
+fun ChatMessageEntity.toResponse() = ChatMessageResponse(id, role, status, content, createdAt)
