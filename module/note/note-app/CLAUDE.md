@@ -25,10 +25,13 @@ advisor) — не реализовано, это следующая итерац
   AI-стартера в другой модуль эта коллизия не всплывёт снова именно по этой причине; но если сам
   DeepSeek-стартер сменится на другой AI-провайдер с похожей transitive-зависимостью — проверить
   `./gradlew :note:dependencies` на предмет повторного дубля имени бина.
-- **Данные (схема `note`):** Flyway `V1__ddl_create_note_schema.sql` — extension `vector` (pgvector) +
-  две таблицы: `notes` (обычные записи, `: AuditEntity`, `created_by`/`updated_by` через JWT-aware
-  `auditorProvider` из `:security`) и `note_embeddings` (RAG, `: UuidEntity`, FK `note_id → notes.id
-  ON DELETE CASCADE`, `vector(384)` — размерность-заглушка под будущую embedding-модель).
+- **Данные (схема `note`):** Flyway `V1__ddl_create_note_schema.sql` создаёт только схему (единообразно
+  с `auth`/`user-service` — schema-only, без таблиц). `V2__ddl_create_note_tables.sql` — extension
+  `vector` (pgvector) + две таблицы: `notes` (обычные записи, `: AuditEntity`, `created_by`/`updated_by`
+  через JWT-aware `auditorProvider` из `:security`) и `note_embeddings` (RAG, `: UuidEntity`, FK
+  `note_id → notes.id ON DELETE CASCADE`, `vector(384)` — размерность-заглушка под будущую
+  embedding-модель). `V3__ddl_create_chat_tables.sql` — `chat`/`chat_message`/`chat_note` (см.
+  `docs/CURRENT_TASK.md`).
 - **Старт без ключа:** `DEEPSEEK_API_KEY` может быть пустым — приложение поднимается, ключ нужен
   только на сам вызов `/ask` (иначе DeepSeek ответит ошибкой авторизации).
 - **Известные пробелы (не RAG-фичи, долг scaffold):** `/actuator/health` по-прежнему под
