@@ -1,60 +1,60 @@
 # CLAUDE.md — `web`
 
-Гайд по `module/web` (`@uliss/web`, React SPA). Кросс-cutting правила (workflow, конвенции, closed
-decisions) — в корневом `CLAUDE.md`, читать сначала его. Как SPA получает токены через
-сервис-посредник — `module/lib/security/CLAUDE.md` (секция «SPA token strategy»).
+Guide for `module/web` (`@uliss/web`, React SPA). Cross-cutting rules (workflow, conventions, closed
+decisions) — in the root `CLAUDE.md`, read it first. How the SPA obtains tokens through the
+mediator service — `module/lib/security/CLAUDE.md` (section «SPA token strategy»).
 
 ## Web SPA (React + Vite)
 
-- npm-пакет `@uliss/web` (член workspace). Стек: React 19, React Router 7, Vite 6 (**без**
-  `oidc-client-ts` — вся auth-логика своя), дизайн-система через `@uliss/design-system`
+- npm package `@uliss/web` (workspace member). Stack: React 19, React Router 7, Vite 6 (**without**
+  `oidc-client-ts` — all auth logic is custom), design system via `@uliss/design-system`
   (`module/lib/uliss-design-system/CLAUDE.md`).
-- **Структура `auth/`:** `tokenStore.ts` — токены в `sessionStorage`; `authApi.ts` — вызовы
-  сервисных `/user/oauth2/*` (`login`/`exchangeCode`/`refreshTokens`/`logout`, `returnTo`);
-  `apiClient.ts` — `authFetch` (единая точка для защищённых вызовов: Bearer + проактивный/реактивный
-  refresh); `AuthContext.tsx` — React-обвязка. `pages/Callback.tsx` — принимает `?code`, POST-ит на
-  сервис `/user/oauth2/callback`, возвращает пользователя на `returnTo` (guard от StrictMode
-  double-invoke). `api/users.ts` — `GET /user/users/me` через `authFetch`; `ui/Shell.tsx` — каркас.
-- **Notice-механизм + онбординг (см. «User onboarding · web UI» ниже):** переиспользуемая
-  модалка-уведомление поверх затемнённо-размытого приложения. `ui/notice/` — презентация
-  (`NoticeOverlay` — portal-backdrop с `backdrop-filter: blur`, `Notice` — карточка с вариантами
-  plaque/framed/minimal, `fields.tsx` — controlled поля input/select/date-picker, `glyphs.tsx`);
-  `notifications/NotificationProvider.tsx` — очередь generic-уведомлений (`useNotice().notify`);
-  `onboarding/` — фича онбординга (`OnboardingDriver` смонтирован в authed-области `App.tsx`).
-  Дизайн-источник — Claude Design `uliss-notify.jsx` (MCP `DesignSync`).
-- **Same-origin, без URL сервисов в браузере:** все вызовы — **относительные**, каждый сервис под своим
-  именем (`/user/oauth2/*`, `/user/users/*` — user-service; см. «Path-prefix convention» в корневом
-  `CLAUDE.md`). В dev их проксирует Vite (`vite.config.ts`: `/user` → `USER_SERVICE_URL`, `/note` →
-  `NOTE_SERVICE_URL`); в prod фронт раздаётся за тем же origin, что и сервисы (nginx/gateway). Браузер
-  не знает адрес AS/сервисов.
-- **Конфиг через env:** `VITE_*`-переменных для auth **больше нет** (удалены вместе с `oidc.ts`).
-  `USER_SERVICE_URL` (**без** `VITE_`-префикса) читает только `vite.config.ts` (node-side, `loadEnv(…, '')`)
-  для target dev-прокси — в браузерный бандл она не попадает. Dev-порт `3000` (`strictPort`).
-- **Анти-кэш:** плагин `noStoreHtml` шлёт `Cache-Control: no-store` на `index.html` (и в dev, и в
-  `vite preview`), хэшированные ассеты `/assets/*` — иммутабельны.
+- **`auth/` structure:** `tokenStore.ts` — tokens in `sessionStorage`; `authApi.ts` — calls to the
+  service's `/user/oauth2/*` (`login`/`exchangeCode`/`refreshTokens`/`logout`, `returnTo`);
+  `apiClient.ts` — `authFetch` (single entry point for protected calls: Bearer + proactive/reactive
+  refresh); `AuthContext.tsx` — React wrapper. `pages/Callback.tsx` — accepts `?code`, POSTs to the
+  service's `/user/oauth2/callback`, returns the user to `returnTo` (guard against StrictMode
+  double-invoke). `api/users.ts` — `GET /user/users/me` via `authFetch`; `ui/Shell.tsx` — shell.
+- **Notice mechanism + onboarding (see «User onboarding · web UI» below):** reusable
+  notification modal over a dimmed/blurred app. `ui/notice/` — presentation
+  (`NoticeOverlay` — portal-backdrop with `backdrop-filter: blur`, `Notice` — card with plaque/framed/minimal
+  variants, `fields.tsx` — controlled input/select/date-picker fields, `glyphs.tsx`);
+  `notifications/NotificationProvider.tsx` — generic notification queue (`useNotice().notify`);
+  `onboarding/` — onboarding feature (`OnboardingDriver` mounted in the authed area of `App.tsx`).
+  Design source — Claude Design `uliss-notify.jsx` (MCP `DesignSync`).
+- **Same-origin, no service URLs in the browser:** all calls are **relative**, each service under its
+  own name (`/user/oauth2/*`, `/user/users/*` — user-service; see «Path-prefix convention» in the root
+  `CLAUDE.md`). In dev they're proxied by Vite (`vite.config.ts`: `/user` → `USER_SERVICE_URL`, `/note` →
+  `NOTE_SERVICE_URL`); in prod the frontend is served from the same origin as the services (nginx/gateway).
+  The browser doesn't know the AS/service addresses.
+- **Config via env:** `VITE_*` variables for auth **no longer exist** (removed along with `oidc.ts`).
+  `USER_SERVICE_URL` (**without** the `VITE_` prefix) is read only by `vite.config.ts` (node-side, `loadEnv(…, '')`)
+  for the dev-proxy target — it never ends up in the browser bundle. Dev port `3000` (`strictPort`).
+- **Anti-cache:** the `noStoreHtml` plugin sends `Cache-Control: no-store` on `index.html` (both in dev and in
+  `vite preview`), hashed assets `/assets/*` are immutable.
 
 ```bash
-npm run dev -w @uliss/web        # Vite dev-сервер на :3000
+npm run dev -w @uliss/web        # Vite dev server on :3000
 npm run build -w @uliss/web      # tsc --noEmit + vite build
 npm run typecheck -w @uliss/web  # tsc --noEmit
 ```
 
 ## User onboarding · web UI
 
-Фронтенд онбординга живёт в SPA и построен на переиспользуемом Notice-механизме (см. выше);
-дизайн-источник — Claude Design `uliss-notify.jsx`. Бэкенд онбординга — `module/user/user-app/CLAUDE.md`.
+The onboarding frontend lives in the SPA and is built on the reusable Notice mechanism (see above);
+design source — Claude Design `uliss-notify.jsx`. Onboarding backend — `module/user/user-app/CLAUDE.md`.
 
-- **`onboarding/OnboardingDriver`** смонтирован в authed-области (`App.tsx`, рядом с `Home`). При
-  монтировании тянет `GET /user/users/me/onboarding` (через `authFetch`) и прогоняет pending-сообщения по
-  одному через `NoticeOverlay` (blocking-backdrop поверх `Home`); по опустошению очереди рендерит
-  `null` — приложение под ним снова доступно. StrictMode-double-fetch отсекается `useRef`-guard'ом.
-- **Шаги (`onboarding/steps.tsx`)** — каждый владеет своим локальным состоянием и сам POST-ит:
-  `DisplayNameStep` (`SET_DISPLAY_NAME`, blocking, primary «Continue» дизейблится при пустом поле,
-  `400` → inline-ошибка) и `ProfileStep` (`COMPLETE_PROFILE`, пол+дата, primary «Begin» шлёт введённое,
-  secondary «Skip» → POST с пустыми полями = `SKIPPED`). `blocking` берётся **из поля `blocking`
-  ответа API**, не из мокапа (в дизайне оба экрана blocking, но бэкенд помечает `COMPLETE_PROFILE`
-  как optional → у него есть «Skip»).
-- **Контракт (`onboarding/onboardingApi.ts`):** `Gender` = `MALE|FEMALE|OTHER`, `birthDate` — ISO
-  `YYYY-MM-DD` (date-picker отдаёт локальную дату без TZ-сдвига). Маппинг label↔`Gender` в `steps.tsx`.
-- **Профиль пользователя ещё нет UI-экрана** — онбординг это единственный текущий потребитель фичи;
-  generic dispatch-уведомления (`kind="info"`) механизм поддерживает, но бэкенд их пока не отдаёт.
+- **`onboarding/OnboardingDriver`** is mounted in the authed area (`App.tsx`, next to `Home`). On
+  mount it fetches `GET /user/users/me/onboarding` (via `authFetch`) and runs pending messages one
+  at a time through `NoticeOverlay` (blocking backdrop over `Home`); once the queue is empty it renders
+  `null` — the app underneath becomes accessible again. StrictMode double-fetch is cut off by a `useRef` guard.
+- **Steps (`onboarding/steps.tsx`)** — each owns its own local state and POSTs itself:
+  `DisplayNameStep` (`SET_DISPLAY_NAME`, blocking, primary «Continue» is disabled while the field is empty,
+  `400` → inline error) and `ProfileStep` (`COMPLETE_PROFILE`, gender+date, primary «Begin» sends the entered
+  data, secondary «Skip» → POST with empty fields = `SKIPPED`). `blocking` is taken **from the API response's
+  `blocking` field**, not from the mockup (in the design both screens are blocking, but the backend marks
+  `COMPLETE_PROFILE` as optional → it has a «Skip»).
+- **Contract (`onboarding/onboardingApi.ts`):** `Gender` = `MALE|FEMALE|OTHER`, `birthDate` — ISO
+  `YYYY-MM-DD` (the date-picker returns a local date with no TZ shift). Label↔`Gender` mapping is in `steps.tsx`.
+- **User profile has no UI screen yet** — onboarding is the only current consumer of the feature;
+  the generic dispatch-notification mechanism (`kind="info"`) supports it, but the backend doesn't emit them yet.

@@ -1,92 +1,104 @@
 # CLAUDE.md — `:security`
 
-Гайд по `module/lib/security` (`io.uliss.security`). Кросс-cutting правила (workflow, конвенции,
-closed decisions) — в корневом `CLAUDE.md`, читать сначала его. Здесь — архитектура, специфичная
-для этой библиотеки. Auth-сервер как вторая половина того же OAuth-потока — в
+Guide to `module/lib/security` (`io.uliss.security`). Cross-cutting rules (workflow, conventions,
+closed decisions) are in the root `CLAUDE.md` — read it first. This file covers architecture
+specific to this library. The auth server as the other half of the same OAuth flow is in
 `module/auth/CLAUDE.md`.
 
-## Роль
+## Role
 
-`:security` для каждого зависимого сервиса (`user-service` и будущих) играет **две роли сразу**:
+`:security` plays **two roles at once** for every dependent service (`user-service` and future
+ones):
 
-1. **OAuth2 Resource Server** — валидирует JWT по `jwk-set-uri` (`${AUTH_INTERNAL_URL}/oauth2/jwks`,
-   путь реального auth-сервера — см. «Два разных `/oauth2`» ниже).
-2. **Auth-посредник** для фронта.
+1. **OAuth2 Resource Server** — validates JWTs via `jwk-set-uri` (`${AUTH_INTERNAL_URL}/oauth2/jwks`,
+   the path of the real auth server — see "Two different `/oauth2`" below).
+2. **Auth mediator** for the frontend.
 
-`SecurityConfig` — **STATELESS** (сервис токенов не хранит), `/oauth2/**` и `/*/oauth2/**` —
-`permitAll`, остальное — `authenticated` (два паттерна: голый — для тестов самого `:security` без
-app-префикса, с одним wildcard-сегментом — для мостика под префиксом потребителя, см. «Path-prefix
-convention» в корневом `CLAUDE.md`). `:security` также конфигурирует CORS.
+`SecurityConfig` is **STATELESS** (the service does not store tokens), `/oauth2/**` and
+`/*/oauth2/**` are `permitAll`, everything else is `authenticated` (two patterns: the bare one —
+for `:security`'s own tests without an app prefix, and the one with a single wildcard segment —
+for the mediator under a consuming app's prefix, see "Path-prefix convention" in the root
+`CLAUDE.md`). `:security` also configures CORS.
 
-**Два разных `/oauth2`:** библиотечный класс `AuthController` объявлен как `@RequestMapping("/oauth2")`
-и тестируется в `:security` в этом виде (`AuthMediatorTest`), но наружу (для браузера) он отдаётся под
-префиксом приложения, которое его подключает — в `user-service` это `/user/oauth2/**`
-(`WebMvcPathPrefixConfig` в `user-app`, см. корневой `CLAUDE.md`). Ниже в этом файле пути описаны как
-видит их браузер (`/user/oauth2/*`). Отдельно от этого — пути **реального Authorization Server**
-(`module/auth`, свой host `auth.uliss.local`): `/oauth2/authorize`, `/oauth2/token`, `/oauth2/revoke`,
-`/oauth2/jwks` — это Spring Authorization Server, они не связаны с префиксом мостика и не меняются.
+**Two different `/oauth2`:** the library class `AuthController` is declared as
+`@RequestMapping("/oauth2")` and is tested in `:security` in that form (`AuthMediatorTest`), but
+externally (for the browser) it is served under the prefix of the app that includes it — in
+`user-service` that's `/user/oauth2/**` (`WebMvcPathPrefixConfig` in `user-app`, see root
+`CLAUDE.md`). Below, paths in this file are described as the browser sees them
+(`/user/oauth2/*`). Separate from this are the paths of the **real Authorization Server**
+(`module/auth`, its own host `auth.uliss.local`): `/oauth2/authorize`, `/oauth2/token`,
+`/oauth2/revoke`, `/oauth2/jwks` — these belong to Spring Authorization Server, are unrelated to
+the mediator's prefix, and do not change.
 
-**`AuthController` (`/oauth2/**` внутри библиотеки, `/user/oauth2/**` снаружи в `user-service`) +
-`AuthService`** — тонкий OAuth-клиент, ведущий весь танец за фронт:
+**`AuthController` (`/oauth2/**` inside the library, `/user/oauth2/**` externally in
+`user-service`) + `AuthService`** — a thin OAuth client that carries out the whole dance on
+behalf of the frontend:
 
-- `GET /user/oauth2/login` — `AuthService` генерирует PKCE `code_verifier`, кладёт его в **cookie**
-  `code_verifier` (secure по `AUTH_SECURE_COOKIE`), 302 → `${AUTH_PUBLIC_URL}/oauth2/authorize`
-  (browser-facing URL реального AS; token/revoke ниже идут на `AUTH_INTERNAL_URL` — см. «Split-horizon
-  auth URL»).
-- `POST /user/oauth2/callback?code` (+ cookie `code_verifier`) — обменивает код на AS `/oauth2/token`
-  (confidential: `client_id`+`client_secret`+`code_verifier`), возвращает `TokenResponse` **JSON**.
-- `POST /user/oauth2/refresh` `{refreshToken}` — refresh-grant на AS, возвращает новые токены.
-- `POST /user/oauth2/logout` `{refreshToken}` — отзыв на AS `/oauth2/revoke` (best-effort).
-- Все вызовы к AS — `RestClient` с `@Retryable` (ретраи на недоступность AS).
+- `GET /user/oauth2/login` — `AuthService` generates a PKCE `code_verifier`, puts it in a
+  **cookie** `code_verifier` (secure per `AUTH_SECURE_COOKIE`), 302 → `${AUTH_PUBLIC_URL}/oauth2/authorize`
+  (browser-facing URL of the real AS; token/revoke below go to `AUTH_INTERNAL_URL` — see
+  "Split-horizon auth URL").
+- `POST /user/oauth2/callback?code` (+ cookie `code_verifier`) — exchanges the code for tokens at
+  AS `/oauth2/token` (confidential: `client_id`+`client_secret`+`code_verifier`), returns
+  `TokenResponse` as **JSON**.
+- `POST /user/oauth2/refresh` `{refreshToken}` — refresh grant against the AS, returns new tokens.
+- `POST /user/oauth2/logout` `{refreshToken}` — revocation at AS `/oauth2/revoke` (best-effort).
+- All calls to the AS go through `RestClient` with `@Retryable` (retries on AS unavailability).
 
-**Полный поток:** браузер → сервис `GET /user/oauth2/login` → AS `/oauth2/authorize` → логин → AS → SPA
-`/callback?code` → SPA `POST` на сервис `/user/oauth2/callback` (cookie `code_verifier` едет
-same-origin) → JSON-токены. AS редиректит на `${FRONTEND_URL}/callback` (SPA), не на этот сервис.
+**Full flow:** browser → service `GET /user/oauth2/login` → AS `/oauth2/authorize` → login → AS →
+SPA `/callback?code` → SPA `POST` to service `/user/oauth2/callback` (cookie `code_verifier`
+travels same-origin) → JSON tokens. The AS redirects to `${FRONTEND_URL}/callback` (the SPA), not
+to this service.
 
 ## Split-horizon auth URL (public vs internal)
 
-Адрес AS расщеплён на **две** переменные, потому что за ingress/gateway браузер и pod достают AS
-разными путями (это свойство топологии, не только k8s — тот же приём, что `KC_HOSTNAME` у Keycloak):
+The AS address is split into **two** variables because, behind an ingress/gateway, the browser
+and the pod reach the AS via different paths (this is a property of the topology, not just k8s —
+the same trick as Keycloak's `KC_HOSTNAME`):
 
-- **`AUTH_PUBLIC_URL`** — browser-facing: 302-редирект на `/oauth2/authorize`
-  (`AuthService.createLoginRedirectUrl`) + issuer auth-сервера (`app.auth.issuer`). В k8s =
-  `http://auth.uliss.local` (через ingress).
-- **`AUTH_INTERNAL_URL`** — service-to-service: обмен кода/refresh на `/oauth2/token`,
-  `/oauth2/revoke` (`AuthService`), и `jwk-set-uri` resource-server'а. В k8s = `http://auth:9000`
-  (cluster-DNS сервиса).
+- **`AUTH_PUBLIC_URL`** — browser-facing: the 302 redirect to `/oauth2/authorize`
+  (`AuthService.createLoginRedirectUrl`) + the auth server issuer (`app.auth.issuer`). In k8s =
+  `http://auth.uliss.local` (via ingress).
+- **`AUTH_INTERNAL_URL`** — service-to-service: exchanging code/refresh at `/oauth2/token`,
+  `/oauth2/revoke` (`AuthService`), and the resource server's `jwk-set-uri`. In k8s =
+  `http://auth:9000` (the service's cluster DNS).
 
-В `:security` это поля `authServerPublicUrl` / `authServerInternalUrl` (`SecurityProperties`), в
-yml — `security.oauth2.client.auth-server-public-url` / `-internal-url`. Локально/в Compose обе
-равны (`http://auth.uliss.local:9000`) — расщепление «схлопывается». Resource-server issuer **не**
-валидирует (только `jwk-set-uri`), поэтому единственное жёсткое требование — `AUTH_INTERNAL_URL`
-должен быть доступен из pod'а, а `AUTH_PUBLIC_URL` — из браузера.
+In `:security` these are the fields `authServerPublicUrl` / `authServerInternalUrl`
+(`SecurityProperties`); in yml — `security.oauth2.client.auth-server-public-url` /
+`-internal-url`. Locally/in Compose both are equal (`http://auth.uliss.local:9000`) — the split
+"collapses". The resource server does **not** validate the issuer (only `jwk-set-uri`), so the
+only hard requirement is that `AUTH_INTERNAL_URL` must be reachable from the pod, and
+`AUTH_PUBLIC_URL` from the browser.
 
-## SPA token strategy (решение)
+## SPA token strategy (decision)
 
-React-SPA (`module/web`) **не общается с auth-сервером напрямую и вообще не знает его адрес.** Она
-ходит только в **свой текущий сервис** (`/user/oauth2/*` из `:security`), а сервис (confidential-клиент
+The React SPA (`module/web`) **does not talk to the auth server directly and does not even know
+its address.** It only talks to **its own current service** (`/user/oauth2/*` from `:security`),
+and the service (confidential client + PKCE) drives the OAuth redirects and hands back tokens as
+JSON. This is a deliberate choice — recorded here so it isn't reopened (decision history is in
+prior discussion; in short: the server does **not** store tokens, because a stateless lib-per-service
+cannot centrally store state without a shared store/gateway, which doesn't exist yet; so the
+browser holds the tokens).
 
-+ PKCE) ведёт OAuth-редиректы и отдаёт токены как JSON. Это осознанный выбор — фиксируем, чтобы не
-переоткрывать (история решения — в переписке, кратко: сервер токены **не** хранит, потому что
-stateless lib-в-каждом-сервисе не может централизованно хранить состояние без общего стора/gateway,
-которых пока нет; значит токены держит браузер).
+- **Storage:** both tokens (access + refresh) live in the browser, in `sessionStorage`
+  (`auth/tokenStore.ts` in `module/web`, cleared when the tab closes). The service is stateless
+  and stores nothing.
+- **Refresh:** `authFetch` (`auth/apiClient.ts` in `module/web`) refreshes **proactively** (based
+  on `expiresAt` with an `EXPIRY_SKEW_MS` margin) and **reactively** (on `401` /
+  `opaqueredirect` from the entry point) — it sends `refreshToken` to `/user/oauth2/refresh`.
+  A failed refresh triggers `login()` (full-page redirect to `/user/oauth2/login`).
+- **Why a mediator service rather than direct SPA→AS:** it hides the AS from the frontend,
+  centralizes OAuth in `:security`, and lets the OAuth client be confidential (the secret stays
+  server-side). This does **not** reduce the XSS risk compared to the direct-SPA model — the
+  refresh token still sits in JS-accessible `sessionStorage`. The mediator's value is
+  encapsulation, not token protection.
+- **Backlog (NOT doing now):** **BFF** — the server holds the refresh token, and the browser gets
+  only an HttpOnly cookie (eliminates XSS token theft). Requires a **shared point** (a gateway or
+  a shared store like Redis), since a stateless lib across N services can't hold the refresh
+  centrally. Until then, the known trade-off is refresh in `sessionStorage` (mitigated by
+  rotation + a short access TTL). The `access_token` (JWT) is already valid across all services
+  without any shared cache — they are stateless validators (shared AS + JWKS).
 
-- **Хранение:** оба токена (access + refresh) — в браузере, `sessionStorage` (`auth/tokenStore.ts`
-  в `module/web`, чистятся при закрытии вкладки). Сервис — stateless, не хранит ничего.
-- **Обновление:** `authFetch` (`auth/apiClient.ts` в `module/web`) обновляет **проактивно** (по
-  `expiresAt` со сдвигом `EXPIRY_SKEW_MS`) и **реактивно** (на `401` / `opaqueredirect` от
-  entry-point) — шлёт `refreshToken` на `/user/oauth2/refresh`. Провал refresh → `login()` (full-page на
-  `/user/oauth2/login`).
-- **Почему сервис-посредник, а НЕ прямой SPA→AS:** прячет AS от фронта, централизует OAuth в
-  `:security`, делает OAuth-клиента confidential (секрет на сервере). XSS-риск при этом **не меньше**
-  прямой SPA-модели — refresh всё равно в JS-доступном `sessionStorage`. Ценность посредника —
-  инкапсуляция, не защита токенов.
-- **Backlog (НЕ делаем сейчас):** **BFF** — сервер держит refresh, в браузер только HttpOnly-cookie
-  (устраняет XSS-кражу). Требует **общей точки** (gateway или общий стор типа Redis), т.к. stateless
-  lib в N сервисах не может хранить refresh централизованно. До неё известный компромисс — refresh в
-  `sessionStorage` (смягчён ротацией + коротким TTL access). `access_token` (JWT) уже валиден во всех
-  сервисах без всякого общего кэша — они stateless-валидаторы (общий AS + JWKS).
-
-См. также `module/auth/CLAUDE.md` — вторая половина этого же OAuth-потока (два
-`SecurityFilterChain`, сидирование клиентов, `UserService`/JWK, обогащение токена, регистрация,
-Auth UI), и `module/web/CLAUDE.md` — как SPA пользуется этим посредником.
+See also `module/auth/CLAUDE.md` — the other half of this same OAuth flow (two
+`SecurityFilterChain`s, client seeding, `UserService`/JWK, token enrichment, registration, Auth
+UI), and `module/web/CLAUDE.md` — how the SPA uses this mediator.

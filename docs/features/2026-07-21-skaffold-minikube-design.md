@@ -100,5 +100,5 @@ skaffold delete   # tear down
 
 ## Docs
 
-Update the "Деплой в Kubernetes" section of CLAUDE.md to mention `skaffold run` as the primary
+Update the "Deploying to Kubernetes" section of CLAUDE.md to mention `skaffold run` as the primary
 loop (keeping the manual commands as fallback / explanation).

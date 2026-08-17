@@ -1,88 +1,97 @@
 # CLAUDE.md — `auth`
 
-Гайд по `module/auth` (`io.uliss.auth`) — OAuth2 Authorization Server. Кросс-cutting правила
-(workflow, конвенции, closed decisions) — в корневом `CLAUDE.md`, читать сначала его. Вторая
-половина того же OAuth-потока (resource server + auth-посредник для остальных сервисов) —
+Guide to `module/auth` (`io.uliss.auth`) — OAuth2 Authorization Server. Cross-cutting rules
+(workflow, conventions, closed decisions) — in the root `CLAUDE.md`, read it first. The other
+half of the same OAuth flow (resource server + auth mediator for the rest of the services) —
 `module/lib/security/CLAUDE.md`.
 
-## Auth-сервер
+## Auth server
 
-Рантайм-устройство аутентификации (требует чтения нескольких файлов в `module/auth` и `:security`):
+Runtime authentication setup (requires reading several files in `module/auth` and `:security`):
 
-- `auth` — OAuth2 Authorization Server с **двумя** `SecurityFilterChain` (`SecurityConfig`):
-  `@Order(1)` матчит `/oauth2/**` + `/.well-known/**` (OIDC-эндпоинты, при HTML-запросе редирект
-  на `/login`); `@Order(2)` — остальное. На второй цепочке: кастомная `formLogin.loginPage("/login")`
-  (отключает дефолтный login-генератор Spring → `GET /login` доходит до `AuthController`),
-  `permitAll` для `/login`, `/register`, `/ds/**`, `/error`, и **жадная загрузка CSRF-токена**
-  (`CsrfTokenRequestAttributeHandler.setCsrfRequestAttributeName(null)`) — иначе на больших
-  страницах с inline-SVG ответ коммитится до рендера формы и ленивый CSRF не успевает создать сессию.
-- **Клиенты** хранятся в БД (`JdbcRegisteredClientRepository`, таблицы из
-  `V3__ddl_create_spring_auth_tables.sql`) и сеются при старте в `DataInitializer`:
-  `uliss-web` — **confidential**-клиент (`CLIENT_SECRET_BASIC`), grants `authorization_code` +
-  `refresh_token`, PKCE обязателен (`requireProofKey`, defense-in-depth), scopes `openid profile`,
-  redirect на **все** адреса из `AUTH_CLIENT_CALLBACK_URLS` (CSV → несколько `redirectUri`, чтобы
-  один клиент работал и локально, и в k8s); TTL — access 15 мин, refresh 30 дней, **ротация**
-  (`reuseRefreshTokens=false` → каждый refresh выдаёт новый refresh-токен, старый инвалидируется).
-  `DataInitializer` **upsert**: если клиент уже в БД — недостающие redirect-URI дописываются на старте
-  (не нужно чистить БД при смене окружения). `uliss-internal` — m2m, `client_secret_basic`, grant
-  `client_credentials`, scope `internal`.
-  Важно: клиент **не** public — им пользуется **сервис** (`:security`), а не браузер (см. «SPA token
-  strategy» в `module/lib/security/CLAUDE.md`), поэтому `REFRESH_TOKEN` grant включён намеренно.
-- **Аутентификация пользователей**: `UserService` реализует `UserDetailsService` (поиск по email,
-  таблица `auth.users`), пароли — `BCryptPasswordEncoder(strength=12)`. `UserEntity.status` —
-  `@Enumerated(EnumType.STRING)` (иначе ordinal нарушает CHECK-констрейнт). JWK-ключи персистятся
-  в БД (`SigningKeyEntity` / `SigningKeysService`), выдаются через `/.well-known/jwks.json`.
-  **`sub` токена = `auth.users.id` (UUID), а не email** — логин по-прежнему по email
-  (`loadUserByUsername(email)`), но `toUserDetails().username(id.toString())` делает именем идентичности
-  стабильный UUID (OIDC-корректный subject: email меняется/переназначается, UUID — нет; и не светит PII
-  в каждом токене). Email при необходимости добавляется отдельным claim, а не в `sub`.
-- **Обогащение access-токена** (`TokenConfig.tokenCustomizer`): в user-токен кладутся claims `roles`,
-  `userId` (id профиля в user-service) и `displayName` (если задан). `userId`/`displayName` тянутся
-  синхронным gRPC-вызовом `UserService.getUserInfo(authId = sub)` к user-service, который **лениво
-  создаёт профиль при первом логине** (find-or-create) и сеет онбординг-сообщения. Недоступность
-  user-service → `OAuth2AuthenticationException` (**логин блокируется** — токен без `userId` неполноценен;
-  осознанный trade-off: доступность auth завязана на user-service). Для `client_credentials` (m2m) блок
-  пропускается — у сервисного токена пользователя нет.
-    - **gRPC-транспорт (порт `USER_GRPC_PORT`, отдельный от HTTP `USER_SERVER_PORT`):** auth-клиент —
-      `GrpcConfig` (`ManagedChannel`, `usePlaintext`, host `USER_SERVICE_HOST` / port `USER_GRPC_PORT`,
-      **без дефолтов** → fail-fast). В k8s `USER_SERVICE_HOST=user` (патч секрета), Service `user` отдаёт
-      и `http`, и `grpc`-порт. `spring-boot-starter-grpc-server` при Spring Security на classpath
-      **авто-защищает** gRPC как OAuth2 resource-server (требует Bearer); т.к. gRPC — cluster-internal
-      (не через ingress) и клиент токен не шлёт, user-service открывает его `permitAll` через
-      `GrpcSecurityConfig` (свой `AuthenticationProcessInterceptor` → авто-конфиг отступает по
-      `@ConditionalOnMissingBean`). HTTP-security при этом не затронута. Ужесточение (mTLS/m2m) — backlog.
-- **Регистрация — только серверная форма** (`AuthController`, `GET`/`POST /register`, DTO
-  `RegisterUserRequest(email, password)`); при успехе → `redirect:/login?registered`. REST-эндпоинт
-  `/auth/register` удалён намеренно: в Authorization Code + PKCE регистрация хостится на auth-сервере,
-  пароль не попадает в SPA. `displayName` в auth **не хранится** — переезжает в `user-service`.
-- **Auth-UI** (`AuthController` + Thymeleaf, см. ниже): `/login` и `/register` отдают одну страницу
-  с обеими формами и клиентским переключением вкладок (без перезагрузки).
+- `auth` — OAuth2 Authorization Server with **two** `SecurityFilterChain`s (`SecurityConfig`):
+  `@Order(1)` matches `/oauth2/**` + `/.well-known/**` (OIDC endpoints, redirects to `/login` on
+  an HTML request); `@Order(2)` — everything else. On the second chain: custom
+  `formLogin.loginPage("/login")` (disables Spring's default login-page generator → `GET /login`
+  reaches `AuthController`), `permitAll` for `/login`, `/register`, `/ds/**`, `/error`, and
+  **eager CSRF token loading** (`CsrfTokenRequestAttributeHandler.setCsrfRequestAttributeName(null)`)
+  — otherwise on large pages with inline SVG the response commits before the form renders and lazy
+  CSRF doesn't get to create the session in time.
+- **Clients** are stored in the DB (`JdbcRegisteredClientRepository`, tables from
+  `V3__ddl_create_spring_auth_tables.sql`) and seeded on startup in `DataInitializer`:
+  `uliss-web` — a **confidential** client (`CLIENT_SECRET_BASIC`), grants `authorization_code` +
+  `refresh_token`, PKCE required (`requireProofKey`, defense-in-depth), scopes `openid profile`,
+  redirects to **all** addresses from `AUTH_CLIENT_CALLBACK_URLS` (CSV → multiple `redirectUri`,
+  so one client works both locally and in k8s); TTL — access 15 min, refresh 30 days,
+  **rotation** (`reuseRefreshTokens=false` → each refresh issues a new refresh token, the old one
+  is invalidated). `DataInitializer` **upserts**: if the client already exists in the DB, missing
+  redirect URIs are appended on startup (no need to wipe the DB when switching environments).
+  `uliss-internal` — m2m, `client_secret_basic`, grant `client_credentials`, scope `internal`.
+  Important: the client is **not** public — it's used by a **service** (`:security`), not the
+  browser (see "SPA token strategy" in `module/lib/security/CLAUDE.md`), so the `REFRESH_TOKEN`
+  grant is intentionally enabled.
+- **User authentication**: `UserService` implements `UserDetailsService` (lookup by email,
+  table `auth.users`), passwords — `BCryptPasswordEncoder(strength=12)`. `UserEntity.status` —
+  `@Enumerated(EnumType.STRING)` (otherwise ordinal would violate the CHECK constraint). JWK keys
+  are persisted in the DB (`SigningKeyEntity` / `SigningKeysService`), exposed via
+  `/.well-known/jwks.json`.
+  **The token `sub` = `auth.users.id` (UUID), not email** — login is still by email
+  (`loadUserByUsername(email)`), but `toUserDetails().username(id.toString())` makes the identity
+  name a stable UUID (an OIDC-correct subject: email can change/be reassigned, UUID does not; and
+  it doesn't leak PII in every token). Email is added as a separate claim when needed, not in `sub`.
+- **Access-token enrichment** (`TokenConfig.tokenCustomizer`): the user token gets claims `roles`,
+  `userId` (the profile id in user-service), and `displayName` (if set). `userId`/`displayName`
+  are fetched via a synchronous gRPC call `UserService.getUserInfo(authId = sub)` to user-service,
+  which **lazily creates the profile on first login** (find-or-create) and seeds onboarding
+  messages. User-service unavailability → `OAuth2AuthenticationException` (**login is blocked** —
+  a token without `userId` is incomplete; a deliberate trade-off: auth's availability is tied to
+  user-service). For `client_credentials` (m2m) this block is skipped — a service token has no user.
+    - **gRPC transport (port `USER_GRPC_PORT`, separate from HTTP `USER_SERVER_PORT`):** the
+      auth-side client is `GrpcConfig` (`ManagedChannel`, `usePlaintext`, host `USER_SERVICE_HOST` /
+      port `USER_GRPC_PORT`, **no defaults** → fail-fast). In k8s `USER_SERVICE_HOST=user` (secret
+      patch), the `user` Service exposes both the `http` and `grpc` ports.
+      `spring-boot-starter-grpc-server`, when Spring Security is on the classpath,
+      **auto-secures** gRPC as an OAuth2 resource server (requires a Bearer token); since gRPC is
+      cluster-internal (not routed through ingress) and the client doesn't send a token,
+      user-service opens it up with `permitAll` via `GrpcSecurityConfig` (its own
+      `AuthenticationProcessInterceptor` → the auto-config backs off via `@ConditionalOnMissingBean`).
+      HTTP security is unaffected. Hardening (mTLS/m2m) is backlog.
+- **Registration — server-side form only** (`AuthController`, `GET`/`POST /register`, DTO
+  `RegisterUserRequest(email, password)`); on success → `redirect:/login?registered`. The REST
+  endpoint `/auth/register` was removed intentionally: with Authorization Code + PKCE,
+  registration is hosted on the auth server, and the password never reaches the SPA. `displayName`
+  is **not stored** in auth — it lives in `user-service`.
+- **Auth UI** (`AuthController` + Thymeleaf, see below): `/login` and `/register` serve a single
+  page with both forms and client-side tab switching (without a reload).
 
 ## Auth UI (Thymeleaf)
 
-Серверные страницы входа/регистрации (Фаза B плана выполнена). Устройство:
+Server-rendered login/registration pages (Phase B of the plan is done). Design:
 
-- **Один шаблон, обе формы.** `GET /login` и `GET /register` (`AuthController`) рендерят
-  фрагмент `templates/fragments/layout.html :: page(active)`, где в DOM присутствуют **обе** формы
-  (sign-in и register). Активную вкладку задаёт `active` (`signin`/`register`); переключение —
-  **на клиенте** (vanilla JS, табы-кнопки `data-tab`, `history.replaceState` меняет URL без
-  перезагрузки). `login.html`/`register.html` — тонкие обёртки над фрагментом.
-- **Формы реальные:** sign-in `POST /login` (Spring formLogin, поля `username`/`password`),
-  register `POST /register` (`th:object="${registerForm}"`, поля `email`/`password`). Объект
-  `registerForm` кладётся в модель явно на обоих GET (не через `@ModelAttribute`-метод — иначе
-  ломается constructor-binding immutable DTO на POST). SSO/«email sign-in link»/«forgot» —
-  визуально неактивны (бэкенд не поддерживает).
-- **Разметка вкладок идентична** (кнопки на одной высоте): обе формы — `.auth-body{min-height:404px}`
-    + распорка `.spacer{flex:1}`; в register зарезервировано невидимое место под строку «Forgot
-      passphrase» из sign-in.
-- **Дизайн-система:** CSS-токены DS грузятся через `<link th:href="@{/ds/styles.css}">`; визуал
-  (Wordmark-градиент, поля, кнопки, созвездие Orion) — в inline-`<style>` фрагмента поверх токенов.
-  Orion — статический SVG-фрагмент `templates/fragments/orion.html` (геометрия перенесена из
-  Claude Design `uliss-auth.jsx`). Источник дизайна — проект Claude Design, тянуть через MCP `DesignSync`.
-  Общее устройство дизайн-системы — `module/lib/uliss-design-system/CLAUDE.md`.
-- **Анти-кэш:** `WebConfig` ставит `Cache-Control: no-store` на `/login` и `/register`
-  (`HandlerInterceptor`); `spring.thymeleaf.cache: false` (dev). Хэш-fingerprinting `/ds/**` —
-  забота Фазы C (Vite).
+- **One template, both forms.** `GET /login` and `GET /register` (`AuthController`) render the
+  fragment `templates/fragments/layout.html :: page(active)`, where **both** forms (sign-in and
+  register) are present in the DOM. The `active` parameter (`signin`/`register`) sets the active
+  tab; switching happens **client-side** (vanilla JS, tab buttons with `data-tab`,
+  `history.replaceState` changes the URL without a reload). `login.html`/`register.html` are thin
+  wrappers over the fragment.
+- **The forms are real:** sign-in `POST /login` (Spring formLogin, `username`/`password` fields),
+  register `POST /register` (`th:object="${registerForm}"`, `email`/`password` fields). The
+  `registerForm` object is put into the model explicitly on both GET handlers (not via an
+  `@ModelAttribute` method — otherwise it breaks constructor-binding of the immutable DTO on
+  POST). SSO / "email sign-in link" / "forgot" are visually present but inactive (the backend
+  doesn't support them).
+- **Tab markup is identical** (buttons align at the same height): both forms use
+  `.auth-body{min-height:404px}` + a `.spacer{flex:1}` spacer; register reserves invisible space
+  for the "Forgot passphrase" line from sign-in.
+- **Design system:** DS CSS tokens are loaded via `<link th:href="@{/ds/styles.css}">`; the visuals
+  (Wordmark gradient, fields, buttons, the Orion constellation) live in the fragment's inline
+  `<style>` on top of the tokens. Orion is a static SVG fragment
+  (`templates/fragments/orion.html`), its geometry ported from the Claude Design `uliss-auth.jsx`.
+  The design source is the Claude Design project, pulled via the MCP `DesignSync`. General design
+  system layout — `module/lib/uliss-design-system/CLAUDE.md`.
+- **Anti-cache:** `WebConfig` sets `Cache-Control: no-store` on `/login` and `/register`
+  (`HandlerInterceptor`); `spring.thymeleaf.cache: false` (dev). Hash-fingerprinting `/ds/**` is
+  Phase C's concern (Vite).
 
-См. также `module/lib/security/CLAUDE.md` — resource server + auth-посредник, которым пользуются
-остальные сервисы, split-horizon auth URL, SPA token strategy.
+See also `module/lib/security/CLAUDE.md` — the resource server + auth mediator used by the other
+services, split-horizon auth URL, SPA token strategy.
