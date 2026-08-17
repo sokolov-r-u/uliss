@@ -6,9 +6,7 @@ CREATE TABLE note.chat
     title      VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ  NOT NULL,
     updated_at TIMESTAMPTZ  NOT NULL,
-    version    BIGINT,
-    created_by VARCHAR(64)  NOT NULL,
-    updated_by VARCHAR(64)  NOT NULL
+    version BIGINT
 );
 
 CREATE INDEX idx_chat_user_id ON note.chat (user_id);
@@ -26,8 +24,6 @@ CREATE TABLE note.chat_message
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     version    BIGINT,
-    created_by VARCHAR(64) NOT NULL,
-    updated_by VARCHAR(64) NOT NULL,
     CHECK (role IN ('USER', 'ASSISTANT')),
     CHECK (status IN ('COMPLETE', 'PARTIAL', 'FAILED'))
 );
