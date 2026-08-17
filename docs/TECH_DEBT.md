@@ -9,14 +9,14 @@ recorded here until implementation.
 
 ### Problem
 
-`ChatService.listMessages(userId, chatId)` (`module/note/note-app/.../service/ChatService.kt`)
+`ChatService.getMessages(userId, chatId)` (`module/note/note-app/.../service/ChatService.kt`)
 currently returns the **entire** message history of a chat in one list
 (`chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)`). For long chats this is an
 unbounded response — reading history needs pagination.
 
-Not to be confused with `prepareTurn` in the same service: it uses the same repository method to
+Not to be confused with `appendUserMessage` in the same service: it uses the same repository method to
 assemble the **full** history sent to DeepSeek on every turn — that must stay unpaginated. Pagination
-only applies to the read endpoint `listMessages` / `GET /chats/{chatId}/messages`.
+only applies to the read endpoint `getMessages` / `GET /chats/{chatId}/messages`.
 
 ### Chosen approach: cursor-based (keyset) pagination by message `id`
 
@@ -41,10 +41,10 @@ was chosen:
   of a chat's messages — older than a cursor, only `before: UUID?` + `limit`, e.g.
   `findByChatIdAndIdLessThanOrderByIdDesc(chatId, cursor, pageable)` for loading older messages, plus a
   separate method with no cursor for the first (most recent) page.
-- `ChatService.listMessages` — the signature needs `limit: Int` and an optional `before: UUID?`
+- `ChatService.getMessages` — the signature needs `limit: Int` and an optional `before: UUID?`
   (cursor = `id` of the oldest message already loaded on the frontend), keep the existing chat-ownership
   check (`requireOwnedChat`), return the page in chronological order (ASC) for display.
-- `ChatController.listMessages` (`GET /chats/{chatId}/messages`) — add query parameters `limit`
+- `ChatController.getMessages` (`GET /chats/{chatId}/messages`) — add query parameters `limit`
   (required or with a sensible default, e.g. 50) and `before` (optional; absent = latest page/most
   recent messages).
 - Response shape — a metadata envelope instead of a flat `List<ChatMessageResponse>`: needs a field
@@ -66,3 +66,22 @@ was chosen:
 ### Not in scope for the current task
 
 Recorded as a future plan — implementation (backend + frontend) is a separate task.
+
+## AI-generated chat title on first message (`note-service`)
+
+**Status:** not implemented. `ChatService.createChat` (`module/note/note-app/.../service/ChatService.kt:24`)
+always falls back to the hardcoded `DEFAULT_CHAT_TITLE = "New chat"` when the client doesn't pass a
+`title` (`CreateChatRequest.title` is optional, `module/note/note-app/.../dto/CreateChatRequest.kt`).
+
+### Problem
+
+When a chat is created together with its first message, the neural network should also come up with a
+short, meaningful chat title derived from that message, instead of leaving every chat named "New chat"
+(or requiring the client to invent one). This needs a separate call/prompt to the AI provider
+(DeepSeek) to generate the title — analogous to how ChatGPT/Claude-style products title conversations
+from the first user message.
+
+### Not in scope for the current task
+
+Recorded as a future plan — implementation (backend, and frontend if the title needs to appear/update
+asynchronously in the chat list) is a separate task.
