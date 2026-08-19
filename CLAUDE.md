@@ -76,8 +76,9 @@ Executable applications (directory `module/<name>`):
   application, **scaffold**: `POST /note/ask` via Spring AI on top of DeepSeek (model
   `deepseek-v4-flash`), plus a `note` schema for future RAG (pgvector). Depends on `:security`,
   `:database`, `:exception`, `:logging`, `:validation`. Details — `module/note/note-app/CLAUDE.md`.
-- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), frontend on top of `auth`/`user-service`.
-  Same-origin, doesn't know service addresses directly. Details — `module/web/CLAUDE.md`.
+- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), frontend on top of `auth`/`user-service`/
+  `note-service` (chat UI). Same-origin, doesn't know service addresses directly. Details —
+  `module/web/CLAUDE.md`.
 
 Libraries (not executable, directory `module/lib/<name>`):
 
@@ -103,8 +104,7 @@ The mapping between module name and directory is defined in `settings.gradle.kts
   source of styles for both server-rendered Thymeleaf pages (`auth`) and the React app (`web`). The
   folder is **simultaneously** an npm package `@uliss/design-system` (source in `src/`: CSS tokens,
   self-hosted OFL fonts, `.tsx` components) **and** a Gradle module `:uliss-design-system`. Details —
-  `module/lib/uliss-design-system/CLAUDE.md`. The frontend and auth-UI plan lives at
-  `docs/plans/2026-06-25-frontend-auth-ui-plan.md`.
+  `module/lib/uliss-design-system/CLAUDE.md`.
 
 ## Build & test
 

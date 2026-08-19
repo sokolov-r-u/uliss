@@ -164,6 +164,18 @@
     max-width: 46ch;
 }
 
+.tbd-badge {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 6px 14px;
+    border: 1px solid var(--line-strong);
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
 @media (min-width: 900px) {
     .app-shell {
         flex-direction: row;

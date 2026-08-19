@@ -1,9 +1,12 @@
+import {TbdPage} from '../ui/TbdPage'
+
 export function GraphPage() {
     return (
-        <div className="page">
-            <div className="page-header">
-                <h1 className="page-title">Constellation</h1>
-            </div>
-        </div>
+        <TbdPage
+            kicker="constellation"
+            title="The sky of you"
+            description="Your notes mapped as a constellation of linked ideas. Not built yet — no graph data
+        or embeddings pipeline exists on the backend yet."
+        />
     )
 }
