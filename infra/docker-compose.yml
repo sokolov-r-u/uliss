@@ -1,7 +1,7 @@
 services:
   postgres:
     image: pgvector/pgvector:0.8.2-pg18-trixie
-    restart: always
+    #    restart: always
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
@@ -19,3 +19,69 @@ services:
       interval: 2s
       timeout: 20s
       retries: 10
+
+  # Images are pre-built, not built by compose: ./gradlew :auth:jibDockerBuild :user:jibDockerBuild
+  # :note:jibDockerBuild, and docker build -t uliss/web:latest -f module/web/Dockerfile .
+  auth:
+    image: uliss/auth:latest
+    #    restart: always
+    profiles: [ "full" ]
+    env_file: .env
+    environment:
+      # auth's own container, not localhost as in host-based bootRun
+      USER_SERVICE_HOST: user
+    ports:
+      - "9000:9000"
+    networks:
+      # same hostname resolves from the host browser (via infra/etc.hosts) and from sibling
+      # containers, so AUTH_PUBLIC_URL/AUTH_INTERNAL_URL need no override here
+      default:
+        aliases:
+          - auth.uliss.local
+    depends_on:
+      postgres:
+        condition: service_healthy
+      user:
+        condition: service_started
+
+  user:
+    image: uliss/user:latest
+    #    restart: always
+    profiles: [ "full" ]
+    env_file: .env
+    environment:
+      # web is served on :80 in full-compose mode, not the Vite dev port :3000
+      FRONTEND_URL: http://uliss.local
+    ports:
+      - "8080:8080"
+      - "9090:9090"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  note:
+    image: uliss/note:latest
+    #    restart: always
+    profiles: [ "full" ]
+    env_file: .env
+    environment:
+      FRONTEND_URL: http://uliss.local
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    image: uliss/web:latest
+    #    restart: always
+    profiles: [ "full" ]
+    ports:
+      - "80:80"
+    depends_on:
+      auth:
+        condition: service_started
+      user:
+        condition: service_started
+      note:
+        condition: service_started
