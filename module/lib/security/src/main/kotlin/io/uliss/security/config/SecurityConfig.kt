@@ -33,6 +33,8 @@ class SecurityConfig {
                     // /*/oauth2/** matches it under whatever prefix a consuming app applies to its
                     // controllers (WebMvcPathPrefixConfig), e.g. /user/oauth2/**
                     .requestMatchers("/oauth2/**", "/*/oauth2/**").permitAll()
+                    // actuator is never behind WebMvcPathPrefixConfig (management, not a @RestController)
+                    .requestMatchers("/actuator/health").permitAll()
                     .anyRequest().authenticated()
             }
             .oauth2ResourceServer { it.jwt { } }

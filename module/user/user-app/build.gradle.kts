@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":exception"))
     implementation(project(":logging"))
     implementation(project(":validation"))
+    implementation(project(":monitoring"))
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("tools.jackson.module:jackson-module-kotlin")
