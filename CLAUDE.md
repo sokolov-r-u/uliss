@@ -4,11 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Workflow
 
+Every task gets its own file in `docs/tasks/` (gitignored — local working state, never
+committed), named `YYYY-MM-DD-<short-kebab-case-name>.md`; pick today's date and a short name
+that fits the task at hand. Several tasks can be in flight at once as separate files (e.g. a
+long-running docker task alongside a frontend task) — never collapse them into one file.
+
 Every task follows this process:
 
-1. Read CLAUDE.md + docs/CURRENT_TASK.md before starting
+1. Read CLAUDE.md + the task's file in `docs/tasks/` (if one already exists for this task)
+   before starting
 2. Read relevant module files before writing any code — never generate blind
-3. Create or update CURRENT_TASK.md with the plan before writing any code
+3. Create or update the task file (`docs/tasks/YYYY-MM-DD-<name>.md`) with the plan before
+   writing any code
 4. If plan has 5+ steps or touches 3+ modules — stop and confirm with user
 5. Execute plan one step at a time:
 
@@ -19,13 +26,18 @@ Every task follows this process:
   c. Run ./gradlew :<module>:test — fix production code, not tests;
   never delete or weaken existing tests;
   if tests break or reveal bugs — stop and ask user
-  d. Update CURRENT_TASK.md
+  d. Update the task file
   e. Stop and wait for user review before proceeding
 
 6. After all steps complete — write integration tests covering
    end-to-end flow if applicable
 
-## CURRENT_TASK.md structure
+Deferred work that outlives a single task (agreed-upon but not implemented now) goes into
+`docs/TECH_DEBT.md` instead — that file is tracked in git, unlike the per-task files above.
+
+## Task file structure
+
+`docs/tasks/YYYY-MM-DD-<name>.md`:
 
 ```
 # Task: <name>
@@ -95,6 +107,11 @@ Libraries (not executable, directory `module/lib/<name>`):
   Depends on `:exception`.
 - `validation` (`io.uliss.validation`) — custom bean-validation annotations (`@Email`,
   `@Password`). Depends on `:exception`.
+- `monitoring` (`io.uliss.monitoring`) — shared actuator config: `api("...spring-boot-starter-actuator")`
+  + `monitoring.yml` (`management.endpoints.web.exposure.include: health`). Used by `auth`/`user`/`note`
+    for `/actuator/health` (docker-compose healthchecks); it isn't otherwise `permitAll`, so `auth`'s own
+    `SecurityConfig` opens it up explicitly, while `user`/`note` get it for free from the shared
+    `:security` library's `SecurityConfig` (see `module/lib/security/CLAUDE.md`).
 
 The mapping between module name and directory is defined in `settings.gradle.kts` (e.g.
 `:security` → `module/lib/security`).
@@ -103,8 +120,7 @@ The mapping between module name and directory is defined in `settings.gradle.kts
   source of styles for both server-rendered Thymeleaf pages (`auth`) and the React app (`web`). The
   folder is **simultaneously** an npm package `@uliss/design-system` (source in `src/`: CSS tokens,
   self-hosted OFL fonts, `.tsx` components) **and** a Gradle module `:uliss-design-system`. Details —
-  `module/lib/uliss-design-system/CLAUDE.md`. The frontend and auth-UI plan lives at
-  `docs/plans/2026-06-25-frontend-auth-ui-plan.md`.
+  `module/lib/uliss-design-system/CLAUDE.md`.
 
 ## Build & test
 
@@ -121,21 +137,11 @@ catalog), Kotlin 2.3.21, Spring Boot 4.1.0. Exact versions — in `gradle/libs.v
 ./gradlew jacocoRootReport           # merged JaCoCo report across all modules (test + integrationTest, if run)
 ```
 
-`jacocoRootReport` (root `build.gradle.kts`) merges per-module `build/jacoco/{test,integrationTest}.exec` +
-`build/classes/kotlin/main` from all subprojects except `uliss-design-system` into a single
-`build/reports/jacoco/jacocoRootReport/{html/index.html,jacocoRootReport.xml}`. Both jacoco tasks
-(the per-module `jacocoTestReport` and `jacocoRootReport`) merge exec data from both `test` and
-`integrationTest` (JaCoCo attaches to both automatically — both tasks are of type `Test`; JaCoCo
-matches exec↔classes by the CRC64 hash of the bytecode, not by project, so shared libraries without
-their own tests, e.g. `:database`, correctly get coverage from the exec of whichever modules actually
-use them). `integrationTest` is not forced via `dependsOn` — it requires Docker/Testcontainers,
-so `./gradlew build`/`check` stay Docker-independent; its exec is only picked up if it's already on
-disk from a previous run. Modules without a `test.exec`/`integrationTest.exec` are skipped lazily
-(`fileTree` over existing files), which doesn't fail the task. Excluded from classDirectories are
-`io/uliss/api/**` (generated protobuf/gRPC) and `**/*ApplicationKt.class`
-(the Kotlin file-class with a top-level `fun main()` — unreachable by any test: `@SpringBootTest`
-boots the context via `SpringApplicationBuilder` directly, without calling `main()`, and actually
-running the application is prohibited — see "Operational constraints").
+`jacocoRootReport` merges per-module JaCoCo exec data (`test` + `integrationTest`) across all
+subprojects except `uliss-design-system` into one report
+(`build/reports/jacoco/jacocoRootReport/{html/index.html,jacocoRootReport.xml}`). Full rationale
+(CRC64 exec↔classes matching, why shared libs without their own tests still get coverage, what's
+excluded and why) — `docs/ARCHITECTURE.md`.
 
 Integration tests spin up PostgreSQL via Testcontainers
 (`TestContainersConfiguration`, image `pgvector/pgvector`), so a running Docker
@@ -165,42 +171,14 @@ local + k8s; the client accepts any of them), `AUTH_SECURE_COOKIE`, `FRONTEND_CL
 (see `infra/etc.hosts`). Each application has its own datasource with its own schema via
 `?currentSchema=<schema>` (`auth` → `auth`, `user-service` → `profile`, `note-service` → `note`).
 
-### Deploying to Kubernetes (minikube)
+### Running the full stack (Docker Compose / Kubernetes)
 
-Manifests and kustomize live under `infra/`, deployed with one command: `kubectl apply -k infra`.
-
-- **A single kustomization** (`infra/kustomization.yaml`): `secretGenerator` from `infra/.env` (shared
-  with Docker/IntelliJ, `disableNameSuffixHash: true` → the name `uliss-secret` is stable) + `patches:`
-  onto `k8s/patch-k8s-secret.yaml`. The patch, via `stringData`, **overrides** only the "address" keys
-  for k8s (`POSTGRES_URL`, `AUTH_PUBLIC_URL`, `AUTH_INTERNAL_URL`, `FRONTEND_URL`) — `stringData`
-  wins over `data` on apply. This way local and k8s don't collide without a second env file/overlay
-  (an overlay inside `infra/` isn't possible — kustomize flags a cycle; hence the patch instead).
-- **Ingress** (`k8s/ingress.yaml`) — by host, `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
-  `user:8080`, `note.uliss.local` → `note:8081`, and on `uliss.local` **path-routing** (same-origin for
-  the SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Each service serves its whole
-  path under its own name (see "Path-prefix convention" below) — one rule per service instead of
-  one per resource.
-- **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
-  `module/web/nginx.conf` provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
-  immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404.
-- **Images:** `auth`/`user` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`, config —
-  `io.uliss.docker-conventions`, `uliss/<project>:latest`); `web` — `docker build -t uliss/web:latest
-  -f module/web/Dockerfile .`.
-- **Workflow under minikube — `skaffold run`** (`skaffold.yaml` at repo root). One command: builds
-  all three images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
-  `eval $(minikube docker-env)` isn't needed), deploys via kustomize (`infra/`), and rolls out
-  automatically. The rollout triggers by itself because Skaffold tags images with a unique digest and
-  swaps `uliss/<svc>:latest` in the manifests for `uliss/<svc>:<digest>` — changing the reference means
-  a new pod (works around the `:latest`+`IfNotPresent` problem).
-  Builders: `auth`/`user` — Jib (artifacts `jib.project: auth|user`), `web` — Docker (`module/web/Dockerfile`).
-  `skaffold delete` — tear it down. When editing shared libs (`:security` etc.), Jib rebuilds the dependent
-  services on its own.
-- **Manual (fallback / what Skaffold does under the hood):** `eval $(minikube docker-env)` (in the
-  **same** shell — otherwise the build goes to the local docker and the cluster can't see it) → rebuild
-  images (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`; `docker build -t uliss/web:latest -f
-  module/web/Dockerfile .`) → `kubectl apply -k infra` → **`kubectl rollout restart deploy/<auth|user|web>`**
-  (env from `envFrom.secretRef` and the `:latest`+`IfNotPresent` image are only picked up when the pod
-  is recreated).
+Two supported paths beyond host-based `bootRun`: plain Docker Compose (`docker compose -f
+infra/docker-compose.yml --profile full up -d`, no cluster needed) or minikube via `skaffold run`
+(manifests + kustomize under `infra/`, `kubectl apply -k infra`). Both build the same images
+(Jib for `auth`/`user`/`note`, `docker build` for `web`). Env-var overrides per environment,
+Ingress routing, CI image publish (GHCR), and the custom base-JRE image — all in
+`docs/DEPLOYMENT.md`.
 
 ## IDE integration (IntelliJ MCP)
 
@@ -234,33 +212,18 @@ version.
 
 ## Convention plugins
 
-Shared configuration is factored out into the included build `module/lib/gradle-plugins` (not
-duplicated across modules):
-
-- `io.uliss.kotlin-conventions` — base Kotlin/Spring module (library): toolchain,
-  `group = io.uliss`, Spring BOM via dependency-management, compiler flags
-  (`-Xjsr305=strict`, strict null-safety, `-Xmulti-dollar-interpolation`), JUnit Platform,
-  the `integrationTest` task, JaCoCo coverage report (`test` only).
-- `io.uliss.spring-boot-app` — inherits `kotlin-conventions` + applies the plugin
-  `org.springframework.boot`. For executable applications (`auth`, `user-service`).
-- `io.uliss.jpa-conventions` — applies `org.jetbrains.kotlin.plugin.jpa` (no-arg for
-  JPA entities). Apply in modules with JPA entities (`auth`, `database`).
-
-Versions of build plugins (kotlin-gradle-plugin, spring-boot-gradle-plugin, etc.) are declared
-as `[libraries]` in `gradle/libs.versions.toml` and wired in
-`gradle-plugins/build.gradle.kts` via `implementation(libs.*)`.
+Shared configuration is factored out into the included build `module/lib/gradle-plugins`:
+`io.uliss.kotlin-conventions` (base Kotlin/Spring library setup), `io.uliss.spring-boot-app`
+(executable applications — `auth`, `user-service`, ...), `io.uliss.jpa-conventions` (JPA entities —
+`auth`, `database`). Mechanics (why the type-safe `libs` accessor isn't available inside a
+precompiled script plugin, how plugin versions are wired) — `docs/ARCHITECTURE.md`.
 
 ## Library auto-configuration & config
 
-Libraries self-configure and are picked up by applications without explicit bean imports:
-
-- Each lib registers its own `*AutoConfiguration` via
-  `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
-  (`security`, `database`, `exception`, `logging`).
-- A lib places `<module>.yml` (`database.yml`, `exception.yml`, `security.yml`) in its
-  resources, and the application imports it in its own `application.yaml` via
-  `spring.config.import: classpath:<module>.yml`
-  (example — `module/auth/src/main/resources/application.yaml`).
+Libraries self-configure and are picked up by applications without explicit bean imports: each lib
+registers its own `*AutoConfiguration` via `AutoConfiguration.imports`, and places a `<module>.yml`
+that the application pulls in via `spring.config.import: classpath:<module>.yml`. Full mechanics —
+`docs/ARCHITECTURE.md`.
 
 ## Closed decisions (do not revisit)
 
@@ -308,7 +271,7 @@ verification step. Ask the user and get explicit approval each time before cross
 - No `!!` in Kotlin without a one-line justification comment.
 - No version changes outside `gradle/libs.versions.toml` (see "Versions: single source of truth").
 - No Russian in code, comments, logs, or commit messages (see "Notes").
-- No `TODO`/`FIXME` comments in code — track them in `## Decisions` inside `docs/CURRENT_TASK.md`.
+- No `TODO`/`FIXME` comments in code — track them in the active task file under `docs/tasks/`.
 - Package root — `io.uliss.<module>` (see "Conventions").
 
 ### Known deviations (to reconcile)

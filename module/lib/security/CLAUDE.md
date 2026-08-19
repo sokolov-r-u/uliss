@@ -18,7 +18,11 @@ ones):
 `/*/oauth2/**` are `permitAll`, everything else is `authenticated` (two patterns: the bare one —
 for `:security`'s own tests without an app prefix, and the one with a single wildcard segment —
 for the mediator under a consuming app's prefix, see "Path-prefix convention" in the root
-`CLAUDE.md`). `:security` also configures CORS.
+`CLAUDE.md`). `/actuator/health` is also `permitAll` here (bare, never behind
+`WebMvcPathPrefixConfig` — management endpoints aren't `@RestController`s) — this is what lets
+`user`/`note` expose it for docker-compose healthchecks without their own `SecurityConfig` (`auth`
+has no dependency on `:security` and opens it up in its own config instead, see the "monitoring"
+entry in the root `CLAUDE.md`). `:security` also configures CORS.
 
 **Two different `/oauth2`:** the library class `AuthController` is declared as
 `@RequestMapping("/oauth2")` and is tested in `:security` in that form (`AuthMediatorTest`), but

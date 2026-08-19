@@ -10,6 +10,7 @@ spring:
       - classpath:database.yml
       - classpath:exception.yml
       - classpath:security.yml
+      - classpath:monitoring.yml
   threads:
     virtual:
       enabled: true

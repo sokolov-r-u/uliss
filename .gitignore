@@ -3,6 +3,7 @@ HELP.md
 .gradle
 build/
 /infra/volumes/**
+/docs/tasks/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/
 !**/src/test/**/build/
