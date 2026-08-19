@@ -1,36 +1,39 @@
 # CLAUDE.md — `note-service`
 
-Гайд по `module/note/note-app` (`io.uliss.note_service`, gradle-модуль `:note`). Кросс-cutting
-правила (workflow, конвенции, closed decisions) — в корневом `CLAUDE.md`, читать сначала его.
+Guide for `module/note/note-app` (`io.uliss.note_service`, gradle module `:note`). Cross-cutting
+rules (workflow, conventions, closed decisions) are in the root `CLAUDE.md` — read that first.
 
 ## Note service (scaffold, RAG-ready)
 
-`note-service` — заготовка сервиса заметок: рабочий срез `POST /note/ask` через Spring AI поверх
-DeepSeek, плюс схема БД под будущий RAG. Префикс `/note` даёт `WebMvcPathPrefixConfig`
-(`AskController` объявлен без своего `@RequestMapping`, только `@PostMapping("/ask")` — см.
-«Path-prefix convention» в корневом `CLAUDE.md`). RAG-обогащение (embedding-модель, retrieval,
-advisor) — не реализовано, это следующая итерация.
+`note-service` — a note-taking service scaffold: a working slice, `POST /note/ask` via Spring AI on
+top of DeepSeek, plus a DB schema for future RAG. The `/note` prefix comes from `WebMvcPathPrefixConfig`
+(`AskController` is declared without its own `@RequestMapping`, only `@PostMapping("/ask")` — see
+"Path-prefix convention" in the root `CLAUDE.md`). RAG enrichment (embedding model, retrieval,
+advisor) is not implemented yet — that's the next iteration.
 
-- **AI-провайдер — DeepSeek** (не Anthropic, с которого начинали): стартер `spring-ai-starter-model-deepseek`
-  (каталог `spring-ai-starter-deepseek`, `version.ref = "spring-ai"`, версия — только в
-  `libs.versions.toml`). Модель по умолчанию — `deepseek-v4-flash` (`DEEPSEEK_MODEL`). Конфиг —
-  **плоско** под `spring.ai.deepseek.*`, без вложенности `chat.options.*` (в отличие от anthropic):
-  `spring.ai.deepseek.api-key`, `spring.ai.deepseek.chat.model`. `ChatClientConfig` — тонкий бин
-  `ChatClient` из автоконфигурного `ChatClient.Builder`, провайдер-агностичен (не завязан на DeepSeek
-  явно) — смена провайдера в будущем не потребует его менять.
-- **Готча смены AI-стартера — коллизия `RetryTemplate`:** в отличие от anthropic, автоконфиг DeepSeek
-  транзитивно тянет `spring-ai-autoconfigure-retry`, который регистрирует свой бин `retryTemplate`.
-  Поэтому общий `RetryTemplate` в `:exception` называется `optimisticLockRetryTemplate` (не
-  `retryTemplate`) — см. описание `:exception` в корневом `CLAUDE.md` («Modules»). При добавлении
-  AI-стартера в другой модуль эта коллизия не всплывёт снова именно по этой причине; но если сам
-  DeepSeek-стартер сменится на другой AI-провайдер с похожей transitive-зависимостью — проверить
-  `./gradlew :note:dependencies` на предмет повторного дубля имени бина.
-- **Данные (схема `note`):** Flyway `V1__ddl_create_note_schema.sql` — extension `vector` (pgvector) +
-  две таблицы: `notes` (обычные записи, `: AuditEntity`, `created_by`/`updated_by` через JWT-aware
-  `auditorProvider` из `:security`) и `note_embeddings` (RAG, `: UuidEntity`, FK `note_id → notes.id
-  ON DELETE CASCADE`, `vector(384)` — размерность-заглушка под будущую embedding-модель).
-- **Старт без ключа:** `DEEPSEEK_API_KEY` может быть пустым — приложение поднимается, ключ нужен
-  только на сам вызов `/ask` (иначе DeepSeek ответит ошибкой авторизации).
-- **Известные пробелы (не RAG-фичи, долг scaffold):** `/actuator/health` по-прежнему под
-  аутентификацией (см. общее правило `:security`, `module/lib/security/CLAUDE.md`) — открытие для
-  k8s-проб ещё предстоит.
+- **AI provider — DeepSeek** (not Anthropic, which was the original starting point): the starter is
+  `spring-ai-starter-model-deepseek` (catalog entry `spring-ai-starter-deepseek`, `version.ref = "spring-ai"`,
+  version lives only in `libs.versions.toml`). Default model is `deepseek-v4-flash` (`DEEPSEEK_MODEL`).
+  Config is **flat** under `spring.ai.deepseek.*`, without the `chat.options.*` nesting (unlike anthropic):
+  `spring.ai.deepseek.api-key`, `spring.ai.deepseek.chat.model`. `ChatClientConfig` is a thin `ChatClient`
+  bean built from the autoconfigured `ChatClient.Builder`, provider-agnostic (not tied to DeepSeek
+  explicitly) — switching providers in the future won't require changing it.
+- **Gotcha when switching AI starters — `RetryTemplate` collision:** unlike anthropic, DeepSeek's
+  autoconfiguration transitively pulls in `spring-ai-autoconfigure-retry`, which registers its own
+  `retryTemplate` bean. That's why the shared `RetryTemplate` in `:exception` is named
+  `optimisticLockRetryTemplate` (not `retryTemplate`) — see the `:exception` description in the root
+  `CLAUDE.md` ("Modules"). When adding an AI starter to another module, this collision won't resurface
+  for that same reason; but if the DeepSeek starter itself is replaced by a different AI provider with a
+  similar transitive dependency — check `./gradlew :note:dependencies` for a repeated bean-name clash.
+- **Data (schema `note`):** Flyway `V1__ddl_create_note_schema.sql` creates only the schema (consistent
+  with `auth`/`user-service` — schema-only, no tables). `V2__ddl_create_note_tables.sql` adds the
+  `vector` extension (pgvector) plus two tables: `notes` (regular records, `: AuditEntity`,
+  `created_by`/`updated_by` via the JWT-aware `auditorProvider` from `:security`) and `note_embeddings`
+  (RAG, `: UuidEntity`, FK `note_id → notes.id ON DELETE CASCADE`, `vector(384)` — a placeholder
+  dimension for the future embedding model). `V3__ddl_create_chat_tables.sql` adds
+  `chat`/`chat_message`/`chat_note` (see `docs/CURRENT_TASK.md`).
+- **Starts without a key:** `DEEPSEEK_API_KEY` can be empty — the application still starts up; the key
+  is only needed for the actual `/ask` call (otherwise DeepSeek returns an authorization error).
+- **Known gaps (not RAG features, scaffold debt):** `/actuator/health` is still behind authentication
+  (see the general `:security` rule, `module/lib/security/CLAUDE.md`) — opening it up for k8s probes is
+  still pending.

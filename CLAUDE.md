@@ -46,238 +46,243 @@ Minimal info needed: key constraints, relevant existing files.
 
 ## Overview
 
-`uliss` — многомодульный проект на Kotlin + Spring Boot (Gradle). Изначально сгенерирован
-через Spring Initializr. Модуль `auth` уже реализован как рабочий OAuth2 Authorization
-Server (сущности, контроллеры, сервисы, персистенция JWK-ключей, Flyway-миграции);
-остальные модули — в разной степени готовности.
+`uliss` — a multi-module Kotlin + Spring Boot project (Gradle). Originally generated via
+Spring Initializr. The `auth` module is already implemented as a working OAuth2 Authorization
+Server (entities, controllers, services, JWK-key persistence, Flyway migrations);
+the other modules are at varying degrees of completeness.
 
-**Архитектура:** в целом layered (`controller` → `service` → `repository`; транспорт тонкий,
-бизнес-логика в `service`, `@Transactional`-граница там же). В `user-service` — hexagonal-lite:
-логика в домене, тонкие адаптеры (gRPC/REST), онбординг-шаги как паттерн Command (см.
-`module/user/user-app/CLAUDE.md`). Детали слоёв — секция «Anti-patterns» и per-module `CLAUDE.md`
-(указатели — в «Modules» ниже).
+**Architecture:** broadly layered (`controller` → `service` → `repository`; the transport layer is
+thin, business logic lives in `service`, the `@Transactional` boundary is there too). In
+`user-service` — hexagonal-lite: logic lives in the domain, thin adapters (gRPC/REST), onboarding
+steps as a Command pattern (see `module/user/user-app/CLAUDE.md`). Layer details — see the
+"Anti-patterns" section and per-module `CLAUDE.md` files (pointers — see "Modules" below).
 
 ## Modules
 
-Исполняемые приложения (директория `module/<name>`):
+Executable applications (directory `module/<name>`):
 
-- `auth` (`io.uliss.auth`, `module/auth`) — Spring Boot приложение, OAuth2 Authorization
-  Server (webmvc, security-oauth2-authorization-server) + серверные Thymeleaf-страницы входа/
-  регистрации, стилизованные дизайн-системой. Зависит от `:database`, `:exception`, `:logging`,
-  `:validation`, `:uliss-design-system` (отдаёт `/ds/**`); подключает `spring-boot-starter-thymeleaf`.
-  Подробности — `module/auth/CLAUDE.md`.
-- `user-service` (`io.uliss.user_service`, gradle-модуль `:user` → `module/user/user-app`) — Spring Boot
-  приложение. webmvc, validation, actuator + **gRPC-сервер** (`spring-boot-starter-grpc-server`). Хранит
-  профиль пользователя (схема `profile`) и ведёт **онбординг**. Зависит от
-  `:security`, `:database`, `:exception`, `:user-api`. Proto-контракт вынесен в отдельный gradle-модуль
-  `:user-api` (`module/user/user-api`, пакет `io.uliss.api.user.v1`). Подробности —
+- `auth` (`io.uliss.auth`, `module/auth`) — Spring Boot application, OAuth2 Authorization
+  Server (webmvc, security-oauth2-authorization-server) + server-rendered Thymeleaf login/
+  registration pages, styled with the design system. Depends on `:database`, `:exception`, `:logging`,
+  `:validation`, `:uliss-design-system` (serves `/ds/**`); pulls in `spring-boot-starter-thymeleaf`.
+  Details — `module/auth/CLAUDE.md`.
+- `user-service` (`io.uliss.user_service`, gradle module `:user` → `module/user/user-app`) — Spring Boot
+  application. webmvc, validation, actuator + **gRPC server** (`spring-boot-starter-grpc-server`). Stores
+  the user profile (schema `profile`) and drives **onboarding**. Depends on
+  `:security`, `:database`, `:exception`, `:user-api`. The proto contract is factored out into a separate
+  gradle module `:user-api` (`module/user/user-api`, package `io.uliss.api.user.v1`). Details —
   `module/user/user-app/CLAUDE.md`.
-- `note-service` (`io.uliss.note_service`, gradle-модуль `:note` → `module/note/note-app`) — Spring Boot
-  приложение, **scaffold**: `POST /note/ask` через Spring AI поверх DeepSeek (модель
-  `deepseek-v4-flash`), плюс схема `note` под будущий RAG (pgvector). Зависит от `:security`,
-  `:database`, `:exception`, `:logging`, `:validation`. Подробности — `module/note/note-app/CLAUDE.md`.
-- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), фронтенд поверх `auth`/`user-service`.
-  Same-origin, не знает адресов сервисов напрямую. Подробности — `module/web/CLAUDE.md`.
+- `note-service` (`io.uliss.note_service`, gradle module `:note` → `module/note/note-app`) — Spring Boot
+  application, **scaffold**: `POST /note/ask` via Spring AI on top of DeepSeek (model
+  `deepseek-v4-flash`), plus a `note` schema for future RAG (pgvector). Depends on `:security`,
+  `:database`, `:exception`, `:logging`, `:validation`. Details — `module/note/note-app/CLAUDE.md`.
+- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), frontend on top of `auth`/`user-service`.
+  Same-origin, doesn't know service addresses directly. Details — `module/web/CLAUDE.md`.
 
-Библиотеки (не исполняемые, директория `module/lib/<name>`):
+Libraries (not executable, directory `module/lib/<name>`):
 
-- `security` (`io.uliss.security`) — общий модуль безопасности с **двойной ролью**: (1) OAuth2
-  Resource Server (валидирует JWT); (2) **auth-посредник** — `AuthController` (`/oauth2/**` внутри
-  библиотеки; наружу отдаётся под префиксом приложения, которое его подключает — см. «Path-prefix
-  convention» ниже) + `AuthService` делают за фронт весь OAuth-танец с auth-сервером (confidential-
-  клиент + PKCE). Подробности — `module/lib/security/CLAUDE.md`.
+- `security` (`io.uliss.security`) — a shared security module with a **dual role**: (1) OAuth2
+  Resource Server (validates JWTs); (2) **auth mediator** — `AuthController` (`/oauth2/**` inside
+  the library; exposed externally under the prefix of whichever application consumes it — see the
+  "Path-prefix convention" below) + `AuthService` perform the entire OAuth dance with the auth server
+  on the frontend's behalf (confidential client + PKCE). Details — `module/lib/security/CLAUDE.md`.
 - `database` (`io.uliss.database`) — JPA + Flyway + PostgreSQL.
-- `exception` (`io.uliss.exception`) — глобальная обработка ошибок + Spring Retry. Бин
-  `RetryTemplate` называется `optimisticLockRetryTemplate` (не `retryTemplate`) — намеренно, чтобы не
-  коллизировать по имени с автоконфигурируемым `retryTemplate` AI-стартеров (см.
-  `module/note/note-app/CLAUDE.md`); `RetryAspect` подключает его через `@Qualifier`.
-- `logging` (`io.uliss.logging`) — AOP-логирование (AspectJ, аннотация `@MeasureTime`).
-  Зависит от `:exception`.
-- `validation` (`io.uliss.validation`) — кастомные bean-validation аннотации (`@Email`,
-  `@Password`). Зависит от `:exception`.
+- `exception` (`io.uliss.exception`) — global error handling + Spring Retry. The `RetryTemplate` bean
+  is named `optimisticLockRetryTemplate` (not `retryTemplate`) — deliberately, to avoid a name
+  collision with the auto-configured `retryTemplate` from AI starters (see
+  `module/note/note-app/CLAUDE.md`); `RetryAspect` wires it in via `@Qualifier`.
+- `logging` (`io.uliss.logging`) — AOP logging (AspectJ, `@MeasureTime` annotation).
+  Depends on `:exception`.
+- `validation` (`io.uliss.validation`) — custom bean-validation annotations (`@Email`,
+  `@Password`). Depends on `:exception`.
 
-Соответствие имени модуля и директории задаётся в `settings.gradle.kts` (например
+The mapping between module name and directory is defined in `settings.gradle.kts` (e.g.
 `:security` → `module/lib/security`).
 
-- `uliss-design-system` (`module/lib/uliss-design-system`) — общая дизайн-система: единый
-  источник стилей для серверных Thymeleaf-страниц (`auth`) и React-приложения (`web`). Папка —
-  **одновременно** npm-пакет `@uliss/design-system` (исходник `src/`: CSS-токены, self-host
-  шрифты OFL, `.tsx`-компоненты) **и** Gradle-модуль `:uliss-design-system`. Подробности —
-  `module/lib/uliss-design-system/CLAUDE.md`. План фронтенда и auth-UI —
+- `uliss-design-system` (`module/lib/uliss-design-system`) — a shared design system: a single
+  source of styles for both server-rendered Thymeleaf pages (`auth`) and the React app (`web`). The
+  folder is **simultaneously** an npm package `@uliss/design-system` (source in `src/`: CSS tokens,
+  self-hosted OFL fonts, `.tsx` components) **and** a Gradle module `:uliss-design-system`. Details —
+  `module/lib/uliss-design-system/CLAUDE.md`. The frontend and auth-UI plan lives at
   `docs/plans/2026-06-25-frontend-auth-ui-plan.md`.
 
 ## Build & test
 
-Используется Gradle wrapper (Gradle 9.3 — запускается на JDK 25). Toolchain и байткод — **Java 25**
-(`languageVersion` из `java`, `options.release` / `jvmTarget` из `java-compile` — обе `25` в каталоге),
-Kotlin 2.3.21, Spring Boot 4.1.0. Конкретные версии — в `gradle/libs.versions.toml`.
+Uses the Gradle wrapper (Gradle 9.3 — runs on JDK 25). Toolchain and bytecode target — **Java 25**
+(`languageVersion` from `java`, `options.release` / `jvmTarget` from `java-compile` — both `25` in the
+catalog), Kotlin 2.3.21, Spring Boot 4.1.0. Exact versions — in `gradle/libs.versions.toml`.
 
 ```bash
-./gradlew build                      # собрать всё + тесты
-./gradlew :auth:test                 # unit-тесты одного модуля
-./gradlew :auth:integrationTest      # integration-тесты (нужен Docker — Testcontainers)
-./gradlew :auth:bootRun              # запустить приложение auth
-./gradlew :user:bootRun              # запустить user-service
-./gradlew jacocoRootReport           # смёрженный JaCoCo-отчёт по всем модулям (test + integrationTest, если запущен)
+./gradlew build                      # build everything + tests
+./gradlew :auth:test                 # unit tests for one module
+./gradlew :auth:integrationTest      # integration tests (needs Docker — Testcontainers)
+./gradlew :auth:bootRun              # run the auth application
+./gradlew :user:bootRun              # run user-service
+./gradlew jacocoRootReport           # merged JaCoCo report across all modules (test + integrationTest, if run)
 ```
 
-`jacocoRootReport` (root `build.gradle.kts`) объединяет per-module `build/jacoco/{test,integrationTest}.exec` +
-`build/classes/kotlin/main` всех подпроектов, кроме `uliss-design-system`, в один
-`build/reports/jacoco/jacocoRootReport/{html/index.html,jacocoRootReport.xml}`. Оба jacoco-таска
-(per-module `jacocoTestReport` и `jacocoRootReport`) мержат exec-данные `test` и `integrationTest`
-(JaCoCo автоматически цепляется к обоим — оба таска типа `Test`; сопоставление exec↔классы у
-JaCoCo идёт по CRC64-хешу байткода, а не по проекту, поэтому shared-библиотеки без своих тестов,
-например `:database`, корректно получают покрытие из exec тех модулей, которые их реально
-используют). `integrationTest` не форсируется через `dependsOn` — требует Docker/Testcontainers,
-поэтому `./gradlew build`/`check` остаются Docker-independent; его exec подхватывается, только
-если уже лежит на диске от предыдущего запуска. Модули без `test.exec`/`integrationTest.exec`
-пропускаются лениво (`fileTree` по существующим файлам), не валят таск. Из classDirectories
-исключены `io/uliss/api/**` (сгенерированный protobuf/gRPC) и `**/*ApplicationKt.class`
-(Kotlin file-класс с top-level `fun main()` — недостижим ни одним тестом: `@SpringBootTest`
-поднимает контекст через `SpringApplicationBuilder` напрямую, не вызывая `main()`, а реально
-запускать приложение запрещено — см. «Operational constraints»).
+`jacocoRootReport` (root `build.gradle.kts`) merges per-module `build/jacoco/{test,integrationTest}.exec` +
+`build/classes/kotlin/main` from all subprojects except `uliss-design-system` into a single
+`build/reports/jacoco/jacocoRootReport/{html/index.html,jacocoRootReport.xml}`. Both jacoco tasks
+(the per-module `jacocoTestReport` and `jacocoRootReport`) merge exec data from both `test` and
+`integrationTest` (JaCoCo attaches to both automatically — both tasks are of type `Test`; JaCoCo
+matches exec↔classes by the CRC64 hash of the bytecode, not by project, so shared libraries without
+their own tests, e.g. `:database`, correctly get coverage from the exec of whichever modules actually
+use them). `integrationTest` is not forced via `dependsOn` — it requires Docker/Testcontainers,
+so `./gradlew build`/`check` stay Docker-independent; its exec is only picked up if it's already on
+disk from a previous run. Modules without a `test.exec`/`integrationTest.exec` are skipped lazily
+(`fileTree` over existing files), which doesn't fail the task. Excluded from classDirectories are
+`io/uliss/api/**` (generated protobuf/gRPC) and `**/*ApplicationKt.class`
+(the Kotlin file-class with a top-level `fun main()` — unreachable by any test: `@SpringBootTest`
+boots the context via `SpringApplicationBuilder` directly, without calling `main()`, and actually
+running the application is prohibited — see "Operational constraints").
 
-Integration-тесты поднимают PostgreSQL через Testcontainers
-(`TestContainersConfiguration`, образ `pgvector/pgvector`), поэтому требуется запущенный
-Docker.
+Integration tests spin up PostgreSQL via Testcontainers
+(`TestContainersConfiguration`, image `pgvector/pgvector`), so a running Docker
+daemon is required.
 
-Библиотеки (`security`, `database`, `exception`, `logging`, `validation`) — без `bootRun`.
+Libraries (`security`, `database`, `exception`, `logging`, `validation`) — no `bootRun`.
 
-### Локальный запуск (env + БД)
+### Running locally (env + DB)
 
-Приложения читают конфиг из переменных окружения — без них `bootRun` не стартует. Локальная
-инфраструктура лежит в `infra/`:
+Applications read their config from environment variables — without them `bootRun` won't start. Local
+infrastructure lives under `infra/`:
 
-- `infra/docker-compose.yml` — PostgreSQL (`pgvector/pgvector`, порт 5432). Поднять:
+- `infra/docker-compose.yml` — PostgreSQL (`pgvector/pgvector`, port 5432). Start it with:
   `docker compose -f infra/docker-compose.yml up -d`.
-- `infra/.env` — реальные значения (скопировать из `infra/env.example.properties`, если нет).
+- `infra/.env` — actual values (copy from `infra/env.example.properties` if missing).
 
-Ключевые переменные: `POSTGRES_URL`, **`AUTH_PUBLIC_URL`** (browser-facing: authorize-редирект +
-issuer) / **`AUTH_INTERNAL_URL`** (service-to-service: token/revoke/jwks) — локально оба
-`http://auth.uliss.local:9000` (см. `module/lib/security/CLAUDE.md`), `ALLOWED_CORS_URLS`, `FRONTEND_URL`
-(`http://uliss.local:3000`), **`AUTH_CLIENT_CALLBACK_URLS`** (CSV всех разрешённых callback —
-локальный + k8s; клиент принимает любой), `AUTH_SECURE_COOKIE`, `FRONTEND_CLIENT_ID/SECRET`
-(confidential web-клиент `uliss-web` — им пользуется `:security`), `APP_CLIENTS_M2M_*` (m2m-клиент
-`uliss-internal`), `USER_SERVICE_URL` (target dev-прокси Vite, **без** `VITE_`-префикса), порты
+Key variables: `POSTGRES_URL`, **`AUTH_PUBLIC_URL`** (browser-facing: authorize redirect +
+issuer) / **`AUTH_INTERNAL_URL`** (service-to-service: token/revoke/jwks) — locally both
+`http://auth.uliss.local:9000` (see `module/lib/security/CLAUDE.md`), `ALLOWED_CORS_URLS`, `FRONTEND_URL`
+(`http://uliss.local:3000`), **`AUTH_CLIENT_CALLBACK_URLS`** (CSV of all allowed callbacks —
+local + k8s; the client accepts any of them), `AUTH_SECURE_COOKIE`, `FRONTEND_CLIENT_ID/SECRET`
+(the confidential web client `uliss-web` — used by `:security`), `APP_CLIENTS_M2M_*` (the m2m client
+`uliss-internal`), `USER_SERVICE_URL` (Vite dev-proxy target, **without** the `VITE_` prefix), ports
 `AUTH_SERVER_PORT=9000` / `USER_SERVER_PORT=8080` / `NOTE_SERVER_PORT=8081`, `DEEPSEEK_API_KEY` /
-`DEEPSEEK_MODEL` (по умолчанию `deepseek-v4-flash`, ключ может быть пустым — сервис стартует, но
-`/ask` вернёт ошибку авторизации DeepSeek). Хосты `*.uliss.local` резолвятся через `/etc/hosts`
-(см. `infra/etc.hosts`). У каждого приложения свой datasource со своей схемой через
+`DEEPSEEK_MODEL` (defaults to `deepseek-v4-flash`, the key may be empty — the service starts, but
+`/ask` returns a DeepSeek auth error). `*.uliss.local` hosts are resolved via `/etc/hosts`
+(see `infra/etc.hosts`). Each application has its own datasource with its own schema via
 `?currentSchema=<schema>` (`auth` → `auth`, `user-service` → `profile`, `note-service` → `note`).
 
-### Деплой в Kubernetes (minikube)
+### Deploying to Kubernetes (minikube)
 
-Манифесты и kustomize — в `infra/`, деплой одной командой: `kubectl apply -k infra`.
+Manifests and kustomize live under `infra/`, deployed with one command: `kubectl apply -k infra`.
 
-- **Один kustomization** (`infra/kustomization.yaml`): `secretGenerator` из `infra/.env` (общий с
-  Docker/IntelliJ, `disableNameSuffixHash: true` → имя `uliss-secret` стабильно) + `patches:` на
-  `k8s/patch-k8s-secret.yaml`. Патч через `stringData` **переопределяет** для k8s только «адресные»
-  ключи (`POSTGRES_URL`, `AUTH_PUBLIC_URL`, `AUTH_INTERNAL_URL`, `FRONTEND_URL`) — `stringData`
-  побеждает `data` при apply. Так локаль и k8s не мешают друг другу без второго env-файла/overlay
-  (overlay внутри `infra/` невозможен — kustomize ловит cycle; поэтому именно патч).
-- **Ingress** (`k8s/ingress.yaml`) — по хостам `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
-  `user:8080`, `note.uliss.local` → `note:8081`, а на `uliss.local` **path-routing** (same-origin для
-  SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Каждый сервис отдаёт весь свой
-  путь под собственным именем (см. «Path-prefix convention» ниже) — одно правило на сервис вместо
-  одного на каждый ресурс.
-- **`web`** — образ из `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), где
-  `module/web/nginx.conf` даёт SPA-fallback (`try_files $uri /index.html`) + `no-store` на `index.html`,
-  immutable на `/assets/`. Без него клиентские роуты (`/callback`) отдавали бы 404.
-- **Образы:** `auth`/`user` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`, конфиг —
+- **A single kustomization** (`infra/kustomization.yaml`): `secretGenerator` from `infra/.env` (shared
+  with Docker/IntelliJ, `disableNameSuffixHash: true` → the name `uliss-secret` is stable) + `patches:`
+  onto `k8s/patch-k8s-secret.yaml`. The patch, via `stringData`, **overrides** only the "address" keys
+  for k8s (`POSTGRES_URL`, `AUTH_PUBLIC_URL`, `AUTH_INTERNAL_URL`, `FRONTEND_URL`) — `stringData`
+  wins over `data` on apply. This way local and k8s don't collide without a second env file/overlay
+  (an overlay inside `infra/` isn't possible — kustomize flags a cycle; hence the patch instead).
+- **Ingress** (`k8s/ingress.yaml`) — by host, `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
+  `user:8080`, `note.uliss.local` → `note:8081`, and on `uliss.local` **path-routing** (same-origin for
+  the SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Each service serves its whole
+  path under its own name (see "Path-prefix convention" below) — one rule per service instead of
+  one per resource.
+- **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
+  `module/web/nginx.conf` provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
+  immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404.
+- **Images:** `auth`/`user` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`, config —
   `io.uliss.docker-conventions`, `uliss/<project>:latest`); `web` — `docker build -t uliss/web:latest
   -f module/web/Dockerfile .`.
-- **Рабочий цикл под minikube — `skaffold run`** (`skaffold.yaml` в корне репо). Одна команда: собирает
-  все три образа **прямо в docker-демон minikube** (Skaffold сам детектит контекст — `eval $(minikube
-  docker-env)` не нужен), деплоит через kustomize (`infra/`) и делает rollout автоматически. Rollout
-  срабатывает сам, потому что Skaffold тегирует образы уникальным digest'ом и подменяет `uliss/<svc>:latest`
-  в манифестах на `uliss/<svc>:<digest>` — смена ссылки = новый под (обходит проблему `:latest`+`IfNotPresent`).
-  Билдеры: `auth`/`user` — Jib (артефакты `jib.project: auth|user`), `web` — Docker (`module/web/Dockerfile`).
-  `skaffold delete` — снести. При правке общих lib (`:security` и т.п.) Jib пересоберёт зависящие сервисы сам.
-- **Вручную (fallback / что делает Skaffold под капотом):** `eval $(minikube docker-env)` (в **том же**
-  окне — иначе build уходит в локальный docker и кластер его не видит) → пересобрать образы
-  (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`; `docker build -t uliss/web:latest -f
+- **Workflow under minikube — `skaffold run`** (`skaffold.yaml` at repo root). One command: builds
+  all three images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
+  `eval $(minikube docker-env)` isn't needed), deploys via kustomize (`infra/`), and rolls out
+  automatically. The rollout triggers by itself because Skaffold tags images with a unique digest and
+  swaps `uliss/<svc>:latest` in the manifests for `uliss/<svc>:<digest>` — changing the reference means
+  a new pod (works around the `:latest`+`IfNotPresent` problem).
+  Builders: `auth`/`user` — Jib (artifacts `jib.project: auth|user`), `web` — Docker (`module/web/Dockerfile`).
+  `skaffold delete` — tear it down. When editing shared libs (`:security` etc.), Jib rebuilds the dependent
+  services on its own.
+- **Manual (fallback / what Skaffold does under the hood):** `eval $(minikube docker-env)` (in the
+  **same** shell — otherwise the build goes to the local docker and the cluster can't see it) → rebuild
+  images (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`; `docker build -t uliss/web:latest -f
   module/web/Dockerfile .`) → `kubectl apply -k infra` → **`kubectl rollout restart deploy/<auth|user|web>`**
-  (env из `envFrom.secretRef` и образ `:latest`+`IfNotPresent` подхватываются только при пересоздании пода).
+  (env from `envFrom.secretRef` and the `:latest`+`IfNotPresent` image are only picked up when the pod
+  is recreated).
 
 ## IDE integration (IntelliJ MCP)
 
-Подключён MCP-сервер `idea`. Полезен там, где IDE знает больше, чем файлы на диске:
+The `idea` MCP server is connected. Useful where the IDE knows more than the files on disk:
 
-- `get_file_problems` — ошибки компиляции/инспекции по файлу **вместо** полной `./gradlew build`
-  (быстрее на порядок). Оговорка: результат валиден только если IDE переиндексировала — при правках
-  извне IntelliJ отстаёт, поэтому финальная проверка всё равно `./gradlew build`.
-- `execute_sql_query` / `preview_table_data` — реальное состояние схем `auth` и `profile` при отладке
-  (напр. `profile.user_message` в онбординге), а не догадки по Flyway-миграциям.
-- `get_project_dependencies` / `get_project_modules` — фактический граф модулей от Gradle-импорта.
-- `search_symbol` / `get_symbol_info` / `rename_refactoring` — резолв символов и безопасное
-  переименование по всему проекту (в отличие от текстового grep).
+- `get_file_problems` — compile/inspection errors for a file **instead of** a full `./gradlew build`
+  (an order of magnitude faster). Caveat: the result is only valid if the IDE has reindexed — on
+  external edits IntelliJ lags behind, so the final check is still `./gradlew build`.
+- `execute_sql_query` / `preview_table_data` — the actual state of the `auth` and `profile` schemas
+  while debugging (e.g. `profile.user_message` in onboarding), instead of guessing from Flyway
+  migrations.
+- `get_project_dependencies` / `get_project_modules` — the actual module graph from the Gradle import.
+- `search_symbol` / `get_symbol_info` / `rename_refactoring` — symbol resolution and safe renaming
+  across the whole project (unlike text-based grep).
 
-Правки файлов — обычными Edit/Write (видны в diff), не через `idea`-инструменты.
+File edits — via regular Edit/Write (visible in the diff), not via `idea` tools.
 
-## Версии: единый источник
+## Versions: single source of truth
 
-Все версии живут **только** в `gradle/libs.versions.toml` — единственный источник правды,
-менять версии нужно там. Корневой билд получает каталог `libs` автоматически. Convention-
-плагины вынесены в **included build** `module/lib/gradle-plugins` (подключён через
-`includeBuild` в `pluginManagement`), и тот же каталог явно прокинут в него через
-`from(files("../../../gradle/libs.versions.toml"))` в `gradle-plugins/settings.gradle.kts`.
+All versions live **only** in `gradle/libs.versions.toml` — the single source of truth,
+versions must be changed there. The root build gets the `libs` catalog automatically. Convention
+plugins are factored out into an **included build** `module/lib/gradle-plugins` (wired in via
+`includeBuild` in `pluginManagement`), and the same catalog is explicitly forwarded into it via
+`from(files("../../../gradle/libs.versions.toml"))` in `gradle-plugins/settings.gradle.kts`.
 
-Внутри precompiled script plugin type-safe accessor `libs` недоступен (gradle/gradle#15383),
-поэтому в `io.uliss.kotlin-conventions.gradle.kts` каталог читается рантайм-API
-`VersionCatalogsExtension` (`findVersion`/`findLibrary`). Версии BOM-управляемых стартеров
-(`spring-boot-starter-*`) в каталог не выносим — их версия и так едина через версию BOM.
+Inside a precompiled script plugin, the type-safe `libs` accessor isn't available (gradle/gradle#15383),
+so in `io.uliss.kotlin-conventions.gradle.kts` the catalog is read via the runtime API
+`VersionCatalogsExtension` (`findVersion`/`findLibrary`). Versions of BOM-managed starters
+(`spring-boot-starter-*`) are not put in the catalog — their version is already unified via the BOM
+version.
 
 ## Convention plugins
 
-Общая конфигурация вынесена в included build `module/lib/gradle-plugins` (не дублируется
-по модулям):
+Shared configuration is factored out into the included build `module/lib/gradle-plugins` (not
+duplicated across modules):
 
-- `io.uliss.kotlin-conventions` — базовый Kotlin/Spring модуль (библиотека): toolchain,
-  `group = io.uliss`, Spring BOM через dependency-management, компиляторные флаги
-  (`-Xjsr305=strict`, строгий null-safety, `-Xmulti-dollar-interpolation`), JUnit Platform,
-  задача `integrationTest`, JaCoCo coverage report (только `test`).
-- `io.uliss.spring-boot-app` — наследует `kotlin-conventions` + применяет плагин
-  `org.springframework.boot`. Для исполняемых приложений (`auth`, `user-service`).
-- `io.uliss.jpa-conventions` — применяет `org.jetbrains.kotlin.plugin.jpa` (no-arg для
-  JPA-сущностей). Подключать в модулях с JPA-entity (`auth`, `database`).
+- `io.uliss.kotlin-conventions` — base Kotlin/Spring module (library): toolchain,
+  `group = io.uliss`, Spring BOM via dependency-management, compiler flags
+  (`-Xjsr305=strict`, strict null-safety, `-Xmulti-dollar-interpolation`), JUnit Platform,
+  the `integrationTest` task, JaCoCo coverage report (`test` only).
+- `io.uliss.spring-boot-app` — inherits `kotlin-conventions` + applies the plugin
+  `org.springframework.boot`. For executable applications (`auth`, `user-service`).
+- `io.uliss.jpa-conventions` — applies `org.jetbrains.kotlin.plugin.jpa` (no-arg for
+  JPA entities). Apply in modules with JPA entities (`auth`, `database`).
 
-Версии build-плагинов (kotlin-gradle-plugin, spring-boot-gradle-plugin и пр.) объявлены
-как `[libraries]` в `gradle/libs.versions.toml` и подключаются в
-`gradle-plugins/build.gradle.kts` через `implementation(libs.*)`.
+Versions of build plugins (kotlin-gradle-plugin, spring-boot-gradle-plugin, etc.) are declared
+as `[libraries]` in `gradle/libs.versions.toml` and wired in
+`gradle-plugins/build.gradle.kts` via `implementation(libs.*)`.
 
 ## Library auto-configuration & config
 
-Библиотеки самонастраиваются и подключаются приложениями без явного импорта бинов:
+Libraries self-configure and are picked up by applications without explicit bean imports:
 
-- Каждая lib регистрирует свой `*AutoConfiguration` через
+- Each lib registers its own `*AutoConfiguration` via
   `src/main/resources/META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports`
   (`security`, `database`, `exception`, `logging`).
-- Lib кладёт `<module>.yml` (`database.yml`, `exception.yml`, `security.yml`) в свои
-  resources, а приложение подключает их в своём `application.yaml` через
+- A lib places `<module>.yml` (`database.yml`, `exception.yml`, `security.yml`) in its
+  resources, and the application imports it in its own `application.yaml` via
   `spring.config.import: classpath:<module>.yml`
-  (пример — `module/auth/src/main/resources/application.yaml`).
+  (example — `module/auth/src/main/resources/application.yaml`).
 
 ## Closed decisions (do not revisit)
 
-Финальные решения — не переоткрывать. История — в переписке и per-module `CLAUDE.md`, здесь — сводка
-«сюда не лезь»:
+Final decisions — do not reopen. History is in prior discussion and per-module `CLAUDE.md`; here is the
+summary of "don't touch this":
 
-- **SPA-токены — в `sessionStorage` браузера; BFF отложён** (нужна общая точка — gateway/Redis, которой пока нет). См.
-  `module/lib/security/CLAUDE.md` («SPA token strategy»).
-- **Сервис-посредник (`:security` `/oauth2/*`), а не прямой SPA→AS** — SPA не знает адрес auth-сервера; OAuth-клиент
-  confidential.
-- **`sub` токена = `auth.users.id` (UUID), не email** — стабильный OIDC-subject, без PII.
-- **Регистрация — только серверная форма** (`AuthController`); REST `/auth/register` удалён намеренно (пароль не
-  попадает в SPA).
-- **`displayName` живёт в `user-service`, не в auth** — auth хранит только email+password.
-- **Логин блокируется при недоступности user-service** — токен без `userId` неполноценен (осознанный trade-off
-  доступности).
-- **Split-horizon auth URL** — `AUTH_PUBLIC_URL` (browser-facing) vs `AUTH_INTERNAL_URL` (service-to-service). См.
-  `module/lib/security/CLAUDE.md`.
-- **Database-per-service** — своя схема на приложение (`auth` → `auth`, `user-service` → `profile`, `note-service` →
-  `note`), без общей схемы.
-- **`uliss-web` — confidential-клиент, не public** — им пользуется сервис (`:security`), поэтому `refresh_token` grant
-  включён намеренно.
+- **SPA tokens live in the browser's `sessionStorage`; a BFF is deferred** (needs a shared point —
+  a gateway/Redis — that doesn't exist yet). See `module/lib/security/CLAUDE.md` ("SPA token strategy").
+- **A mediator service (`:security` `/oauth2/*`), not a direct SPA→AS flow** — the SPA doesn't know the
+  auth server's address; the OAuth client is confidential.
+- **The token's `sub` = `auth.users.id` (UUID), not email** — a stable OIDC subject, no PII.
+- **Registration is server-form only** (`AuthController`); the REST `/auth/register` was deliberately
+  removed — the password never reaches the SPA.
+- **`displayName` lives in `user-service`, not in auth** — auth only stores email+password.
+- **Login is blocked if user-service is unavailable** — a token without `userId` is incomplete (a
+  deliberate availability trade-off).
+- **Split-horizon auth URL** — `AUTH_PUBLIC_URL` (browser-facing) vs `AUTH_INTERNAL_URL`
+  (service-to-service). See `module/lib/security/CLAUDE.md`.
+- **Database-per-service** — its own schema per application (`auth` → `auth`, `user-service` →
+  `profile`, `note-service` → `note`), no shared schema.
+- **`uliss-web` is a confidential client, not public** — it's used by a service (`:security`), so the
+  `refresh_token` grant is deliberately enabled.
 
 ## Operational constraints (hard limits — never do without explicit per-request permission)
 
@@ -297,28 +302,29 @@ verification step. Ask the user and get explicit approval each time before cross
 ## Anti-patterns (never do)
 
 - No field injection — **constructor injection only**.
-- No business logic in controllers or repositories — логика в `service`.
+- No business logic in controllers or repositories — logic belongs in `service`.
 - No direct repository calls from controllers.
-- No Spring / JPA annotations inside domain classes (hexagonal-lite слои `user-service`).
+- No Spring / JPA annotations inside domain classes (hexagonal-lite layers in `user-service`).
 - No `!!` in Kotlin without a one-line justification comment.
-- No version changes outside `gradle/libs.versions.toml` (см. «Версии: единый источник»).
-- No Russian in code, comments, logs, or commit messages (см. «Notes»).
-- No `TODO`/`FIXME` comments in code — вести в `## Decisions` внутри `docs/CURRENT_TASK.md`.
-- Package root — `io.uliss.<module>` (см. «Conventions»).
+- No version changes outside `gradle/libs.versions.toml` (see "Versions: single source of truth").
+- No Russian in code, comments, logs, or commit messages (see "Notes").
+- No `TODO`/`FIXME` comments in code — track them in `## Decisions` inside `docs/CURRENT_TASK.md`.
+- Package root — `io.uliss.<module>` (see "Conventions").
 
 ### Known deviations (to reconcile)
 
-Известный долг — не эталон для нового кода, привести в соответствие при ближайшей правке этих файлов:
+Known debt — not a template for new code, bring into line the next time these files are touched:
 
-- `!!` без обоснования (4 места): `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt:23`
-  (реальный риск — `response` может быть null вне request-контекста → заменить на проверку/исключение);
-  `module/auth/.../config/DataInitializer.kt:47,72` и `module/auth/.../service/UserService.kt:31`
-  (platform-type от `passwordEncoder.encode` — безопасно, дообосновать комментарием).
-- Пакет `utils` в `SecurityUtils.kt` вместо `io.uliss.security.utils` — переименовать при рефакторинге.
-- JaCoCo (`jacocoTestReport`, `io.uliss.kotlin-conventions`) подключён к `check`, но
-  `jacocoTestCoverageVerification` — **не** настроен (нет порога, сборка не падает по coverage).
-  Добавить порог + gate, когда покрытие тестами вырастет настолько, что порог будет осмысленным,
-  а не произвольным числом.
+- `!!` without justification (4 places): `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt:23`
+  (a real risk — `response` can be null outside a request context → replace with a check/exception);
+  `module/auth/.../config/DataInitializer.kt:47,72` and `module/auth/.../service/UserService.kt:31`
+  (platform type from `passwordEncoder.encode` — safe, add a justification comment).
+- The `utils` package in `SecurityUtils.kt` instead of `io.uliss.security.utils` — rename during the
+  next refactor.
+- JaCoCo (`jacocoTestReport`, `io.uliss.kotlin-conventions`) is wired into `check`, but
+  `jacocoTestCoverageVerification` is **not** configured (no threshold, the build doesn't fail on
+  coverage). Add a threshold + gate once test coverage has grown enough for a threshold to be
+  meaningful rather than an arbitrary number.
 
 ## Conventions
 
@@ -338,22 +344,21 @@ verification step. Ask the user and get explicit approval each time before cross
     `MockMvc` under `@WebMvcTest`/`@SpringBootTest`+`@AutoConfigureMockMvc` (`MockServletContext` never
     receives it) — tests would silently diverge from production routing.
 - Package root: `io.uliss.<module>`.
-- Persistence: Flyway-миграции + PostgreSQL. Миграции лежат в
-  `src/main/resources/db/migration`, именование `V<n>__ddl_*.sql` (есть в `auth` и
-  `user-service`). Схема задаётся per-app через `spring.flyway.schemas` /
-  `default-schema` + `hibernate.default_schema`.
+- Persistence: Flyway migrations + PostgreSQL. Migrations live under
+  `src/main/resources/db/migration`, naming `V<n>__ddl_*.sql` (present in `auth` and
+  `user-service`). The schema is set per-app via
+  `spring.flyway.schemas` / `default-schema` + `hibernate.default_schema`.
 - JSON: Jackson Kotlin module (`tools.jackson.module:jackson-module-kotlin`).
-- Тесты: используют `spring-boot-starter-*-test` стартеры и `kotlin-test-junit5`.
-  `failOnNoDiscoveredTests = false` временно включён, пока тестов мало.
+- Tests: use `spring-boot-starter-*-test` starters and `kotlin-test-junit5`.
+  `failOnNoDiscoveredTests = false` is temporarily enabled while there are few tests.
 
 ## Notes
 
-- `HELP.md` в каждом модуле — автогенерация Spring Initializr (в `.gitignore`), не редактировать.
-- При добавлении нового исполняемого сервиса: создать модуль в `module/<name>`, применить
-  `id("io.uliss.spring-boot-app")`, прописать `include(...)` и `projectDir` в
+- `HELP.md` in each module is Spring Initializr auto-generated (in `.gitignore`), do not edit.
+- When adding a new executable service: create a module under `module/<name>`, apply
+  `id("io.uliss.spring-boot-app")`, add `include(...)` and `projectDir` in
   `settings.gradle.kts`.
-- При добавлении новой библиотеки: создать модуль в `module/lib/<name>`, применить
-  `id("io.uliss.kotlin-conventions")`, аналогично прописать в `settings.gradle.kts`.
-- Все комментарии в проекте только на английском. Никаких русских слов в самом проекте использоваться не должно.
-  Комментарии используются только в тех местах где необходимо. Сами коментарии по возможности должны содержать минимум
-  текста
+- When adding a new library: create a module under `module/lib/<name>`, apply
+  `id("io.uliss.kotlin-conventions")`, wire it into `settings.gradle.kts` the same way.
+- All comments in the project are in English only. No Russian words are to be used anywhere in the
+  project. Comments should be used only where necessary, and should contain as little text as possible.
