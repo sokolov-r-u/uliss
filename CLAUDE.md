@@ -4,11 +4,18 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Workflow
 
+Every task gets its own file in `docs/tasks/` (gitignored — local working state, never
+committed), named `YYYY-MM-DD-<short-kebab-case-name>.md`; pick today's date and a short name
+that fits the task at hand. Several tasks can be in flight at once as separate files (e.g. a
+long-running docker task alongside a frontend task) — never collapse them into one file.
+
 Every task follows this process:
 
-1. Read CLAUDE.md + docs/CURRENT_TASK.md before starting
+1. Read CLAUDE.md + the task's file in `docs/tasks/` (if one already exists for this task)
+   before starting
 2. Read relevant module files before writing any code — never generate blind
-3. Create or update CURRENT_TASK.md with the plan before writing any code
+3. Create or update the task file (`docs/tasks/YYYY-MM-DD-<name>.md`) with the plan before
+   writing any code
 4. If plan has 5+ steps or touches 3+ modules — stop and confirm with user
 5. Execute plan one step at a time:
 
@@ -19,13 +26,18 @@ Every task follows this process:
   c. Run ./gradlew :<module>:test — fix production code, not tests;
   never delete or weaken existing tests;
   if tests break or reveal bugs — stop and ask user
-  d. Update CURRENT_TASK.md
+  d. Update the task file
   e. Stop and wait for user review before proceeding
 
 6. After all steps complete — write integration tests covering
    end-to-end flow if applicable
 
-## CURRENT_TASK.md structure
+Deferred work that outlives a single task (agreed-upon but not implemented now) goes into
+`docs/TECH_DEBT.md` instead — that file is tracked in git, unlike the per-task files above.
+
+## Task file structure
+
+`docs/tasks/YYYY-MM-DD-<name>.md`:
 
 ```
 # Task: <name>
@@ -95,6 +107,10 @@ Libraries (not executable, directory `module/lib/<name>`):
   Depends on `:exception`.
 - `validation` (`io.uliss.validation`) — custom bean-validation annotations (`@Email`,
   `@Password`). Depends on `:exception`.
+- `monitoring` (`io.uliss.monitoring`) — shared actuator config: `api("...spring-boot-starter-actuator")`
+  + `monitoring.yml` (`management.endpoints.web.exposure.include: health`). Used by `auth`/`user`/`note`
+    for `/actuator/health` (docker-compose healthchecks); each app's security config opens that path up
+    explicitly since it isn't otherwise `permitAll`.
 
 The mapping between module name and directory is defined in `settings.gradle.kts` (e.g.
 `:security` → `module/lib/security`).
@@ -103,8 +119,7 @@ The mapping between module name and directory is defined in `settings.gradle.kts
   source of styles for both server-rendered Thymeleaf pages (`auth`) and the React app (`web`). The
   folder is **simultaneously** an npm package `@uliss/design-system` (source in `src/`: CSS tokens,
   self-hosted OFL fonts, `.tsx` components) **and** a Gradle module `:uliss-design-system`. Details —
-  `module/lib/uliss-design-system/CLAUDE.md`. The frontend and auth-UI plan lives at
-  `docs/plans/2026-06-25-frontend-auth-ui-plan.md`.
+  `module/lib/uliss-design-system/CLAUDE.md`.
 
 ## Build & test
 
@@ -214,6 +229,14 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
 - **Images:** `auth`/`user`/`note` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild
   :note:jibDockerBuild`, config — `io.uliss.docker-conventions`, `uliss/<project>:latest`); `web` —
   `docker build -t uliss/web:latest -f module/web/Dockerfile .`.
+- **CI image publish (`.github/workflows/docker-publish.yml`):** on every push to `main`, builds +
+  tests, then pushes all four images to GHCR (`ghcr.io/<owner>/<auth|user|note|web>:latest`) — Jib via
+  `:auth:jib :user:jib :note:jib -Pdocker.registry=ghcr.io/<owner>` (the `docker.registry` Gradle
+  property in `io.uliss.docker-conventions` overrides `to.image`'s registry; unset locally, so plain
+  `jibDockerBuild` is unaffected), `web` via `docker/build-push-action`. Auth is the built-in
+  `GITHUB_TOKEN` (no extra secrets). **One-time manual step after the first run:** each of the 4 GHCR
+  packages is created private by default even on a public repo — flip each to Public, or a Droplet's
+  `docker compose pull` has no credentials to fetch them.
 - **Base JRE image (`docker.jre.version` in `gradle.properties`):** not the stock `eclipse-temurin`
   tag — `ghcr.io/<owner>/base-jre:<tag>`, our own image (`infra/docker/base-jre/Dockerfile`,
   published by `.github/workflows/base-jre-publish.yml` as a multi-arch `linux/amd64,linux/arm64`
@@ -348,7 +371,7 @@ verification step. Ask the user and get explicit approval each time before cross
 - No `!!` in Kotlin without a one-line justification comment.
 - No version changes outside `gradle/libs.versions.toml` (see "Versions: single source of truth").
 - No Russian in code, comments, logs, or commit messages (see "Notes").
-- No `TODO`/`FIXME` comments in code — track them in `## Decisions` inside `docs/CURRENT_TASK.md`.
+- No `TODO`/`FIXME` comments in code — track them in the active task file under `docs/tasks/`.
 - Package root — `io.uliss.<module>` (see "Conventions").
 
 ### Known deviations (to reconcile)
