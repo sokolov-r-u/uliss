@@ -182,7 +182,9 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   one per resource.
 - **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
   `module/web/nginx.conf` provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
-  immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404.
+  immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404. It also proxies
+  `/user/` and `/note/` to those services — needed for same-origin routing under plain `docker compose`
+  (no ingress there); inert under k8s, where Ingress routes those paths before they reach this pod.
 - **Images:** `auth`/`user` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild`, config —
   `io.uliss.docker-conventions`, `uliss/<project>:latest`); `web` — `docker build -t uliss/web:latest
   -f module/web/Dockerfile .`.
