@@ -32,6 +32,12 @@ services:
       USER_SERVICE_HOST: user
     ports:
       - "9000:9000"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:9000/actuator/health || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     networks:
       # same hostname resolves from the host browser (via infra/etc.hosts) and from sibling
       # containers, so AUTH_PUBLIC_URL/AUTH_INTERNAL_URL need no override here
@@ -42,7 +48,7 @@ services:
       postgres:
         condition: service_healthy
       user:
-        condition: service_started
+        condition: service_healthy
 
   user:
     image: uliss/user:latest
@@ -55,6 +61,12 @@ services:
     ports:
       - "8080:8080"
       - "9090:9090"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -68,6 +80,12 @@ services:
       FRONTEND_URL: http://uliss.local
     ports:
       - "8081:8081"
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:8081/actuator/health || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 30s
     depends_on:
       postgres:
         condition: service_healthy
@@ -78,10 +96,16 @@ services:
     profiles: [ "full" ]
     ports:
       - "80:80"
+    healthcheck:
+      test: [ "CMD-SHELL", "wget -q --spider http://localhost/ || exit 1" ]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
     depends_on:
       auth:
-        condition: service_started
+        condition: service_healthy
       user:
-        condition: service_started
+        condition: service_healthy
       note:
-        condition: service_started
+        condition: service_healthy
