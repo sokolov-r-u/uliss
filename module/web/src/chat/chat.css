@@ -1,0 +1,53 @@
+/* Chat feature: list (ChatListPage) + conversation (ChatPage) styling. */
+
+.chat-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    background: var(--line);
+    border: 1px solid var(--line);
+}
+
+.chat-list-item {
+    background: var(--bg);
+}
+
+.chat-list-item a {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 18px;
+    background: var(--bg-surface);
+    color: var(--cream);
+    text-decoration: none;
+    transition: background 0.15s ease;
+}
+
+.chat-list-item a:hover {
+    background: var(--bg-panel);
+}
+
+.chat-list-item-title {
+    font-family: var(--font-serif);
+    font-size: 18px;
+}
+
+.chat-list-item-date {
+    flex: 0 0 auto;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text-faint);
+    white-space: nowrap;
+}
+
+.chat-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 32px 0;
+}
