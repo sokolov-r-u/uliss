@@ -16,7 +16,9 @@ export async function streamAssistantReply(
 ): Promise<StreamOutcome> {
     const res = await authFetch(`/note/chats/${chatId}/messages/stream`, {
         method: 'POST',
-        headers: {'Content-Type': 'application/json'},
+        // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
+        // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
+        headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream'},
         body: JSON.stringify({content}),
         signal: opts.signal,
     })

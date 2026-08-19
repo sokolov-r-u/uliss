@@ -4,8 +4,8 @@
  * auth-redirect), and hands off to login when refresh is impossible. Paths are relative
  * (Vite proxy in dev / same-origin gateway in prod).
  */
-import { clearTokens, getTokens, isExpired, type Tokens } from './tokenStore'
-import { login, refreshTokens } from './authApi'
+import {clearTokens, getTokens, isExpired, type Tokens} from './tokenStore'
+import {login, refreshTokens} from './authApi'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
 export class AuthRequiredError extends Error {
@@ -19,7 +19,9 @@ function withAuth(init: RequestInit | undefined, accessToken: string): RequestIn
   const headers = new Headers(init?.headers)
   headers.set('Authorization', `Bearer ${accessToken}`)
   // Signal XHR so a service can answer with 401 JSON instead of a browser redirect (if it supports it).
-  headers.set('Accept', 'application/json')
+  // Default to JSON, but let a caller override it (e.g. `text/event-stream` for an SSE endpoint) —
+  // Spring's content negotiation 406s when Accept doesn't match the handler's `produces`.
+  if (!headers.has('Accept')) headers.set('Accept', 'application/json')
   headers.set('X-Requested-With', 'XMLHttpRequest')
   // `redirect: 'manual'` turns the entry-point 302 into an opaqueredirect we can detect.
   return { ...init, headers, credentials: 'include', redirect: 'manual' }
