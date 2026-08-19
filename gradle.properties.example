@@ -1,7 +1,8 @@
 # Copy this file to gradle.properties and adjust values for your environment.
 
-# Base image used by Jib (io.uliss.docker-conventions)
-docker.jre.version=eclipse-temurin:25.0.3_9-jre
+# Base image used by Jib (io.uliss.docker-conventions) — our own image, built from
+# infra/docker/base-jre/Dockerfile by .github/workflows/base-jre-publish.yml.
+docker.jre.version=ghcr.io/skippermouse/base-jre:25.0.3_9
 
 # Path to the docker executable used by Jib
 docker.executable=/usr/local/bin/docker
