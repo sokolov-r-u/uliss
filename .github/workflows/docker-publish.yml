@@ -10,7 +10,73 @@ permissions:
   packages: write
 
 jobs:
-  build-and-publish:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      base_jre: ${{ steps.filter.outputs.base_jre }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            base_jre:
+              - 'infra/docker/base-jre/**'
+            web:
+              - 'module/web/**'
+              - 'module/lib/uliss-design-system/**'
+              - 'package.json'
+              - 'package-lock.json'
+
+  # Publishes ghcr.io/<owner>/base-jre. Runs only when infra/docker/base-jre/** changed (or on a
+  # manual dispatch), and jvm-images below waits on it — this ordering is what fixes the previous
+  # race between this image and the JVM images that pull it as their Jib base image.
+  base-jre:
+    needs: changes
+    if: needs.changes.outputs.base_jre == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
+
+      # Single source of truth for the tag: gradle.properties.example's docker.jre.version,
+      # instead of a separately hardcoded value that can drift out of sync with it.
+      - name: Derive base-jre tag from gradle.properties.example
+        id: base-jre-tag
+        run: |
+          tag=$(grep -oP '(?<=docker\.jre\.version=).*:\K.*' gradle.properties.example)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push base-jre image
+        uses: docker/build-push-action@v6
+        with:
+          context: infra/docker/base-jre
+          file: infra/docker/base-jre/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.ghcr.outputs.registry-path }}/base-jre:${{ steps.base-jre-tag.outputs.tag }}
+
+  jvm-images:
+    needs: [ changes, base-jre ]
+    # base-jre is allowed to be 'skipped' (path filter didn't match) as well as 'success' —
+    # only a genuine failure of base-jre should block this job.
+    if: |
+      always() &&
+      needs.changes.result == 'success' &&
+      (needs.base-jre.result == 'success' || needs.base-jre.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +106,19 @@ jobs:
         run: >
           ./gradlew :auth:jib :user:jib :note:jib
           -Pdocker.registry=${{ steps.ghcr.outputs.registry-path }}
+
+  # Fully independent of base-jre/jvm-images (no Jib, no JVM build) — runs in parallel with them,
+  # only when module/web or its design-system dependency changed.
+  web-image:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
 
       - name: Set up Buildx
         uses: docker/setup-buildx-action@v3
