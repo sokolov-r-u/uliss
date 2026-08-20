@@ -9,6 +9,13 @@ permissions:
   contents: read
   packages: write
 
+# false, not true: cancelling docker/build-push-action mid-push can leave a partially-pushed
+# manifest/layer on GHCR. GitHub still coalesces the queue — only the most recently queued run
+# per group is kept pending, superseded ones are cancelled before they start.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   changes:
     runs-on: ubuntu-latest
@@ -68,6 +75,8 @@ jobs:
           push: true
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.ghcr.outputs.registry-path }}/base-jre:${{ steps.base-jre-tag.outputs.tag }}
+          cache-from: type=gha,scope=base-jre
+          cache-to: type=gha,scope=base-jre,mode=max
 
   jvm-images:
     needs: [ changes, base-jre ]
@@ -131,3 +140,5 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ghcr.outputs.registry-path }}/web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
