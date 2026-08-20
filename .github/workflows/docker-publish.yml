@@ -80,11 +80,12 @@ jobs:
 
   jvm-images:
     needs: [ changes, base-jre ]
-    # base-jre is allowed to be 'skipped' (path filter didn't match) as well as 'success' —
-    # only a genuine failure of base-jre should block this job.
+    # Deliberately does NOT check needs.changes.result: these images always publish regardless
+    # of path filtering, so a transient failure in the `changes` job must not block them. base-jre
+    # is allowed to be 'skipped' (path filter didn't match) as well as 'success' — only a genuine
+    # failure of base-jre should block this job.
     if: |
       always() &&
-      needs.changes.result == 'success' &&
       (needs.base-jre.result == 'success' || needs.base-jre.result == 'skipped')
     runs-on: ubuntu-latest
     steps:

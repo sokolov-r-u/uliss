@@ -42,8 +42,10 @@ jobs:
         run: ./gradlew integrationTest
 
       # Separate invocation: jacocoRootReport has no dependsOn integrationTest (same reason
-      # above), so ordering must come from invocation order, not the task graph.
+      # above), so ordering must come from invocation order, not the task graph. if: always() so a
+      # failed build/test still merges whatever coverage data was written before the failure.
       - name: Merge coverage report
+        if: always()
         run: ./gradlew jacocoRootReport
 
       - name: Upload coverage report
