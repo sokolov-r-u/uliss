@@ -19,5 +19,18 @@ spring:
     locations: classpath:db/migration
     create-schemas: true
   ai:
+    model:
+      chat: deepseek
+      embedding: openai
     deepseek:
       api-key: test
+    openai:
+      api-key: test
+      embedding:
+        model: text-embedding-3-small
+        dimensions: 1536
+    vectorstore:
+      pgvector:
+        schema-name: note
+        dimensions: 1536
+        initialize-schema: false

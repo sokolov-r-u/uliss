@@ -20,7 +20,20 @@ spring:
     schemas: note
     default-schema: note
   ai:
+    model:
+      chat: deepseek
+      embedding: openai
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
         model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      embedding:
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+        dimensions: 1536
+    vectorstore:
+      pgvector:
+        schema-name: note
+        dimensions: 1536
+        initialize-schema: false

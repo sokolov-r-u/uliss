@@ -38,6 +38,8 @@ protobuf-java = { module = "com.google.protobuf:protobuf-java" }
 
 spring-grpc-bom = { module = "org.springframework.grpc:spring-grpc-dependencies", version.ref = "springGrpc" }
 spring-ai-starter-deepseek = { module = "org.springframework.ai:spring-ai-starter-model-deepseek", version.ref = "spring-ai" }
+spring-ai-starter-openai = { module = "org.springframework.ai:spring-ai-starter-model-openai", version.ref = "spring-ai" }
+spring-ai-starter-vector-store-pgvector = { module = "org.springframework.ai:spring-ai-starter-vector-store-pgvector", version.ref = "spring-ai" }
 tomcat-annotations-api = { module = "org.apache.tomcat:annotations-api", version.ref = "tomcat-annotations" }
 
 protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobufPlugin" }
