@@ -12,6 +12,7 @@ dependencies {
     implementation(project(":exception"))
     implementation(project(":logging"))
     implementation(project(":validation"))
+    implementation(project(":monitoring"))
 
     implementation(libs.spring.ai.starter.deepseek)
 

@@ -13,6 +13,7 @@ dependencies {
     implementation(project(":validation"))
     implementation(project(":uliss-design-system"))
     implementation(project(":user-api"))
+    implementation(project(":monitoring"))
 
     implementation("org.springframework.boot:spring-boot-starter-security-oauth2-authorization-server")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")

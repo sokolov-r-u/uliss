@@ -1,11 +1,11 @@
 FROM node:26-alpine3.24
 WORKDIR /app
 
-COPY package.json .
+COPY package.json package-lock.json ./
 COPY module/web module/web
 COPY module/lib/uliss-design-system module/lib/uliss-design-system
 
-RUN npm install
+RUN npm ci
 RUN npm run build -w @uliss/web
 
 FROM nginx:alpine

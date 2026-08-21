@@ -9,6 +9,7 @@ spring:
     import:
       - classpath:database.yml
       - classpath:exception.yml
+      - classpath:monitoring.yml
   threads:
     virtual:
       enabled: true

@@ -1,0 +1,145 @@
+name: Build and publish images
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: { }
+
+permissions:
+  contents: read
+  packages: write
+
+# false, not true: cancelling docker/build-push-action mid-push can leave a partially-pushed
+# manifest/layer on GHCR. GitHub still coalesces the queue — only the most recently queued run
+# per group is kept pending, superseded ones are cancelled before they start.
+concurrency:
+  group: docker-publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      base_jre: ${{ steps.filter.outputs.base_jre }}
+      web: ${{ steps.filter.outputs.web }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - uses: dorny/paths-filter@v4.0.3
+        id: filter
+        with:
+          filters: |
+            base_jre:
+              - 'infra/docker/base-jre/**'
+            web:
+              - 'module/web/**'
+              - 'module/lib/uliss-design-system/**'
+              - 'package.json'
+              - 'package-lock.json'
+
+  # Publishes ghcr.io/<owner>/base-jre. Runs only when infra/docker/base-jre/** changed (or on a
+  # manual dispatch), and jvm-images below waits on it — this ordering is what fixes the previous
+  # race between this image and the JVM images that pull it as their Jib base image.
+  base-jre:
+    needs: changes
+    if: needs.changes.outputs.base_jre == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v4.2.0
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
+
+      # Single source of truth for the tag: gradle.properties.example's docker.jre.version,
+      # instead of a separately hardcoded value that can drift out of sync with it.
+      - name: Derive base-jre tag from gradle.properties.example
+        id: base-jre-tag
+        run: |
+          tag=$(grep -oP '(?<=docker\.jre\.version=).*:\K.*' gradle.properties.example)
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push base-jre image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: infra/docker/base-jre
+          file: infra/docker/base-jre/Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.ghcr.outputs.registry-path }}/base-jre:${{ steps.base-jre-tag.outputs.tag }}
+          cache-from: type=gha,scope=base-jre
+          cache-to: type=gha,scope=base-jre,mode=max
+
+  jvm-images:
+    needs: [ changes, base-jre ]
+    # Deliberately does NOT check needs.changes.result: these images always publish regardless
+    # of path filtering, so a transient failure in the `changes` job must not block them. base-jre
+    # is allowed to be 'skipped' (path filter didn't match) as well as 'success' — only a genuine
+    # failure of base-jre should block this job.
+    if: |
+      always() &&
+      (needs.base-jre.result == 'success' || needs.base-jre.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Set up JDK
+        uses: actions/setup-java@v5.7.0
+        with:
+          distribution: temurin
+          java-version: "25"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v5.0.2
+
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
+
+      # gradle.properties is gitignored (machine-specific docker.executable path); jib (registry
+      # push, unlike jibDockerBuild) never invokes it, so the example's placeholder value is fine.
+      - name: Set up gradle.properties for Jib
+        run: cp gradle.properties.example gradle.properties
+
+      - name: Build and test
+        run: ./gradlew build
+
+      - name: Push auth/user/note images
+        run: >
+          ./gradlew :auth:jib :user:jib :note:jib
+          -Pdocker.registry=${{ steps.ghcr.outputs.registry-path }}
+
+  # Fully independent of base-jre/jvm-images (no Jib, no JVM build) — runs in parallel with them,
+  # only when module/web or its design-system dependency changed.
+  web-image:
+    needs: changes
+    if: needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7.0.1
+
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4.3.0
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: module/web/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ghcr.outputs.registry-path }}/web:latest
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max
