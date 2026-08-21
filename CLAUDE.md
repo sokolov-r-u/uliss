@@ -88,9 +88,8 @@ Executable applications (directory `module/<name>`):
   application, **scaffold**: `POST /note/ask` via Spring AI on top of DeepSeek (model
   `deepseek-v4-flash`), plus a `note` schema for future RAG (pgvector). Depends on `:security`,
   `:database`, `:exception`, `:logging`, `:validation`. Details — `module/note/note-app/CLAUDE.md`.
-- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), frontend on top of `auth`/`user-service`/
-  `note-service` (chat UI). Same-origin, doesn't know service addresses directly. Details —
-  `module/web/CLAUDE.md`.
+- `web` (`@uliss/web`, `module/web`) — React SPA (Vite), frontend on top of `auth`/`user-service`.
+  Same-origin, doesn't know service addresses directly. Details — `module/web/CLAUDE.md`.
 
 Libraries (not executable, directory `module/lib/<name>`):
 
