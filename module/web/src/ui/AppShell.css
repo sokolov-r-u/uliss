@@ -1,0 +1,199 @@
+/* Authenticated app layout: mobile drawer -> desktop rail at 900px. See ui/AppShell.tsx, nav/*. */
+
+.app-shell {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(1200px 600px at 50% -10%, rgba(216, 154, 78, 0.06), transparent 70%),
+    var(--bg);
+}
+
+.top-bar {
+    flex: 0 0 auto;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    height: 52px;
+    padding: 0 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.top-bar-wordmark {
+    justify-self: center;
+}
+
+.top-bar-spacer {
+    width: 36px;
+}
+
+.hamburger-btn {
+    appearance: none;
+    background: none;
+    border: none;
+    margin: -8px;
+    padding: 8px;
+    display: flex;
+    color: var(--cream-dim);
+    cursor: pointer;
+}
+
+.hamburger-btn:hover {
+    color: var(--accent-2);
+}
+
+.nav-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: var(--scrim, rgba(8, 5, 3, 0.62));
+}
+
+.side-nav {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    width: 248px;
+    max-width: 84vw;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-deep);
+    border-right: 1px solid var(--line-strong);
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+}
+
+.side-nav.open {
+    transform: translateX(0);
+}
+
+.side-nav-brand {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 26px 22px 20px;
+}
+
+.side-nav-links {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 12px;
+}
+
+.nav-link {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 13px 14px;
+    border-left: 2px solid transparent;
+    color: var(--cream-dim);
+    text-decoration: none;
+}
+
+.nav-link.active {
+    background: var(--bg-surface);
+    border-left-color: var(--accent);
+    color: var(--cream);
+}
+
+.nav-link-icon {
+    display: flex;
+    color: var(--text-muted);
+}
+
+.nav-link.active .nav-link-icon {
+    color: var(--accent-2);
+}
+
+.nav-link-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.nav-link-label {
+    font-family: var(--font-mono);
+    font-size: 13px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.nav-link-gloss {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-size: 11px;
+    color: var(--accent-2);
+    opacity: 0.85;
+}
+
+.app-main {
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+}
+
+.page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px 24px 48px;
+}
+
+.page-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.page-title {
+    margin: 6px 0 0;
+    font-family: var(--font-serif);
+    font-size: 34px;
+    line-height: 1.1;
+    color: var(--cream);
+}
+
+.page-description {
+    margin: 12px 0 0;
+    color: var(--cream-dim);
+    font-size: 14px;
+    line-height: 1.6;
+    max-width: 46ch;
+}
+
+.tbd-badge {
+    display: inline-block;
+    margin-top: 24px;
+    padding: 6px 14px;
+    border: 1px solid var(--line-strong);
+    color: var(--text-faint);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+
+@media (min-width: 900px) {
+    .app-shell {
+        flex-direction: row;
+    }
+
+    .top-bar,
+    .nav-backdrop {
+        display: none;
+    }
+
+    .side-nav {
+        position: static;
+        transform: none;
+        flex: 0 0 248px;
+    }
+
+    .app-main {
+        flex: 1;
+        overflow-y: auto;
+    }
+}

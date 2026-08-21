@@ -99,3 +99,8 @@ body {
 .link-btn:hover {
   color: var(--ochre-bright);
 }
+
+.link-btn:disabled {
+    color: var(--text-faint);
+    cursor: default;
+}

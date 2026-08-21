@@ -1,11 +1,14 @@
 import {type ReactNode, useEffect} from 'react'
-import {Route, Routes} from 'react-router-dom'
+import {Navigate, Route, Routes} from 'react-router-dom'
 import {useAuth} from './auth/AuthContext'
 import {getTokens} from './auth/tokenStore'
-import {Home} from './pages/Home'
 import {Callback} from './pages/Callback'
-import {OnboardingDriver} from './onboarding/OnboardingDriver'
 import {Shell} from './ui/Shell'
+import {AppShell} from './ui/AppShell'
+import {ChatListPage} from './chat/ChatListPage'
+import {ChatPage} from './chat/ChatPage'
+import {JournalPage} from './journal/JournalPage'
+import {GraphPage} from './graph/GraphPage'
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -35,11 +38,17 @@ export function App() {
         path="/"
         element={
           <RequireAuth>
-            <Home />
-              <OnboardingDriver/>
+              <AppShell/>
           </RequireAuth>
         }
-      />
+      >
+          <Route index element={<Navigate to="/chats" replace/>}/>
+          <Route path="chats" element={<ChatListPage/>}/>
+          <Route path="chats/:chatId" element={<ChatPage/>}/>
+          <Route path="journal" element={<JournalPage/>}/>
+          <Route path="graph" element={<GraphPage/>}/>
+          <Route path="*" element={<Navigate to="/chats" replace/>}/>
+      </Route>
     </Routes>
   )
 }

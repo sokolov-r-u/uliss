@@ -11,9 +11,15 @@ path below is unchanged and still fully supported** — this is an additional op
 
 - Add `127.0.0.1 uliss.local` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
   including `auth.uliss.local` etc., already needed for host-based `bootRun` dev).
-- Build the images once (same commands as the k8s manual fallback below):
-  `./gradlew :auth:jibDockerBuild :user:jibDockerBuild :note:jibDockerBuild` and
-  `docker build -t uliss/web:latest -f module/web/Dockerfile .`.
+- Build all four images in one command: `./gradlew buildAllImages` — aggregates
+  `:auth:jibDockerBuild`/`:user:jibDockerBuild`/`:note:jibDockerBuild` (Jib, local Docker daemon
+  only) plus `buildWebImage` (a plain `docker build -t uliss/web:latest -f module/web/Dockerfile .`,
+  since `web` isn't a Gradle subproject). Each image gets both a `:latest` tag and a version tag
+  (`uliss/<service>:<version>`, matching each module's own version — `web`'s comes from
+  `module/web/package.json`). Rebuilding without a version bump retags `:latest`/`:<version>`
+  onto the new image, leaving the previous one dangling (`<none>:<none>`) — clean those up with
+  `docker image prune -f`; a genuinely old version tag (after a deliberate version bump) has to
+  be removed by hand (`docker rmi uliss/<service>:<old-version>`).
 - `docker compose -f infra/docker-compose.yml --profile full up -d` — brings up `postgres` plus
   `auth`/`user`/`note`/`web`. Plain `docker compose -f infra/docker-compose.yml up -d` (no
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.
@@ -52,14 +58,22 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
 - **Images:** `auth`/`user`/`note` — Jib (`./gradlew :auth:jibDockerBuild :user:jibDockerBuild
   :note:jibDockerBuild`, config — `io.uliss.docker-conventions`, `uliss/<project>:latest`); `web` —
   `docker build -t uliss/web:latest -f module/web/Dockerfile .`.
-- **CI image publish (`.github/workflows/docker-publish.yml`):** on every push to `main`, builds +
-  tests, then pushes all four images to GHCR (`ghcr.io/<owner>/<auth|user|note|web>:latest`) — Jib via
-  `:auth:jib :user:jib :note:jib -Pdocker.registry=ghcr.io/<owner>` (the `docker.registry` Gradle
-  property in `io.uliss.docker-conventions` overrides `to.image`'s registry; unset locally, so plain
-  `jibDockerBuild` is unaffected), `web` via `docker/build-push-action`. Auth is the built-in
-  `GITHUB_TOKEN` (no extra secrets). **One-time manual step after the first run:** each of the 4 GHCR
-  packages is created private by default even on a public repo — flip each to Public, or a Droplet's
-  `docker compose pull` has no credentials to fetch them.
+- **PR gate (`.github/workflows/pr-checks.yml`):** runs on every PR open/update against `main` —
+  backend job (`./gradlew build`, `integrationTest`, `jacocoRootReport` as an artifact) and a
+  parallel frontend job (`npm run build -w @uliss/web`). Publishes nothing; only gates the merge
+  once branch protection requires `backend-checks`/`frontend-checks`.
+- **CI image publish (`.github/workflows/docker-publish.yml`):** on push to `main` only, four jobs —
+  `changes` (path-filter via `dorny/paths-filter`) → `base-jre` (only if
+  `infra/docker/base-jre/**` changed, or manual dispatch) → `jvm-images` (`auth`/`user`/`note`,
+  always runs regardless of path filtering; waits on `base-jre` via `needs` so it never pulls a base
+  image before it's pushed) → `web-image` (only if `module/web/**`/`uliss-design-system/**` changed;
+  independent, runs in parallel with the others). Jib via `:auth:jib :user:jib :note:jib
+  -Pdocker.registry=ghcr.io/<owner>` (the `docker.registry` Gradle property in
+  `io.uliss.docker-conventions` overrides `to.image`'s registry; unset locally, so plain
+  `jibDockerBuild` is unaffected). Auth for every job is the built-in `GITHUB_TOKEN` (no extra
+  secrets) via the shared `.github/actions/ghcr-login` composite action. **One-time manual step
+  after the first run:** each GHCR package is created private by default even on a public repo —
+  flip each to Public, or a Droplet's `docker compose pull` has no credentials to fetch them.
 - **Base JRE image (`docker.jre.version` in `gradle.properties`):** not the stock `eclipse-temurin`
   tag — `ghcr.io/<owner>/base-jre:<tag>`, our own image (`infra/docker/base-jre/Dockerfile`,
   published by `.github/workflows/docker-publish.yml`'s `base-jre` job (only when
