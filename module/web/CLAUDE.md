@@ -4,6 +4,9 @@ Guide for `module/web` (`@uliss/web`, React SPA). Cross-cutting rules (workflow,
 decisions) — in the root `CLAUDE.md`, read it first. How the SPA obtains tokens through the
 mediator service — `module/lib/security/CLAUDE.md` (section «SPA token strategy»).
 
+The IDE auto-reformats `.ts`/`.css` files on save (2-space → 4-space indent) — if an `Edit` right
+after a `Write` fails with "string not found", re-read the file first rather than retrying blind.
+
 ## Web SPA (React + Vite)
 
 - npm package `@uliss/web` (workspace member). Stack: React 19, React Router 7, Vite 6 (**without**
@@ -12,7 +15,9 @@ mediator service — `module/lib/security/CLAUDE.md` (section «SPA token strate
 - **`auth/` structure:** `tokenStore.ts` — tokens in `sessionStorage`; `authApi.ts` — calls to the
   service's `/user/oauth2/*` (`login`/`exchangeCode`/`refreshTokens`/`logout`, `returnTo`);
   `apiClient.ts` — `authFetch` (single entry point for protected calls: Bearer + proactive/reactive
-  refresh); `AuthContext.tsx` — React wrapper. `pages/Callback.tsx` — accepts `?code`, POSTs to the
+  refresh; defaults `Accept: application/json` unless the caller already set one — override it for
+  non-JSON responses, e.g. `text/event-stream` for SSE, or Spring's content negotiation 406s);
+  `AuthContext.tsx` — React wrapper. `pages/Callback.tsx` — accepts `?code`, POSTs to the
   service's `/user/oauth2/callback`, returns the user to `returnTo` (guard against StrictMode
   double-invoke). `ui/Shell.tsx` — the transient centered-panel shell used only by `Callback` and the
   `RequireAuth` "redirecting…" gate; the authenticated app itself uses `ui/AppShell.tsx` (see «App

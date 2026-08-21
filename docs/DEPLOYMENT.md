@@ -11,9 +11,15 @@ path below is unchanged and still fully supported** — this is an additional op
 
 - Add `127.0.0.1 uliss.local` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
   including `auth.uliss.local` etc., already needed for host-based `bootRun` dev).
-- Build the images once (same commands as the k8s manual fallback below):
-  `./gradlew :auth:jibDockerBuild :user:jibDockerBuild :note:jibDockerBuild` and
-  `docker build -t uliss/web:latest -f module/web/Dockerfile .`.
+- Build all four images in one command: `./gradlew buildAllImages` — aggregates
+  `:auth:jibDockerBuild`/`:user:jibDockerBuild`/`:note:jibDockerBuild` (Jib, local Docker daemon
+  only) plus `buildWebImage` (a plain `docker build -t uliss/web:latest -f module/web/Dockerfile .`,
+  since `web` isn't a Gradle subproject). Each image gets both a `:latest` tag and a version tag
+  (`uliss/<service>:<version>`, matching each module's own version — `web`'s comes from
+  `module/web/package.json`). Rebuilding without a version bump retags `:latest`/`:<version>`
+  onto the new image, leaving the previous one dangling (`<none>:<none>`) — clean those up with
+  `docker image prune -f`; a genuinely old version tag (after a deliberate version bump) has to
+  be removed by hand (`docker rmi uliss/<service>:<old-version>`).
 - `docker compose -f infra/docker-compose.yml --profile full up -d` — brings up `postgres` plus
   `auth`/`user`/`note`/`web`. Plain `docker compose -f infra/docker-compose.yml up -d` (no
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.

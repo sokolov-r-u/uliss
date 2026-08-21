@@ -135,6 +135,7 @@ catalog), Kotlin 2.3.21, Spring Boot 4.1.0. Exact versions — in `gradle/libs.v
 ./gradlew :auth:bootRun              # run the auth application
 ./gradlew :user:bootRun              # run user-service
 ./gradlew jacocoRootReport           # merged JaCoCo report across all modules (test + integrationTest, if run)
+./gradlew buildAllImages             # build all local Docker images (auth/user/note via Jib, web via docker build) — see docs/DEPLOYMENT.md
 ```
 
 `jacocoRootReport` merges per-module JaCoCo exec data (`test` + `integrationTest`) across all

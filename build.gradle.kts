@@ -53,3 +53,37 @@ tasks.register<JacocoReport>("jacocoRootReport") {
         html.required.set(true)
     }
 }
+
+// web is a plain npm/Vite workspace, not a Gradle subproject — its image build is a bare
+// docker build, not Jib, so it can't share io.uliss.docker-conventions like auth/user/note.
+// Version tag mirrors that convention (jib tags <project>:<version> + a :latest alias).
+val webImageVersion =
+    (groovy.json.JsonSlurper().parse(file("module/web/package.json")) as Map<*, *>)["version"] as String
+
+val buildWebImage by tasks.registering(Exec::class) {
+    group = "docker"
+    description = "Builds the web Docker image (uliss/web:latest + uliss/web:$webImageVersion)."
+    workingDir = rootDir
+    // Same docker.executable property Jib uses (io.uliss.docker-conventions) — avoids resolving
+    // a different "docker" than intended if PATH differs between the interactive shell and
+    // whatever process ends up running this Exec task.
+    val dockerExecutable = providers.gradleProperty("docker.executable").orNull?.takeIf { it.isNotBlank() }
+        ?: error("Missing gradle property 'docker.executable' — copy gradle.properties.example to gradle.properties")
+    commandLine(
+        dockerExecutable, "build",
+        "-t", "uliss/web:latest",
+        "-t", "uliss/web:$webImageVersion",
+        "-f", "module/web/Dockerfile", ".",
+    )
+}
+
+tasks.register("buildAllImages") {
+    group = "docker"
+    description = "Builds all local Docker images (auth, user, note, web) in one command."
+    dependsOn(
+        ":auth:jibDockerBuild",
+        ":user:jibDockerBuild",
+        ":note:jibDockerBuild",
+        buildWebImage,
+    )
+}

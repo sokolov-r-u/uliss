@@ -20,8 +20,7 @@ services:
       timeout: 20s
       retries: 10
 
-  # Images are pre-built, not built by compose: ./gradlew :auth:jibDockerBuild :user:jibDockerBuild
-  # :note:jibDockerBuild, and docker build -t uliss/web:latest -f module/web/Dockerfile .
+  # Images are pre-built, not built by compose: ./gradlew buildAllImages
   auth:
     image: uliss/auth:latest
     #    restart: always
