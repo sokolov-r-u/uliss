@@ -11,7 +11,7 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing
 @EnableJpaAuditing(auditorAwareRef = "auditorProvider")
 class DatabaseAutoConfiguration {
 
-    // Fallback auditor; a security-aware provider overrides it when :security is present.
+    /** Fallback auditor; a security-aware provider overrides it when :security is present. */
     @Bean
     @ConditionalOnMissingBean(AuditorAware::class)
     fun auditorProvider(): AuditorAware<String> = AuditorAwareImpl()

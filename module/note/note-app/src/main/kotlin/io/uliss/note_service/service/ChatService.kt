@@ -32,8 +32,10 @@ class ChatService(
         return chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)
     }
 
-    // Persists the user's message and returns the ordered history including it, ready to send to
-    // the AI provider.
+    /**
+     * Persists the user's message and returns the ordered history including it, ready to send to
+     * the AI provider.
+     */
     @Transactional
     fun appendUserMessage(userId: UUID, chatId: UUID, prompt: String): List<ChatMessageEntity> {
         requireOwnedChat(userId, chatId)
