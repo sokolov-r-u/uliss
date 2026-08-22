@@ -37,3 +37,10 @@ spring:
         schema-name: note
         dimensions: 1536
         initialize-schema: false
+
+note:
+  outbox:
+    poll-interval-ms: 5000
+    # Visibility timeout for a claimed (PROCESSING) event - ~4x poll-interval-ms, so a worker that
+    # crashed after claim() but before process() completed gets re-claimed instead of stuck forever.
+    processing-timeout-ms: 20000

@@ -1,10 +1,10 @@
 package io.uliss.note_service.service
 
+import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.prompt.ChatPrompts
-import org.slf4j.LoggerFactory
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
@@ -21,7 +21,7 @@ class AssistantService(
     private val chatClient: ChatClient,
     private val chatService: ChatService,
 ) {
-    private val log = LoggerFactory.getLogger(AssistantService::class.java)
+    private val log = AppLogger.of(AssistantService::class)
 
     fun reply(userId: UUID, chatId: UUID, prompt: String): ChatMessageEntity {
         val history = chatService.appendUserMessage(userId, chatId, prompt)
@@ -61,7 +61,9 @@ class AssistantService(
                 // DeepSeek - hop off it before the blocking JPA write.
                 Mono.fromRunnable<Unit> { chatService.persistAssistantReply(chatId, buffer.toString(), status) }
                     .subscribeOn(Schedulers.boundedElastic())
-                    .subscribe({}, { ex -> log.error("failed to persist assistant reply for chat=$chatId", ex) })
+                    .subscribe(
+                        {},
+                        { ex -> log.error("failed to persist assistant reply for chat=$chatId", "streamReply", ex) })
             }
     }
 

@@ -67,6 +67,57 @@ was chosen:
 
 Recorded as a future plan — implementation (backend + frontend) is a separate task.
 
+## Retention/cleanup job for terminal outbox events (`note-service`)
+
+**Status:** not implemented. Nothing currently deletes rows from `note.outbox_event` — `COMPLETED`
+and `FAILED` events accumulate in the table forever.
+
+### Problem
+
+`OutboxService`/`OutboxPoller` (`module/note/note-app/.../outbox/`) only ever transition events
+between `PENDING`/`PROCESSING`/`COMPLETED`/`FAILED` — there's no job that removes (or archives) rows
+once they reach a terminal status (`COMPLETED`, `FAILED`). Under sustained traffic this table grows
+unbounded, which eventually affects `findClaimable`'s index scan (`idx_outbox_event_status_next_attempt`)
+and general table/index bloat.
+
+Noted while discussing `OutboxService.recordFailure`'s "event no longer exists" guard: today that
+branch is unreachable (nothing deletes rows), but a retention job would be the first real path to it.
+
+### Not in scope for the current task
+
+Recorded as a future task — design and implement a scheduled cleanup (e.g. delete `COMPLETED`/`FAILED`
+rows older than some retention window) as a separate piece of work; needs a decision on retention
+period and whether terminal events should be deleted outright or archived first.
+
+## Comment style migration to the new KDoc rule (project-wide)
+
+**Status:** not implemented. New rule adopted in `CLAUDE.md` ("Notes") going forward; existing
+comments predating the rule were not retrofitted, except in the outbox-related files touched while
+the rule was introduced (`module/note/note-app/.../outbox/*`, `module/lib/database/.../outbox/*`).
+
+### Problem
+
+Per `CLAUDE.md`, any comment longer than one line must be KDoc (`/** ... */`) directly above the
+declaration it documents, not a multi-line `//` block; a KDoc covering 2+ distinct cases/branches
+should use a bold-label paragraph per case (see `OutboxPoller.poll()` for the pattern) instead of a
+dense paragraph or a dash-bullet list. Multi-line `//` blocks predating this rule still exist
+throughout the codebase, e.g. (non-exhaustive):
+
+- `module/lib/database/.../audit/AuditorAwareImpl.kt`
+- `module/lib/security/.../config/AuditorConfig.kt`
+- `module/note/note-app/.../config/WebMvcPathPrefixConfig.kt`
+- `module/note/note-app/.../model/ChatMessageStatus.kt`
+- `module/user/user-app/.../config/WebMvcPathPrefixConfig.kt`
+- assorted test files (`MockitoTestHelpers.kt` in both `note-app` and `user-app`,
+  `ChatControllerTest.kt`, `AskControllerTest.kt`, `ProfileControllerTest.kt`,
+  `RetryAspectTest.kt`)
+
+### Not in scope for the current task
+
+Recorded as a future cleanup pass — convert the remaining multi-line `//` comments across the
+codebase to the KDoc format on a later, dedicated task rather than as a side effect of unrelated
+changes.
+
 ## AI-generated chat title on first message (`note-service`)
 
 **Status:** not implemented. `ChatService.createChat` (`module/note/note-app/.../service/ChatService.kt:24`)

@@ -23,9 +23,12 @@ Every task follows this process:
 - Code steps:
   a. Write code
   b. Write tests for new/changed behaviour if testable — see "Testing" for which kind
-  c. Run ./gradlew :<module>:test — fix production code, not tests;
-  never delete or weaken existing tests;
-  if tests break or reveal bugs — stop and ask user
+  c. Ask the user to run `./gradlew :<module>:test` (Claude Code's Bash sandbox cannot reliably run
+  Gradle builds — see "Sandboxed agent environments"; do not attempt it yourself, do not ask to
+  disable the sandbox). Read the results from `build/test-results/test/*.xml` (or
+  `build/reports/tests/test/index.html`) after the user reports back — pass or fail — same as if
+  you'd run it yourself. On failure: fix production code, not tests; never delete or weaken
+  existing tests; if a fix isn't obvious from the report, ask the user to rerun after a fix attempt
   d. Update the task file
   e. Stop and wait for user review before proceeding
 
@@ -123,8 +126,11 @@ Libraries (not executable, directory `module/lib/<name>`):
   is named `optimisticLockRetryTemplate` (not `retryTemplate`) — deliberately, to avoid a name
   collision with the auto-configured `retryTemplate` from AI starters (see
   `module/note/note-app/CLAUDE.md`); `RetryAspect` wires it in via `@Qualifier`.
-- `logging` (`io.uliss.logging`) — AOP logging (AspectJ, `@MeasureTime` annotation).
-  Depends on `:exception`.
+- `logging` (`io.uliss.logging`) — AOP logging (AspectJ, `@MeasureTime` annotation) and
+  `AppLogger` (`io.uliss.logging.logger.AppLogger`) — the project's sanctioned way to obtain a
+  logger: `private val log = AppLogger.of(SomeClass::class)`, not raw `LoggerFactory.getLogger(...)`
+  (see "Anti-patterns"). Also ships `LoggingAspect`, which auto-logs entry/exit/exceptions for every
+  `@Service`/`@Repository` method in any module that depends on `:logging`.
 - `validation` (`io.uliss.validation`) — custom bean-validation annotations (`@Email`,
   `@Password`). Depends on `:exception`.
 - `monitoring` (`io.uliss.monitoring`) — shared actuator config: `api("...spring-boot-starter-actuator")`
@@ -169,6 +175,14 @@ Integration tests spin up PostgreSQL via Testcontainers
 daemon is required.
 
 Libraries (`security`, `database`, `exception`, `logging`, `validation`) — no `bootRun`.
+
+### Sandboxed agent environments (e.g. Claude Code's Bash sandbox)
+
+Gradle test execution is unreliable under this sandbox — the sandbox itself is not to be disabled.
+Per the "Workflow" section, Claude asks the user to run `./gradlew :<module>:test` and reads
+`build/test-results/test/*.xml` afterwards instead of running it directly. Known gotchas (Kotlin
+compiler daemon `.alive`-file failures, Mockito's inline mock maker, and a macOS-wide variant seen
+outside the sandbox too) and their fixes/workarounds — `docs/TROUBLESHOOTING.md`.
 
 ### Running locally (env + DB)
 
@@ -290,6 +304,8 @@ verification step. Ask the user and get explicit approval each time before cross
 - No direct repository calls from controllers.
 - No Spring / JPA annotations inside domain classes (hexagonal-lite layers in `user-service`).
 - No `!!` in Kotlin without a one-line justification comment.
+- No raw `LoggerFactory.getLogger(...)` — use `AppLogger.of(SomeClass::class)` from `:logging`
+  instead (see "Modules").
 - No version changes outside `gradle/libs.versions.toml` (see "Versions: single source of truth").
 - No Russian in code, comments, logs, or commit messages (see "Notes").
 - No `TODO`/`FIXME` comments in code — track them in the active task file under `docs/tasks/`.
@@ -347,3 +363,12 @@ Known debt — not a template for new code, bring into line the next time these 
   `id("io.uliss.kotlin-conventions")`, wire it into `settings.gradle.kts` the same way.
 - All comments in the project are in English only. No Russian words are to be used anywhere in the
   project. Comments should be used only where necessary, and should contain as little text as possible.
+- A comment longer than one line must be written as KDoc (`/** ... */`) directly above the
+  declaration it documents (class/function/property), not a multi-line `//` block. A single-line
+  `//` is still fine for a short, one-off note. This applies to Kotlin/Java source; config files
+  (YAML, etc.) have no KDoc equivalent, so keep those comments to 1-2 lines instead. If the KDoc
+  covers 2+ distinct cases/branches (e.g. different exception types, different corner cases), give
+  each its own paragraph opening with a **bold** label (not a `-`/`*` bullet list — two asterisks
+  read as visual noise), separated by a blank `*` line; a double blank `*` line marks the bigger
+  break between the general description and the case-by-case breakdown. See `OutboxPoller.poll()`
+  (`module/note/note-app/.../outbox/OutboxPoller.kt`) for the pattern.

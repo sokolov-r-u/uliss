@@ -34,3 +34,10 @@ spring:
         schema-name: note
         dimensions: 1536
         initialize-schema: false
+
+# Long enough that the poller never fires during a test's lifetime - it's not what's under test
+# in most full-context tests, and a tick mid-test would add unrelated DB activity/flakiness.
+note:
+  outbox:
+    poll-interval-ms: 3600000
+    processing-timeout-ms: 3600000
