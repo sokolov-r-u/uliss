@@ -9,7 +9,7 @@ class AskService(
     private val chatClient: ChatClient,
 ) {
 
-    // userId reserved for RAG retrieval (this user's notes from pgvector) in the next iteration.
+    /** userId reserved for RAG retrieval (this user's notes from pgvector) in the next iteration. */
     fun ask(
         userId: UUID,
         prompt: String,

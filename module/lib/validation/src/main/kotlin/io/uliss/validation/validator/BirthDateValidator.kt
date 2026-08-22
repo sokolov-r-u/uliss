@@ -14,7 +14,7 @@ class BirthDateValidator : ConstraintValidator<BirthDate, LocalDate> {
         min = constraint.min
     }
 
-    // null is valid (optional field); the date must be at least `min` years before today.
+    /** null is valid (optional field); the date must be at least `min` years before today. */
     override fun isValid(value: LocalDate?, context: ConstraintValidatorContext?): Boolean {
         if (value == null) return true
         return !value.isAfter(LocalDate.now().minusYears(min.toLong()))

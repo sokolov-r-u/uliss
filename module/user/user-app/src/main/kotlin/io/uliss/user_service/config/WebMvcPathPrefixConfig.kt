@@ -6,8 +6,10 @@ import org.springframework.web.method.HandlerTypePredicate
 import org.springframework.web.servlet.config.annotation.PathMatchConfigurer
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer
 
-// Prefixes every REST controller in this app (own + the :security auth mediator) with /user, so
-// no individual controller needs its own path prefix.
+/**
+ * Prefixes every REST controller in this app (own + the :security auth mediator) with /user, so
+ * no individual controller needs its own path prefix.
+ */
 @Configuration
 class WebMvcPathPrefixConfig : WebMvcConfigurer {
 
