@@ -135,7 +135,7 @@ class AuthService(
         }
     }
 
-    // read the OAuth2 error from the raw body: a manually built exception has no body converter
+    /** Reads the OAuth2 error from the raw body: a manually built exception has no body converter. */
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
