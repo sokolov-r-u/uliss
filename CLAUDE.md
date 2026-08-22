@@ -22,7 +22,7 @@ Every task follows this process:
 - Research/exploration steps: execute without stopping
 - Code steps:
   a. Write code
-  b. Write unit tests for new/changed behaviour if testable
+  b. Write tests for new/changed behaviour if testable — see "Testing" for which kind
   c. Run ./gradlew :<module>:test — fix production code, not tests;
   never delete or weaken existing tests;
   if tests break or reveal bugs — stop and ask user
@@ -30,7 +30,7 @@ Every task follows this process:
   e. Stop and wait for user review before proceeding
 
 6. After all steps complete — write integration tests covering
-   end-to-end flow if applicable
+   end-to-end flow if applicable — see "Testing"
 
 Deferred work that outlives a single task (agreed-upon but not implemented now) goes into
 `docs/TECH_DEBT.md` instead — that file is tracked in git, unlike the per-task files above.
@@ -55,6 +55,26 @@ Minimal info needed: key constraints, relevant existing files.
 ## Artifacts
 - `path/to/file.kt` — what it does
 ```
+
+## Testing
+
+Test kind depends on what's being verified — pick the narrowest one that exercises it:
+
+- **Unit tests** — plain JUnit5 (`kotlin-test-junit5`) classes for domain/service logic, no
+  Spring context; mock collaborators (Mockito). Default choice for new/changed logic in a class.
+- **`@SpringBootTest`** — integration tests for main end-to-end flows through the real Spring
+  context. Tag with `@Tag("integration")` and pull in `TestContainersConfiguration` (Testcontainers,
+  `pgvector/pgvector`) when a real database is involved — see `AuthControllerTest` for the pattern.
+  Runs only via `./gradlew :<module>:integrationTest` (needs Docker); untagged tests run under
+  `./gradlew :<module>:test`.
+- **`@WebMvcTest`** — for every new controller: web layer only, service layer mocked, no DB, no
+  `integration` tag — runs under `:<module>:test`. See `ProfileControllerTest` for the pattern.
+- **`@DataJpaTest`** — for repository methods with a custom `@Query`, to verify the JPQL/native
+  SQL. Prefer H2 over Testcontainers here so it stays untagged and runs under `:<module>:test`.
+  Plain inherited `JpaRepository` methods (`findById`, `save`, ...) generally aren't worth a
+  dedicated test — that tests Spring Data, not our code.
+- **Bug-fix regression tests** — every bug found gets a test that reproduces it before the fix,
+  so it can't silently come back.
 
 ## Overview
 
@@ -314,7 +334,8 @@ Known debt — not a template for new code, bring into line the next time these 
   `spring.flyway.schemas` / `default-schema` + `hibernate.default_schema`.
 - JSON: Jackson Kotlin module (`tools.jackson.module:jackson-module-kotlin`).
 - Tests: use `spring-boot-starter-*-test` starters and `kotlin-test-junit5`.
-  `failOnNoDiscoveredTests = false` is temporarily enabled while there are few tests.
+  `failOnNoDiscoveredTests = false` is temporarily enabled while there are few tests. See
+  "Testing" for which kind of test to write.
 
 ## Notes
 
