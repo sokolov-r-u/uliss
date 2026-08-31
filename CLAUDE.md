@@ -260,6 +260,10 @@ verification step. Ask the user and get explicit approval each time before cross
 - **Never run scripts or write commands against the database** — no migrations run by hand, no DDL/DML,
   no `psql`/`docker exec ... psql`, no touching the user's database. Database access is read-only and
   only when the user explicitly asks for it.
+- **Never create commits or rewrite history** — no `git commit`, `git push`, `git revert`,
+  `git reset`, `git rebase`, `git tag`, `git merge`. The user makes every commit themselves.
+  Read-only git (`status`, `diff`, `log`, `show`) and staging (`git add`) are fine; committing is not,
+  even when the branch is not `main`.
 - **The only things allowed to run freely are the app's tests** (`./gradlew :<module>:test` /
   `:integrationTest`) and read-only build/compile tasks. Anything beyond that needs explicit permission.
 
