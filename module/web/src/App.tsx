@@ -5,12 +5,18 @@ import {getTokens} from './auth/tokenStore'
 import {Callback} from './pages/Callback'
 import {Shell} from './ui/Shell'
 import {AppShell} from './ui/AppShell'
-import {TbdPage} from './ui/TbdPage'
 import {ChatListPage} from './chat/ChatListPage'
 import {ChatPage} from './chat/ChatPage'
 import {NotesPage} from './notes/NotesPage'
+import {ConstellationsPage} from './constellations/ConstellationsPage'
 import {SkyPage} from './sky/SkyPage'
+import {UpdatesPage} from './updates/UpdatesPage'
 import {SearchPage} from './search/SearchPage'
+import {SettingsPage} from './settings/SettingsPage'
+import {AppearanceSettings} from './settings/AppearanceSettings'
+import {SkySettings} from './settings/SkySettings'
+import {AccountSettings} from './settings/AccountSettings'
+import {LanguageSettings} from './settings/LanguageSettings'
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -49,27 +55,14 @@ export function App() {
           <Route path="chats/:chatId" element={<ChatPage/>}/>
           <Route path="notes" element={<NotesPage/>}/>
           <Route path="search" element={<SearchPage/>}/>
-          <Route
-              path="constellations"
-              element={
-                  <TbdPage
-                      kicker="constellations"
-                      title="Constellations"
-                      description="Your notes gathered into named branches you can expand, rename, and prune. Not built yet — there is no tagging backend."
-                  />
-              }
-          />
+          <Route path="constellations" element={<ConstellationsPage/>}/>
           <Route path="sky" element={<SkyPage/>}/>
-          <Route
-              path="updates"
-              element={
-                  <TbdPage
-                      kicker="updates"
-                      title="Updates"
-                      description="A log of everything Uliss did on its own — links it drew, summaries it wrote, patterns it noticed. Not built yet — nothing emits these yet."
-                  />
-              }
-          />
+          <Route path="updates" element={<UpdatesPage/>}/>
+          <Route path="settings" element={<SettingsPage/>}/>
+          <Route path="settings/appearance" element={<AppearanceSettings/>}/>
+          <Route path="settings/sky" element={<SkySettings/>}/>
+          <Route path="settings/account" element={<AccountSettings/>}/>
+          <Route path="settings/language" element={<LanguageSettings/>}/>
           <Route path="*" element={<Navigate to="/chats" replace/>}/>
       </Route>
     </Routes>

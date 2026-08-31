@@ -53,14 +53,16 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
 
 ## App shell & navigation
 
-- **Theming attributes** — `index.html` `<html>` carries `data-ground="obsidian"
-  data-accent="ochre" data-read="regular"` (DS `tokens/themes.css`). Static defaults for now;
-  wave 11 (Settings › Appearance) makes them `localStorage`-driven per device.
+- **Theming attributes** — `<html>` carries `data-ground` / `data-accent` / `data-read` (DS
+  `tokens/themes.css`). `index.html` has the static defaults as a no-JS fallback; `main.tsx`
+  calls `applyTheme(readTheme())` before first paint, and **Settings › Appearance**
+  (`ui/theme.ts`) drives + persists them per device in `localStorage` (`uliss.appearance`).
+  Sign-in ignores all of this (it pins `data-surface="login"`).
 - `App.tsx` — under `RequireAuth`, a single layout route renders `ui/AppShell.tsx`. Routes:
-  `/chats` (`ChatListPage`) + `/chats/:chatId`, `/notes` (`NotesPage`), `/sky` (`SkyPage`),
-  `/search` (`SearchPage`); `/constellations` + `/updates` are still inline `TbdPage` stubs
-  (waves 8 / 10). `/` and unknown paths redirect to `/chats`. `AppShell` is the persistent frame —
-  it stays mounted across navigation, only the `<Outlet/>` content swaps.
+  `/chats` (`ChatListPage`) + `/chats/:chatId`, `/notes`, `/constellations`, `/sky`, `/updates`,
+  `/search`, `/settings` (+ `/settings/{appearance,sky,account,language}`). `/` and unknown paths
+  redirect to `/chats`. `AppShell` is the persistent frame — it stays mounted across navigation,
+  only the `<Outlet/>` content swaps.
 - **`ui/AppShell.tsx`** — mobile: slim `ui/nav/TopBar.tsx` (hamburger + centred Wordmark) +
   overlay drawer; desktop (`900px` breakpoint, `ui/AppShell.css`): permanent 264px nav rail,
   `TopBar` hidden. One `ui/nav/SideNav.tsx` for both — responsive purely via CSS
@@ -70,25 +72,30 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
   (`NavPanelBody`): Wordmark + search-icon row, a "New" link (→ `/chats`), then five
   `NavRow`-styled `NavLink`s (DS `Icon`: `node` / `journal` / `constellation` / `star` / `pulse`,
   that fixed order — see `NavRow.prompt.md`). Body shows the day-one empty note; footer = `StarMark`
-  tile + **Sign out** (`useAuth().logout` — the only sign-out affordance in the app) + a settings
-  gear (inert until wave 11). The mock's pinned / chat-note lists, collapsed rail, resize handle
-  and right-hand `LinkedPanel` are later waves (they need backend data).
-- **Icons** — nav / shell / chat chrome all use the design-system `<Icon name=…>`. The only
-  hand-rolled inline SVGs left are `ui/notice/glyphs.tsx` (notice-modal decoration).
+  tile + **Sign out** (`useAuth().logout`) + a settings gear (→ `/settings`). The mock's pinned /
+  chat-note lists, collapsed rail, resize handle and right-hand `LinkedPanel` are later waves
+  (they need backend data).
+- **Icons** — nav / shell / chat / notice chrome all use the design-system `<Icon name=…>`. No
+  hand-rolled inline SVGs remain (`ui/notice/glyphs.tsx` retired in wave 6).
 - **Design mockups are a visual reference only, not literal code** — the desktop treatment in the
   Claude Design mockups (`uliss-desktop.jsx`) floats a fixed-size window on a canvas; that's a
   presentation-artboard convention. The real app uses an ordinary full-bleed responsive layout.
-- **`ui/TbdPage.tsx`** — shared stub shell (kicker + heading + description + a "to be developed"
-  badge) for `/constellations` + `/updates`, wired inline in `App.tsx`. Real page chrome, no
-  fabricated data — replace with a real page once the backend exists, don't extend the stub.
-- **Empty-state screens** — `/notes`, `/sky` and `/search` have no backend, so their only state is
-  a DS `journal/EmptyState` ("describe the future, never the lack"). `ui/Screen.tsx` is the shared
-  frame (kicker + count header over a flex body that centres the `EmptyState`); `notes/NotesPage`
-  and `sky/SkyPage` (on `--sky-bg`, two seed stars, no action — an empty sky has nothing to press)
-  use it. `search/SearchPage` draws its own search-field header (reached from the SideNav search
-  icon → `/search`) and shows "No notes match …" for any query, a neutral prompt when empty.
-  Copy is from Claude Design `uliss-journal.jsx` (`NotesEmpty` / `SearchEmpty` / `GraphEmptyWide`).
-  Waves 7 / 9 add the populated states on top of these shells.
+- **Empty-state screens** — `/notes`, `/constellations`, `/sky`, `/updates` and `/search` have no
+  backend, so their only state is a DS `journal/EmptyState` ("describe the future, never the
+  lack") — **honest shells, not fabricated mock-up data** (decision 2026-08-31, overriding the
+  program plan's "static mock-ups"). `ui/Screen.tsx` is the shared frame (kicker + count header
+  over a scrolling body; `.screen-empty` centres the `EmptyState`); `NotesPage`,
+  `ConstellationsPage`, `SkyPage` (on `--sky-bg`, seed stars, no action) and `UpdatesPage` use it.
+  `search/SearchPage` draws its own search-field header (SideNav search icon → `/search`) and
+  shows "No notes match …" for any query. Copy tracks Claude Design `uliss-journal.jsx` /
+  `uliss-nav.jsx`. The populated states (lists, tree, Sky renderer, Updates log) attach here once
+  their backends exist — don't fake them.
+- **Settings** (`src/settings/`) — `/settings` root is 4 × DS `SettingsRow` (each hint = the live
+  current value). `SettingsShell` = the sub-screen frame (← Settings back link + kicker).
+  **Appearance** is the one wired screen: DS `OptionCard` (ground) + `Swatch` (accent) +
+  `StepControl` (text size) → `ui/theme.ts` `writeTheme` → live `<html data-*>` + `localStorage`.
+  **Account** (Sign out is real; no profile-read endpoint), **Language** (English only — no i18n)
+  and **Sky** (inert control taste — no renderer) are static per `uliss-settings.jsx`.
 
 ## Chat UI
 

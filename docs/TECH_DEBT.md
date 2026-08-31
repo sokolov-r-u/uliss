@@ -100,9 +100,19 @@ Opened 2026-08-31 during the design-system integration refresh
   `.tsx` under `src/react/components/<group>/` with a `.prompt.md` each and an `export *`
   barrel. `module/web` still imports the barrel's `Wordmark` / `Kicker` — props shifted, so
   those call sites reconcile in waves 3–4.
-- **Consumer screens reference dead tokens** until their wave rebuilds them (clean-cut
-  transition, decision A1). `module/web` and `module/auth/.../templates` are visually broken on
-  `FE-design` between wave 1 and waves 3–6; nothing merges to `main` until they are consistent.
+- ~~**Consumer screens reference dead tokens.**~~ Closed 2026-08-31 by waves 3–11 — `module/web`
+  and `module/auth/.../templates` are rebuilt on the new tokens; the integration refresh is
+  complete on `FE-design`.
+- **Backend-less product screens ship as empty states.** `/notes`, `/constellations`, `/sky`,
+  `/updates`, `/search` (waves 7–10) render only a DS `EmptyState` — there is no notes list,
+  tag tree, graph renderer, updates log or search backend. When those land, attach the populated
+  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). Same for the Notice
+  mechanism's `useNotice().confirm` (DS `Dialog`) — wired but has no caller until a
+  delete/summarise action exists.
+- **Settings: Sky / Account / Language are static.** Only Settings › Appearance
+  (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
+  Account has no editable fields (`user-service` `GET /users/me` returns a stub), Language is
+  English-only (no i18n layer). Build these out with their backing features.
 - **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
   specimens and `_ds_bundle.js`; the repo has no committed equivalent. Wave 2 left an
   uncommitted esbuild harness (`_specimen-components.{html,js,src.tsx}`) for a one-off browser

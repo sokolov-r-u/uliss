@@ -22,9 +22,9 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
     const {logout} = useAuth()
     const navigate = useNavigate()
 
-    const goSearch = () => {
+    const go = (to: string) => () => {
         onClose()
-        navigate('/search')
+        navigate(to)
     }
 
     return (
@@ -34,8 +34,8 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
                 <div className="side-nav-top">
                     <div className="side-nav-head">
                         <Wordmark size={24}/>
-                        <IconButton s={30} title="Search" onClick={goSearch}><Icon name="search"
-                                                                                   size={16}/></IconButton>
+                        <IconButton s={30} title="Search" onClick={go('/search')}><Icon name="search"
+                                                                                        size={16}/></IconButton>
                     </div>
 
                     <NavLink to="/chats" onClick={onClose} className="side-nav-new">
@@ -60,7 +60,8 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
                 <div className="side-nav-foot">
                     <span className="side-nav-avatar"><StarMark size={15} glow={false}/></span>
                     <button type="button" className="side-nav-signout" onClick={() => void logout()}>Sign out</button>
-                    <IconButton s={26} title="Settings — coming soon"><Icon name="gear" size={15}/></IconButton>
+                    <IconButton s={26} title="Settings" onClick={go('/settings')}><Icon name="gear"
+                                                                                        size={15}/></IconButton>
                 </div>
             </aside>
         </>
