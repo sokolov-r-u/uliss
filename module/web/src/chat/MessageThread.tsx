@@ -1,4 +1,5 @@
 import {useEffect, useRef} from 'react'
+import {EmptyState} from '@uliss/design-system'
 import {Bubble, type DisplayMessage} from './Bubble'
 
 /** Scrollable message list, auto-scrolled to the latest content (including live streaming tokens). */
@@ -13,10 +14,14 @@ export function MessageThread({messages}: { messages: DisplayMessage[] }) {
 
     return (
         <div className="message-thread" ref={containerRef}>
-            {messages.length === 0 && <p className="auth-muted">Start the conversation.</p>}
-            {messages.map((m) => (
-                <Bubble key={m.id} {...m} />
-            ))}
+            {messages.length === 0 ? (
+                <EmptyState
+                    title="Nothing said yet"
+                    body="Write a thought below. Uliss keeps the thread and pulls out a note when one is worth keeping."
+                />
+            ) : (
+                messages.map((m) => <Bubble key={m.id} {...m} />)
+            )}
         </div>
     )
 }

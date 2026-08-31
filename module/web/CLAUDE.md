@@ -68,8 +68,8 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
   tile + **Sign out** (`useAuth().logout` — the only sign-out affordance in the app) + a settings
   gear (inert until wave 11). The mock's pinned / chat-note lists, collapsed rail, resize handle
   and right-hand `LinkedPanel` are later waves (they need backend data).
-- **`ui/icons.tsx`** — inline SVGs for the **chat composer only** (`SendIcon` / `MicIcon`); same
-  convention as `ui/notice/glyphs.tsx`. Nav / shell chrome uses the design-system `<Icon>`.
+- **Icons** — nav / shell / chat chrome all use the design-system `<Icon name=…>`. The only
+  hand-rolled inline SVGs left are `ui/notice/glyphs.tsx` (notice-modal decoration).
 - **Design mockups are a visual reference only, not literal code** — the desktop treatment in the
   Claude Design mockups (`uliss-desktop.jsx`) floats a fixed-size window on a canvas; that's a
   presentation-artboard convention. The real app uses an ordinary full-bleed responsive layout.
@@ -93,16 +93,24 @@ create/list chats, list messages, synchronous + SSE-streaming replies under `/no
   drives `parseSseStream` over the `/messages/stream` endpoint, dispatching the backend's `token`/
   `done`/`error` events and returning `'done' | 'error'`.
 - **`src/chat/ChatListPage.tsx`** (route `/chats`, the post-login landing page) — lists chats, "new
-  chat" creates one and navigates in.
+  chat" creates one and navigates in. DS `ListHeader` (kicker + Cinzel total + `Button`) over
+  `ListRow`s (serif title + absolute short date — no link/note count, no row menu: the backend has
+  neither); empty → DS `EmptyState`.
 - **`src/chat/ChatPage.tsx`** (route `/chats/:chatId`) — on send, appends an optimistic user bubble +
   a streaming assistant placeholder (`Bubble.tsx`'s `pending` flag), then **always re-fetches
   `getMessages` once the stream ends** (success or error) and replaces state with the server's
   truth. This is what makes `ChatMessageStatus` (`COMPLETE`/`PARTIAL`/`FAILED`) rendering automatic
   with zero client-side guessing about what actually got persisted — `PARTIAL`/`FAILED` just show a
-  small status badge in `Bubble`. Aborts the in-flight stream on unmount (`AbortController`).
-- **`src/chat/MicButton.tsx`** — always `disabled` (`title="Voice input coming soon"`); there's no
-  speech-to-text backend, so chat is text-only even though the design mockup pairs it with voice
-  recording.
+  small status line in `Bubble`. Aborts the in-flight stream on unmount (`AbortController`). Header
+  is a back link + a static "Conversation" kicker — note-service exposes no single-chat GET, so
+  there is no title to show.
+- **`src/chat/Bubble.tsx`** — the DS `Bubble` shape (a 2px rule + alignment, never a capsule; only
+  Uliss is labelled) extended with the streaming caret (`@keyframes uNoticeCaret`) and the status
+  line. Body type stays on `--read-*` so Settings › Text size (wave 11) will drive it.
+- **`src/chat/ChatComposer.tsx` / `MicButton.tsx`** — DS `ChatDock` shape (46px `--bg-panel` field,
+  inline `--bg-muted` tiles). The mic tile is always `disabled` (`title="Voice input coming
+  soon"`) — no speech-to-text backend, so chat is text-only even though the mockup is voice-first;
+  a send tile (`Icon name="arrowUp"`) is the primary action instead.
 
 ## User onboarding · web UI
 

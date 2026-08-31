@@ -6,6 +6,7 @@
  */
 import {useEffect, useRef, useState} from 'react'
 import {Link, useParams} from 'react-router-dom'
+import {Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {type ChatMessage, getMessages} from './chatApi'
 import {streamAssistantReply} from './streamChatReply'
@@ -110,18 +111,23 @@ export function ChatPage() {
     }
 
     if (phase === 'loading') {
-    return (
-        <div className="page">
-            <p className="auth-muted">loading…</p>
-        </div>
-    )
+        return (
+            <div className="chat-page">
+                <div className="chat-page-header">
+                    <Link to="/chats" className="chat-back-link">‹ chats</Link>
+                </div>
+                <p className="chat-state">Loading…</p>
+            </div>
+        )
     }
 
     if (phase === 'error') {
         return (
-            <div className="page">
-                <p className="auth-error">{loadError}</p>
-                <Link to="/chats" className="chat-back-link">‹ back to chats</Link>
+            <div className="chat-page">
+                <div className="chat-page-header">
+                    <Link to="/chats" className="chat-back-link">‹ chats</Link>
+                </div>
+                <p className="chat-state chat-state-error">{loadError}</p>
             </div>
         )
     }
@@ -130,9 +136,10 @@ export function ChatPage() {
         <div className="chat-page">
             <div className="chat-page-header">
                 <Link to="/chats" className="chat-back-link">‹ chats</Link>
+                <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>
             </div>
             <MessageThread messages={messages}/>
-            {streamNotice && <p className="auth-error chat-stream-notice">{streamNotice}</p>}
+            {streamNotice && <p className="chat-stream-notice">{streamNotice}</p>}
             <ChatComposer value={draft} onChange={setDraft} onSubmit={onSend} disabled={sending}/>
         </div>
     )
