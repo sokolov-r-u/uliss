@@ -1,0 +1,78 @@
+/* The whole motion inventory. Uliss animates four things: a colour transition on
+   hover, a pending pulse, a slow star twinkle, one modal/notice entrance.
+   No slides, no bounces, no skeleton shimmer. */
+
+:root {
+    --dur-hover: 0.15s; /* colour / border / opacity only */
+    --ease: ease;
+
+    --dur-notice: 0.5s; /* the one entrance animation */
+    --ease-notice: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+    --pulse-period: 1.9s; /* pending link / unsettled node */
+
+    /* Renderer inputs — uliss-graph randomises each star's twinkle in this range. */
+    --twinkle-min: 4s;
+    --twinkle-max: 11s;
+}
+
+@keyframes uSkyTw {
+    0%, 100% {
+        opacity: 0.25
+    }
+    50% {
+        opacity: 0.9
+    }
+}
+
+@keyframes uNoticeCaret {
+    0%, 100% {
+        opacity: 1
+    }
+    50% {
+        opacity: 0
+    }
+}
+
+@keyframes uNoticeIn {
+    from {
+        opacity: 0;
+        transform: translateY(8px)
+    }
+    to {
+        opacity: 1;
+        transform: none
+    }
+}
+
+@keyframes uPending {
+    0%, 100% {
+        opacity: 0.5
+    }
+    50% {
+        opacity: 1
+    }
+}
+
+@keyframes uPendingHalo {
+    0%, 100% {
+        opacity: 0.10
+    }
+    50% {
+        opacity: 0.34
+    }
+}
+
+.u-pending {
+    animation: uPending var(--pulse-period) ease-in-out infinite
+}
+
+.u-pending-halo {
+    animation: uPendingHalo var(--pulse-period) ease-in-out infinite
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .u-pending, .u-pending-halo {
+        animation: none
+    }
+}

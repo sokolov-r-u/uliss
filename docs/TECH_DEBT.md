@@ -85,3 +85,24 @@ from the first user message.
 
 Recorded as a future plan — implementation (backend, and frontend if the title needs to appear/update
 asynchronously in the chat list) is a separate task.
+
+## Design system — deferred items (`:uliss-design-system`)
+
+Opened 2026-08-31 during the design-system integration refresh
+(`docs/tasks/2026-08-31-design-system-integration.md`).
+
+- **Extended Latin subset.** Fonts ship Latin + Cyrillic only. `latin-ext` (Polish, Czech,
+  Turkish, Romanian, … diacritics) is not bundled. Add the `latin-ext` `@font-face` blocks +
+  `.woff2` (Google `css2` output) when a non-English/Russian locale is added. No local
+  subsetter is available — pull the pre-subset files from `fonts.gstatic.com`.
+- **`src/react` components on the old design system.** Wave 1 rewrote only the tokens. The
+  "banner-era" primitives (`DevRule`, and `Wordmark` / `Kicker` / `PostBadge` built on the
+  retired JetBrains Mono / Cormorant type stack) still reference removed tokens
+  (`--font-mono`, `--weight-*`, `--gradient-wordmark`, …). Wave 2 replaces them with the 34
+  Claude Design components ported to `.tsx`.
+- **Consumer screens reference dead tokens** until their wave rebuilds them (clean-cut
+  transition, decision A1). `module/web` and `module/auth/.../templates` are visually broken on
+  `FE-design` between wave 1 and waves 3–6; nothing merges to `main` until they are consistent.
+- **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
+  specimens and `_ds_bundle.js`; the repo has no equivalent. A `guidelines/` or Storybook-like
+  surface is out of scope for this program.

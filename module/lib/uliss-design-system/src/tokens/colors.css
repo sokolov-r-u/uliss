@@ -1,58 +1,55 @@
+/* Colour tokens. Obsidian ground (the shipped default — themes.css re-states it
+   for explicit [data-ground]). Cool near-black grounds, one warm accent, five
+   quiet text steps. Surfaces separate by value alone — no shadow except modals.
+   No red, no error colour: destruction is --terracotta text on a ghost button. */
+
 :root {
-  /* ── Backgrounds — deep-navy "deepsea" tone × 0.85 brightness ─────
-     Cool Milky-Way ground; warm accent + cream text sit on top. */
-  --bg-deep: #050a0e; /* deepest dark — dropshadow panels, full bleed */
-  --bg: #0e141b; /* primary surface */
-  --bg-surface: #141c24; /* slightly lifted surface (right panels) */
-  --bg-panel: #090e13; /* inset panel, e.g. left red-figure block */
-  --bg-muted: #1a242b; /* chip/badge background */
+  /* ── Grounds ─────────────────────────────────────── */
+  --bg-deep: #0a0a0a; /* full bleed, sky */
+  --bg: #0a0a0a; /* primary surface */
+  --bg-surface: #161616; /* lifted surface, selection */
+  --bg-panel: #0d0d0d; /* inset panel */
+  --bg-muted: #1c1c1c; /* chip / badge */
 
-  /* ── Brand ───────────────────────────────────────── */
+  /* ── Brand — --terracotta is destructive-action text, not an accent ── */
   --terracotta-deep: #a04527;
-  --terracotta:      #c8643c;   /* primary brand accent */
-  --ochre:           #d99a4e;   /* secondary accent: post nums, nodes */
-  --ochre-bright:    #f0c06a;   /* hover / hot-node highlight */
+  --terracotta: #c8643c;
+  --ochre: #d99a4e;
+  --ochre-bright: #f0c06a;
 
-  /* ── Text ────────────────────────────────────────── */
-  --cream:       #e8d3a8;   /* primary text */
-  --cream-dim:   #b9a888;   /* secondary text */
-  --text-muted:  #8b9098;   /* tertiary / label */
-  --text-faint:  #6b7079;   /* placeholder, footnote */
+  /* ── Text — five steps ───────────────────────────── */
+  --cream: #eae6df; /* reading text + emphasis chrome */
+  --cream-dim: #a9a5a0; /* chrome default */
+  --text-muted: #8b9098; /* explanations */
+  --text-faint: #6b7079; /* dates, counters */
 
-  /* ── Lines / Borders ─────────────────────────────── */
+  /* ── Lines — two hairlines carry all structure, plus one opaque chip edge ── */
   --line:        rgba(232, 211, 168, 0.14);
   --line-strong: rgba(232, 211, 168, 0.30);
-  --border-chip: #3a3022;   /* badge border */
+  --line-chip: #3a3022;
 
-  /* ── Wordmark gradient ───────────────────────────── */
-  --gradient-wordmark: linear-gradient(
-    180deg,
-    #ecbf72 0%,
-    #dca455 34%,
-    #c8643c 78%,
-    #b8512e 100%
-  );
+  /* ── Wordmark fill — flat, never a gradient. [data-accent] repoints this;
+     sign-in pins it to --wordmark-login (themes.css). */
+  --wordmark-app: var(--ochre);
+  --wordmark-login: #f2ece0;
+  --wordmark-fill: var(--wordmark-app);
 
-  /* ── Semantic accent (themeable) ─────────────────────
-     Brand accent stays warm even on the navy ground. Alias onto the
-     warm ramp so there is a single source of truth. */
-  --accent: var(--terracotta); /* primary accent  (#c8643c) */
-  --accent-2: var(--ochre); /* secondary accent (#d99a4e) */
+  /* ── Accent — a pair; every wash derives via color-mix, never a raw rgba() ── */
+  --accent: var(--ochre);
+  --accent-2: var(--ochre-bright);
 
-  /* ── Tone-aware ambient — cool defaults (navy ground) ─
-     Washes/glows/scrim follow the surface temperature, so nothing warm
-     bleeds over the navy. Star-glow tints constellation halos cool. */
-  --amb-wash: radial-gradient(120% 90% at 50% 0%, rgba(96, 138, 200, 0.07), rgba(6, 12, 16, 0) 60%);
-  --sky-glow-a: rgba(126, 164, 214, 0.16);
-  --sky-glow-b: rgba(92, 132, 192, 0.06);
-  --star-glow: #8fb4e0;
-  --scrim: rgba(4, 7, 11, 0.62);
-  --sky: #070a13; /* Milky-Way constellation backdrop (#080c16 × 0.85) */
+  --accent-glow: color-mix(in srgb, var(--accent) 55%, transparent);
+  --accent-glow-mid: color-mix(in srgb, var(--accent) 40%, transparent);
+  --accent-glow-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-edge: color-mix(in srgb, var(--accent-2) 50%, transparent);
+  --accent-edge-soft: color-mix(in srgb, var(--accent-2) 35%, transparent);
 
-  /* ── Semantic aliases ────────────────────────────── */
-  --color-accent: var(--accent-2);
-  --color-accent-warm: var(--accent);
-  --surface-card:      var(--bg-surface);
-  --text-body:         var(--cream);
-  --text-secondary:    var(--cream-dim);
+  /* ── Depth — three licensed glows (accent-derived) + one modal drop shadow ── */
+  --glow-accent: 0 0 10px 1px var(--accent-glow);
+  --glow-accent-strong: 0 0 16px 3px var(--accent-edge);
+  --shadow-modal: 0 34px 90px -24px rgba(0, 0, 0, 0.8);
+
+  /* ── Overlay — derived from the live ground / sky (sky.css) ── */
+  --scrim: color-mix(in srgb, var(--bg-deep) 62%, transparent);
+  --amb-wash: radial-gradient(120% 90% at 50% 0%, var(--sky-glow-b), transparent 60%);
 }
