@@ -80,15 +80,19 @@ Server-rendered login/registration pages (Phase B of the plan is done). Design:
   `@ModelAttribute` method — otherwise it breaks constructor-binding of the immutable DTO on
   POST). SSO / "email sign-in link" / "forgot" are visually present but inactive (the backend
   doesn't support them).
-- **Tab markup is identical** (buttons align at the same height): both forms use
-  `.auth-body{min-height:404px}` + a `.spacer{flex:1}` spacer; register reserves invisible space
-  for the "Forgot passphrase" line from sign-in.
-- **Design system:** DS CSS tokens are loaded via `<link th:href="@{/ds/styles.css}">`; the visuals
-  (Wordmark gradient, fields, buttons, the Orion constellation) live in the fragment's inline
-  `<style>` on top of the tokens. Orion is a static SVG fragment
-  (`templates/fragments/orion.html`), its geometry ported from the Claude Design `uliss-auth.jsx`.
-  The design source is the Claude Design project, pulled via the MCP `DesignSync`. General design
-  system layout — `module/lib/uliss-design-system/CLAUDE.md`.
+- **Tab markup is identical** (Enter / Begin align at the same height): the register form carries a
+  hidden `.field-aux--reserved` row standing in for sign-in's "Forgot passphrase" line.
+- **Design system:** the fragment root (`page(active)`) pins `data-ground="obsidian"
+  data-accent="ochre" data-surface="login"` — the login surface is the one screen that ignores the
+  user's Appearance choice (overrides in DS `tokens/themes.css`: `--wordmark-fill`, `--heading-*`,
+  `--field-border`, `--cta-*`, `--line-strong`). DS CSS tokens load via
+  `<link th:href="@{/ds/styles.css}">`; the layout (single centred column over a full-bleed deep
+  field, flat Cinzel wordmark, tabs, fields, CTA, craquelure overlay) lives in the fragment's
+  inline `<style>` on top of the tokens. The star sky is a static seeded SVG fragment
+  (`templates/fragments/starfield.html`) — a port of the DS `StarField` component (seed 41);
+  twinkle runs off `@keyframes uSkyTw` in `tokens/motion.css`. The design source is the Claude
+  Design project `Uliss Design System` (`ui_kits/app/uliss-auth.jsx`), pulled via the MCP
+  `DesignSync`. General design system layout — `module/lib/uliss-design-system/CLAUDE.md`.
 - **Anti-cache:** `WebConfig` sets `Cache-Control: no-store` on `/login` and `/register`
   (`HandlerInterceptor`); `spring.thymeleaf.cache: false` (dev). Hash-fingerprinting `/ds/**` is
   Phase C's concern (Vite).

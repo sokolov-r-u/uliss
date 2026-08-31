@@ -5,10 +5,9 @@ import {getTokens} from './auth/tokenStore'
 import {Callback} from './pages/Callback'
 import {Shell} from './ui/Shell'
 import {AppShell} from './ui/AppShell'
+import {TbdPage} from './ui/TbdPage'
 import {ChatListPage} from './chat/ChatListPage'
 import {ChatPage} from './chat/ChatPage'
-import {JournalPage} from './journal/JournalPage'
-import {GraphPage} from './graph/GraphPage'
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -23,7 +22,7 @@ function RequireAuth({ children }: { children: ReactNode }) {
   if (!isAuthenticated) {
     return (
       <Shell kicker="redirecting">
-        <p className="auth-muted">χαῖρε · taking you to sign in…</p>
+          <p className="auth-muted">Taking you to sign in…</p>
       </Shell>
     )
   }
@@ -45,8 +44,46 @@ export function App() {
           <Route index element={<Navigate to="/chats" replace/>}/>
           <Route path="chats" element={<ChatListPage/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
-          <Route path="journal" element={<JournalPage/>}/>
-          <Route path="graph" element={<GraphPage/>}/>
+          <Route
+              path="notes"
+              element={
+                  <TbdPage
+                      kicker="notes"
+                      title="Your notes"
+                      description="Every recording, transcribed and titled, in a list you can sort and search. Not built yet — note-service has no notes-list endpoint."
+                  />
+              }
+          />
+          <Route
+              path="constellations"
+              element={
+                  <TbdPage
+                      kicker="constellations"
+                      title="Constellations"
+                      description="Your notes gathered into named branches you can expand, rename, and prune. Not built yet — there is no tagging backend."
+                  />
+              }
+          />
+          <Route
+              path="sky"
+              element={
+                  <TbdPage
+                      kicker="sky"
+                      title="The sky of you"
+                      description="Your notes mapped as a constellation of linked ideas. Not built yet — no graph data or embeddings pipeline exists on the backend."
+                  />
+              }
+          />
+          <Route
+              path="updates"
+              element={
+                  <TbdPage
+                      kicker="updates"
+                      title="Updates"
+                      description="A log of everything Uliss did on its own — links it drew, summaries it wrote, patterns it noticed. Not built yet — nothing emits these yet."
+                  />
+              }
+          />
           <Route path="*" element={<Navigate to="/chats" replace/>}/>
       </Route>
     </Routes>

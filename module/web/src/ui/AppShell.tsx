@@ -8,7 +8,7 @@ import './AppShell.css'
 /**
  * Authenticated app layout: mobile hamburger + drawer / desktop nav rail, wrapping the active
  * route (`Outlet`). `OnboardingDriver` mounts here (once per session) rather than per-page, so it
- * keeps running as the blocking overlay across chat/journal/graph navigation.
+ * keeps running as the blocking overlay across navigation between the five destinations.
  */
 export function AppShell() {
     const [navOpen, setNavOpen] = useState(false)

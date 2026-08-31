@@ -48,25 +48,35 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
 
 ## App shell & navigation
 
-- `App.tsx` — under `RequireAuth`, a single layout route renders `ui/AppShell.tsx`, with `/chats`,
-  `/chats/:chatId`, `/journal`, `/graph` as nested `<Outlet/>` routes (`/` redirects to `/chats`,
-  unknown paths too). `AppShell` is the authenticated app's persistent frame — it stays mounted
-  across navigation between those routes, only the `<Outlet/>` content swaps.
-- **`ui/AppShell.tsx`** — mobile: hamburger `ui/nav/TopBar.tsx` + overlay drawer; desktop (`900px`
-  breakpoint, `ui/AppShell.css`): permanent nav rail, `TopBar` hidden. One `ui/nav/SideNav.tsx`
-  component for both — responsive purely via CSS (transform/`display: none`), no `matchMedia`/JS
-  breakpoint logic. `OnboardingDriver` (see below) is mounted here, not per-page, so it runs once per
-  session rather than remounting on every chat/journal/graph navigation.
-- **`ui/icons.tsx`** — hand-rolled inline SVGs for nav/composer chrome, same convention as
-  `ui/notice/glyphs.tsx` (plain functions, `stroke="currentColor"`, square line caps — the brand has
-  no border-radius anywhere, `--radius: 0`).
+- **Theming attributes** — `index.html` `<html>` carries `data-ground="obsidian"
+  data-accent="ochre" data-read="regular"` (DS `tokens/themes.css`). Static defaults for now;
+  wave 11 (Settings › Appearance) makes them `localStorage`-driven per device.
+- `App.tsx` — under `RequireAuth`, a single layout route renders `ui/AppShell.tsx`. The five
+  destinations are `/chats` (real — `ChatListPage`), `/notes`, `/constellations`, `/sky`,
+  `/updates` (inline `TbdPage` stubs), plus `/chats/:chatId`. `/` and unknown paths redirect to
+  `/chats`. `AppShell` is the persistent frame — it stays mounted across navigation, only the
+  `<Outlet/>` content swaps.
+- **`ui/AppShell.tsx`** — mobile: slim `ui/nav/TopBar.tsx` (hamburger + centred Wordmark) +
+  overlay drawer; desktop (`900px` breakpoint, `ui/AppShell.css`): permanent 264px nav rail,
+  `TopBar` hidden. One `ui/nav/SideNav.tsx` for both — responsive purely via CSS
+  (transform/`display: none`), no `matchMedia`/JS breakpoint logic. `OnboardingDriver` (see below)
+  is mounted here, once per session.
+- **`ui/nav/SideNav.tsx`** — redesigned per Claude Design `ui_kits/app/uliss-nav.jsx`
+  (`NavPanelBody`): Wordmark + search-icon row, a "New" link (→ `/chats`), then five
+  `NavRow`-styled `NavLink`s (DS `Icon`: `node` / `journal` / `constellation` / `star` / `pulse`,
+  that fixed order — see `NavRow.prompt.md`). Body shows the day-one empty note; footer = `StarMark`
+  tile + **Sign out** (`useAuth().logout` — the only sign-out affordance in the app) + a settings
+  gear (inert until wave 11). The mock's pinned / chat-note lists, collapsed rail, resize handle
+  and right-hand `LinkedPanel` are later waves (they need backend data).
+- **`ui/icons.tsx`** — inline SVGs for the **chat composer only** (`SendIcon` / `MicIcon`); same
+  convention as `ui/notice/glyphs.tsx`. Nav / shell chrome uses the design-system `<Icon>`.
 - **Design mockups are a visual reference only, not literal code** — the desktop treatment in the
   Claude Design mockups (`uliss-desktop.jsx`) floats a fixed-size window on a canvas; that's a
   presentation-artboard convention. The real app uses an ordinary full-bleed responsive layout.
 - **`ui/TbdPage.tsx`** — shared empty-state shell (kicker + heading + description + a "to be
   developed" badge) for design areas sketched in the mockups that have no backend yet
-  (`journal/JournalPage.tsx`, `graph/GraphPage.tsx`). Real page chrome, no fabricated data — add a
-  real implementation here once the corresponding backend exists, don't extend the stub in place.
+  (`/notes`, `/constellations`, `/sky`, `/updates`, wired inline in `App.tsx`). Real page chrome,
+  no fabricated data — replace with a real page once the backend exists, don't extend the stub.
 
 ## Chat UI
 
