@@ -95,14 +95,16 @@ Opened 2026-08-31 during the design-system integration refresh
   Turkish, Romanian, … diacritics) is not bundled. Add the `latin-ext` `@font-face` blocks +
   `.woff2` (Google `css2` output) when a non-English/Russian locale is added. No local
   subsetter is available — pull the pre-subset files from `fonts.gstatic.com`.
-- **`src/react` components on the old design system.** Wave 1 rewrote only the tokens. The
-  "banner-era" primitives (`DevRule`, and `Wordmark` / `Kicker` / `PostBadge` built on the
-  retired JetBrains Mono / Cormorant type stack) still reference removed tokens
-  (`--font-mono`, `--weight-*`, `--gradient-wordmark`, …). Wave 2 replaces them with the 34
-  Claude Design components ported to `.tsx`.
+- ~~**`src/react` components on the old design system.**~~ Closed by wave 2 (2026-08-31):
+  the banner-era primitives are deleted and the 32 Claude Design components are ported to
+  `.tsx` under `src/react/components/<group>/` with a `.prompt.md` each and an `export *`
+  barrel. `module/web` still imports the barrel's `Wordmark` / `Kicker` — props shifted, so
+  those call sites reconcile in waves 3–4.
 - **Consumer screens reference dead tokens** until their wave rebuilds them (clean-cut
   transition, decision A1). `module/web` and `module/auth/.../templates` are visually broken on
   `FE-design` between wave 1 and waves 3–6; nothing merges to `main` until they are consistent.
 - **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
-  specimens and `_ds_bundle.js`; the repo has no equivalent. A `guidelines/` or Storybook-like
-  surface is out of scope for this program.
+  specimens and `_ds_bundle.js`; the repo has no committed equivalent. Wave 2 left an
+  uncommitted esbuild harness (`_specimen-components.{html,js,src.tsx}`) for a one-off browser
+  eyeball only — delete after review. A `guidelines/` or Storybook-like surface is out of scope
+  for this program.

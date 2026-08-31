@@ -39,6 +39,20 @@ Theming: three attributes on `<html>` — `data-ground` (`obsidian` | `void`), `
 `larger`). Defaults (obsidian · ochre · regular) live in `colors.css` / `typography.css`, so an
 unattributed document renders correctly. Sign-in additionally sets `data-surface="login"`.
 
+### Components (`src/react/`)
+
+`src/react/index.ts` is the barrel (`exports."."`), `export *` per file. Sources are grouped
+`src/react/components/<group>/<Name>.tsx` — `icons` · `brand` · `layout` · `actions` · `forms` ·
+`chat` · `journal` · `navigation` · `feedback` · `constellation` — ported 1:1 from Claude Design
+(`components/<group>/<Name>.jsx` + `.d.ts`). Each carries a `<Name>.prompt.md` alongside with the
+authoritative usage rules (variant lists, "one primary per screen", selection = four coordinated
+shifts, etc.) — read it before using or changing a component. Convention: inline types
+(`export interface XProps` + `export function X({…}: XProps)`), no separate `.d.ts`. Not built —
+Vite transpiles the source; the Gradle jar packs only CSS + fonts, not `.tsx` / `.prompt.md`.
+`border-radius: 0` is the token default; only `MicButton`, the `OptionCard` `dot` marker and
+`Swatch` set `borderRadius: '50%'` locally (the three licensed circles). The banner-era flat
+primitives (`DevRule` + old `Wordmark` / `Kicker` / `PostBadge`) are gone.
+
 ### Fonts (`src/fonts/`, OFL 1.1 — see `src/fonts/OFL.txt`)
 
 Two families, self-hosted, Latin + Cyrillic subsets (Google Fonts `css2` output, `@font-face`
