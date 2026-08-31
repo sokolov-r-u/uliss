@@ -24,11 +24,16 @@ after a `Write` fails with "string not found", re-read the file first rather tha
   shell & navigation» below), not `Shell`.
 - **Notice mechanism + onboarding (see «User onboarding · web UI» below):** reusable
   notification modal over a dimmed/blurred app. `ui/notice/` — presentation
-  (`NoticeOverlay` — portal-backdrop with `backdrop-filter: blur`, `Notice` — card with plaque/framed/minimal
-  variants, `fields.tsx` — controlled input/select/date-picker fields, `glyphs.tsx`);
-  `notifications/NotificationProvider.tsx` — generic notification queue (`useNotice().notify`);
-  `onboarding/` — onboarding feature (`OnboardingDriver`, mounted once in `ui/AppShell.tsx` — see
-  «App shell & navigation» below). Design source — Claude Design `uliss-notify.jsx` (MCP `DesignSync`).
+  (`NoticeOverlay` — portal-backdrop with `backdrop-filter: blur` over `--scrim`; `Notice` — card
+  with plaque/framed/minimal variants on the DS `feedback/Notice` visuals — `--font-text`, DS
+  `ProgressDots`, DS `Button` footer, DS `Icon` — kept interactive: `primaryDisabled` / `busy` /
+  `showClose` / `children` / `skip`; `fields.tsx` — controlled input/select/date-picker fields on
+  the DS `forms/TextField` · `forms/Select` visuals). Small glyphs come from `@uliss/design-system`
+  now (`Greek` / `StarMark` / `<Icon>`) — the old `glyphs.tsx` is gone.
+  `notifications/NotificationProvider.tsx` — generic queue: `useNotice().notify` (a `Notice`) +
+  `useNotice().confirm` (a DS `feedback/Dialog`, portalled). `onboarding/` — onboarding feature
+  (`OnboardingDriver`, mounted once in `ui/AppShell.tsx`). Design source — Claude Design
+  `uliss-notify.jsx` (MCP `DesignSync`).
 - **Same-origin, no service URLs in the browser:** all calls are **relative**, each service under its
   own name (`/user/oauth2/*`, `/user/users/*` — user-service; see «Path-prefix convention» in the root
   `CLAUDE.md`). In dev they're proxied by Vite (`vite.config.ts`: `/user` → `USER_SERVICE_URL`, `/note` →
@@ -51,11 +56,11 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
 - **Theming attributes** — `index.html` `<html>` carries `data-ground="obsidian"
   data-accent="ochre" data-read="regular"` (DS `tokens/themes.css`). Static defaults for now;
   wave 11 (Settings › Appearance) makes them `localStorage`-driven per device.
-- `App.tsx` — under `RequireAuth`, a single layout route renders `ui/AppShell.tsx`. The five
-  destinations are `/chats` (real — `ChatListPage`), `/notes`, `/constellations`, `/sky`,
-  `/updates` (inline `TbdPage` stubs), plus `/chats/:chatId`. `/` and unknown paths redirect to
-  `/chats`. `AppShell` is the persistent frame — it stays mounted across navigation, only the
-  `<Outlet/>` content swaps.
+- `App.tsx` — under `RequireAuth`, a single layout route renders `ui/AppShell.tsx`. Routes:
+  `/chats` (`ChatListPage`) + `/chats/:chatId`, `/notes` (`NotesPage`), `/sky` (`SkyPage`),
+  `/search` (`SearchPage`); `/constellations` + `/updates` are still inline `TbdPage` stubs
+  (waves 8 / 10). `/` and unknown paths redirect to `/chats`. `AppShell` is the persistent frame —
+  it stays mounted across navigation, only the `<Outlet/>` content swaps.
 - **`ui/AppShell.tsx`** — mobile: slim `ui/nav/TopBar.tsx` (hamburger + centred Wordmark) +
   overlay drawer; desktop (`900px` breakpoint, `ui/AppShell.css`): permanent 264px nav rail,
   `TopBar` hidden. One `ui/nav/SideNav.tsx` for both — responsive purely via CSS
@@ -73,10 +78,17 @@ npm run typecheck -w @uliss/web  # tsc --noEmit
 - **Design mockups are a visual reference only, not literal code** — the desktop treatment in the
   Claude Design mockups (`uliss-desktop.jsx`) floats a fixed-size window on a canvas; that's a
   presentation-artboard convention. The real app uses an ordinary full-bleed responsive layout.
-- **`ui/TbdPage.tsx`** — shared empty-state shell (kicker + heading + description + a "to be
-  developed" badge) for design areas sketched in the mockups that have no backend yet
-  (`/notes`, `/constellations`, `/sky`, `/updates`, wired inline in `App.tsx`). Real page chrome,
-  no fabricated data — replace with a real page once the backend exists, don't extend the stub.
+- **`ui/TbdPage.tsx`** — shared stub shell (kicker + heading + description + a "to be developed"
+  badge) for `/constellations` + `/updates`, wired inline in `App.tsx`. Real page chrome, no
+  fabricated data — replace with a real page once the backend exists, don't extend the stub.
+- **Empty-state screens** — `/notes`, `/sky` and `/search` have no backend, so their only state is
+  a DS `journal/EmptyState` ("describe the future, never the lack"). `ui/Screen.tsx` is the shared
+  frame (kicker + count header over a flex body that centres the `EmptyState`); `notes/NotesPage`
+  and `sky/SkyPage` (on `--sky-bg`, two seed stars, no action — an empty sky has nothing to press)
+  use it. `search/SearchPage` draws its own search-field header (reached from the SideNav search
+  icon → `/search`) and shows "No notes match …" for any query, a neutral prompt when empty.
+  Copy is from Claude Design `uliss-journal.jsx` (`NotesEmpty` / `SearchEmpty` / `GraphEmptyWide`).
+  Waves 7 / 9 add the populated states on top of these shells.
 
 ## Chat UI
 
@@ -122,12 +134,14 @@ design source — Claude Design `uliss-notify.jsx`. Onboarding backend — `modu
   `authFetch`) and runs pending messages one at a time through `NoticeOverlay` (blocking backdrop
   over the app); once the queue is empty it renders `null` — the app underneath becomes accessible.
   StrictMode double-fetch is cut off by a `useRef` guard.
-- **Steps (`onboarding/steps.tsx`)** — each owns its own local state and POSTs itself:
-  `DisplayNameStep` (`SET_DISPLAY_NAME`, blocking, primary «Continue» is disabled while the field is empty,
-  `400` → inline error) and `ProfileStep` (`COMPLETE_PROFILE`, gender+date, primary «Begin» sends the entered
-  data, secondary «Skip» → POST with empty fields = `SKIPPED`). `blocking` is taken **from the API response's
-  `blocking` field**, not from the mockup (in the design both screens are blocking, but the backend marks
-  `COMPLETE_PROFILE` as optional → it has a «Skip»).
+- **Steps (`onboarding/steps.tsx`)** — built on the re-skinned `Notice` + `fields`; each owns its
+  own local state and POSTs itself: `DisplayNameStep` (`SET_DISPLAY_NAME`, blocking, primary
+  «Continue» is disabled while the field is empty, `400` → inline error) and `ProfileStep`
+  (`COMPLETE_PROFILE`, gender+date, primary «Save» sends the entered data, secondary «Skip for now»
+  → POST with empty fields = `SKIPPED`). Copy tracks the Claude Design `uliss-notify.jsx` presets.
+  `blocking` is taken **from the API response's `blocking` field**, not from the mockup (in the
+  design both screens are blocking, but the backend marks `COMPLETE_PROFILE` as optional → it has a
+  «Skip»).
 - **Contract (`onboarding/onboardingApi.ts`):** `Gender` = `MALE|FEMALE|OTHER`, `birthDate` — ISO
   `YYYY-MM-DD` (the date-picker returns a local date with no TZ shift). Label↔`Gender` mapping is in `steps.tsx`.
 - **User profile has no UI screen yet** — onboarding is the only current consumer of the feature;

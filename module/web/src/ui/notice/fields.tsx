@@ -1,11 +1,11 @@
 /**
- * Controlled form fields for the Notice mechanism. Visuals ported verbatim from the Claude
- * Design `uliss-notify.jsx` (inline styles on design-system tokens); interactivity (state,
- * open/close, selection, month navigation) added here.
+ * Controlled form fields for the Notice mechanism. Visuals track the design-system
+ * `forms/TextField` / `forms/Select` (inline styles on tokens); interactivity (state,
+ * open/close, selection, month navigation) lives here. There is no design-system date
+ * component, so `NoticeDate` + its `DatePicker` are local.
  */
-import {type ReactNode, useState} from 'react'
-import {Kicker} from '@uliss/design-system'
-import {Greek, IcCal, IcCaret, IcChevron} from './glyphs'
+import {useState} from 'react'
+import {Greek, Icon, LabelRow} from '@uliss/design-system'
 
 // ── text input (kind="input") ───────────────────────────────────
 export function NoticeField({
@@ -23,21 +23,19 @@ export function NoticeField({
     max?: number
     autoFocus?: boolean
 }) {
+    const counter = value.length > 0 && (
+        <span style={{
+            fontFamily: 'var(--font-text)',
+            fontSize: 10,
+            letterSpacing: '0.5px',
+            color: value.length > max - 4 ? 'var(--accent)' : 'var(--text-faint)',
+        }}>
+            {String(value.length).padStart(2, '0')} / {max}
+        </span>
+    )
     return (
         <div>
-            <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 7}}>
-                <Kicker size={8.5} spacing="2px" color="var(--text-muted)">
-                    {label}
-                </Kicker>
-                <span style={{
-                    fontFamily: 'var(--font-mono)',
-                    fontSize: 9,
-                    color: 'var(--text-faint)',
-                    letterSpacing: '0.5px'
-                }}>
-          {String(value.length).padStart(2, '0')} / {max}
-        </span>
-            </div>
+            <LabelRow label={label} right={counter}/>
             <div
                 style={{
                     height: 48,
@@ -46,7 +44,7 @@ export function NoticeField({
                     padding: '0 14px',
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--accent)',
-                    boxShadow: 'inset 0 0 0 1px rgba(217,154,78,.14), 0 0 18px -6px rgba(217,154,78,.4)',
+                    boxShadow: 'inset 0 0 0 1px var(--accent-glow-soft), 0 0 18px -6px var(--accent-glow-mid)',
                 }}
             >
                 <input
@@ -59,18 +57,6 @@ export function NoticeField({
                     onChange={(e) => onChange(e.target.value)}
                 />
             </div>
-        </div>
-    )
-}
-
-// ── shared field label row ───────────────────────────────────────
-function FieldLabel({label, greek}: { label: string; greek?: ReactNode }) {
-    return (
-        <div style={{display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: 7}}>
-            <Kicker size={8.5} spacing="2px" color="var(--text-muted)">
-                {label}
-            </Kicker>
-            {greek && <Greek size={12}>{greek}</Greek>}
         </div>
     )
 }
@@ -98,7 +84,7 @@ export function NoticeSelect<T extends string>({
 
     return (
         <div>
-            <FieldLabel label={label} greek={greek}/>
+            <LabelRow label={label} greek={greek}/>
             <div
                 role="button"
                 tabIndex={0}
@@ -118,13 +104,13 @@ export function NoticeSelect<T extends string>({
                     cursor: 'pointer',
                     background: 'var(--bg-panel)',
                     border: open ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
-                    boxShadow: open ? '0 0 18px -6px rgba(217,154,78,.4)' : 'none',
+                    boxShadow: open ? '0 0 18px -6px var(--accent-glow-mid)' : 'none',
                 }}
             >
         <span
             style={{
                 flex: 1,
-                fontFamily: 'var(--font-mono)',
+                fontFamily: 'var(--font-text)',
                 fontSize: 13,
                 letterSpacing: '0.8px',
                 color: current ? 'var(--cream)' : 'var(--text-faint)',
@@ -134,8 +120,15 @@ export function NoticeSelect<T extends string>({
         >
           {current?.label ?? placeholder}
         </span>
-                <span style={{color: open ? 'var(--accent-2)' : 'var(--text-muted)', display: 'flex'}}>
-          <IcChevron up={open}/>
+                <span
+                    style={{
+                        color: open ? 'var(--accent-2)' : 'var(--text-muted)',
+                        display: 'flex',
+                        transform: open ? 'rotate(180deg)' : 'none',
+                        transition: 'transform .2s',
+                    }}
+                >
+          <Icon name="chevron" size={14}/>
         </span>
             </div>
             {open && (
@@ -144,7 +137,7 @@ export function NoticeSelect<T extends string>({
                         marginTop: 6,
                         background: 'var(--bg-deep)',
                         border: '1px solid var(--accent)',
-                        boxShadow: '0 20px 40px -18px rgba(0,0,0,.8), 0 0 18px -8px rgba(217,154,78,.4)',
+                        boxShadow: '0 20px 40px -18px rgba(0, 0, 0, 0.8), 0 0 18px -8px var(--accent-glow-mid)',
                         overflow: 'hidden',
                     }}
                 >
@@ -184,11 +177,11 @@ export function NoticeSelect<T extends string>({
                                 <span
                                     style={{
                                         flex: 1,
-                                        fontFamily: 'var(--font-mono)',
+                                        fontFamily: 'var(--font-text)',
                                         fontSize: 12.5,
                                         letterSpacing: '0.8px',
                                         color: on ? 'var(--cream)' : 'var(--cream-dim)',
-                                        fontWeight: on ? 600 : 400,
+                                        fontWeight: on ? 'var(--w-emphasis)' : 'var(--w-ui)',
                                     }}
                                 >
                   {o.label}
@@ -291,34 +284,34 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                 background: 'var(--bg-deep)',
                 border: '1px solid var(--accent)',
                 padding: '12px 12px 13px',
-                boxShadow: '0 20px 40px -18px rgba(0,0,0,.8), 0 0 18px -8px rgba(217,154,78,.4)',
+                boxShadow: '0 20px 40px -18px rgba(0, 0, 0, 0.8), 0 0 18px -8px var(--accent-glow-mid)',
             }}
         >
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
         <span style={navBtn} role="button" aria-label="Previous month" onClick={() => onNav(-1)}>
-          <IcCaret dir="left"/>
+          <Icon name="caret" size={14}/>
         </span>
                 <span style={{
-                    fontFamily: 'var(--font-mono)',
+                    fontFamily: 'var(--font-text)',
                     fontSize: 10.5,
                     letterSpacing: '2px',
                     textTransform: 'uppercase',
-                    color: 'var(--cream)'
+                    color: 'var(--cream)',
                 }}>
           {MONTHS[view.month]} {view.year}
         </span>
                 <span style={navBtn} role="button" aria-label="Next month" onClick={() => onNav(1)}>
-          <IcCaret dir="right"/>
+          <Icon name="caret" size={14} rotate={180}/>
         </span>
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 5}}>
                 {wd.map((w) => (
                     <span key={w} style={{
                         textAlign: 'center',
-                        fontFamily: 'var(--font-mono)',
+                        fontFamily: 'var(--font-text)',
                         fontSize: 8.5,
                         letterSpacing: '0.5px',
-                        color: 'var(--text-faint)'
+                        color: 'var(--text-faint)',
                     }}>
             {w}
           </span>
@@ -341,9 +334,9 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                                 alignItems: 'center',
                                 justifyContent: 'center',
                                 cursor: clickable ? 'pointer' : 'default',
-                                fontFamily: 'var(--font-mono)',
+                                fontFamily: 'var(--font-text)',
                                 fontSize: 11,
-                                fontWeight: on ? 700 : 400,
+                                fontWeight: on ? 'var(--w-emphasis)' : 'var(--w-ui)',
                                 color: d ? (on ? 'var(--bg-deep)' : off ? 'var(--text-faint)' : 'var(--cream-dim)') : 'transparent',
                                 opacity: off ? 0.4 : 1,
                                 background: on ? 'var(--accent-2)' : 'transparent',
@@ -400,7 +393,7 @@ export function NoticeDate({
 
     return (
         <div>
-            <FieldLabel label={label} greek={greek}/>
+            <LabelRow label={label} greek={greek}/>
             <div
                 style={{
                     height: 48,
@@ -409,7 +402,7 @@ export function NoticeDate({
                     padding: '0 6px 0 15px',
                     background: 'var(--bg-panel)',
                     border: open ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
-                    boxShadow: open ? '0 0 18px -6px rgba(217,154,78,.4)' : 'none',
+                    boxShadow: open ? '0 0 18px -6px var(--accent-glow-mid)' : 'none',
                 }}
             >
                 <input
@@ -444,7 +437,7 @@ export function NoticeDate({
                         color: open ? 'var(--bg-deep)' : 'var(--accent-2)',
                     }}
                 >
-          <IcCal/>
+          <Icon name="cal" size={17}/>
         </span>
             </div>
             {open && <DatePicker view={view} selected={selected} maxDate={maxDateObj} onNav={nav} onPick={pick}/>}

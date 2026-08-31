@@ -26,7 +26,7 @@ export function NoticeOverlay({
                 alignItems: 'center',
                 justifyContent: 'center',
                 padding: 24,
-                background: 'rgba(8,5,3,.55)',
+                background: 'var(--scrim)',
                 backdropFilter: 'blur(4px) brightness(.62) saturate(.9)',
                 WebkitBackdropFilter: 'blur(4px) brightness(.62) saturate(.9)',
                 animation: 'uNoticeBackdropIn .35s ease both',

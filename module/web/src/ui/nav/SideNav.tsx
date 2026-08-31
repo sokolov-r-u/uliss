@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react'
-import {NavLink} from 'react-router-dom'
+import {NavLink, useNavigate} from 'react-router-dom'
 import {Icon, IconButton, Kicker, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {useAuth} from '../../auth/AuthContext'
 
@@ -20,6 +20,12 @@ const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
  */
 export function SideNav({open, onClose}: { open: boolean; onClose: () => void }) {
     const {logout} = useAuth()
+    const navigate = useNavigate()
+
+    const goSearch = () => {
+        onClose()
+        navigate('/search')
+    }
 
     return (
         <>
@@ -28,7 +34,8 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
                 <div className="side-nav-top">
                     <div className="side-nav-head">
                         <Wordmark size={24}/>
-                        <IconButton s={30} title="Search"><Icon name="search" size={16}/></IconButton>
+                        <IconButton s={30} title="Search" onClick={goSearch}><Icon name="search"
+                                                                                   size={16}/></IconButton>
                     </div>
 
                     <NavLink to="/chats" onClick={onClose} className="side-nav-new">

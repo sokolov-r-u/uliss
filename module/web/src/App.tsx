@@ -8,6 +8,9 @@ import {AppShell} from './ui/AppShell'
 import {TbdPage} from './ui/TbdPage'
 import {ChatListPage} from './chat/ChatListPage'
 import {ChatPage} from './chat/ChatPage'
+import {NotesPage} from './notes/NotesPage'
+import {SkyPage} from './sky/SkyPage'
+import {SearchPage} from './search/SearchPage'
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -44,16 +47,8 @@ export function App() {
           <Route index element={<Navigate to="/chats" replace/>}/>
           <Route path="chats" element={<ChatListPage/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
-          <Route
-              path="notes"
-              element={
-                  <TbdPage
-                      kicker="notes"
-                      title="Your notes"
-                      description="Every recording, transcribed and titled, in a list you can sort and search. Not built yet — note-service has no notes-list endpoint."
-                  />
-              }
-          />
+          <Route path="notes" element={<NotesPage/>}/>
+          <Route path="search" element={<SearchPage/>}/>
           <Route
               path="constellations"
               element={
@@ -64,16 +59,7 @@ export function App() {
                   />
               }
           />
-          <Route
-              path="sky"
-              element={
-                  <TbdPage
-                      kicker="sky"
-                      title="The sky of you"
-                      description="Your notes mapped as a constellation of linked ideas. Not built yet — no graph data or embeddings pipeline exists on the backend."
-                  />
-              }
-          />
+          <Route path="sky" element={<SkyPage/>}/>
           <Route
               path="updates"
               element={
