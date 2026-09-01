@@ -1,0 +1,29 @@
+/* Tokens for the constellation graph. Settings speak in words
+   ("Fine · Regular · Bold · Beacon"); the renderer needs multipliers. */
+
+:root {
+    /* Size steps — apply to star radius, constellation radius, label px */
+    --sky-scale-fine: 0.7;
+    --sky-scale-regular: 1;
+    --sky-scale-bold: 1.35;
+    --sky-scale-beacon: 1.75;
+
+    /* Ground + atmosphere — the sky is always the deep ground */
+    --sky-bg: var(--bg-deep);
+    --sky-glow-a: rgba(96, 138, 200, 0.14);
+    --sky-glow-b: rgba(96, 138, 200, 0.07);
+    --sky-nebula: #8fb0d4;
+    --star-fill: #ffffff; /* far stars — always white, never accent */
+
+    /* Structure — deliberately the same two values as --line / --line-strong:
+       graph edges and UI hairlines are one system. */
+    --edge-structural: var(--line-strong); /* parent → child */
+    --edge-secondary: var(--line); /* membership, weaker */
+    --node-you: var(--accent-2); /* the centre node */
+
+    /* Constellation hue ring — a branch is recoloured by hue only; sub-levels
+       inherit the hue and vary lightness. */
+    --tag-lightness: 0.62;
+    --tag-lightness-min: 0.34;
+    --tag-lightness-max: 0.86;
+}

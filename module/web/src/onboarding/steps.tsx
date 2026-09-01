@@ -19,8 +19,8 @@ function ErrorLine({children}: { children: string }) {
     return (
         <div style={{
             marginTop: 10,
-            fontFamily: 'var(--font-mono)',
-            fontSize: 10.5,
+            fontFamily: 'var(--font-text)',
+            fontSize: 11,
             letterSpacing: '0.4px',
             color: 'var(--terracotta)'
         }}>{children}</div>
@@ -97,11 +97,14 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
             progress={progress}
             greek="βίος · about you"
             title="A little about you"
-            primary="Begin"
-            secondary="Skip"
+            body="Gender and date of birth let Uliss answer as if it knows who it is talking to. Skip it and nothing breaks."
+            primary="Save"
+            secondary="Skip for now"
+            skip="Skip for now"
             primaryDisabled={primaryDisabled}
             busy={busy}
             onSecondary={() => run(() => ({command: 'COMPLETE_PROFILE'}))}
+            onSkip={() => run(() => ({command: 'COMPLETE_PROFILE'}))}
             onPrimary={() =>
                 run(() => ({
                     command: 'COMPLETE_PROFILE',

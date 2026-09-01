@@ -1,0 +1,81 @@
+/* User-selectable appearance (Settings › Appearance), as attribute scopes on
+   <html>: <html data-ground="obsidian" data-accent="ochre" data-read="regular">.
+   Defaults live in colors.css / typography.css, so an unattributed document
+   still renders correctly. */
+
+/* ── Ground ──────────────────────────────────────────
+   Obsidian is the default; Deep void differs in two values only. */
+[data-ground='obsidian'] {
+    --bg-deep: #0a0a0a;
+    --bg: #0a0a0a;
+    --bg-surface: #161616;
+    --bg-panel: #0d0d0d;
+    --bg-muted: #1c1c1c;
+}
+
+[data-ground='void'] {
+    --bg-deep: #020407;
+    --bg-surface: #101010;
+}
+
+/* ── Accent — a pair only; every wash derives from it in colors.css ── */
+[data-accent='ochre'] {
+    --accent: #d99a4e;
+    --accent-2: #f0c06a;
+}
+
+[data-accent='terracotta'] {
+    --accent: #c8643c;
+    --accent-2: #d99a4e;
+}
+
+[data-accent='patina'] {
+    --accent: #5c8a72;
+    --accent-2: #8fae82;
+}
+
+[data-accent='bone'] {
+    --accent: #b9a888;
+    --accent-2: #e8d3a8;
+}
+
+[data-accent] {
+    --wordmark-fill: var(--accent);
+}
+
+/* ── Reading scale — moves reading text only, never chrome ── */
+[data-read='compact'] {
+    --read-size: 13px;
+    --read-leading: 1.58;
+}
+
+[data-read='regular'] {
+    --read-size: 14.5px;
+    --read-leading: 1.51;
+}
+
+[data-read='large'] {
+    --read-size: 16px;
+    --read-leading: 1.51;
+}
+
+[data-read='larger'] {
+    --read-size: 18px;
+    --read-leading: 1.45;
+}
+
+/* ── Sign-in — the one surface that ignores the user's choice:
+   pin it to obsidian + ochre, add data-surface="login" for these overrides. */
+[data-surface='login'] {
+    --wordmark-fill: var(--wordmark-login);
+    --heading-color: var(--wordmark-login);
+    --heading-font: var(--font-display);
+    --heading-size: 18px;
+    --line-strong: rgba(242, 236, 224, 0.5);
+    --field-border: var(--line-strong);
+    --cta-border: var(--accent-edge);
+    --cta-bg: var(--accent);
+    --cta-fg: var(--bg-deep);
+    --cta-weight: var(--w-emphasis);
+    --cta-shadow: none;
+}

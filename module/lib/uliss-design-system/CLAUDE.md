@@ -25,7 +25,47 @@ conventions, closed decisions) are in the root `CLAUDE.md` — read that first. 
   `../fonts/*.woff2` —
   the relative path resolves the same way in the jar (`/ds/tokens/` → `/ds/fonts/`) and in Vite.
 - `node { download = false }` — Gradle uses the system Node/npm; set to `true` for CI without Node.
-- Fonts are self-hosted (OFL 1.1, `src/fonts/OFL.txt`); downloading new `.woff2` files requires network access.
+
+### Tokens (`src/tokens/*.css`)
+
+Seven flat files, all `@import`ed by `src/styles.css` in order: `colors`, `typography`,
+`spacing`, `themes`, `motion`, `sky`, `textures`. There is no `uliss-styles.css` "source of
+truth" file — Claude Design has one, this port splits it into `colors.css` + `typography.css`.
+`--amb-wash` / `--scrim` reference `--sky-glow-b` / `--bg-deep` across files — CSS custom
+properties resolve at use-time, so import order is not load-bearing.
+
+Theming: three attributes on `<html>` — `data-ground` (`obsidian` | `void`), `data-accent`
+(`ochre` | `terracotta` | `patina` | `bone`), `data-read` (`compact` | `regular` | `large` |
+`larger`). Defaults (obsidian · ochre · regular) live in `colors.css` / `typography.css`, so an
+unattributed document renders correctly. Sign-in additionally sets `data-surface="login"`.
+
+### Components (`src/react/`)
+
+`src/react/index.ts` is the barrel (`exports."."`), `export *` per file. Sources are grouped
+`src/react/components/<group>/<Name>.tsx` — `icons` · `brand` · `layout` · `actions` · `forms` ·
+`chat` · `journal` · `navigation` · `feedback` · `constellation` — ported 1:1 from Claude Design
+(`components/<group>/<Name>.jsx` + `.d.ts`). Each carries a `<Name>.prompt.md` alongside with the
+authoritative usage rules (variant lists, "one primary per screen", selection = four coordinated
+shifts, etc.) — read it before using or changing a component. Convention: inline types
+(`export interface XProps` + `export function X({…}: XProps)`), no separate `.d.ts`. Not built —
+Vite transpiles the source; the Gradle jar packs only CSS + fonts, not `.tsx` / `.prompt.md`.
+`border-radius: 0` is the token default; only `MicButton`, the `OptionCard` `dot` marker and
+`Swatch` set `borderRadius: '50%'` locally (the three licensed circles). The banner-era flat
+primitives (`DevRule` + old `Wordmark` / `Kicker` / `PostBadge`) are gone.
+
+### Fonts (`src/fonts/`, OFL 1.1 — see `src/fonts/OFL.txt`)
+
+Two families, self-hosted, Latin + Cyrillic subsets (Google Fonts `css2` output, `@font-face`
+with `unicode-range` so the browser fetches only what it needs):
+
+- **Cinzel** 600, static, Latin only (no Cyrillic glyphs) — wordmark + counts (`--font-display`).
+- **Source Serif 4**, the **variable** font (weight axis) — everything else, chrome included
+  (`--font-text`). `font-weight: 350` (the reading weight, `--w-body`) is exact because it is a
+  real axis position, not a static instance.
+
+Adding/replacing a `.woff2` needs network access to `fonts.gstatic.com`. `@font-face` uses
+relative `../fonts/*` — resolves identically in the auth jar (`/ds/tokens/` → `/ds/fonts/`) and
+in Vite.
 
 ```bash
 npm install                                # from repo root — sets up the workspace

@@ -4,10 +4,10 @@
     min-height: 100%;
     display: flex;
     flex-direction: column;
-    background: radial-gradient(1200px 600px at 50% -10%, rgba(216, 154, 78, 0.06), transparent 70%),
-    var(--bg);
+    background: var(--bg);
 }
 
+/* ── Mobile top bar (hidden >= 900px) ─────────────────────────── */
 .top-bar {
     flex: 0 0 auto;
     display: grid;
@@ -35,17 +35,19 @@
     display: flex;
     color: var(--cream-dim);
     cursor: pointer;
+    transition: color var(--dur-hover) var(--ease);
 }
 
 .hamburger-btn:hover {
     color: var(--accent-2);
 }
 
+/* ── Drawer / rail ───────────────────────────────────────────── */
 .nav-backdrop {
     position: fixed;
     inset: 0;
     z-index: 19;
-    background: var(--scrim, rgba(8, 5, 3, 0.62));
+    background: var(--scrim);
 }
 
 .side-nav {
@@ -54,8 +56,8 @@
     bottom: 0;
     left: 0;
     z-index: 20;
-    width: 248px;
-    max-width: 84vw;
+    width: 300px;
+    max-width: 86vw;
     display: flex;
     flex-direction: column;
     background: var(--bg-deep);
@@ -65,117 +67,402 @@
 }
 
 .side-nav.open {
-    transform: translateX(0);
+    transform: none;
 }
 
-.side-nav-brand {
+.side-nav-top {
+    flex: 0 0 auto;
+}
+
+.side-nav-head {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding: 26px 22px 20px;
+    align-items: center;
+    gap: 6px;
+    padding: 18px 14px 4px;
+}
+
+.side-nav-head > :first-child {
+    flex: 1;
+    min-width: 0;
+}
+
+.side-nav-new {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 10px 14px 6px;
+    padding: 10px 12px;
+    background: var(--bg-surface);
+    border: 1px solid var(--line-strong);
+    color: var(--cream);
+    text-decoration: none;
+}
+
+.side-nav-new-icon {
+    display: flex;
+    color: var(--accent-2);
+}
+
+.side-nav-new-label {
+    font-family: var(--font-text);
+    font-size: 12px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
 }
 
 .side-nav-links {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 12px;
+    gap: 1px;
+    padding: 4px 8px 8px;
 }
 
-.nav-link {
+.side-nav-link {
+    display: block;
+    text-decoration: none;
+    color: inherit;
+}
+
+.side-nav-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 20px 16px;
+    border-top: 1px solid var(--line);
+}
+
+.side-nav-body-note {
+    margin: 0;
+    font-family: var(--font-text);
+    font-size: 12.5px;
+    line-height: 1.5;
+    font-weight: var(--w-body);
+    color: var(--text-faint);
+    text-wrap: pretty;
+}
+
+.side-nav-foot {
+    flex: 0 0 auto;
     display: flex;
     align-items: center;
-    gap: 14px;
+    gap: 11px;
     padding: 13px 14px;
-    border-left: 2px solid transparent;
-    color: var(--cream-dim);
-    text-decoration: none;
+    border-top: 1px solid var(--line);
 }
 
-.nav-link.active {
-    background: var(--bg-surface);
-    border-left-color: var(--accent);
+.side-nav-avatar {
+    flex: 0 0 auto;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-muted);
+    color: var(--accent-2);
+}
+
+.side-nav-signout {
+    flex: 1;
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 0;
+    text-align: left;
+    cursor: pointer;
+    font-family: var(--font-text);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: var(--cream-dim);
+    transition: color var(--dur-hover) var(--ease);
+}
+
+.side-nav-signout:hover {
     color: var(--cream);
 }
 
-.nav-link-icon {
-    display: flex;
-    color: var(--text-muted);
-}
-
-.nav-link.active .nav-link-icon {
-    color: var(--accent-2);
-}
-
-.nav-link-text {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.nav-link-label {
-    font-family: var(--font-mono);
-    font-size: 13px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.nav-link-gloss {
-    font-family: var(--font-serif);
-    font-style: italic;
-    font-size: 11px;
-    color: var(--accent-2);
-    opacity: 0.85;
-}
-
+/* ── Main column ─────────────────────────────────────────────── */
 .app-main {
     flex: 1;
     min-width: 0;
     min-height: 0;
 }
 
-.page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 32px 24px 48px;
+/* ── Screen frame (ui/Screen.tsx — notes / sky / constellations / updates;
+      search + settings draw their own header) ── */
+.screen {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-.page-header {
+.screen-header {
+    flex: 0 0 auto;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     justify-content: space-between;
     gap: 16px;
-    margin-bottom: 24px;
+    padding: 22px 30px 18px;
+    border-bottom: 1px solid var(--line);
 }
 
-.page-title {
-    margin: 6px 0 0;
-    font-family: var(--font-serif);
-    font-size: 34px;
-    line-height: 1.1;
-    color: var(--cream);
+.screen-header-label {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
 }
 
-.page-description {
-    margin: 12px 0 0;
-    color: var(--cream-dim);
-    font-size: 14px;
-    line-height: 1.6;
-    max-width: 46ch;
-}
-
-.tbd-badge {
-    display: inline-block;
-    margin-top: 24px;
-    padding: 6px 14px;
-    border: 1px solid var(--line-strong);
+.screen-header-count {
+    font-family: var(--font-text);
+    font-size: 12px;
     color: var(--text-faint);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
 }
 
+.screen-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+/* Host for a centred DS EmptyState — fills the body, its own flex:1 does the centring. */
+.screen-empty {
+    min-height: 100%;
+    display: flex;
+    width: 100%;
+    max-width: 560px;
+    margin: 0 auto;
+}
+
+.sky-empty {
+    position: relative;
+}
+
+.sky-seed {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+/* ── Settings ───────────────────────────────────────────────── */
+.settings-list {
+    max-width: 560px;
+    margin: 0 auto;
+    padding: 10px 18px 40px;
+}
+
+.settings-version {
+    margin: 22px 0 0;
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+
+.settings-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 16px 30px;
+    border-bottom: 1px solid var(--line);
+}
+
+.settings-back {
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--cream-dim);
+    text-decoration: none;
+    transition: color var(--dur-hover) var(--ease);
+}
+
+.settings-back:hover {
+    color: var(--accent-2);
+}
+
+.settings-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.settings-col {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 18px 18px 40px;
+}
+
+.settings-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0 12px;
+}
+
+.settings-section:first-child {
+    margin-top: 4px;
+}
+
+.settings-section-rule {
+    flex: 1;
+    height: 1px;
+    background: var(--line);
+}
+
+.settings-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.settings-swatches {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.settings-reading-sample {
+    margin-top: 12px;
+    padding-left: 13px;
+    border-left: 2px solid var(--accent);
+    font-family: var(--font-text);
+    font-weight: var(--read-weight);
+    color: var(--read-fg);
+    text-wrap: pretty;
+}
+
+.settings-foot-note {
+    margin: 22px 0 0;
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 1.4px;
+    color: var(--text-faint);
+}
+
+.settings-para {
+    margin: 4px 0 0;
+    font-family: var(--font-text);
+    font-size: 12.5px;
+    line-height: 1.55;
+    font-weight: var(--w-body);
+    color: var(--text-faint);
+    text-wrap: pretty;
+}
+
+.settings-inert {
+    opacity: 0.5;
+    pointer-events: none;
+}
+
+.settings-lang-list {
+    display: flex;
+    flex-direction: column;
+}
+
+.settings-lang-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 48px;
+    padding: 0 12px 0 13px;
+    border-top: 1px solid var(--line);
+    color: var(--text-faint);
+}
+
+.settings-lang-row:first-child {
+    border-top: none;
+}
+
+.settings-lang-row.on {
+    color: var(--cream);
+    background: var(--bg-surface);
+    border-left: 2px solid var(--accent);
+}
+
+.settings-lang-name {
+    flex: 1;
+    font-family: var(--font-text);
+    font-size: 15px;
+}
+
+.settings-lang-row.on .settings-lang-name {
+    font-weight: var(--w-emphasis);
+}
+
+.settings-lang-tick {
+    display: flex;
+    color: var(--accent-2);
+}
+
+.settings-lang-box {
+    width: 13px;
+    height: 13px;
+    border: 1px solid var(--line-strong);
+}
+
+/* ── Search field header (search/SearchPage.tsx) ─────────────── */
+.search-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 18px 30px;
+    border-bottom: 1px solid var(--line);
+}
+
+.search-field {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    max-width: 440px;
+    min-height: 40px;
+    padding: 0 11px;
+    background: var(--bg-panel);
+    border: 1px solid var(--line-strong);
+}
+
+.search-field:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 18px -6px var(--accent-glow-mid);
+}
+
+.search-field-icon {
+    display: flex;
+    color: var(--text-faint);
+}
+
+.search-input {
+    flex: 1;
+    min-width: 0;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--cream);
+    font-family: var(--font-text);
+    font-size: 13.5px;
+    letter-spacing: 0.3px;
+    caret-color: var(--accent-2);
+}
+
+.search-input::placeholder {
+    color: var(--text-faint);
+}
+
+.search-clear {
+    appearance: none;
+    background: none;
+    border: none;
+    padding: 4px 2px;
+    cursor: pointer;
+}
+
+/* ── Desktop: rail ──────────────────────────────────────────── */
 @media (min-width: 900px) {
     .app-shell {
         flex-direction: row;
@@ -189,7 +476,9 @@
     .side-nav {
         position: static;
         transform: none;
-        flex: 0 0 248px;
+        flex: 0 0 264px;
+        width: 264px;
+        max-width: none;
     }
 
     .app-main {
