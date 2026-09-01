@@ -32,9 +32,9 @@ export function Dialog({
         <div
             onClick={onCancel}
             style={{
-                position: 'absolute',
+                position: 'fixed',
                 inset: 0,
-                zIndex: 30,
+                zIndex: 1100,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

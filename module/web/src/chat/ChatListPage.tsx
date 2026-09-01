@@ -44,6 +44,7 @@ export function ChatListPage() {
     }, [])
 
     function onNewChat() {
+        if (creating) return // DS Button/EmptyState have no `disabled` — guard here instead
         setCreating(true)
         setCreateError(null)
         createChat()

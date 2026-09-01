@@ -100,9 +100,11 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
             body="Gender and date of birth let Uliss answer as if it knows who it is talking to. Skip it and nothing breaks."
             primary="Save"
             secondary="Skip for now"
+            skip="Skip for now"
             primaryDisabled={primaryDisabled}
             busy={busy}
             onSecondary={() => run(() => ({command: 'COMPLETE_PROFILE'}))}
+            onSkip={() => run(() => ({command: 'COMPLETE_PROFILE'}))}
             onPrimary={() =>
                 run(() => ({
                     command: 'COMPLETE_PROFILE',

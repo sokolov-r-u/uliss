@@ -36,11 +36,12 @@ export interface NoticeProps {
     children?: ReactNode
     primary?: string
     secondary?: string
-    /** Escape hatch for a blocking notice — 'Not now', 'Ask me later'. */
+    /** Escape hatch for a blocking notice — 'Not now', 'Ask me later'. Needs `onSkip`. */
     skip?: string
     progress?: { current: number; total: number }
     onPrimary?: () => void
     onSecondary?: () => void
+    onSkip?: () => void
     onClose?: () => void
     width?: number
 }
@@ -58,9 +59,11 @@ export function Notice({
                            progress,
                            onPrimary,
                            onSecondary,
+                           onSkip,
                            onClose,
                            width = 304,
                        }: NoticeProps) {
+    const hasSkip = blocking && !!skip && !!onSkip
     let shell: CSSProperties
     let pad = 26
     if (variant === 'plaque') {
@@ -165,9 +168,11 @@ export function Notice({
                             {primary}
                         </Button>
                     </div>
-                    {blocking && skip && (
+                    {hasSkip && (
                         <div style={{marginTop: 10, display: 'flex', justifyContent: 'center'}}>
               <span
+                  role="button"
+                  onClick={onSkip}
                   style={{
                       minHeight: 44,
                       display: 'flex',
