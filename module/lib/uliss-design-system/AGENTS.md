@@ -1,7 +1,7 @@
 # Design-system instructions
 
-Read the repository `AGENTS.md`, this module's existing migration reference, and the consuming module guidance before
-editing the design system. A durable module README will replace the migration reference in the next batch.
+Read the repository `AGENTS.md`, this module's `README.md`, and the consuming module guidance before editing the design
+system.
 
 ## Invariants
 
