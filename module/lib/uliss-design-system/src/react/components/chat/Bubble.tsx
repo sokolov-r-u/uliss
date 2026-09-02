@@ -18,6 +18,7 @@ export function Bubble({role, children}: BubbleProps) {
         lineHeight: 'var(--read-leading)',
         fontWeight: 'var(--read-weight)',
         color: 'var(--read-fg)',
+        whiteSpace: 'pre-wrap',
         textWrap: 'pretty',
     }
     if (role === 'me') {

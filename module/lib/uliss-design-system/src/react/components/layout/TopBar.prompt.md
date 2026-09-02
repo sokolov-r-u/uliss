@@ -10,3 +10,4 @@ The mobile header. Arrangement, not decoration: kicker says where you are, numer
 - `count={0}` renders — an empty product still states its count.
 - Only one action in `right`, two at the very most.
 - No wordmark, no back arrow. Sub-screens print a small `← Settings` row above their own kicker.
+- The hamburger is a native 44px `IconButton` named “Open navigation”; it is never a clickable span.

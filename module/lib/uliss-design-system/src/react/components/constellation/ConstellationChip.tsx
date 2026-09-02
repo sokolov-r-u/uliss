@@ -1,9 +1,5 @@
 import {TagDot} from './TagDot'
 
-// Membership, as plain text behind a coloured dot — no box, no fill, no pill.
-// Secondary memberships only: the dominant constellation is shown as an accent
-// path trail (root › … › leaf), not as a chip.
-
 export interface ConstellationChipProps {
     label: string
     color: string
@@ -14,46 +10,38 @@ export interface ConstellationChipProps {
     onClick?: () => void
 }
 
+/** Secondary membership with independent native label and remove actions. */
 export function ConstellationChip({label, color, size = 'md', onRemove, onClick}: ConstellationChipProps) {
     const sm = size === 'sm'
+    const content = <><TagDot color={color} size={sm ? 5 : 7}/><span style={{
+        fontFamily: 'var(--font-text)',
+        fontSize: sm ? 10 : 11,
+        letterSpacing: '0.8px',
+        color: 'var(--cream-dim)'
+    }}>{label}</span></>
     return (
-        <span
-            onClick={onClick}
-            style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: sm ? 5 : 6,
-                cursor: onClick ? 'pointer' : 'default',
-            }}
-        >
-      <TagDot color={color} size={sm ? 5 : 7}/>
-      <span
-          style={{
-              fontFamily: 'var(--font-text)',
-              fontSize: sm ? 10 : 11,
-              letterSpacing: '0.8px',
-              color: 'var(--cream-dim)',
-          }}
-      >
-        {label}
-      </span>
-            {onRemove && (
-                <span
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onRemove?.()
-                    }}
-                    style={{
-                        color: 'var(--text-faint)',
-                        fontFamily: 'var(--font-text)',
-                        fontSize: 11,
-                        cursor: 'pointer',
-                        padding: '0 2px',
-                    }}
-                >
-          ×
+        <span style={{display: 'inline-flex', alignItems: 'center', gap: sm ? 5 : 6}}>
+            {onClick ? (
+                <button type="button" onClick={onClick} style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: sm ? 5 : 6,
+                    padding: 0,
+                    border: 0,
+                    background: 'transparent',
+                    cursor: 'pointer'
+                }}>{content}</button>
+            ) : content}
+            {onRemove && <button type="button" aria-label={`Remove ${label}`} onClick={onRemove}
+                                 style={{
+                                     color: 'var(--text-faint)',
+                                     fontFamily: 'var(--font-text)',
+                                     fontSize: 11,
+                                     cursor: 'pointer',
+                                     padding: '0 2px',
+                                     border: 0,
+                                     background: 'transparent'
+                                 }}>×</button>}
         </span>
-            )}
-    </span>
     )
 }

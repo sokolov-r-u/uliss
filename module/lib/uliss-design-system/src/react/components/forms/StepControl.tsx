@@ -18,11 +18,23 @@ export interface StepControlProps {
     big?: boolean
     /** Renders a preview above the label — e.g. "Aa" at that step's px. */
     renderStep?: (step: Step, active: boolean) => ReactNode
+    label?: string
+    disabled?: boolean
 }
 
-export function StepControl({steps = [], value, onPick, big = false, renderStep}: StepControlProps) {
+export function StepControl({
+                                steps = [],
+                                value,
+                                onPick,
+                                big = false,
+                                renderStep,
+                                label,
+                                disabled = false
+                            }: StepControlProps) {
     return (
         <div
+            role="radiogroup"
+            aria-label={label}
             style={{
                 display: 'grid',
                 gridTemplateColumns: `repeat(${steps.length}, 1fr)`,
@@ -32,9 +44,22 @@ export function StepControl({steps = [], value, onPick, big = false, renderStep}
             {steps.map((s, i) => {
                 const on = s.id === value
                 return (
-                    <div
+                    <button
+                        type="button"
+                        role="radio"
+                        aria-checked={on}
+                        disabled={disabled}
                         key={s.id}
                         onClick={onPick ? () => onPick(s.id) : undefined}
+                        tabIndex={on ? 0 : -1}
+                        onKeyDown={(event) => {
+                            if (!onPick || disabled || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
+                            event.preventDefault()
+                            const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
+                            const next = (i + delta + steps.length) % steps.length
+                            onPick(steps[next].id)
+                            requestAnimationFrame(() => event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
+                        }}
                         style={{
                             display: 'flex',
                             flexDirection: 'column',
@@ -43,7 +68,12 @@ export function StepControl({steps = [], value, onPick, big = false, renderStep}
                             padding: big ? '13px 4px 12px' : '11px 4px 10px',
                             borderLeft: i === 0 ? 'none' : '1px solid var(--line)',
                             background: on ? 'var(--bg-surface)' : 'transparent',
-                            cursor: onPick ? 'pointer' : 'default',
+                            borderTop: 'none',
+                            borderRight: 'none',
+                            borderBottom: 'none',
+                            color: 'inherit',
+                            opacity: disabled ? 0.5 : 1,
+                            cursor: disabled ? 'not-allowed' : onPick ? 'pointer' : 'default',
                         }}
                     >
                         {renderStep && renderStep(s, on)}
@@ -58,7 +88,7 @@ export function StepControl({steps = [], value, onPick, big = false, renderStep}
                         >
               {s.short || s.label}
             </span>
-                    </div>
+                    </button>
                 )
             })}
         </div>

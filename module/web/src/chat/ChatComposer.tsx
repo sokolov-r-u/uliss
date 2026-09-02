@@ -1,5 +1,4 @@
-import {Icon} from '@uliss/design-system'
-import {MicButton} from './MicButton'
+import {ChatDock} from '@uliss/design-system'
 
 /**
  * The composer at the foot of a chat — DS `ChatDock` shape (46px `--bg-panel` field, `--line-strong`
@@ -17,32 +16,17 @@ export function ChatComposer({
     disabled?: boolean
 }) {
     return (
-        <form
+        <ChatDock
             className="chat-composer"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            disabled={disabled}
+            voiceDisabled
+            placeholder="Write a thought…"
             onSubmit={(e) => {
                 e.preventDefault()
                 onSubmit()
             }}
-        >
-            <div className="chat-dock">
-                <input
-                    type="text"
-                    className="chat-dock-input"
-                    placeholder="Reply by voice or text…"
-                    value={value}
-                    onChange={(e) => onChange(e.target.value)}
-                    disabled={disabled}
-                />
-                <MicButton/>
-                <button
-                    type="submit"
-                    className="composer-tile composer-tile-send"
-                    disabled={disabled || value.trim() === ''}
-                    aria-label="Send"
-                >
-                    <Icon name="arrowUp" size={18}/>
-                </button>
-            </div>
-        </form>
+        />
     )
 }

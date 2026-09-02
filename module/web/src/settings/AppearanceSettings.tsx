@@ -57,7 +57,7 @@ export function AppearanceSettings() {
     return (
         <SettingsShell kicker="Appearance">
             <SectionLabel>Ground</SectionLabel>
-            <div className="settings-stack">
+            <div className="settings-stack" role="radiogroup" aria-label="Ground">
                 {GROUNDS.map((g) => {
                     const m = GROUND_META[g]
                     return (
@@ -76,7 +76,7 @@ export function AppearanceSettings() {
             </div>
 
             <SectionLabel>Accent</SectionLabel>
-            <div className="settings-swatches">
+            <div className="settings-swatches" role="radiogroup" aria-label="Accent">
                 {ACCENTS.map((a) => (
                     <Swatch
                         key={a}
@@ -90,6 +90,7 @@ export function AppearanceSettings() {
 
             <SectionLabel>Text size</SectionLabel>
             <StepControl
+                label="Text size"
                 big
                 value={theme.read}
                 steps={READS.map((r) => ({id: r, label: READ_META[r].label}))}

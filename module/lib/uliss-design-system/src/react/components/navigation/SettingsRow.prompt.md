@@ -8,3 +8,6 @@ A Settings row — the hint states the current value.
 ```
 
 Write the hint as data, never as blurb: "Style · accent" is acceptable, "Customise how Uliss looks" is not.
+
+The row is one native button and accepts standard button/ARIA attributes. Use `disabled` for a confirmed but unavailable
+setting; do not simulate inertness with `pointer-events` or opacity on an interactive wrapper.

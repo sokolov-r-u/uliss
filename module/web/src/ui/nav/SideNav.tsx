@@ -1,7 +1,9 @@
 import type {ReactNode} from 'react'
 import {NavLink, useNavigate} from 'react-router-dom'
-import {Icon, IconButton, Kicker, NavRow, StarMark, Wordmark} from '@uliss/design-system'
+import {useEffect, useState} from 'react'
+import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {useAuth} from '../../auth/AuthContext'
+import {type Chat, listChats} from '../../chat/chatApi'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -18,9 +20,25 @@ const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
  * it since the drawer CSS no longer applies. The pinned / chat-note lists from the mock land in
  * wave 5 (they need backend data); until then the body shows the day-one empty note.
  */
-export function SideNav({open, onClose}: { open: boolean; onClose: () => void }) {
+export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
+    open: boolean
+    collapsed: boolean
+    onClose: () => void
+    onToggleCollapsed: () => void
+}) {
     const {logout} = useAuth()
     const navigate = useNavigate()
+    const [chats, setChats] = useState<Chat[]>([])
+
+    useEffect(() => {
+        let active = true
+        listChats().then((items) => {
+            if (active) setChats(items)
+        }).catch(() => undefined)
+        return () => {
+            active = false
+        }
+    }, [])
 
     const go = (to: string) => () => {
         onClose()
@@ -29,11 +47,15 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
 
     return (
         <>
-            {open && <div className="nav-backdrop" onClick={onClose} aria-hidden/>}
-            <aside className={open ? 'side-nav open' : 'side-nav'}>
+            {open && <button type="button" className="nav-backdrop" aria-label="Close navigation" onClick={onClose}/>}
+            <aside id="app-navigation" aria-label="Primary navigation"
+                   className={`side-nav${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
                 <div className="side-nav-top">
                     <div className="side-nav-head">
-                        <Wordmark size={24}/>
+                        <span className="side-nav-wordmark"><Wordmark size={24}/></span>
+                        <span className="side-nav-mobile-close"><IconButton s={44} title="Close navigation"
+                                                                            onClick={onClose}><Icon name="close"
+                                                                                                    size={17}/></IconButton></span>
                         <IconButton s={30} title="Search" onClick={go('/search')}><Icon name="search"
                                                                                         size={16}/></IconButton>
                     </div>
@@ -53,8 +75,17 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
                 </div>
 
                 <div className="side-nav-body">
-                    <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Nothing here yet</Kicker>
-                    <p className="side-nav-body-note">Chats and notes will collect here as you talk.</p>
+                    {chats.length === 0 ? (
+                        <>
+                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">No chats yet</Kicker>
+                            <p className="side-nav-body-note">Start a chat and it will appear here.</p>
+                        </>
+                    ) : (
+                        <div className="side-nav-chat-list" aria-label="Recent chats">
+                            {chats.map((chat) => <ListRow key={chat.id} title={chat.title} dots={false}
+                                                          onClick={go(`/chats/${chat.id}`)}/>)}
+                        </div>
+                    )}
                 </div>
 
                 <div className="side-nav-foot">
@@ -62,6 +93,12 @@ export function SideNav({open, onClose}: { open: boolean; onClose: () => void })
                     <button type="button" className="side-nav-signout" onClick={() => void logout()}>Sign out</button>
                     <IconButton s={26} title="Settings" onClick={go('/settings')}><Icon name="gear"
                                                                                         size={15}/></IconButton>
+                    <span className="side-nav-collapse">
+                        <IconButton s={30} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                                    onClick={onToggleCollapsed}>
+                            <Icon name="chevron" size={14} rotate={collapsed ? -90 : 90}/>
+                        </IconButton>
+                    </span>
                 </div>
             </aside>
         </>

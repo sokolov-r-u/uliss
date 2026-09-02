@@ -1,60 +1,74 @@
-import type {ReactNode} from 'react'
+import type {ChangeEventHandler, FormEventHandler, ReactNode} from 'react'
 import {Icon} from '../icons/Icon'
-
-// The composer pinned to the bottom of a chat: a 46px --bg-panel field with a
-// --line-strong edge and an inline mic tile. Voice and typing are the same
-// dock; the mic is not a separate mode. `children` is centred in a strip above
-// the field — that slot is where ActionChip goes.
+import {IconButton} from '../actions/IconButton'
 
 export interface ChatDockProps {
     placeholder?: string
+    value: string
+    onChange: ChangeEventHandler<HTMLInputElement>
+    onSubmit?: FormEventHandler<HTMLFormElement>
+    disabled?: boolean
+    voiceDisabled?: boolean
     onMic?: () => void
     /** Centred above the field — reserved for ActionChip. */
     children?: ReactNode
+    className?: string
 }
 
-export function ChatDock({placeholder = 'Write a thought…', onMic, children}: ChatDockProps) {
+/** Native text composer with explicit send and unavailable-voice states. */
+export function ChatDock({
+                             placeholder = 'Write a thought…',
+                             value,
+                             onChange,
+                             onSubmit,
+                             disabled = false,
+                             voiceDisabled = false,
+                             onMic,
+                             children,
+                             className,
+                         }: ChatDockProps) {
     return (
-        <div style={{padding: '10px 16px 18px', flex: '0 0 auto'}}>
+        <form className={className} onSubmit={onSubmit} style={{padding: '10px 16px 18px', flex: '0 0 auto'}}>
             {children && <div style={{display: 'flex', justifyContent: 'center', marginBottom: 10}}>{children}</div>}
-            <div
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    height: 46,
-                    padding: '0 6px 0 16px',
-                    background: 'var(--bg-panel)',
-                    border: '1px solid var(--line-strong)',
-                }}
-            >
-        <span
-            style={{
-                flex: 1,
-                color: 'var(--text-faint)',
-                fontFamily: 'var(--font-text)',
-                fontSize: 12.5,
-                letterSpacing: '0.3px',
-            }}
-        >
-          {placeholder}
-        </span>
-                <div
-                    onClick={onMic}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                height: 46,
+                padding: '0 6px 0 16px',
+                background: 'var(--bg-panel)',
+                border: '1px solid var(--line-strong)'
+            }}>
+                <input
+                    type="text"
+                    value={value}
+                    onChange={onChange}
+                    placeholder={placeholder}
+                    disabled={disabled}
+                    aria-label="Message"
                     style={{
-                        width: 34,
-                        height: 34,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        background: 'var(--bg-muted)',
-                        color: 'var(--accent-2)',
-                        cursor: 'pointer',
+                        flex: 1,
+                        minWidth: 0,
+                        height: '100%',
+                        border: 0,
+                        outline: 0,
+                        background: 'transparent',
+                        color: 'var(--cream)',
+                        fontFamily: 'var(--font-text)',
+                        fontSize: 12.5,
+                        letterSpacing: '0.3px'
                     }}
-                >
+                />
+                <IconButton s={34} title={voiceDisabled ? 'Voice input unavailable' : 'Voice input'}
+                            disabled={voiceDisabled || disabled} onClick={onMic}
+                            style={{background: 'var(--bg-muted)'}}>
                     <Icon name="mic" size={18}/>
-                </div>
+                </IconButton>
+                <IconButton s={34} title="Send" type="submit" disabled={disabled || value.trim() === ''}
+                            style={{background: 'var(--bg-muted)'}}>
+                    <Icon name="arrowUp" size={18}/>
+                </IconButton>
             </div>
-        </div>
+        </form>
     )
 }

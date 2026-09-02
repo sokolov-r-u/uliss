@@ -14,8 +14,7 @@ export function AccountSettings() {
         <SettingsShell kicker="Account">
             <SectionLabel>Profile</SectionLabel>
             <p className="settings-para">
-                Uliss keeps your email for sign-in and the display name you chose during onboarding.
-                Editing them from here isn’t available yet.
+                Profile details are not available to this client. Account editing is unavailable.
             </p>
 
             <SectionLabel>Session</SectionLabel>

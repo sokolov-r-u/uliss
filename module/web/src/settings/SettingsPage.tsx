@@ -20,9 +20,9 @@ export function SettingsPage() {
             label: 'Appearance',
             hint: `${cap(t.ground)} · ${cap(t.accent)} · ${cap(t.read)} text`
         },
-        {to: '/settings/sky', label: 'Sky', hint: 'Map styling'},
-        {to: '/settings/account', label: 'Account', hint: 'Sign out'},
-        {to: '/settings/language', label: 'Language', hint: 'English'},
+        {to: '/settings/sky', label: 'Sky', hint: 'Unavailable · no graph data'},
+        {to: '/settings/account', label: 'Account', hint: 'Sign out available'},
+        {to: '/settings/language', label: 'Language', hint: 'English · fixed'},
     ]
 
     return (

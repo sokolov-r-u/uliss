@@ -1,17 +1,25 @@
+import type {ButtonHTMLAttributes} from 'react'
 import {Icon, type IconName} from '../icons/Icon'
 
 // The small bordered action that sits inside content rather than chrome —
 // "Update", "Summarize". 26px tall, accent border, glyph first.
-export interface ActionChipProps {
+export interface ActionChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
     label?: string
     icon?: IconName | null
-    onClick?: () => void
 }
 
-export function ActionChip({label = 'Summarize', icon = 'summary', onClick}: ActionChipProps) {
+export function ActionChip({
+                               label = 'Summarize',
+                               icon = 'summary',
+                               type = 'button',
+                               disabled = false,
+                               ...buttonProps
+                           }: ActionChipProps) {
     return (
         <button
-            onClick={onClick}
+            {...buttonProps}
+            type={type}
+            disabled={disabled}
             style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -26,7 +34,8 @@ export function ActionChip({label = 'Summarize', icon = 'summary', onClick}: Act
                 fontWeight: 'var(--w-emphasis)',
                 letterSpacing: '2px',
                 textTransform: 'uppercase',
-                cursor: 'pointer',
+                opacity: disabled ? 0.5 : 1,
+                cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'color var(--dur-hover) var(--ease)',
             }}
         >

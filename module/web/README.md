@@ -20,13 +20,20 @@ cacheable; HTML is served with `no-store` behavior.
 
 ## Application shell
 
-`AppShell` stays mounted around routed content and hosts onboarding once per authenticated session. The layout uses a
-mobile top bar/drawer and a permanent desktop navigation rail at the CSS breakpoint. Routes cover chats, notes,
+`AppShell` stays mounted around routed content and hosts onboarding once per authenticated session. The CSS-only shell
+uses a mobile screen TopBar and drawer below 768px, a permanent compact rail from 768–1023px, and a bounded,
+collapsible/resizable sidebar from 1024px. Routes cover chats, notes,
 constellations, sky, updates, search, and settings; unknown routes return to chats.
 
 Notes, constellations, sky, updates, and search currently have no complete backend. Their screens use design-system
 empty states instead of simulated data. Appearance settings are functional and persisted locally; other settings remain
 limited to behavior supported by current APIs.
+
+Those backend-less areas are split into typed, data-independent view components and production adapters.
+`NoteViewModel`,
+`ConstellationTreeNode`, `SkyGraphModel`, and `UpdateViewModel` are frontend-only composition models, not future DTOs.
+The views include populated list/menu/dialog, search, tree/branch, graph pan/zoom/panel, and update queue/filter/Undo
+presentation; production adapters pass empty collections or no graph model until real endpoints exist.
 
 ## Chat
 
@@ -56,3 +63,16 @@ npm run build -w @uliss/web
 
 The repository rules prohibit starting Vite dev or preview servers without explicit permission.
 
+## Visual and keyboard harness
+
+`visual/index.html` is a test-only Vite entry. Its fixtures live outside `src`, so the production Rollup graph cannot
+import them. Playwright covers the reference phone/tablet/landscape/desktop viewports, theme/read combinations,
+reduced-motion, dialogs, pending/disabled states, native tab order, listbox keys, focus traps, and static source rules.
+
+```bash
+npm run visual:test -w @uliss/web
+npm run visual:update -w @uliss/web
+```
+
+Both commands start the harness server and therefore require the explicit application-run permission described in the
+repository instructions.

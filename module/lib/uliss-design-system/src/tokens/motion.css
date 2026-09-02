@@ -1,6 +1,6 @@
-/* The whole motion inventory. Uliss animates four things: a colour transition on
-   hover, a pending pulse, a slow star twinkle, one modal/notice entrance.
-   No slides, no bounces, no skeleton shimmer. */
+/* The whole motion inventory. In addition to colour, pending, twinkle and notice
+   motion, the mobile navigation drawer may enter horizontally. No other slide,
+   bounce or skeleton motion is licensed. */
 
 :root {
     --dur-hover: 0.15s; /* colour / border / opacity only */
@@ -8,6 +8,9 @@
 
     --dur-notice: 0.5s; /* the one entrance animation */
     --ease-notice: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+    --dur-drawer: 0.22s;
+    --ease-drawer: cubic-bezier(0.2, 0.7, 0.2, 1);
 
     --pulse-period: 1.9s; /* pending link / unsettled node */
 
@@ -72,6 +75,13 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        scroll-behavior: auto !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+
     .u-pending, .u-pending-halo {
         animation: none
     }

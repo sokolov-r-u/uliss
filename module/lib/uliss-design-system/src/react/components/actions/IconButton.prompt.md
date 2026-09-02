@@ -6,3 +6,6 @@ One glyph, one hit target, no chrome.
 ```
 
 Give it a `title` — these are unlabelled and it is the only affordance. Use `s={44}` on phone.
+
+It is a native button. `title` is required and becomes the accessible name unless an explicit `aria-label` is supplied.
+Standard button attributes, native keyboard activation, focus, `type` and `disabled` all apply.

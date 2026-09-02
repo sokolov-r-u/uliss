@@ -10,3 +10,6 @@ A destination in the sidebar or drawer.
 
 Five destinations, that order, everywhere. `dot` means "something new" — Uliss never puts a count on an icon; counts
 live inside the screen that owns them.
+
+`NavRow` is visual content only. Put it inside the router's `NavLink`; the link owns navigation, focus and keyboard
+activation. Do not add an `onClick` or a second interactive root to the row.

@@ -1,3 +1,4 @@
+import {useEffect, useId, useRef} from 'react'
 import {Button} from '../actions/Button'
 
 // The confirmation. Says what will happen and what survives, then offers a way
@@ -28,9 +29,41 @@ export function Dialog({
                            onCancel,
                            width = 280,
                        }: DialogProps) {
+    const titleId = useId()
+    const dialogRef = useRef<HTMLDivElement>(null)
+
+    useEffect(() => {
+        const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        const dialog = dialogRef.current
+        const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
+        focusable()[0]?.focus()
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') {
+                event.preventDefault()
+                onCancel?.()
+            } else if (event.key === 'Tab') {
+                const items = focusable()
+                if (items.length === 0) return
+                const first = items[0]
+                const last = items[items.length - 1]
+                if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault()
+                    last.focus()
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault()
+                    first.focus()
+                }
+            }
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => {
+            document.removeEventListener('keydown', onKeyDown)
+            previous?.focus()
+        }
+    }, [onCancel])
+
     return (
         <div
-            onClick={onCancel}
             style={{
                 position: 'fixed',
                 inset: 0,
@@ -42,9 +75,23 @@ export function Dialog({
                 padding: 28,
             }}
         >
+            {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={onCancel} style={{
+                position: 'absolute',
+                inset: 0,
+                width: '100%',
+                height: '100%',
+                padding: 0,
+                border: 0,
+                background: 'transparent',
+                cursor: 'default'
+            }}/>}
             <div
-                onClick={(e) => e.stopPropagation()}
+                ref={dialogRef}
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby={titleId}
                 style={{
+                    position: 'relative',
                     width: '100%',
                     maxWidth: width,
                     background: 'var(--bg-panel)',
@@ -56,6 +103,7 @@ export function Dialog({
                 }}
             >
         <span
+            id={titleId}
             style={{
                 fontFamily: 'var(--font-text)',
                 fontSize: 17,

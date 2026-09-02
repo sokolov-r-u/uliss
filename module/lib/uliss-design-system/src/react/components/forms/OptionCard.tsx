@@ -25,6 +25,8 @@ export interface OptionCardProps {
     marker?: 'tick' | 'dot'
     on?: boolean
     onPick?: () => void
+    disabled?: boolean
+    tabIndex?: number
 }
 
 export function OptionCard({
@@ -36,11 +38,18 @@ export function OptionCard({
                                marker = 'tick',
                                on = false,
                                onPick,
+                               disabled = false,
+                               tabIndex,
                            }: OptionCardProps) {
     const dot = marker === 'dot'
     const pv = preview != null ? preview : children
     return (
-        <div
+        <button
+            type="button"
+            role="radio"
+            aria-checked={on}
+            disabled={disabled}
+            tabIndex={tabIndex}
             onClick={onPick}
             style={{
                 display: 'flex',
@@ -57,7 +66,12 @@ export function OptionCard({
                         ? '0 0 18px -8px var(--accent-glow-mid)'
                         : '0 0 18px -10px var(--accent-glow)'
                     : 'none',
-                cursor: onPick ? 'pointer' : 'default',
+                width: '100%',
+                color: 'inherit',
+                textAlign: 'left',
+                font: 'inherit',
+                opacity: disabled ? 0.5 : 1,
+                cursor: disabled ? 'not-allowed' : onPick ? 'pointer' : 'default',
             }}
         >
             {dot && (
@@ -120,7 +134,7 @@ export function OptionCard({
                 ) : (
                     <span style={{width: 13, height: 13, border: '1px solid var(--line-strong)'}}/>
                 ))}
-        </div>
+        </button>
     )
 }
 
@@ -130,12 +144,28 @@ export interface OptionListProps {
     selected?: number
     marker?: 'tick' | 'dot'
     onPick?: (index: number) => void
+    label?: string
+    disabled?: boolean
 }
 
 // The column the rows sit in: 8px apart, nothing hidden behind a dropdown.
-export function OptionList({options = [], selected = 0, marker = 'dot', onPick}: OptionListProps) {
+export function OptionList({
+                               options = [],
+                               selected = 0,
+                               marker = 'dot',
+                               onPick,
+                               label,
+                               disabled = false
+                           }: OptionListProps) {
     return (
-        <div style={{display: 'flex', flexDirection: 'column', gap: 8}}>
+        <div role="radiogroup" aria-label={label} onKeyDown={(event) => {
+            if (!onPick || disabled || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
+            event.preventDefault()
+            const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
+            const next = (selected + delta + options.length) % options.length
+            onPick(next)
+            requestAnimationFrame(() => event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
+        }} style={{display: 'flex', flexDirection: 'column', gap: 8}}>
             {options.map((o, i) => {
                 const c = typeof o === 'string' ? {label: o} : o
                 return (
@@ -145,6 +175,8 @@ export function OptionList({options = [], selected = 0, marker = 'dot', onPick}:
                         marker={marker}
                         on={i === selected}
                         onPick={onPick ? () => onPick(i) : undefined}
+                        disabled={disabled || c.disabled}
+                        tabIndex={i === selected ? 0 : -1}
                     />
                 )
             })}

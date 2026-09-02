@@ -41,6 +41,10 @@ client-side. The pages consume CSS and fonts from the `:uliss-design-system` jar
 render
 a seeded star field, and disable caching for form pages.
 
+The sign-in/register switch is an accessible tablist: ArrowLeft/ArrowRight changes tabs, the active tab is the only tab
+in the normal Tab order, its panel is labelled and hidden semantically, and focus moves to the first field. Buttons and
+fields share the design-system focus-visible and reduced-motion rules.
+
 The historical visual source is the external Claude Design project `Uliss Design System`. It is provenance, not a
 guaranteed available tool. Exact future comparisons require an accessible MCP integration or an exported reference.
 

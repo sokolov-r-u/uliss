@@ -1,107 +1,196 @@
-import {LabelRow} from '../layout/LabelRow'
+import {type KeyboardEvent, useEffect, useId, useRef, useState} from 'react'
+import {Greek} from '../brand/Greek'
 import {Icon} from '../icons/Icon'
+import {LabelRow} from '../layout/LabelRow'
 
-// A closed select is a quiet 48px row; open, it takes the accent border and
-// drops a --bg-panel list beneath. The chevron flips, over 0.2s.
-
-export interface SelectOption {
+export interface SelectOption<T extends string = string> {
+    value: T
     label: string
+    greek?: string
 }
 
-export interface SelectProps {
+export interface SelectProps<T extends string = string> {
     label?: string
     greek?: string
-    value?: string | null
+    value: T | null
     placeholder?: string
-    options?: (string | SelectOption)[]
-    selected?: number
+    options: SelectOption<T>[]
+    onChange: (value: T) => void
     open?: boolean
-    onToggle?: () => void
-    onPick?: (index: number) => void
+    onOpenChange?: (open: boolean) => void
+    disabled?: boolean
+    name?: string
+    'aria-label'?: string
 }
 
-export function Select({
-                           label,
-                           greek,
-                           value = null,
-                           placeholder = 'Select…',
-                           options = [],
-                           selected = -1,
-                           open = false,
-                           onToggle,
-                           onPick,
-                       }: SelectProps) {
-    const empty = value == null
+/** Controlled, keyboard-operable single-select listbox with an optional controlled open state. */
+export function Select<T extends string = string>({
+                                                      label,
+                                                      greek,
+                                                      value,
+                                                      placeholder = 'Select…',
+                                                      options,
+                                                      onChange,
+                                                      open,
+                                                      onOpenChange,
+                                                      disabled = false,
+                                                      name,
+                                                      'aria-label': ariaLabel,
+                                                  }: SelectProps<T>) {
+    const generatedId = useId()
+    const listboxId = `${generatedId}-listbox`
+    const triggerRef = useRef<HTMLButtonElement>(null)
+    const listboxRef = useRef<HTMLDivElement>(null)
+    const [internalOpen, setInternalOpen] = useState(false)
+    const selectedIndex = options.findIndex((option) => option.value === value)
+    const [activeIndex, setActiveIndex] = useState(Math.max(selectedIndex, 0))
+    const isOpen = open ?? internalOpen
+    const current = selectedIndex >= 0 ? options[selectedIndex] : null
+
+    const setOpen = (next: boolean, restoreFocus = false) => {
+        if (open === undefined) setInternalOpen(next)
+        onOpenChange?.(next)
+        if (!next && restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus())
+    }
+
+    useEffect(() => {
+        if (!isOpen) return
+        setActiveIndex(selectedIndex >= 0 ? selectedIndex : 0)
+        requestAnimationFrame(() => listboxRef.current?.focus())
+    }, [isOpen, selectedIndex])
+
+    const move = (delta: number) => {
+        if (options.length === 0) return
+        setActiveIndex((index) => (index + delta + options.length) % options.length)
+    }
+
+    const pick = (index: number) => {
+        const option = options[index]
+        if (!option) return
+        onChange(option.value)
+        setOpen(false, true)
+    }
+
+    const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (event.key === 'ArrowDown') {
+            event.preventDefault()
+            move(1)
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault()
+            move(-1)
+        } else if (event.key === 'Home') {
+            event.preventDefault()
+            setActiveIndex(0)
+        } else if (event.key === 'End') {
+            event.preventDefault()
+            setActiveIndex(Math.max(options.length - 1, 0))
+        } else if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            pick(activeIndex)
+        } else if (event.key === 'Escape' || event.key === 'Tab') {
+            if (event.key === 'Escape') event.preventDefault()
+            setOpen(false, event.key === 'Escape')
+        }
+    }
+
     return (
         <div style={{position: 'relative'}}>
             {label && <LabelRow label={label} greek={greek}/>}
-            <div
-                onClick={onToggle}
+            {name && <input type="hidden" name={name} value={value ?? ''}/>}
+            <button
+                ref={triggerRef}
+                type="button"
+                disabled={disabled}
+                aria-label={ariaLabel ?? label}
+                aria-haspopup="listbox"
+                aria-expanded={isOpen}
+                aria-controls={listboxId}
+                onClick={() => setOpen(!isOpen)}
+                onKeyDown={(event) => {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                        event.preventDefault()
+                        setOpen(true)
+                    }
+                }}
                 style={{
+                    width: '100%',
                     height: 48,
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
                     padding: '0 15px',
                     background: 'var(--bg-panel)',
-                    cursor: 'pointer',
-                    border: open ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
-                    boxShadow: open ? '0 0 18px -6px var(--accent-glow-mid)' : 'none',
+                    color: current ? 'var(--cream)' : 'var(--text-faint)',
+                    cursor: disabled ? 'not-allowed' : 'pointer',
+                    opacity: disabled ? 0.5 : 1,
+                    border: isOpen ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
+                    boxShadow: isOpen ? '0 0 18px -6px var(--accent-glow-mid)' : 'none',
+                    fontFamily: 'var(--font-text)',
+                    fontSize: 13,
+                    letterSpacing: '0.8px',
+                    textAlign: 'left',
                 }}
             >
-        <span
-            style={{
-                flex: 1,
-                fontFamily: 'var(--font-text)',
-                fontSize: 13,
-                letterSpacing: '0.8px',
-                color: empty ? 'var(--text-faint)' : 'var(--cream)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-            }}
-        >
-          {value || placeholder}
-        </span>
                 <span
+                    style={{flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}}>
+                    {current?.label ?? placeholder}
+                </span>
+                <span style={{
+                    color: isOpen ? 'var(--accent-2)' : 'var(--text-muted)',
+                    display: 'flex',
+                    transform: isOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform var(--dur-hover) var(--ease)'
+                }}>
+                    <Icon name="chevron" size={14}/>
+                </span>
+            </button>
+            {isOpen && (
+                <div
+                    ref={listboxRef}
+                    id={listboxId}
+                    role="listbox"
+                    tabIndex={0}
+                    aria-label={ariaLabel ?? label}
+                    aria-activedescendant={options[activeIndex] ? `${listboxId}-${activeIndex}` : undefined}
+                    onKeyDown={onListKeyDown}
                     style={{
-                        color: open ? 'var(--accent-2)' : 'var(--text-muted)',
-                        display: 'flex',
-                        transform: open ? 'rotate(180deg)' : 'none',
-                        transition: 'transform .2s',
+                        background: 'var(--bg-panel)',
+                        border: '1px solid var(--line-strong)',
+                        borderTop: 'none',
+                        outline: 'none'
                     }}
                 >
-          <Icon name="chevron" size={14}/>
-        </span>
-            </div>
-            {open && (
-                <div style={{background: 'var(--bg-panel)', border: '1px solid var(--line-strong)', borderTop: 'none'}}>
-                    {options.map((o, i) => {
-                        const on = i === selected
+                    {options.map((option, index) => {
+                        const selected = option.value === value
+                        const active = index === activeIndex
                         return (
                             <div
-                                key={i}
-                                onClick={onPick ? () => onPick(i) : undefined}
+                                key={option.value}
+                                id={`${listboxId}-${index}`}
+                                role="option"
+                                aria-selected={selected}
+                                onMouseEnter={() => setActiveIndex(index)}
+                                onMouseDown={(event) => event.preventDefault()}
+                                onClick={() => pick(index)}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: 10,
-                                    height: 42,
+                                    minHeight: 44,
                                     padding: '0 15px',
-                                    background: on ? 'var(--bg-surface)' : 'transparent',
-                                    borderLeft: on ? '2px solid var(--accent)' : '2px solid transparent',
-                                    color: on ? 'var(--cream)' : 'var(--cream-dim)',
+                                    background: selected || active ? 'var(--bg-surface)' : 'transparent',
+                                    borderLeft: selected ? '2px solid var(--accent)' : '2px solid transparent',
+                                    color: selected ? 'var(--cream)' : 'var(--cream-dim)',
                                     fontFamily: 'var(--font-text)',
                                     fontSize: 12.5,
                                     letterSpacing: '0.8px',
                                     cursor: 'pointer',
                                 }}
                             >
-                                <span style={{flex: 1}}>{typeof o === 'string' ? o : o.label}</span>
-                                {on && (
-                                    <span style={{color: 'var(--accent-2)', display: 'flex'}}>
-                    <Icon name="tick" size={13}/>
-                  </span>
-                                )}
+                                <span style={{flex: 1}}>{option.label}</span>
+                                {option.greek && <Greek size={13}>{option.greek}</Greek>}
+                                {selected && <span style={{color: 'var(--accent-2)', display: 'flex'}}><Icon name="tick"
+                                                                                                             size={13}/></span>}
                             </div>
                         )
                     })}

@@ -14,3 +14,6 @@ Confirmation before anything irreversible.
 - The body must name what survives. Uliss owns a lot of the user's material; silence about consequences is the one
   unforgivable copy failure here.
 - `danger` = terracotta text. No red, no filled destructive button.
+- The overlay is an `aria-modal` dialog labelled by its title. On mount it focuses the first action, traps
+  Tab/Shift+Tab,
+  closes on Escape or backdrop activation, and restores the previously focused control on unmount.

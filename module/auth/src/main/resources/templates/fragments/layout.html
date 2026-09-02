@@ -122,6 +122,16 @@
       font-weight: var(--w-emphasis);
     }
 
+    button:focus-visible,
+    input:focus-visible {
+        outline: 2px solid var(--accent-2);
+        outline-offset: 3px;
+    }
+
+    .field-box input:focus-visible {
+        outline: none;
+    }
+
     .tab-panel--off { display: none; }
 
     .auth-body {
@@ -339,17 +349,17 @@
     <span class="tagline">Voice journal</span>
 
     <div class="auth-form-col" th:attr="data-active=${active}">
-      <nav class="auth-tabs">
+        <nav aria-label="Authentication" class="auth-tabs" role="tablist">
         <button class="auth-tab" data-tab="signin" th:classappend="${active == 'signin'} ? 'is-active'"
-                type="button">Sign in
+                aria-controls="signin-panel" role="tab" type="button">Sign in
         </button>
         <button class="auth-tab" data-tab="register" th:classappend="${active == 'register'} ? 'is-active'"
-                type="button">Register
+                aria-controls="register-panel" role="tab" type="button">Register
         </button>
       </nav>
 
       <!-- ── Sign in ───────────────────────────────────── -->
-      <div class="tab-panel" data-panel="signin"
+        <div aria-labelledby="signin-tab" class="tab-panel" data-panel="signin" id="signin-panel" role="tabpanel"
            th:classappend="${active == 'register'} ? 'tab-panel--off'">
         <form class="auth-body" method="post" novalidate th:action="@{/login}">
           <h1 class="auth-heading">Return to your sky</h1>
@@ -412,7 +422,7 @@
       </div>
 
       <!-- ── Register ──────────────────────────────────── -->
-      <div class="tab-panel" data-panel="register"
+        <div aria-labelledby="register-tab" class="tab-panel" data-panel="register" id="register-panel" role="tabpanel"
            th:classappend="${active == 'signin'} ? 'tab-panel--off'">
         <form class="auth-body" method="post" novalidate th:action="@{/register}" th:object="${registerForm}">
           <h1 class="auth-heading">Trace your first star</h1>
@@ -488,10 +498,15 @@
 
       function switchTab(name) {
         col.querySelectorAll('.auth-tab').forEach(function (t) {
-          t.classList.toggle('is-active', t.dataset.tab === name);
+            var active = t.dataset.tab === name;
+            t.classList.toggle('is-active', active);
+            t.setAttribute('aria-selected', String(active));
+            t.setAttribute('tabindex', active ? '0' : '-1');
         });
         col.querySelectorAll('.tab-panel').forEach(function (p) {
-          p.classList.toggle('tab-panel--off', p.dataset.panel !== name);
+            var active = p.dataset.panel === name;
+            p.classList.toggle('tab-panel--off', !active);
+            p.hidden = !active;
         });
         try { history.replaceState(null, '', name === 'register' ? '/register' : '/login'); } catch (e) {}
         focusFirst(name);
@@ -499,6 +514,14 @@
 
       col.querySelectorAll('[data-tab]').forEach(function (el) {
         el.addEventListener('click', function () { switchTab(el.dataset.tab); });
+          el.id = el.dataset.tab + '-tab';
+          el.addEventListener('keydown', function (event) {
+              if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+              event.preventDefault();
+              var next = el.dataset.tab === 'signin' ? 'register' : 'signin';
+              switchTab(next);
+              col.querySelector('[data-tab="' + next + '"]').focus();
+          });
       });
 
       document.querySelectorAll('.eye[data-toggle]').forEach(function (btn) {
@@ -508,7 +531,7 @@
         });
       });
 
-      focusFirst(col.getAttribute('data-active') || 'signin');
+        switchTab(col.getAttribute('data-active') || 'signin');
     })();
   </script>
 </div>
