@@ -6,8 +6,6 @@
   documentation alone.
 - For every touched module, read its closest `AGENTS.md` and `README.md`. When working from the repository root, nested
   instructions are not assumed to be loaded automatically.
-- During the migration from Claude Code, a module that does not yet have `AGENTS.md`/`README.md` still uses its existing
-  `CLAUDE.md` as temporary reference material. Remove this fallback when the migration is complete.
 - For a design-system component, also read its adjacent `<Component>.prompt.md` before using or changing it.
 - Treat source code, migrations, manifests, the Gradle wrapper, and the version catalog as authoritative. Documentation
   and ignored task files can be stale.
@@ -79,4 +77,3 @@ Obtain explicit per-request permission before crossing any of these limits:
   `:uliss-design-system`.
 - Stable cross-cutting explanations live in `docs/ARCHITECTURE.md`; deployment commands and topology live in
   `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`.
-
