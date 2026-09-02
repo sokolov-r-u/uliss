@@ -6,11 +6,11 @@
 ## Two consumers
 
 The npm package exports React/TypeScript source directly from `src/react/index.ts`; Vite transpiles it as part of the
-web application. It also exports `src/styles.css`, individual tokens, and assets.
+web application. It also exports `src/styles.css` and individual tokens.
 
-The Gradle module runs the npm/PostCSS build and packages processed CSS, fonts, and assets beneath
-`META-INF/resources/ds` in its jar. Spring Boot then serves those resources under `/ds/**` for auth. Relative paths must
-therefore work both from the source tree in Vite and from the jar resource layout.
+The Gradle module runs the npm/PostCSS build and packages processed CSS and fonts beneath `META-INF/resources/ds` in its
+jar. Spring Boot then serves those resources under `/ds/**` for auth. Relative font paths must therefore work both from
+the source tree in Vite and from the jar resource layout.
 
 The Gradle Node plugin currently downloads the project-pinned Node version declared in `build.gradle.kts`. The npm and
 Gradle module versions are independent build metadata; changing either must be an explicit release/versioning task.
@@ -57,4 +57,3 @@ npm run build -w @uliss/design-system
 
 When packaging changes, inspect the jar for the expected `META-INF/resources/ds/**` entries. When public components or
 tokens change, also build the affected web or auth consumer.
-

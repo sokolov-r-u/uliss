@@ -6,11 +6,11 @@ system.
 ## Invariants
 
 - This directory is both npm package `@uliss/design-system` and Gradle module `:uliss-design-system`.
-- React consumes TypeScript source directly through the package export. The Gradle jar packages built CSS, fonts, and
-  assets for auth under `META-INF/resources/ds`.
+- React consumes TypeScript source directly through the package export. The Gradle jar packages built CSS and fonts for
+  auth under `META-INF/resources/ds`.
 - Keep CSS source split into the existing token files and imported through `src/styles.css`; do not introduce a second
   monolithic source of truth.
-- Preserve relative font/asset paths that work both from Vite and from `/ds/**` in the jar.
+- Preserve relative font paths that work both from Vite and from `/ds/**` in the jar.
 - Theme behavior is controlled by the documented `<html>` data attributes and CSS custom properties.
 - Read a component's adjacent `<Component>.prompt.md` before using or changing it. Treat those files as behavioral
   design contracts, not auto-loaded agent instructions.

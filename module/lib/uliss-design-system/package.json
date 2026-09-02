@@ -6,8 +6,7 @@
   "exports": {
     ".": "./src/react/index.ts",
     "./styles.css": "./src/styles.css",
-    "./tokens/*": "./src/tokens/*",
-    "./assets/*": "./src/assets/*"
+    "./tokens/*": "./src/tokens/*"
   },
   "files": [
     "src"

@@ -27,7 +27,7 @@ Read the repository `AGENTS.md` and this module's `README.md` before editing `mo
 - Changes to client grants, token claims, subject identity, TTLs, redirect URIs, password hashing, gRPC security, or
   login availability are security-sensitive contract changes and require explicit scope plus tests.
 - Login/registration pages consume the shared design-system resources under `/ds/**`. Read the design-system
-  instructions before changing shared tokens or assets.
+  instructions before changing shared tokens or fonts.
 - Flyway migrations are append-only once shared. Never edit an applied migration to change production state.
 
 ## Verification
@@ -36,4 +36,3 @@ Read the repository `AGENTS.md` and this module's `README.md` before editing `mo
 - Use `./gradlew :auth:integrationTest` when persistence, migrations, registered clients, signing keys, or the complete
   OAuth flow changes; Docker is required.
 - Do not run `:auth:bootRun` without explicit permission.
-

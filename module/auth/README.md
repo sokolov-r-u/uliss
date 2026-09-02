@@ -37,8 +37,9 @@ Registration is handled only by the server-side `GET`/`POST /register` flow. The
 and profile fields remain owned by user-service.
 
 Login and registration render the shared Thymeleaf layout. Both forms are present in one page and tabs switch
-client-side. The pages consume CSS and assets from the `:uliss-design-system` jar at `/ds/**`, pin the login theme,
-render a seeded star field, and disable caching for form pages.
+client-side. The pages consume CSS and fonts from the `:uliss-design-system` jar at `/ds/**`, pin the login theme,
+render
+a seeded star field, and disable caching for form pages.
 
 The historical visual source is the external Claude Design project `Uliss Design System`. It is provenance, not a
 guaranteed available tool. Exact future comparisons require an accessible MCP integration or an exported reference.
@@ -56,4 +57,3 @@ URLs, frontend URL, client credentials, cookie security, database connection, an
 
 Integration tests require Docker/Testcontainers. Repository operational limits prohibit starting the application without
 explicit permission.
-

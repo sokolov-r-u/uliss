@@ -26,7 +26,7 @@ val buildDesignSystem by tasks.registering(NpmTask::class) {
 	outputs.dir(layout.projectDirectory.dir("dist"))
 }
 
-// Pack the processed CSS, self-hosted fonts and assets into the jar so Spring Boot serves them
+// Pack the processed CSS and self-hosted fonts into the jar so Spring Boot serves them
 // from the classpath at /ds/** (webjar-style: META-INF/resources/**).
 tasks.processResources {
 	dependsOn(buildDesignSystem)
