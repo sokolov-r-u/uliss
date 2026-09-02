@@ -1,8 +1,8 @@
 # Architecture reference
 
 Deeper rationale behind build/config mechanisms that only matters when touching those mechanisms
-themselves — not needed for day-to-day feature work. Cross-cutting rules — `../CLAUDE.md`, read
-that first.
+themselves — not needed for day-to-day feature work. Cross-cutting agent rules are in
+`../AGENTS.md`; read those first.
 
 ## JaCoCo merging (`jacocoRootReport`)
 
@@ -20,7 +20,7 @@ disk from a previous run. Modules without a `test.exec`/`integrationTest.exec` a
 `io/uliss/api/**` (generated protobuf/gRPC) and `**/*ApplicationKt.class`
 (the Kotlin file-class with a top-level `fun main()` — unreachable by any test: `@SpringBootTest`
 boots the context via `SpringApplicationBuilder` directly, without calling `main()`, and actually
-running the application is prohibited — see "Operational constraints" in the root `CLAUDE.md`).
+running the application requires explicit permission under the root `AGENTS.md`).
 
 ## Convention plugins
 
@@ -32,7 +32,7 @@ duplicated across modules):
   (`-Xjsr305=strict`, strict null-safety, `-Xmulti-dollar-interpolation`), JUnit Platform,
   the `integrationTest` task, JaCoCo coverage report (`test` only).
 - `io.uliss.spring-boot-app` — inherits `kotlin-conventions` + applies the plugin
-  `org.springframework.boot`. For executable applications (`auth`, `user-service`).
+  `org.springframework.boot`. For executable applications (`auth`, `user-service`, `note-service`).
 - `io.uliss.jpa-conventions` — applies `org.jetbrains.kotlin.plugin.jpa` (no-arg for
   JPA entities). Apply in modules with JPA entities (`auth`, `database`).
 

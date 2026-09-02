@@ -3,6 +3,28 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
+## Kotlin null assertions and package alignment
+
+**Status:** known deviations; reconcile when the affected code is next changed.
+
+- `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
+  response. The response can be absent outside a request context; replace the assertion with an
+  explicit check and failure, and move the file into `io.uliss.security.utils`.
+- `DataInitializer` has two `passwordEncoder.encode(...)!!` calls and `UserService` has one. These
+  are Kotlin platform types from the encoder API; either remove the ambiguity or document the
+  proven non-null boundary locally when those files are next changed.
+
+New Kotlin code must not copy these deviations.
+
+## JaCoCo coverage gate
+
+**Status:** reporting exists; enforcement is deferred.
+
+`jacocoTestReport` and `jacocoRootReport` generate coverage reports, but
+`jacocoTestCoverageVerification` has no threshold and the build does not fail on low coverage. Add
+an enforced threshold only after the test suite is broad enough for the chosen number to be a
+meaningful regression gate rather than an arbitrary target.
+
 ## Chat message history pagination (`note-service`)
 
 **Status:** not implemented. Designed and agreed upon; implementation deferred to a separate task.

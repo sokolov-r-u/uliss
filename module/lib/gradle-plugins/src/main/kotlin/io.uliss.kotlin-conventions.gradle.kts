@@ -76,8 +76,8 @@ tasks.register<Test>("integrationTest") {
 // attaches to both automatically) when present. `dependsOn` is deliberately only on `test` —
 // `integrationTest` (Docker/Testcontainers) is not forced here, so `./gradlew check`/`build` stay
 // Docker-independent; the `fileTree` below just picks up `integrationTest.exec` if it's already
-// on disk from a prior run. No jacocoTestCoverageVerification/threshold yet — see CLAUDE.md
-// "Known deviations" for the tracked follow-up.
+// on disk from a prior run. No jacocoTestCoverageVerification/threshold yet — see
+// docs/TECH_DEBT.md for the tracked follow-up.
 tasks.named<JacocoReport>("jacocoTestReport") {
     dependsOn(tasks.named("test"))
     executionData(

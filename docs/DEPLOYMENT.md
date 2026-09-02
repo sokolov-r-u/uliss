@@ -1,7 +1,8 @@
 # Deployment
 
-How to run the full stack (not just host-based `bootRun` — see the root `CLAUDE.md` for that).
-Cross-cutting rules — `../CLAUDE.md`, read that first.
+How to run the full stack beyond host-based `bootRun`. Cross-cutting agent rules are in
+`../AGENTS.md`; read those first. The repository rules require explicit permission before starting
+applications or infrastructure.
 
 ## Running the full stack locally (Docker Compose, no minikube)
 
@@ -48,7 +49,7 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
 - **Ingress** (`k8s/ingress.yaml`) — by host, `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
   `user:8080`, `note.uliss.local` → `note:8081`, and on `uliss.local` **path-routing** (same-origin for
   the SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Each service serves its whole
-  path under its own name (see "Path-prefix convention" in the root `CLAUDE.md`) — one rule per service
+  path under its own name (see the path-prefix convention in the root `AGENTS.md`) — one rule per service
   instead of one per resource.
 - **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
   `module/web/nginx.conf` provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,

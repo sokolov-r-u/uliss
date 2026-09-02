@@ -5,7 +5,7 @@
 
 ## Problem
 
-Current inner loop (from CLAUDE.md) is manual and error-prone:
+The previous inner loop was manual and error-prone:
 
 ```bash
 eval $(minikube docker-env)
@@ -100,5 +100,5 @@ skaffold delete   # tear down
 
 ## Docs
 
-Update the "Deploying to Kubernetes" section of CLAUDE.md to mention `skaffold run` as the primary
-loop (keeping the manual commands as fallback / explanation).
+The implemented deployment documentation is in `docs/DEPLOYMENT.md`: `skaffold run` is the primary
+loop, with the manual commands retained as fallback and explanation.
