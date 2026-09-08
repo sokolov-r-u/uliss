@@ -19,8 +19,7 @@ DROP TABLE note.note_embeddings;
 ALTER TABLE note.notes
     ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'CHAT_SUMMARY'));
 
--- Transactional Outbox: the note (chat_note link included) and this event commit atomically,
--- so indexing is requested if and only if the note itself was persisted.
+-- Transactional Outbox: chat-summary generation and indexing are durable, retried work.
 CREATE TABLE note.outbox_event
 (
     id              UUID PRIMARY KEY,
@@ -33,7 +32,7 @@ CREATE TABLE note.outbox_event
     created_at      TIMESTAMPTZ NOT NULL,
     updated_at      TIMESTAMPTZ NOT NULL,
     version         BIGINT,
-    CHECK (type IN ('NOTE_INDEX_REQUESTED')),
+    CHECK (type IN ('NOTE_SUMMARY_REQUESTED', 'NOTE_INDEX_REQUESTED')),
     CHECK (status IN ('PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'))
 );
 

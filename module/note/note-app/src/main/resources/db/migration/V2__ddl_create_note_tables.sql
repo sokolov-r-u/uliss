@@ -5,7 +5,9 @@ CREATE TABLE note.notes
 (
     id         UUID PRIMARY KEY,
     user_id    UUID        NOT NULL,
-    content    TEXT        NOT NULL,
+    -- Generated summaries start without content and become READY only after the background worker finishes.
+    content TEXT,
+    status  VARCHAR(16) NOT NULL DEFAULT 'READY' CHECK (status IN ('GENERATING', 'READY', 'FAILED')),
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL,
     version    BIGINT,
