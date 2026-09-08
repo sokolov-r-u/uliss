@@ -8,7 +8,6 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import java.time.Instant
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -17,12 +16,6 @@ private const val PROCESSING_TIMEOUT_MS = 20_000L
 class OutboxServiceTest {
 
     private val outboxEventRepository = Mockito.mock(OutboxEventRepository::class.java)
-
-    private fun mockHandler(type: OutboxEventType): OutboxHandler {
-        val handler = Mockito.mock(OutboxHandler::class.java)
-        Mockito.`when`(handler.type).thenReturn(type)
-        return handler
-    }
 
     private fun pendingEvent(attempts: Int = 0) = OutboxEventEntity(
         type = OutboxEventType.NOTE_INDEX_REQUESTED,
@@ -35,7 +28,7 @@ class OutboxServiceTest {
 
     @Test
     fun `publish saves a PENDING event with zero attempts`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
         service.publish(OutboxEventType.NOTE_INDEX_REQUESTED, """{"noteId":"n"}""")
@@ -50,7 +43,7 @@ class OutboxServiceTest {
 
     @Test
     fun `claim flips found events to PROCESSING, pushes the processing deadline and saves them`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         val event = pendingEvent()
         val before = Instant.now()
         Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
@@ -68,7 +61,7 @@ class OutboxServiceTest {
 
     @Test
     fun `claim requests both PENDING and expired-PROCESSING events so a crashed worker's claim expires`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         val event = pendingEvent()
         Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
             .thenReturn(listOf(event))
@@ -83,28 +76,38 @@ class OutboxServiceTest {
     }
 
     @Test
-    fun `process marks the event COMPLETED when the handler succeeds`() {
-        val handler = mockHandler(OutboxEventType.NOTE_INDEX_REQUESTED)
-        val service = OutboxService(outboxEventRepository, listOf(handler), PROCESSING_TIMEOUT_MS)
-        val event = pendingEvent()
+    fun `complete marks a PROCESSING event COMPLETED`() {
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
+        val event = pendingEvent().also { it.status = OutboxEventStatus.PROCESSING }
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        service.process(event)
+        service.complete(event.id)
 
-        Mockito.verify(handler).handle(event)
         assertEquals(OutboxEventStatus.COMPLETED, event.status)
     }
 
     @Test
-    fun `process reschedules with backoff and keeps PENDING below the attempt limit`() {
-        val handler = mockHandler(OutboxEventType.NOTE_INDEX_REQUESTED)
-        Mockito.`when`(handler.handle(anyValue())).thenThrow(RuntimeException("boom"))
-        val service = OutboxService(outboxEventRepository, listOf(handler), PROCESSING_TIMEOUT_MS)
+    fun `complete ignores a non-PROCESSING event`() {
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
+        val event = pendingEvent()
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+
+        service.complete(event.id)
+
+        assertEquals(OutboxEventStatus.PENDING, event.status)
+        Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
+    }
+
+    @Test
+    fun `recordFailure reschedules with backoff and keeps PENDING below the attempt limit`() {
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         val event = pendingEvent(attempts = 1)
         val before = event.nextAttemptAt
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        service.process(event)
+        service.recordFailure(event.id, RuntimeException("boom"))
 
         assertEquals(OutboxEventStatus.PENDING, event.status)
         assertEquals(2, event.attempts)
@@ -113,35 +116,22 @@ class OutboxServiceTest {
     }
 
     @Test
-    fun `process marks the event FAILED once the attempt limit is reached`() {
-        val handler = mockHandler(OutboxEventType.NOTE_INDEX_REQUESTED)
-        Mockito.`when`(handler.handle(anyValue())).thenThrow(RuntimeException("boom"))
-        val service = OutboxService(outboxEventRepository, listOf(handler), PROCESSING_TIMEOUT_MS)
+    fun `recordFailure marks the event FAILED once the attempt limit is reached`() {
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         // MAX_ATTEMPTS is 5 - the 5th failure (attempts 4 -> 5) is terminal.
         val event = pendingEvent(attempts = 4)
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        service.process(event)
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+        service.recordFailure(event.id, RuntimeException("boom"))
 
         assertEquals(OutboxEventStatus.FAILED, event.status)
         assertEquals(5, event.attempts)
     }
 
     @Test
-    fun `process throws NoOutboxHandlerException without touching attempts when no handler is registered`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
-        val event = pendingEvent()
-
-        assertFailsWith<NoOutboxHandlerException> {
-            service.process(event)
-        }
-        // Config bug, not a retryable failure - must not be counted as an attempt.
-        Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
-    }
-
-    @Test
     fun `recordFailure reloads the event fresh and applies the same backoff bookkeeping`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         val event = pendingEvent(attempts = 1)
         Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
@@ -155,22 +145,8 @@ class OutboxServiceTest {
     }
 
     @Test
-    fun `recordFailure marks the event FAILED once the attempt limit is reached`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
-        // MAX_ATTEMPTS is 5 - the 5th failure (attempts 4 -> 5) is terminal.
-        val event = pendingEvent(attempts = 4)
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
-        Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
-
-        service.recordFailure(event.id, RuntimeException("save failed"))
-
-        assertEquals(OutboxEventStatus.FAILED, event.status)
-        assertEquals(5, event.attempts)
-    }
-
-    @Test
     fun `recordFailure does nothing but log when the event no longer exists`() {
-        val service = OutboxService(outboxEventRepository, emptyList(), PROCESSING_TIMEOUT_MS)
+        val service = OutboxService(outboxEventRepository, PROCESSING_TIMEOUT_MS)
         val eventId = pendingEvent().id
         Mockito.`when`(outboxEventRepository.findById(eventId)).thenReturn(java.util.Optional.empty())
 

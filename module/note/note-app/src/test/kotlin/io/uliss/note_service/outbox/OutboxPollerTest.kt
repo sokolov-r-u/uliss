@@ -1,7 +1,6 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
-import io.uliss.note_service.anyValue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import java.time.Instant
@@ -9,7 +8,8 @@ import java.time.Instant
 class OutboxPollerTest {
 
     private val outboxService = Mockito.mock(OutboxService::class.java)
-    private val poller = OutboxPoller(outboxService)
+    private val outboxEventProcessor = Mockito.mock(OutboxEventProcessor::class.java)
+    private val poller = OutboxPoller(outboxService, outboxEventProcessor)
 
     private fun event() = OutboxEventEntity(
         type = OutboxEventType.NOTE_INDEX_REQUESTED,
@@ -28,58 +28,56 @@ class OutboxPollerTest {
 
         poller.poll()
 
-        Mockito.verify(outboxService).process(first)
-        Mockito.verify(outboxService).process(second)
+        Mockito.verify(outboxEventProcessor).process(first)
+        Mockito.verify(outboxEventProcessor).process(second)
     }
 
     @Test
-    fun `poll keeps processing remaining events when one process call throws`() {
+    fun `poll keeps processing remaining events when one processor call throws`() {
         val first = event()
         val second = event()
         Mockito.`when`(outboxService.claim(20)).thenReturn(listOf(first, second))
-        Mockito.`when`(outboxService.process(first)).thenThrow(RuntimeException("boom"))
+        Mockito.`when`(outboxEventProcessor.process(first)).thenThrow(RuntimeException("boom"))
 
         poller.poll()
 
-        Mockito.verify(outboxService).process(first)
-        Mockito.verify(outboxService).process(second)
+        Mockito.verify(outboxEventProcessor).process(first)
+        Mockito.verify(outboxEventProcessor).process(second)
     }
 
     @Test
-    fun `poll records a compensating failure when process throws for a reason other than a missing handler`() {
+    fun `poll leaves failure bookkeeping to the processor`() {
         val first = event()
-        val ex = RuntimeException("save failed")
         Mockito.`when`(outboxService.claim(20)).thenReturn(listOf(first))
-        Mockito.`when`(outboxService.process(first)).thenThrow(ex)
 
         poller.poll()
 
-        Mockito.verify(outboxService).recordFailure(first.id, ex)
+        Mockito.verify(outboxEventProcessor).process(first)
+        Mockito.verifyNoMoreInteractions(outboxService)
     }
 
     @Test
     fun `poll does not record a compensating failure when process throws NoOutboxHandlerException`() {
         val first = event()
         Mockito.`when`(outboxService.claim(20)).thenReturn(listOf(first))
-        Mockito.`when`(outboxService.process(first))
+        Mockito.`when`(outboxEventProcessor.process(first))
             .thenThrow(NoOutboxHandlerException(OutboxEventType.NOTE_INDEX_REQUESTED))
 
         poller.poll()
 
-        Mockito.verify(outboxService, Mockito.never()).recordFailure(anyValue(), anyValue())
+        Mockito.verifyNoMoreInteractions(outboxService)
     }
 
     @Test
-    fun `poll keeps processing remaining events when recordFailure itself throws`() {
+    fun `poll keeps processing remaining events when failure bookkeeping throws`() {
         val first = event()
         val second = event()
         Mockito.`when`(outboxService.claim(20)).thenReturn(listOf(first, second))
-        Mockito.`when`(outboxService.process(first)).thenThrow(RuntimeException("boom"))
-        Mockito.`when`(outboxService.recordFailure(anyValue(), anyValue())).thenThrow(RuntimeException("db down"))
+        Mockito.`when`(outboxEventProcessor.process(first)).thenThrow(RuntimeException("db down"))
 
         poller.poll()
 
-        Mockito.verify(outboxService).process(second)
+        Mockito.verify(outboxEventProcessor).process(second)
     }
 
     @Test
@@ -88,6 +86,6 @@ class OutboxPollerTest {
 
         poller.poll()
 
-        Mockito.verify(outboxService, Mockito.never()).process(anyValue())
+        Mockito.verifyNoInteractions(outboxEventProcessor)
     }
 }

@@ -20,11 +20,9 @@ private val CLAIMABLE_STATUSES = listOf(OutboxEventStatus.PENDING, OutboxEventSt
 @Service
 class OutboxService(
     private val outboxEventRepository: OutboxEventRepository,
-    handlers: List<OutboxHandler>,
     @Value($$"${note.outbox.processing-timeout-ms}") private val processingTimeoutMs: Long,
 ) {
     private val log = AppLogger.of(OutboxService::class)
-    private val handlers = handlers.associateBy { it.type }
 
     /**
      * Participates in the caller's transaction (e.g. alongside saving the note itself) - that's
@@ -52,7 +50,7 @@ class OutboxService(
      * so concurrent pollers (multi-instance) never claim the same row.
      *
      * **Visibility timeout** - [nextAttemptAt] doubles as a visibility deadline while PROCESSING -
-     * if the worker crashes before [process] saves a terminal status, the event becomes claimable
+     * if the worker crashes before [complete] saves a terminal status, the event becomes claimable
      * again once the deadline passes instead of being stuck in PROCESSING forever.
      */
     @Transactional
@@ -70,38 +68,25 @@ class OutboxService(
         return outboxEventRepository.saveAll(claimable).toList()
     }
 
-    /**
-     * Processes a single claimed event in its own transaction - a failure here must not roll back
-     * sibling events already committed in the same poll batch, so the poller calls this once per
-     * claimed event.
-     *
-     *
-     * **A missing handler** ([NoOutboxHandlerException]) is a programming/deployment bug, not a
-     * retryable business failure - deliberately left uncaught here, propagating straight to the
-     * caller instead of going through [applyFailure].
-     */
     @Transactional
-    fun process(event: OutboxEventEntity) {
-        val handler = handlers[event.type] ?: throw NoOutboxHandlerException(event.type)
-        try {
-            handler.handle(event)
-            event.status = OutboxEventStatus.COMPLETED
-        } catch (ex: Exception) {
-            applyFailure(event, ex, "process")
+    fun complete(eventId: UUID) {
+        val event = outboxEventRepository.findById(eventId).orElse(null)
+        if (event == null) {
+            log.error("cannot complete missing outbox event id=$eventId", "complete")
+            return
         }
+        if (event.status != OutboxEventStatus.PROCESSING) {
+            log.error("cannot complete outbox event id=$eventId with status=${event.status}", "complete")
+            return
+        }
+        event.status = OutboxEventStatus.COMPLETED
         outboxEventRepository.save(event)
     }
 
     /**
-     * Compensating path for when [process]'s own transaction fails to commit for a reason other
-     * than the handler itself - e.g. the final `save()` in [process] threw (an optimistic-lock
-     * conflict, a transient DB error, etc.), which rolls back the whole transaction, including any
-     * in-memory attempts/backoff already computed.
-     *
-     *
-     * **Reload, don't reuse** - runs in its own fresh transaction, reloading the event so it
-     * reflects the last actually-committed state rather than the stale in-memory instance from the
-     * rolled-back attempt.
+     * Handles a failure from external work or completion in a fresh, short transaction. The
+     * processor deliberately invokes it after the handler has returned, so no provider or vector
+     * store call holds a database connection.
      */
     @Transactional
     fun recordFailure(eventId: UUID, ex: Exception) {
