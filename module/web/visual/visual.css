@@ -1,0 +1,192 @@
+html, body, #root {
+    height: 100%;
+}
+
+.visual-screen {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+}
+
+.visual-backdrop {
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background: var(--scrim), var(--amb-wash), var(--bg);
+}
+
+.visual-auth {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 74px 24px 48px;
+    background: var(--amb-wash), var(--bg-deep);
+}
+
+.visual-auth-card {
+    width: 100%;
+    max-width: 436px;
+    margin-top: 74px;
+}
+
+.visual-auth-tabs, .visual-disabled-row {
+    display: flex;
+    gap: 8px;
+}
+
+.visual-auth-tabs {
+    border: 1px solid var(--line-strong);
+    margin-bottom: 18px;
+}
+
+.visual-auth-tabs button {
+    flex: 1;
+    height: 44px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    color: var(--cream);
+    font: inherit;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.visual-auth-tabs button[aria-pressed='true'] {
+    border-bottom-color: var(--accent);
+    background: var(--bg-surface);
+}
+
+.visual-auth-card h1 {
+    margin: 7px 0 22px;
+    color: var(--wordmark-login);
+    font-family: var(--font-display);
+    font-size: 18px;
+}
+
+.visual-auth-card label {
+    display: block;
+    margin-bottom: 15px;
+    color: var(--text-muted);
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+}
+
+.visual-auth-card input {
+    width: 100%;
+    height: 46px;
+    margin-top: 7px;
+    padding: 0 14px;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-panel);
+    color: var(--cream);
+    font: inherit;
+}
+
+.visual-disabled-row {
+    margin-top: 17px;
+}
+
+.visual-disabled-row > * {
+    flex: 1;
+}
+
+.visual-shell {
+    position: relative;
+    height: 100%;
+    display: flex;
+    background: var(--bg);
+    overflow: hidden;
+}
+
+.visual-shell-screen {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.visual-shell.drawer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    background: var(--scrim);
+}
+
+.visual-shell aside {
+    position: relative;
+    z-index: 2;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-right: 1px solid var(--line-strong);
+    background: var(--bg-deep);
+}
+
+.visual-shell.drawer aside {
+    width: min(300px, 86vw);
+}
+
+.visual-shell.rail aside, .visual-shell.collapsed aside {
+    width: 72px;
+    padding-inline: 8px;
+}
+
+.visual-shell aside header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    min-height: 44px;
+}
+
+.visual-shell aside nav {
+    display: flex;
+    flex-direction: column;
+}
+
+.visual-shell aside nav a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.visual-shell-chats {
+    flex: 1;
+    margin-top: 10px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.visual-chat {
+    justify-content: flex-end;
+}
+
+.visual-opener {
+    width: max-content;
+    min-height: 44px;
+    margin: 20px;
+    padding: 0 16px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent-2);
+    font: inherit;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+@media (max-width: 640px) {
+    .visual-auth {
+        padding-top: 44px;
+    }
+
+    .visual-auth-card {
+        margin-top: 40px;
+    }
+}

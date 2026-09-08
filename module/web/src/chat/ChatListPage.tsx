@@ -1,7 +1,7 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
 import {useEffect, useState} from 'react'
-import {Link, useNavigate} from 'react-router-dom'
-import {Kicker} from '@uliss/design-system'
+import {useNavigate} from 'react-router-dom'
+import {Button, EmptyState, ListHeader, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {type Chat, createChat, listChats} from './chatApi'
 import './chat.css'
@@ -11,11 +11,12 @@ type ListState =
     | { status: 'error'; message: string }
     | { status: 'ready'; chats: Chat[] }
 
+/** Absolute and short — 'Jun 22'. The DS list never shows relative time. */
 function formatDate(iso?: string): string {
     if (!iso) return ''
     const date = new Date(iso)
     if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleString(undefined, {month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'})
+    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
 }
 
 export function ChatListPage() {
@@ -43,6 +44,7 @@ export function ChatListPage() {
     }, [])
 
     function onNewChat() {
+        if (creating) return
         setCreating(true)
         setCreateError(null)
         createChat()
@@ -55,43 +57,45 @@ export function ChatListPage() {
     }
 
     return (
-        <div className="page">
-            <div className="page-header">
-                <div>
-                    <Kicker size={9} spacing="3px">chats</Kicker>
-                    <h1 className="page-title">Your chats</h1>
-                </div>
-                <button type="button" className="link-btn" onClick={onNewChat} disabled={creating}>
-                    {creating ? 'creating…' : 'new chat'}
-                </button>
+        <div className="chat-list-screen">
+            <ListHeader
+                kicker="Chats"
+                total={state.status === 'ready' ? state.chats.length : undefined}
+                right={
+                    <Button variant="quiet" disabled={creating} onClick={onNewChat}>
+                        {creating ? 'Creating…' : 'New chat'}
+                    </Button>
+                }
+            />
+
+            <div className="chat-list-body">
+                {createError && <p className="chat-state chat-state-error">{createError}</p>}
+                {state.status === 'loading' && <p className="chat-state">Loading…</p>}
+                {state.status === 'error' && <p className="chat-state chat-state-error">{state.message}</p>}
+
+                {state.status === 'ready' && state.chats.length === 0 && (
+                    <EmptyState
+                        title="No chats yet"
+                        body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
+                        action={creating ? 'Creating…' : 'Start a chat'}
+                        onAction={onNewChat}
+                    />
+                )}
+
+                {state.status === 'ready' && state.chats.length > 0 && (
+                    <div className="chat-list">
+                        {state.chats.map((chat) => (
+                            <ListRow
+                                key={chat.id}
+                                title={chat.title}
+                                date={formatDate(chat.updatedAt ?? chat.createdAt)}
+                                dots={false}
+                                onClick={() => navigate(`/chats/${chat.id}`)}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
-
-            {createError && <p className="auth-error">{createError}</p>}
-            {state.status === 'loading' && <p className="auth-muted">loading…</p>}
-            {state.status === 'error' && <p className="auth-error">{state.message}</p>}
-
-            {state.status === 'ready' && state.chats.length === 0 && (
-                <div className="chat-empty-state">
-                    <p className="auth-muted">No chats yet — start the first one.</p>
-                    <button type="button" className="link-btn" onClick={onNewChat} disabled={creating}>
-                        {creating ? 'creating…' : 'start a chat'}
-                    </button>
-                </div>
-            )}
-
-            {state.status === 'ready' && state.chats.length > 0 && (
-                <ul className="chat-list">
-                    {state.chats.map((chat) => (
-                        <li key={chat.id} className="chat-list-item">
-                            <Link to={`/chats/${chat.id}`}>
-                                <span className="chat-list-item-title">{chat.title}</span>
-                                <span
-                                    className="chat-list-item-date">{formatDate(chat.updatedAt ?? chat.createdAt)}</span>
-                            </Link>
-                        </li>
-                    ))}
-                </ul>
-            )}
         </div>
     )
 }

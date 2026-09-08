@@ -1,6 +1,9 @@
-import {SendIcon} from '../ui/icons'
-import {MicButton} from './MicButton'
+import {ChatDock} from '@uliss/design-system'
 
+/**
+ * The composer at the foot of a chat — DS `ChatDock` shape (46px `--bg-panel` field, `--line-strong`
+ * edge, inline tiles). Voice and typing share the dock; the mic is disabled (text-only chat).
+ */
 export function ChatComposer({
                                  value,
                                  onChange,
@@ -13,25 +16,17 @@ export function ChatComposer({
     disabled?: boolean
 }) {
     return (
-        <form
+        <ChatDock
             className="chat-composer"
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            disabled={disabled}
+            voiceDisabled
+            placeholder="Write a thought…"
             onSubmit={(e) => {
                 e.preventDefault()
                 onSubmit()
             }}
-        >
-            <input
-                type="text"
-                className="chat-composer-input"
-                placeholder="Write a thought…"
-                value={value}
-                onChange={(e) => onChange(e.target.value)}
-                disabled={disabled}
-            />
-            <MicButton/>
-            <button type="submit" className="chat-composer-send" disabled={disabled || value.trim() === ''}>
-                <SendIcon/>
-            </button>
-        </form>
+        />
     )
 }

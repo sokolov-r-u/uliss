@@ -1,17 +1,20 @@
 /**
  * Generic notice mechanism. Holds a FIFO queue of notices and renders the head one over a
  * dimmed-blurred backdrop (NoticeOverlay). `useNotice().notify(...)` shows a notice from
- * anywhere; blocking ones can't be dismissed. Onboarding uses its own NoticeOverlay directly
- * (its steps are stateful) — this provider covers fire-and-forget notices (e.g. dispatches).
+ * anywhere; blocking ones can't be dismissed. `useNotice().confirm(...)` asks a yes/no through
+ * the design-system Dialog (a way out first, the act second). Onboarding uses its own
+ * NoticeOverlay directly (its steps are stateful) — this provider covers fire-and-forget notices
+ * and confirmations.
  */
 import {createContext, type ReactNode, useCallback, useContext, useMemo, useState} from 'react'
-import {Notice, type NoticeProps} from '../ui/notice/Notice'
+import {createPortal} from 'react-dom'
+import {Dialog, Notice, type NoticeProps} from '@uliss/design-system'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 
 /** A queued notice: content only — the provider supplies buttons/close wiring. */
 export type NoticeInput = Omit<
     NoticeProps,
-    'onPrimary' | 'onSecondary' | 'onClose' | 'showClose' | 'width'
+    'onPrimary' | 'onSecondary' | 'onClose' | 'onSkip' | 'showClose' | 'width'
 > & {
     /** Called when the primary button is pressed (before auto-dismiss). */
     onConfirm?: () => void
@@ -21,11 +24,26 @@ export type NoticeInput = Omit<
 
 type QueuedNotice = NoticeInput & { id: number }
 
+/** A confirmation asked through the design-system Dialog. */
+export type ConfirmInput = {
+    title: string
+    /** What will happen and what survives — the Dialog body. */
+    body?: string
+    confirm?: string
+    cancel?: string
+    /** Terracotta confirm label — deletions only. */
+    danger?: boolean
+    onConfirm?: () => void
+    onCancel?: () => void
+}
+
 type NotificationApi = {
     /** Enqueue a notice; returns its id. */
     notify: (input: NoticeInput) => number
     /** Remove a specific notice from the queue. */
     dismiss: (id: number) => void
+    /** Show a modal confirmation. Wire side effects through the callbacks. */
+    confirm: (input: ConfirmInput) => void
 }
 
 const NotificationContext = createContext<NotificationApi | null>(null)
@@ -34,6 +52,7 @@ let nextId = 1
 
 export function NotificationProvider({children}: { children: ReactNode }) {
     const [queue, setQueue] = useState<QueuedNotice[]>([])
+    const [dialog, setDialog] = useState<ConfirmInput | null>(null)
 
     const dismiss = useCallback((id: number) => {
         setQueue((q) => q.filter((n) => n.id !== id))
@@ -45,7 +64,11 @@ export function NotificationProvider({children}: { children: ReactNode }) {
         return id
     }, [])
 
-    const api = useMemo<NotificationApi>(() => ({notify, dismiss}), [notify, dismiss])
+    const confirm = useCallback((input: ConfirmInput) => {
+        setDialog(input)
+    }, [])
+
+    const api = useMemo<NotificationApi>(() => ({notify, dismiss, confirm}), [notify, dismiss, confirm])
 
     const head = queue[0]
 
@@ -74,6 +97,25 @@ export function NotificationProvider({children}: { children: ReactNode }) {
                         </NoticeOverlay>
                     )
                 })()}
+            {dialog &&
+                createPortal(
+                    <Dialog
+                        title={dialog.title}
+                        body={dialog.body}
+                        confirm={dialog.confirm}
+                        cancel={dialog.cancel}
+                        danger={dialog.danger}
+                        onConfirm={() => {
+                            dialog.onConfirm?.()
+                            setDialog(null)
+                        }}
+                        onCancel={() => {
+                            dialog.onCancel?.()
+                            setDialog(null)
+                        }}
+                    />,
+                    document.body,
+                )}
         </NotificationContext>
     )
 }

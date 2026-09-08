@@ -1,3 +1,4 @@
+import {Bubble as DesignBubble} from '@uliss/design-system'
 import type {ChatMessageRole, ChatMessageStatus} from './chatApi'
 
 /** A message as rendered in the thread — a `ChatMessage` plus a client-only `pending` streaming flag. */
@@ -15,19 +16,22 @@ function statusLabel(status: ChatMessageStatus): string | null {
     return null
 }
 
+/**
+ * A conversation turn as a 2px rule + alignment (DS `Bubble`) — never a capsule, never labelled on
+ * the user's side. Extends the DS component with the streaming caret and a `PARTIAL`/`FAILED`
+ * status line, both of which reflect real backend state (see `ChatPage` / `chatApi`).
+ */
 export function Bubble({role, status, content, pending}: DisplayMessage) {
-    const isUser = role === 'USER'
     const label = pending ? null : statusLabel(status)
+
     return (
-        <div className={isUser ? 'bubble-row bubble-row-user' : 'bubble-row bubble-row-assistant'}>
-            <div className={isUser ? 'bubble bubble-user' : 'bubble bubble-assistant'}>
-                <span className="bubble-kicker">{isUser ? 'You' : 'Uliss'}</span>
-                <p className="bubble-content">
-                    {content}
-                    {pending && <span className="bubble-cursor" aria-hidden/>}
-                </p>
-                {label && <span className="bubble-status">{label}</span>}
-            </div>
+        <div className={role === 'USER' ? 'bubble-adapter bubble-adapter-user' : 'bubble-adapter'}>
+            <DesignBubble role={role === 'USER' ? 'me' : 'uliss'}>
+                {content}
+                {pending && <span className="bubble-cursor" aria-hidden/>}
+            </DesignBubble>
+            {label &&
+                <span className={role === 'USER' ? 'bubble-status bubble-status-user' : 'bubble-status'}>{label}</span>}
         </div>
     )
 }

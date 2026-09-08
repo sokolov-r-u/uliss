@@ -3,6 +3,28 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
+## Kotlin null assertions and package alignment
+
+**Status:** known deviations; reconcile when the affected code is next changed.
+
+- `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
+  response. The response can be absent outside a request context; replace the assertion with an
+  explicit check and failure, and move the file into `io.uliss.security.utils`.
+- `DataInitializer` has two `passwordEncoder.encode(...)!!` calls and `UserService` has one. These
+  are Kotlin platform types from the encoder API; either remove the ambiguity or document the
+  proven non-null boundary locally when those files are next changed.
+
+New Kotlin code must not copy these deviations.
+
+## JaCoCo coverage gate
+
+**Status:** reporting exists; enforcement is deferred.
+
+`jacocoTestReport` and `jacocoRootReport` generate coverage reports, but
+`jacocoTestCoverageVerification` has no threshold and the build does not fail on low coverage. Add
+an enforced threshold only after the test suite is broad enough for the chosen number to be a
+meaningful regression gate rather than an arbitrary target.
+
 ## Chat message history pagination (`note-service`)
 
 **Status:** not implemented. Designed and agreed upon; implementation deferred to a separate task.
@@ -136,3 +158,36 @@ from the first user message.
 
 Recorded as a future plan — implementation (backend, and frontend if the title needs to appear/update
 asynchronously in the chat list) is a separate task.
+
+## Design system — deferred items (`:uliss-design-system`)
+
+Opened 2026-08-31 during the design-system integration refresh
+(`docs/tasks/2026-08-31-design-system-integration.md`).
+
+- **Extended Latin subset.** Fonts ship Latin + Cyrillic only. `latin-ext` (Polish, Czech,
+  Turkish, Romanian, … diacritics) is not bundled. Add the `latin-ext` `@font-face` blocks +
+  `.woff2` (Google `css2` output) when a non-English/Russian locale is added. No local
+  subsetter is available — pull the pre-subset files from `fonts.gstatic.com`.
+- ~~**`src/react` components on the old design system.**~~ Closed by wave 2 (2026-08-31):
+  the banner-era primitives are deleted and the 32 Claude Design components are ported to
+  `.tsx` under `src/react/components/<group>/` with a `.prompt.md` each and an `export *`
+  barrel. `module/web` still imports the barrel's `Wordmark` / `Kicker` — props shifted, so
+  those call sites reconcile in waves 3–4.
+- ~~**Consumer screens reference dead tokens.**~~ Closed 2026-08-31 by waves 3–11 — `module/web`
+  and `module/auth/.../templates` are rebuilt on the new tokens; the integration refresh is
+  complete on `FE-design`.
+- **Backend-less product screens ship as empty states.** `/notes`, `/constellations`, `/sky`,
+  `/updates`, `/search` (waves 7–10) render only a DS `EmptyState` — there is no notes list,
+  tag tree, graph renderer, updates log or search backend. When those land, attach the populated
+  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). Same for the Notice
+  mechanism's `useNotice().confirm` (DS `Dialog`) — wired but has no caller until a
+  delete/summarise action exists.
+- **Settings: Sky / Account / Language are static.** Only Settings › Appearance
+  (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
+  Account has no editable fields (`user-service` `GET /users/me` returns a stub), Language is
+  English-only (no i18n layer). Build these out with their backing features.
+- **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
+  specimens and `_ds_bundle.js`; the repo has no committed equivalent. Wave 2 left an
+  uncommitted esbuild harness (`_specimen-components.{html,js,src.tsx}`) for a one-off browser
+  eyeball only — delete after review. A `guidelines/` or Storybook-like surface is out of scope
+  for this program.

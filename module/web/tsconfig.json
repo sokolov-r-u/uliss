@@ -25,5 +25,10 @@
     "allowJs": false,
     "resolveJsonModule": true
   },
-  "include": ["src", "vite.config.ts"]
+  "include": [
+    "src",
+    "visual",
+    "vite.config.ts",
+    "playwright.config.ts"
+  ]
 }

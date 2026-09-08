@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "visual:build": "vite build --config visual/vite.config.ts",
+    "visual:serve": "vite --config visual/vite.config.ts --host 127.0.0.1 --port 4173 --strictPort",
+    "visual:test": "playwright test",
+    "visual:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@uliss/design-system": "*",
@@ -20,6 +24,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@playwright/test": "^1.55.0",
     "typescript": "^5.7.3",
     "vite": "^6.0.7"
   }
