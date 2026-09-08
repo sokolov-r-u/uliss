@@ -13,6 +13,7 @@ import {
     NavRow,
     Notice,
     OptionList,
+    Select,
     TextField,
     TopBar,
     Wordmark
@@ -26,7 +27,7 @@ import {AppearanceSettings} from '../src/settings/AppearanceSettings'
 import {SkySettings} from '../src/settings/SkySettings'
 import {LanguageSettings} from '../src/settings/LanguageSettings'
 import {SettingsShell} from '../src/settings/SettingsShell'
-import {NOTES, SEARCH, CONSTELLATIONS, SKY, UPDATES, DECISIONS} from './fixtures'
+import {CONSTELLATIONS, DECISIONS, NOTES, SEARCH, SKY, UPDATES} from './fixtures'
 
 function AuthFixture({register = false}: { register?: boolean }) {
     return <main className="visual-auth" data-surface="login"><Wordmark size={58}/><Kicker size={9.5} spacing="3.4px"
@@ -135,6 +136,15 @@ function DialogFixture() {
                          onConfirm={() => setOpen(false)}/>}</div>
 }
 
+function DisabledOpenSelectFixture() {
+    return <div className="visual-screen"><Select aria-label="Disabled controlled select" value="one"
+                                                  onChange={() => undefined} open disabled
+                                                  options={[{value: 'one', label: 'One'}, {
+                                                      value: 'two',
+                                                      label: 'Two'
+                                                  }]}/></div>
+}
+
 export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario === 'login' || scenario === 'register') return <AuthFixture register={scenario === 'register'}/>
     if (scenario.startsWith('onboarding-')) return <OnboardingFixture
@@ -158,5 +168,6 @@ export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario === 'updates-populated') return <UpdatesView updates={UPDATES} decisions={DECISIONS}/>
     if (scenario.startsWith('settings-')) return <SettingsFixture kind={scenario.replace('settings-', '')}/>
     if (scenario === 'dialog') return <DialogFixture/>
+    if (scenario === 'select-disabled-open') return <DisabledOpenSelectFixture/>
     return <div className="visual-screen"><EmptyState title="Unknown visual scenario" body={scenario}/></div>
 }

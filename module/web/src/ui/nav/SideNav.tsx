@@ -1,9 +1,9 @@
 import type {ReactNode} from 'react'
-import {NavLink, useNavigate} from 'react-router-dom'
 import {useEffect, useState} from 'react'
+import {NavLink, useNavigate} from 'react-router-dom'
 import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {useAuth} from '../../auth/AuthContext'
-import {type Chat, listChats} from '../../chat/chatApi'
+import {type Chat, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -29,6 +29,9 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const {logout} = useAuth()
     const navigate = useNavigate()
     const [chats, setChats] = useState<Chat[]>([])
+    const [chatListRevision, setChatListRevision] = useState(0)
+
+    useEffect(() => subscribeToChatListChanges(() => setChatListRevision((revision) => revision + 1)), [])
 
     useEffect(() => {
         let active = true
@@ -38,7 +41,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
         return () => {
             active = false
         }
-    }, [])
+    }, [chatListRevision])
 
     const go = (to: string) => () => {
         onClose()

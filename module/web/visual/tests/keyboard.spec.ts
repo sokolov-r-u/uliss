@@ -26,6 +26,14 @@ test('listbox supports arrows, Enter, Escape and focus restoration', async ({pag
     await expect(trigger).toBeFocused()
 })
 
+test('a disabled controlled select suppresses its open listbox', async ({page}) => {
+    await page.goto('/visual/index.html?scenario=select-disabled-open')
+    const trigger = page.getByRole('button', {name: 'Disabled controlled select'})
+    await expect(trigger).toBeDisabled()
+    await expect(page.getByRole('listbox')).toHaveCount(0)
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+})
+
 test('dialog traps focus, closes on Escape and skips disabled controls', async ({page}) => {
     await page.goto('/visual/index.html?scenario=dialog')
     const dialog = page.getByRole('dialog')

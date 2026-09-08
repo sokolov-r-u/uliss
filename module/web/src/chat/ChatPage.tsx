@@ -8,7 +8,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Link, useParams} from 'react-router-dom'
 import {Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {type ChatMessage, getMessages} from './chatApi'
+import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
 import {streamAssistantReply} from './streamChatReply'
 import {MessageThread} from './MessageThread'
 import {ChatComposer} from './ChatComposer'
@@ -103,7 +103,10 @@ export function ChatPage() {
                 // Reconcile with the server's truth — drops the optimistic bubbles above and applies
                 // whatever status the backend actually persisted (COMPLETE/PARTIAL/FAILED).
                 getMessages(chatId)
-                    .then((history) => setMessages(toDisplay(history)))
+                    .then((history) => {
+                        setMessages(toDisplay(history))
+                        notifyChatListChanged()
+                    })
                     .catch((e: unknown) => {
                         if (e instanceof AuthRequiredError) return
                     })

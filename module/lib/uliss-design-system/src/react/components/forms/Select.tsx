@@ -44,10 +44,12 @@ export function Select<T extends string = string>({
     const [internalOpen, setInternalOpen] = useState(false)
     const selectedIndex = options.findIndex((option) => option.value === value)
     const [activeIndex, setActiveIndex] = useState(Math.max(selectedIndex, 0))
-    const isOpen = open ?? internalOpen
+    const requestedOpen = open ?? internalOpen
+    const isOpen = !disabled && requestedOpen
     const current = selectedIndex >= 0 ? options[selectedIndex] : null
 
     const setOpen = (next: boolean, restoreFocus = false) => {
+        if (disabled) return
         if (open === undefined) setInternalOpen(next)
         onOpenChange?.(next)
         if (!next && restoreFocus) requestAnimationFrame(() => triggerRef.current?.focus())
@@ -59,12 +61,19 @@ export function Select<T extends string = string>({
         requestAnimationFrame(() => listboxRef.current?.focus())
     }, [isOpen, selectedIndex])
 
+    useEffect(() => {
+        if (!disabled || !requestedOpen) return
+        if (open === undefined) setInternalOpen(false)
+        onOpenChange?.(false)
+    }, [disabled, requestedOpen, open, onOpenChange])
+
     const move = (delta: number) => {
         if (options.length === 0) return
         setActiveIndex((index) => (index + delta + options.length) % options.length)
     }
 
     const pick = (index: number) => {
+        if (disabled) return
         const option = options[index]
         if (!option) return
         onChange(option.value)
@@ -72,6 +81,7 @@ export function Select<T extends string = string>({
     }
 
     const onListKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+        if (disabled) return
         if (event.key === 'ArrowDown') {
             event.preventDefault()
             move(1)
