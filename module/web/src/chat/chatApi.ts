@@ -23,6 +23,19 @@ export type ChatMessage = {
     createdAt?: string
 }
 
+const chatListListeners = new Set<() => void>()
+
+/** Subscribe persistent chat-list consumers to mutations made by this client. */
+export function subscribeToChatListChanges(listener: () => void): () => void {
+    chatListListeners.add(listener)
+    return () => chatListListeners.delete(listener)
+}
+
+/** Re-fetch chat-list views after a mutation that can change membership, title, or order. */
+export function notifyChatListChanged() {
+    chatListListeners.forEach((listener) => listener())
+}
+
 export async function listChats(): Promise<Chat[]> {
     const res = await authFetch('/note/chats')
     if (!res.ok) throw new Error(`chat list fetch failed (${res.status})`)
@@ -36,7 +49,9 @@ export async function createChat(title?: string): Promise<Chat> {
         body: JSON.stringify(title ? {title} : {}),
     })
     if (!res.ok) throw new Error(`chat create failed (${res.status})`)
-    return (await res.json()) as Chat
+    const chat = (await res.json()) as Chat
+    notifyChatListChanged()
+    return chat
 }
 
 export async function getMessages(chatId: string): Promise<ChatMessage[]> {

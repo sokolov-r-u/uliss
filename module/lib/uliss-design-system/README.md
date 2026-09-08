@@ -43,6 +43,15 @@ component, and update it when public behavior changes.
 Components use shared tokens and square geometry by default. Circular shapes are intentional local exceptions, not a
 general rounding convention.
 
+Interactive components use native controls and controlled values. Buttons forward standard button/ARIA attributes;
+text fields are native inputs; Select is a keyboard-operated listbox; option cards, swatches, and step controls expose
+radio/radiogroup state. Notice and Dialog label themselves as modal dialogs, while the consuming overlay owns focus
+containment, Escape dismissal, and restoration.
+
+Motion is limited to tokenized colour changes, pending/twinkle states, notice entrance, and one explicit exception:
+the mobile navigation drawer may enter horizontally using `--dur-drawer` and `--ease-drawer`. Other slide, bounce, and
+skeleton motion remains unsupported, and reduced-motion disables nonessential animation and transitions.
+
 The visual system originated in an external Claude Design project. That reference is historical provenance, not an
 available build input or guaranteed tool. Committed source, tokens, and `.prompt.md` files are authoritative unless an
 accessible external reference is supplied.
@@ -57,3 +66,7 @@ npm run build -w @uliss/design-system
 
 When packaging changes, inspect the jar for the expected `META-INF/resources/ds/**` entries. When public components or
 tokens change, also build the affected web or auth consumer.
+
+The Gradle resource copy excludes hidden `.claude` service directories from both processed CSS and the independent font
+copy. A packaging check must inspect jar entries, because a successful Gradle task alone does not detect stale
+resources.

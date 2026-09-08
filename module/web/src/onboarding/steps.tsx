@@ -3,9 +3,9 @@
  * `onDone` to advance. Built on the controlled Notice fields (ui/notice/fields).
  */
 import {useState} from 'react'
+import {Notice, type SelectOption} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {Notice} from '../ui/notice/Notice'
-import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect, type SelectOption} from '../ui/notice/fields'
+import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect} from '../ui/notice/fields'
 import {maxBirthDateIso, MIN_AGE_YEARS} from './age'
 import {DISPLAY_NAME_MAX_LENGTH, type Gender, OnboardingSubmitError, submit} from './onboardingApi'
 
@@ -58,7 +58,7 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
             blocking={blocking}
             progress={progress}
             greek="ὄνομα · your name"
-            title="What shall we call you?"
+            title="What should Uliss call you?"
             primary="Continue"
             primaryDisabled={trimmed.length === 0}
             busy={busy}
@@ -97,7 +97,7 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
             progress={progress}
             greek="βίος · about you"
             title="A little about you"
-            body="Gender and date of birth let Uliss answer as if it knows who it is talking to. Skip it and nothing breaks."
+            body="Gender and date of birth help Uliss shape its answers to you. Skip them and nothing breaks."
             primary="Save"
             secondary="Skip for now"
             skip="Skip for now"

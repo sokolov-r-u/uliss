@@ -1,4 +1,4 @@
-import type {CSSProperties, ReactNode} from 'react'
+import type {ButtonHTMLAttributes, CSSProperties, ReactNode} from 'react'
 
 // Four variants, all rectangular, all uppercase-tracked. Uliss has no filled
 // buttons except the notice primary — emphasis is carried by border and colour.
@@ -7,7 +7,7 @@ import type {CSSProperties, ReactNode} from 'react'
 //   quiet   — 1px --line-strong border, cream label (secondary / list actions)
 //   ghost   — no border, --text-faint label (dismiss, "not now")
 
-export interface ButtonProps {
+export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'style'> {
     children?: ReactNode
     variant?: 'primary' | 'outline' | 'quiet' | 'ghost'
     /** sm 26px (inline chip) · md 36px (chrome) · lg 44px (touch target). */
@@ -15,7 +15,6 @@ export interface ButtonProps {
     full?: boolean
     /** An `<Icon>` placed before the label. */
     icon?: ReactNode
-    onClick?: () => void
     style?: CSSProperties
 }
 
@@ -27,6 +26,9 @@ export function Button({
                            full = false,
                            icon = null,
                            style = {},
+                           type = 'button',
+                           disabled = false,
+                           ...buttonProps
                        }: ButtonProps) {
     const h = size === 'lg' ? 44 : size === 'sm' ? 26 : 36
     const fs = size === 'lg' ? 10 : size === 'sm' ? 9.5 : 10
@@ -44,7 +46,8 @@ export function Button({
         fontWeight: 'var(--w-emphasis)',
         letterSpacing: size === 'sm' ? '2px' : '2.5px',
         textTransform: 'uppercase',
-        cursor: 'pointer',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        opacity: disabled ? 0.5 : 1,
         border: 'none',
         transition: 'color var(--dur-hover) var(--ease), border-color var(--dur-hover) var(--ease)',
     }
@@ -55,7 +58,7 @@ export function Button({
         ghost: {color: 'var(--text-faint)', padding: 0, minHeight: 'auto'},
     }[variant]
     return (
-        <button onClick={onClick} style={{...base, ...skin, ...style}}>
+        <button {...buttonProps} type={type} disabled={disabled} onClick={onClick} style={{...base, ...skin, ...style}}>
             {icon}
             {children}
         </button>

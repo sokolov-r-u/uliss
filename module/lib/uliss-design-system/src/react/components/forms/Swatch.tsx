@@ -8,12 +8,29 @@ export interface SwatchProps {
     color: string
     on?: boolean
     onPick?: () => void
+    disabled?: boolean
 }
 
-export function Swatch({label, color, on = false, onPick}: SwatchProps) {
+export function Swatch({label, color, on = false, onPick, disabled = false}: SwatchProps) {
     return (
-        <div
+        <button
+            type="button"
+            role="radio"
+            aria-checked={on}
+            aria-label={label}
+            disabled={disabled}
             onClick={onPick}
+            onKeyDown={(event) => {
+                if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
+                const radios = Array.from(event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)') ?? [])
+                const index = radios.indexOf(event.currentTarget)
+                if (index < 0 || radios.length === 0) return
+                event.preventDefault()
+                const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
+                const next = radios[(index + delta + radios.length) % radios.length]
+                next.focus()
+                next.click()
+            }}
             style={{
                 display: 'flex',
                 flexDirection: 'column',
@@ -22,7 +39,10 @@ export function Swatch({label, color, on = false, onPick}: SwatchProps) {
                 padding: '11px 6px 10px',
                 background: on ? 'var(--bg-surface)' : 'transparent',
                 border: on ? `1px solid ${color}` : '1px solid var(--line)',
-                cursor: onPick ? 'pointer' : 'default',
+                color: 'inherit',
+                font: 'inherit',
+                opacity: disabled ? 0.5 : 1,
+                cursor: disabled ? 'not-allowed' : onPick ? 'pointer' : 'default',
             }}
         >
       <span
@@ -46,6 +66,6 @@ export function Swatch({label, color, on = false, onPick}: SwatchProps) {
             >
         {label}
       </span>
-        </div>
+        </button>
     )
 }

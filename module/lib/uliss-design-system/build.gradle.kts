@@ -32,6 +32,13 @@ tasks.processResources {
 	dependsOn(buildDesignSystem)
 	into("META-INF/resources/ds") {
 		from(layout.projectDirectory.dir("dist"))
-		from(layout.projectDirectory.dir("src/fonts")) { into("fonts") }
+		from(layout.projectDirectory.dir("src/fonts")) {
+			into("fonts")
+			exclude(".claude/**")
+			exclude("**/.claude/**")
+			includeEmptyDirs = false
+		}
+		exclude("**/.claude/**")
+		includeEmptyDirs = false
 	}
 }

@@ -1,3 +1,4 @@
+import {useState} from 'react'
 import {OptionList, StepControl} from '@uliss/design-system'
 import {SectionLabel, SettingsShell} from './SettingsShell'
 
@@ -14,6 +15,9 @@ const STAR_SIZE = [
 ]
 
 export function SkySettings() {
+    const [labels] = useState(1)
+    const [starSize] = useState('regular')
+    const [colour] = useState(0)
     return (
         <SettingsShell kicker="Sky">
             <p className="settings-para">
@@ -21,18 +25,23 @@ export function SkySettings() {
                 the branches hold together. They take effect once your sky has stars to arrange.
             </p>
 
-            <div className="settings-inert">
-                <SectionLabel>Labels</SectionLabel>
-                <OptionList marker="dot" selected={1} options={['Always', 'Auto', 'Off']}/>
-
-                <SectionLabel>Star size</SectionLabel>
-                <StepControl value="regular" steps={STAR_SIZE}/>
-
-                <SectionLabel>Colour</SectionLabel>
-                <OptionList marker="dot" selected={0} options={['By constellation', 'Monochrome']}/>
+            <div className="sky-settings-preview" aria-label="Sky preview">
+                <span/><span/><span/><i/><i/>
             </div>
 
-            <p className="settings-foot-note">Not active yet — your sky has no stars to arrange</p>
+            <div>
+                <SectionLabel>Labels</SectionLabel>
+                <OptionList label="Labels" disabled marker="dot" selected={labels} options={['Always', 'Auto', 'Off']}/>
+
+                <SectionLabel>Star size</SectionLabel>
+                <StepControl label="Star size" disabled value={starSize} steps={STAR_SIZE}/>
+
+                <SectionLabel>Colour</SectionLabel>
+                <OptionList label="Colour" disabled marker="dot" selected={colour}
+                            options={['By constellation', 'Monochrome']}/>
+            </div>
+
+            <p className="settings-foot-note">Controls are unavailable until graph data exists</p>
         </SettingsShell>
     )
 }

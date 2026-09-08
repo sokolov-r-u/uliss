@@ -1,7 +1,8 @@
-import type {CSSProperties, ReactNode} from 'react'
+import {type CSSProperties, type ReactNode, useId} from 'react'
 import {StarMark} from '../brand/StarMark'
 import {Greek} from '../brand/Greek'
 import {Button} from '../actions/Button'
+import {IconButton} from '../actions/IconButton'
 import {Icon} from '../icons/Icon'
 import {ProgressDots} from './ProgressDots'
 
@@ -29,9 +30,9 @@ export interface NoticeProps {
     /** No close, no secondary — the step must be finished. */
     blocking?: boolean
     /** Decorative gloss above the title. */
-    greek?: string
-    title: string
-    body?: string
+    greek?: ReactNode
+    title: ReactNode
+    body?: ReactNode
     /** The control this notice is asking through — TextField, OptionList, Select. */
     children?: ReactNode
     primary?: string
@@ -43,6 +44,9 @@ export interface NoticeProps {
     onSecondary?: () => void
     onSkip?: () => void
     onClose?: () => void
+    primaryDisabled?: boolean
+    busy?: boolean
+    showClose?: boolean
     width?: number
 }
 
@@ -54,16 +58,22 @@ export function Notice({
                            body,
                            children,
                            primary = 'Continue',
-                           secondary = 'Close',
+                           secondary,
                            skip,
                            progress,
                            onPrimary,
                            onSecondary,
                            onSkip,
                            onClose,
+                           primaryDisabled = false,
+                           busy = false,
+                           showClose = false,
                            width = 304,
                        }: NoticeProps) {
+    const titleId = useId()
     const hasSkip = blocking && !!skip && !!onSkip
+    const hasSecondary = !blocking && !!secondary && !!onSecondary
+    const closable = !blocking && showClose && !!onClose
     let shell: CSSProperties
     let pad = 26
     if (variant === 'plaque') {
@@ -81,6 +91,10 @@ export function Notice({
     }
     return (
         <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            aria-busy={busy || undefined}
             style={{
                 position: 'relative',
                 width,
@@ -99,19 +113,16 @@ export function Notice({
                 )}
                 {variant === 'framed' && <CornerTicks/>}
                 <div style={{position: 'relative', padding: pad}}>
-                    {!blocking && (
+                    {closable && (
                         <div
-                            onClick={onClose}
                             style={{
                                 position: 'absolute',
                                 top: variant === 'framed' ? 14 : 12,
                                 right: variant === 'framed' ? 14 : 12,
-                                color: 'var(--text-muted)',
-                                cursor: 'pointer',
-                                display: 'flex',
                             }}
                         >
-                            <Icon name="close" size={17}/>
+                            <IconButton title="Close" onClick={onClose} s={30}><Icon name="close"
+                                                                                     size={17}/></IconButton>
                         </div>
                     )}
                     {progress && <ProgressDots current={progress.current} total={progress.total}/>}
@@ -126,6 +137,7 @@ export function Notice({
                         </div>
                     )}
                     <div
+                        id={titleId}
                         style={{
                             fontFamily: 'var(--font-text)',
                             fontSize: 21.5,
@@ -134,7 +146,7 @@ export function Notice({
                             color: 'var(--cream)',
                             textWrap: 'balance',
                             marginBottom: variant === 'minimal' ? 10 : 12,
-                            paddingRight: !blocking ? 22 : 0,
+                            paddingRight: closable ? 22 : 0,
                         }}
                     >
                         {title}
@@ -159,19 +171,23 @@ export function Notice({
                     )}
                     {children && <div style={{marginBottom: 22}}>{children}</div>}
                     <div style={{display: 'flex', gap: 10}}>
-                        {!blocking && (
+                        {hasSecondary && (
                             <Button variant="ghost" onClick={onSecondary}>
                                 {secondary}
                             </Button>
                         )}
-                        <Button variant="primary" size="lg" full onClick={onPrimary}>
-                            {primary}
-                        </Button>
+                        {primary && (
+                            <Button variant="primary" size="lg" full onClick={onPrimary}
+                                    disabled={primaryDisabled || busy}>
+                                {busy ? 'Working…' : primary}
+                            </Button>
+                        )}
                     </div>
                     {hasSkip && (
                         <div style={{marginTop: 10, display: 'flex', justifyContent: 'center'}}>
-              <span
-                  role="button"
+                            <button
+                                type="button"
+                                disabled={busy}
                   onClick={onSkip}
                   style={{
                       minHeight: 44,
@@ -184,10 +200,12 @@ export function Notice({
                       letterSpacing: '2px',
                       textTransform: 'uppercase',
                       color: 'var(--text-muted)',
+                      border: 0,
+                      background: 'transparent',
                   }}
               >
                 {skip}
-              </span>
+                            </button>
                         </div>
                     )}
                 </div>

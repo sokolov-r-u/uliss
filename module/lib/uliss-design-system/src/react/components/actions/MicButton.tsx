@@ -1,20 +1,31 @@
+import type {ButtonHTMLAttributes} from 'react'
 import {Icon} from '../icons/Icon'
 
 // The record affordance — the largest element in the product and the only
 // circle in it. solid = idle (accent fill, dark glyph); ring = armed (hollow,
 // accent-2 stroke, inner glow); pulse = recording (three concentric rings).
-export interface MicButtonProps {
+export interface MicButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
     /** solid = idle · ring = armed · pulse = recording (concentric rings). */
     variant?: 'solid' | 'ring' | 'pulse'
     /** Diameter in px. The glyph is always 0.34 × this. */
     size?: number
 }
 
-export function MicButton({variant = 'solid', size = 132}: MicButtonProps) {
+export function MicButton({
+                              variant = 'solid',
+                              size = 132,
+                              type = 'button',
+                              disabled = false,
+                              ...buttonProps
+                          }: MicButtonProps) {
     const ring = variant === 'ring'
     const pulse = variant === 'pulse'
     return (
-        <div
+        <button
+            {...buttonProps}
+            type={type}
+            disabled={disabled}
+            aria-label={buttonProps['aria-label'] ?? 'Voice input'}
             style={{
                 position: 'relative',
                 width: size,
@@ -22,6 +33,11 @@ export function MicButton({variant = 'solid', size = 132}: MicButtonProps) {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                padding: 0,
+                border: 0,
+                background: 'transparent',
+                opacity: disabled ? 0.5 : 1,
+                cursor: disabled ? 'not-allowed' : 'pointer',
             }}
         >
             {pulse &&
@@ -57,6 +73,6 @@ export function MicButton({variant = 'solid', size = 132}: MicButtonProps) {
             >
                 <Icon name="mic" size={size * 0.34}/>
             </div>
-        </div>
+        </button>
     )
 }

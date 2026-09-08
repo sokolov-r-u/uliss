@@ -8,8 +8,7 @@
  */
 import {createContext, type ReactNode, useCallback, useContext, useMemo, useState} from 'react'
 import {createPortal} from 'react-dom'
-import {Dialog} from '@uliss/design-system'
-import {Notice, type NoticeProps} from '../ui/notice/Notice'
+import {Dialog, Notice, type NoticeProps} from '@uliss/design-system'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 
 /** A queued notice: content only — the provider supplies buttons/close wiring. */

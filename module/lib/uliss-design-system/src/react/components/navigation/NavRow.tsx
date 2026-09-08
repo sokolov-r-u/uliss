@@ -11,21 +11,18 @@ export interface NavRowProps {
     icon?: ReactNode
     label: string
     active?: boolean
-    onClick?: () => void
     /** 5px accent square. Presence only — never a count. */
     dot?: boolean
 }
 
-export function NavRow({icon, label, active = false, onClick, dot = false}: NavRowProps) {
+export function NavRow({icon, label, active = false, dot = false}: NavRowProps) {
     return (
         <div
-            onClick={onClick}
             style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 14,
                 padding: '13px 14px',
-                cursor: 'pointer',
                 background: active ? 'var(--bg-surface)' : 'transparent',
                 borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
                 color: active ? 'var(--cream)' : 'var(--cream-dim)',

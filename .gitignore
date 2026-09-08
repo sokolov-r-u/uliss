@@ -45,6 +45,8 @@ out/
 ### Node / frontend ###
 node_modules/
 **/dist/
+module/web/visual-dist/
+module/web/visual/test-results/
 .vite/
 
 ### macOS ###

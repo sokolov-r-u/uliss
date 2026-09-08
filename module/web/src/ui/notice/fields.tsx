@@ -1,11 +1,12 @@
 /**
  * Controlled form fields for the Notice mechanism. Visuals track the design-system
- * `forms/TextField` / `forms/Select` (inline styles on tokens); interactivity (state,
- * open/close, selection, month navigation) lives here. There is no design-system date
- * component, so `NoticeDate` + its `DatePicker` are local.
+ * `forms/TextField` / `forms/Select`; only the date/calendar adapter remains local because
+ * the design system has no calendar primitive.
  */
 import {useState} from 'react'
-import {Greek, Icon, LabelRow} from '@uliss/design-system'
+import {Icon, IconButton, LabelRow, Select, TextField, type SelectOption} from '@uliss/design-system'
+
+export type {SelectOption} from '@uliss/design-system'
 
 // ── text input (kind="input") ───────────────────────────────────
 export function NoticeField({
@@ -23,47 +24,13 @@ export function NoticeField({
     max?: number
     autoFocus?: boolean
 }) {
-    const counter = value.length > 0 && (
-        <span style={{
-            fontFamily: 'var(--font-text)',
-            fontSize: 10,
-            letterSpacing: '0.5px',
-            color: value.length > max - 4 ? 'var(--accent)' : 'var(--text-faint)',
-        }}>
-            {String(value.length).padStart(2, '0')} / {max}
-        </span>
-    )
     return (
-        <div>
-            <LabelRow label={label} right={counter}/>
-            <div
-                style={{
-                    height: 48,
-                    display: 'flex',
-                    alignItems: 'center',
-                    padding: '0 14px',
-                    background: 'var(--bg-panel)',
-                    border: '1px solid var(--accent)',
-                    boxShadow: 'inset 0 0 0 1px var(--accent-glow-soft), 0 0 18px -6px var(--accent-glow-mid)',
-                }}
-            >
-                <input
-                    className="notice-input"
-                    type="text"
-                    value={value}
-                    maxLength={max}
-                    placeholder={placeholder}
-                    autoFocus={autoFocus}
-                    onChange={(e) => onChange(e.target.value)}
-                />
-            </div>
-        </div>
+        <TextField label={label} value={value} onChange={(event) => onChange(event.target.value)}
+                   maxLength={max} placeholder={placeholder} autoFocus={autoFocus}/>
     )
 }
 
 // ── dropdown (kind="profile" — gender) ───────────────────────────
-export type SelectOption<T extends string> = { value: T; label: string; greek?: string }
-
 export function NoticeSelect<T extends string>({
                                                    label,
                                                    greek,
@@ -79,121 +46,8 @@ export function NoticeSelect<T extends string>({
     value: T | null
     onChange: (v: T) => void
 }) {
-    const [open, setOpen] = useState(false)
-    const current = options.find((o) => o.value === value) ?? null
-
-    return (
-        <div>
-            <LabelRow label={label} greek={greek}/>
-            <div
-                role="button"
-                tabIndex={0}
-                onClick={() => setOpen((o) => !o)}
-                onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        setOpen((o) => !o)
-                    }
-                }}
-                style={{
-                    height: 48,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '0 15px',
-                    cursor: 'pointer',
-                    background: 'var(--bg-panel)',
-                    border: open ? '1px solid var(--accent)' : '1px solid var(--line-strong)',
-                    boxShadow: open ? '0 0 18px -6px var(--accent-glow-mid)' : 'none',
-                }}
-            >
-        <span
-            style={{
-                flex: 1,
-                fontFamily: 'var(--font-text)',
-                fontSize: 13,
-                letterSpacing: '0.8px',
-                color: current ? 'var(--cream)' : 'var(--text-faint)',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-            }}
-        >
-          {current?.label ?? placeholder}
-        </span>
-                <span
-                    style={{
-                        color: open ? 'var(--accent-2)' : 'var(--text-muted)',
-                        display: 'flex',
-                        transform: open ? 'rotate(180deg)' : 'none',
-                        transition: 'transform .2s',
-                    }}
-                >
-          <Icon name="chevron" size={14}/>
-        </span>
-            </div>
-            {open && (
-                <div
-                    style={{
-                        marginTop: 6,
-                        background: 'var(--bg-deep)',
-                        border: '1px solid var(--accent)',
-                        boxShadow: '0 20px 40px -18px rgba(0, 0, 0, 0.8), 0 0 18px -8px var(--accent-glow-mid)',
-                        overflow: 'hidden',
-                    }}
-                >
-                    {options.map((o, i) => {
-                        const on = o.value === value
-                        return (
-                            <div
-                                key={o.value}
-                                role="option"
-                                aria-selected={on}
-                                onClick={() => {
-                                    onChange(o.value)
-                                    setOpen(false)
-                                }}
-                                style={{
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: 12,
-                                    height: 44,
-                                    padding: '0 15px',
-                                    cursor: 'pointer',
-                                    background: on ? 'var(--bg-surface)' : 'transparent',
-                                    borderLeft: on ? '2px solid var(--accent)' : '2px solid transparent',
-                                    borderTop: i === 0 ? 'none' : '1px solid var(--line)',
-                                }}
-                            >
-                <span
-                    style={{
-                        width: 13,
-                        height: 13,
-                        flex: '0 0 13px',
-                        borderRadius: '50%',
-                        border: on ? '4px solid var(--accent-2)' : '1px solid var(--line-strong)',
-                        background: on ? 'var(--bg-deep)' : 'transparent',
-                    }}
-                />
-                                <span
-                                    style={{
-                                        flex: 1,
-                                        fontFamily: 'var(--font-text)',
-                                        fontSize: 12.5,
-                                        letterSpacing: '0.8px',
-                                        color: on ? 'var(--cream)' : 'var(--cream-dim)',
-                                        fontWeight: on ? 'var(--w-emphasis)' : 'var(--w-ui)',
-                                    }}
-                                >
-                  {o.label}
-                </span>
-                                {o.greek && <Greek size={13}>{o.greek}</Greek>}
-                            </div>
-                        )
-                    })}
-                </div>
-            )}
-        </div>
-    )
+    return <Select label={label} greek={greek} placeholder={placeholder} options={options}
+                   value={value} onChange={onChange}/>
 }
 
 // ── date of birth (kind="profile") ───────────────────────────────
@@ -273,7 +127,7 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
         justifyContent: 'center',
         border: '1px solid var(--line-strong)',
         color: 'var(--cream-dim)',
-        cursor: 'pointer',
+        padding: 0,
     }
     const isSel = (d: number) =>
         selected != null && selected.getFullYear() === view.year && selected.getMonth() === view.month && selected.getDate() === d
@@ -284,13 +138,13 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                 background: 'var(--bg-deep)',
                 border: '1px solid var(--accent)',
                 padding: '12px 12px 13px',
-                boxShadow: '0 20px 40px -18px rgba(0, 0, 0, 0.8), 0 0 18px -8px var(--accent-glow-mid)',
+                boxShadow: 'var(--shadow-modal), 0 0 18px -8px var(--accent-glow-mid)',
             }}
         >
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
-        <span style={navBtn} role="button" aria-label="Previous month" onClick={() => onNav(-1)}>
+                <IconButton s={26} style={navBtn} title="Previous month" onClick={() => onNav(-1)}>
           <Icon name="caret" size={14}/>
-        </span>
+                </IconButton>
                 <span style={{
                     fontFamily: 'var(--font-text)',
                     fontSize: 10.5,
@@ -300,9 +154,9 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                 }}>
           {MONTHS[view.month]} {view.year}
         </span>
-                <span style={navBtn} role="button" aria-label="Next month" onClick={() => onNav(1)}>
+                <IconButton s={26} style={navBtn} title="Next month" onClick={() => onNav(1)}>
           <Icon name="caret" size={14} rotate={180}/>
-        </span>
+                </IconButton>
             </div>
             <div style={{display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2, marginBottom: 5}}>
                 {wd.map((w) => (
@@ -321,29 +175,31 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                 {cells.map((d, i) => {
                     const on = d != null && isSel(d)
                     const off = d != null && maxDate != null && new Date(view.year, view.month, d) > maxDate
-                    const clickable = d != null && !off
                     return (
-                        <span
+                        <button
+                            type="button"
                             key={i}
-                            role={clickable ? 'button' : undefined}
-                            aria-disabled={off || undefined}
-                            onClick={clickable ? () => onPick(d!) : undefined}
+                            disabled={d == null || off}
+                            aria-hidden={d == null || undefined}
+                            onClick={d == null ? undefined : () => onPick(d)}
                             style={{
                                 height: 28,
                                 display: 'flex',
                                 alignItems: 'center',
                                 justifyContent: 'center',
-                                cursor: clickable ? 'pointer' : 'default',
+                                cursor: d != null && !off ? 'pointer' : 'default',
                                 fontFamily: 'var(--font-text)',
                                 fontSize: 11,
                                 fontWeight: on ? 'var(--w-emphasis)' : 'var(--w-ui)',
                                 color: d ? (on ? 'var(--bg-deep)' : off ? 'var(--text-faint)' : 'var(--cream-dim)') : 'transparent',
                                 opacity: off ? 0.4 : 1,
                                 background: on ? 'var(--accent-2)' : 'transparent',
+                                border: 0,
+                                padding: 0,
                             }}
                         >
               {d || ''}
-            </span>
+                        </button>
                     )
                 })}
             </div>
@@ -406,25 +262,28 @@ export function NoticeDate({
                 }}
             >
                 <input
-                    className="notice-input"
                     type="text"
                     inputMode="numeric"
                     value={formatDigits(digits)}
                     placeholder="DD/MM/YYYY"
                     onChange={(e) => commit(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                    style={{letterSpacing: '1px'}}
-                />
-                <span
-                    role="button"
-                    tabIndex={0}
-                    aria-label="Open calendar"
-                    onClick={() => setOpen((o) => !o)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault()
-                            setOpen((o) => !o)
-                        }
+                    style={{
+                        flex: 1,
+                        minWidth: 0,
+                        background: 'transparent',
+                        border: 0,
+                        outline: 0,
+                        color: 'var(--cream)',
+                        fontFamily: 'var(--font-text)',
+                        fontSize: 14,
+                        letterSpacing: '1px',
+                        caretColor: 'var(--accent-2)',
                     }}
+                />
+                <IconButton
+                    s={36}
+                    title={open ? 'Close calendar' : 'Open calendar'}
+                    onClick={() => setOpen((o) => !o)}
                     style={{
                         width: 36,
                         height: 36,
@@ -432,13 +291,12 @@ export function NoticeDate({
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        cursor: 'pointer',
                         background: open ? 'var(--accent-2)' : 'var(--bg-muted)',
                         color: open ? 'var(--bg-deep)' : 'var(--accent-2)',
                     }}
                 >
           <Icon name="cal" size={17}/>
-        </span>
+                </IconButton>
             </div>
             {open && <DatePicker view={view} selected={selected} maxDate={maxDateObj} onNav={nav} onPick={pick}/>}
         </div>

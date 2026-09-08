@@ -44,7 +44,7 @@ export function ChatListPage() {
     }, [])
 
     function onNewChat() {
-        if (creating) return // DS Button/EmptyState have no `disabled` — guard here instead
+        if (creating) return
         setCreating(true)
         setCreateError(null)
         createChat()
@@ -62,7 +62,7 @@ export function ChatListPage() {
                 kicker="Chats"
                 total={state.status === 'ready' ? state.chats.length : undefined}
                 right={
-                    <Button variant="quiet" onClick={onNewChat}>
+                    <Button variant="quiet" disabled={creating} onClick={onNewChat}>
                         {creating ? 'Creating…' : 'New chat'}
                     </Button>
                 }

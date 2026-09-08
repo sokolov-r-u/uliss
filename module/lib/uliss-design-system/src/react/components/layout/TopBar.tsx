@@ -1,4 +1,5 @@
 import type {ReactNode} from 'react'
+import {IconButton} from '../actions/IconButton'
 import {Icon} from '../icons/Icon'
 
 // The screen header. The hamburger row IS the header — there is no wordmark
@@ -23,21 +24,9 @@ export function TopBar({onMenu, label, count, title, center, right}: TopBarProps
     const hasMid = label != null || count != null || title != null || center != null
     return (
         <div style={{display: 'flex', alignItems: 'center', gap: 12, padding: '5px 18px 5px', minHeight: 46}}>
-      <span
-          onClick={onMenu}
-          style={{
-              flex: '0 0 30px',
-              width: 30,
-              height: 44,
-              marginLeft: -7,
-              display: 'flex',
-              alignItems: 'center',
-              color: 'var(--cream-dim)',
-              cursor: 'pointer',
-          }}
-      >
-        <Icon name="menu" size={20}/>
-      </span>
+            <span style={{flex: '0 0 30px', marginLeft: -7}}>
+                <IconButton s={44} title="Open navigation" onClick={onMenu}><Icon name="menu" size={20}/></IconButton>
+            </span>
             {hasMid ? (
                 center != null ? (
                     <span style={{flex: 1, minWidth: 0, display: 'flex'}}>{center}</span>

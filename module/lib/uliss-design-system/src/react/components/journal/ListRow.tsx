@@ -17,80 +17,112 @@ export interface ListRowProps {
     dim?: boolean
     dots?: boolean
     onClick?: () => void
+    onMenu?: () => void
+    menuLabel?: string
 }
 
-export function ListRow({title, meta, date, unread = false, dim = false, dots = true, onClick}: ListRowProps) {
+export function ListRow({
+                            title,
+                            meta,
+                            date,
+                            unread = false,
+                            dim = false,
+                            dots = true,
+                            onClick,
+                            onMenu,
+                            menuLabel
+                        }: ListRowProps) {
+    const content = (
+        <>
+            <span style={{width: 5, height: 5, flex: '0 0 5px', background: unread ? 'var(--accent)' : 'transparent'}}/>
+            <span style={{
+                flex: 1,
+                minWidth: 0,
+                fontFamily: 'var(--font-text)',
+                fontSize: 14,
+                fontWeight: 'var(--w-body)',
+                color: dim ? 'var(--cream-dim)' : 'var(--cream)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap'
+            }}>{title}</span>
+            <span style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                color: 'var(--text-faint)',
+                fontFamily: 'var(--font-text)',
+                fontSize: 10.5,
+                flex: '0 0 auto'
+            }}>{meta}</span>
+            <span style={{
+                fontFamily: 'var(--font-text)',
+                fontSize: 10.5,
+                letterSpacing: '0.5px',
+                color: 'var(--text-faint)',
+                width: 44,
+                textAlign: 'right',
+                flex: '0 0 44px'
+            }}>{date}</span>
+        </>
+    )
     return (
         <div
-            onClick={onClick}
             style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 10,
                 minHeight: 34,
-                padding: '5px 0',
-                cursor: 'pointer',
             }}
         >
-            <span style={{width: 5, height: 5, flex: '0 0 5px', background: unread ? 'var(--accent)' : 'transparent'}}/>
-            <span
-                style={{
+            {onClick ? (
+                <button type="button" onClick={onClick} style={{
                     flex: 1,
                     minWidth: 0,
-                    fontFamily: 'var(--font-text)',
-                    fontSize: 14,
-                    fontWeight: 'var(--w-body)',
-                    color: dim ? 'var(--cream-dim)' : 'var(--cream)',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                }}
-            >
-        {title}
-      </span>
-            <span
-                style={{
+                    minHeight: 44,
                     display: 'flex',
                     alignItems: 'center',
-                    gap: 4,
-                    color: 'var(--text-faint)',
-                    fontFamily: 'var(--font-text)',
-                    fontSize: 10.5,
-                    flex: '0 0 auto',
-                }}
-            >
-        {meta}
-      </span>
-            <span
-                style={{
-                    fontFamily: 'var(--font-text)',
-                    fontSize: 10.5,
-                    letterSpacing: '0.5px',
-                    color: 'var(--text-faint)',
-                    width: 44,
-                    textAlign: 'right',
-                    flex: '0 0 44px',
-                }}
-            >
-        {date}
-      </span>
+                    gap: 10,
+                    padding: '5px 0',
+                    background: 'transparent',
+                    border: 0,
+                    textAlign: 'left',
+                    cursor: 'pointer'
+                }}>
+                    {content}
+                </button>
+            ) : (
+                <div style={{
+                    flex: 1,
+                    minWidth: 0,
+                    minHeight: 44,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 10,
+                    padding: '5px 0'
+                }}>{content}</div>
+            )}
             {dots && (
-                <span
-                    title="Rename · Delete"
+                <button
+                    type="button"
+                    aria-label={menuLabel ?? `Actions for ${title}`}
+                    title={menuLabel ?? 'Rename · Delete'}
+                    onClick={onMenu}
                     style={{
-                        flex: '0 0 36px',
-                        width: 36,
-                        minHeight: 24,
-                        marginRight: -12,
+                        flex: '0 0 44px',
+                        width: 44,
+                        minHeight: 44,
+                        marginRight: -14,
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
+                        background: 'transparent',
+                        border: 0,
                         color: 'var(--text-faint)',
                         cursor: 'pointer',
                     }}
                 >
           <Icon name="dots" size={16}/>
-        </span>
+                </button>
             )}
         </div>
     )
