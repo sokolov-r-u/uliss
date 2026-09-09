@@ -52,6 +52,7 @@ class OutboxPollerTest {
 
         poller.poll()
 
+        Mockito.verify(outboxService).claim(20)
         Mockito.verify(outboxEventProcessor).process(first)
         Mockito.verifyNoMoreInteractions(outboxService)
     }
@@ -65,6 +66,7 @@ class OutboxPollerTest {
 
         poller.poll()
 
+        Mockito.verify(outboxService).claim(20)
         Mockito.verifyNoMoreInteractions(outboxService)
     }
 

@@ -1,19 +1,20 @@
--- RAG store, managed by org.springframework.ai.vectorstore.pgvector.PgVectorStore. Column layout
--- mirrors PgVectorStore's own schema-init DDL exactly (schema/table name aside) even though
--- initialize-schema stays false — this migration is the schema's source of truth instead.
-CREATE EXTENSION IF NOT EXISTS hstore;
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
-CREATE TABLE note.vector_store
+-- Domain-owned RAG store. Ownership is relational so retrieval cannot depend on JSON metadata filters.
+CREATE TABLE note.rag_chunks
 (
-    id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    content   TEXT,
-    metadata  JSON,
-    embedding VECTOR(1536)
+    id          UUID PRIMARY KEY      DEFAULT gen_random_uuid(),
+    user_id     UUID         NOT NULL,
+    note_id     UUID         NOT NULL,
+    chunk_index INT          NOT NULL,
+    content     TEXT         NOT NULL,
+    metadata    JSONB        NOT NULL DEFAULT '{}'::jsonb,
+    embedding   VECTOR(1536) NOT NULL,
+    created_at  TIMESTAMPTZ  NOT NULL,
+    CONSTRAINT fk_rag_chunks_note_owner
+        FOREIGN KEY (note_id, user_id) REFERENCES note.notes (id, user_id) ON DELETE CASCADE,
+    CONSTRAINT uq_rag_chunks_note_chunk UNIQUE (note_id, chunk_index)
 );
 
--- Superseded by vector_store above: fixed 384-dim placeholder, empty, unreachable from code.
-DROP TABLE note.note_embeddings;
+CREATE INDEX idx_rag_chunks_user_note ON note.rag_chunks (user_id, note_id);
 
 -- Distinguishes a manually created note from one produced by chat summarization.
 ALTER TABLE note.notes

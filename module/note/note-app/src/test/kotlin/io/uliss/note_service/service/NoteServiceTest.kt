@@ -43,13 +43,9 @@ class NoteServiceTest {
         assertEquals(chatId, linkCaptor.value.chatNoteId.chatId)
         assertEquals(note.id, linkCaptor.value.chatNoteId.noteId)
 
-        val eventTypeCaptor = ArgumentCaptor.forClass(OutboxEventType::class.java)
-        val payloadCaptor = ArgumentCaptor.forClass(String::class.java)
-        Mockito.verify(outboxService)
-            .publish(eventTypeCaptor.capture(), payloadCaptor.capture())
-        assertEquals(OutboxEventType.NOTE_INDEX_REQUESTED, eventTypeCaptor.value)
-        assertTrue(payloadCaptor.value.contains(note.id.toString()))
-        assertTrue(payloadCaptor.value.contains(userId.toString()))
+        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
+        assertTrue(payload.contains(note.id.toString()))
+        assertTrue(payload.contains(userId.toString()))
     }
 
     @Test
@@ -72,14 +68,17 @@ class NoteServiceTest {
         assertEquals(chatId, linkCaptor.value.chatNoteId.chatId)
         assertEquals(note.id, linkCaptor.value.chatNoteId.noteId)
 
-        val eventTypeCaptor = ArgumentCaptor.forClass(OutboxEventType::class.java)
-        val payloadCaptor = ArgumentCaptor.forClass(String::class.java)
-        Mockito.verify(outboxService)
-            .publish(eventTypeCaptor.capture(), payloadCaptor.capture())
-        assertEquals(OutboxEventType.NOTE_SUMMARY_REQUESTED, eventTypeCaptor.value)
-        assertTrue(payloadCaptor.value.contains(note.id.toString()))
-        assertTrue(payloadCaptor.value.contains(userId.toString()))
-        assertTrue(payloadCaptor.value.contains(chatId.toString()))
-        assertTrue(payloadCaptor.value.contains(throughMessageId.toString()))
+        val payload = publishedPayload(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        assertTrue(payload.contains(note.id.toString()))
+        assertTrue(payload.contains(userId.toString()))
+        assertTrue(payload.contains(chatId.toString()))
+        assertTrue(payload.contains(throughMessageId.toString()))
+    }
+
+    private fun publishedPayload(expectedType: OutboxEventType): String {
+        Mockito.verify(outboxService).publish(anyValue(), anyValue())
+        val invocation = Mockito.mockingDetails(outboxService).invocations.single { it.method.name == "publish" }
+        assertEquals(expectedType, invocation.arguments[0])
+        return invocation.arguments[1] as String
     }
 }
