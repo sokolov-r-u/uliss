@@ -14,12 +14,18 @@ spring:
   threads:
     virtual:
       enabled: true
+  http:
+    clients:
+      connect-timeout: 10s
+      read-timeout: 120s
   datasource:
     url: ${POSTGRES_URL}?currentSchema=note
   flyway:
     schemas: note
     default-schema: note
   ai:
+    retry:
+      max-attempts: 2
     model:
       chat: deepseek
       embedding: openai
@@ -32,6 +38,8 @@ spring:
       embedding:
         model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
         dimensions: 1536
+        timeout: 60s
+        max-retries: 1
     vectorstore:
       pgvector:
         schema-name: note
@@ -39,8 +47,10 @@ spring:
         initialize-schema: false
 
 note:
+  rag:
+    chunk-size: 800
   outbox:
-    poll-interval-ms: 5000
-    # Visibility timeout for a claimed (PROCESSING) event - ~4x poll-interval-ms, so a worker that
-    # crashed after claim() but before process() completed gets re-claimed instead of stuck forever.
-    processing-timeout-ms: 20000
+    poll-interval-ms: 1000
+    max-attempts: 3
+    concurrency: 4
+    lease-safety-factor: 1.3

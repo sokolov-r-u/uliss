@@ -13,12 +13,18 @@ spring:
   threads:
     virtual:
       enabled: true
+  http:
+    clients:
+      connect-timeout: 10s
+      read-timeout: 120s
   flyway:
     schemas: note
     default-schema: note
     locations: classpath:db/migration
     create-schemas: true
   ai:
+    retry:
+      max-attempts: 2
     model:
       chat: deepseek
       embedding: openai
@@ -29,6 +35,8 @@ spring:
       embedding:
         model: text-embedding-3-small
         dimensions: 1536
+        timeout: 60s
+        max-retries: 1
     vectorstore:
       pgvector:
         schema-name: note
@@ -40,4 +48,6 @@ spring:
 note:
   outbox:
     poll-interval-ms: 3600000
-    processing-timeout-ms: 3600000
+    max-attempts: 3
+    concurrency: 4
+    lease-safety-factor: 1.3

@@ -2,7 +2,6 @@ package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.logging.logger.AppLogger
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,7 +11,6 @@ import java.util.UUID
 import kotlin.math.min
 import kotlin.math.pow
 
-private const val MAX_ATTEMPTS = 5
 private val BASE_BACKOFF: Duration = Duration.ofSeconds(30)
 private val MAX_BACKOFF: Duration = Duration.ofMinutes(30)
 private val CLAIMABLE_STATUSES = listOf(OutboxEventStatus.PENDING, OutboxEventStatus.PROCESSING)
@@ -20,7 +18,8 @@ private val CLAIMABLE_STATUSES = listOf(OutboxEventStatus.PENDING, OutboxEventSt
 @Service
 class OutboxService(
     private val outboxEventRepository: OutboxEventRepository,
-    @Value($$"${note.outbox.processing-timeout-ms}") private val processingTimeoutMs: Long,
+    private val outboxLeasePolicy: OutboxLeasePolicy,
+    private val outboxProperties: OutboxProperties,
 ) {
     private val log = AppLogger.of(OutboxService::class)
 
@@ -60,10 +59,9 @@ class OutboxService(
             Instant.now(),
             PageRequest.of(0, batchSize),
         )
-        val deadline = Instant.now().plusMillis(processingTimeoutMs)
         claimable.forEach {
             it.status = OutboxEventStatus.PROCESSING
-            it.nextAttemptAt = deadline
+            it.nextAttemptAt = Instant.now().plus(outboxLeasePolicy.leaseFor(it.type))
         }
         return outboxEventRepository.saveAll(claimable).toList()
     }
@@ -102,7 +100,11 @@ class OutboxService(
     private fun applyFailure(event: OutboxEventEntity, ex: Exception, method: String) {
         event.attempts += 1
         event.lastError = ex.message
-        event.status = if (event.attempts >= MAX_ATTEMPTS) OutboxEventStatus.FAILED else OutboxEventStatus.PENDING
+        event.status = if (event.attempts >= outboxProperties.maxAttempts) {
+            OutboxEventStatus.FAILED
+        } else {
+            OutboxEventStatus.PENDING
+        }
         event.nextAttemptAt = Instant.now().plus(backoff(event.attempts))
         log.error(
             "failed to process outbox event id=${event.id} type=${event.type} attempts=${event.attempts}",
