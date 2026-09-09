@@ -40,12 +40,6 @@ spring:
         dimensions: 1536
         timeout: 60s
         max-retries: 1
-    vectorstore:
-      pgvector:
-        schema-name: note
-        dimensions: 1536
-        initialize-schema: false
-
 note:
   rag:
     chunk-size: 800

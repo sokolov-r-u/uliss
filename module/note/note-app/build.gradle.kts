@@ -16,7 +16,7 @@ dependencies {
 
     implementation(libs.spring.ai.starter.deepseek)
     implementation(libs.spring.ai.starter.openai)
-    implementation(libs.spring.ai.starter.vector.store.pgvector)
+    implementation(libs.pgvector)
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("tools.jackson.module:jackson-module-kotlin")

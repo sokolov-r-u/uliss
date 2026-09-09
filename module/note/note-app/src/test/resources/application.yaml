@@ -37,12 +37,6 @@ spring:
         dimensions: 1536
         timeout: 60s
         max-retries: 1
-    vectorstore:
-      pgvector:
-        schema-name: note
-        dimensions: 1536
-        initialize-schema: false
-
 # Long enough that the poller never fires during a test's lifetime - it's not what's under test
 # in most full-context tests, and a tick mid-test would add unrelated DB activity/flakiness.
 note:
