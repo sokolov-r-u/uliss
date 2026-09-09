@@ -7,10 +7,11 @@ import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.sql.PreparedStatement
+import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 
-data class EmbeddedChunk(
+class EmbeddedChunk(
     val index: Int,
     val content: String,
     val metadata: Map<String, Any>,
@@ -45,7 +46,7 @@ class JdbcRagChunkStore(
                 statement.setString(4, chunk.content)
                 statement.setString(5, objectMapper.writeValueAsString(chunk.metadata))
                 statement.setObject(6, PGvector(chunk.embedding))
-                statement.setObject(7, createdAt)
+                statement.setTimestamp(7, Timestamp.from(createdAt))
             }
 
             override fun getBatchSize(): Int = chunks.size
