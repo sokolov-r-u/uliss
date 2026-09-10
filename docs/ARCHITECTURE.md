@@ -57,3 +57,28 @@ Libraries self-configure and are picked up by applications without explicit bean
   resources, and the application imports it in its own `application.yaml` via
   `spring.config.import: classpath:<module>.yml`
   (example — `module/auth/src/main/resources/application.yaml`).
+
+## Note summary and RAG pipeline
+
+Chat summarization is asynchronous. The request transaction stores a `GENERATING` note, its chat
+link, and `NOTE_SUMMARY_REQUESTED` in the note-service-owned outbox, then returns `202 Accepted`.
+The outbox processor claims work in short transactions with `FOR UPDATE SKIP LOCKED`; embedding,
+retrieval, and LLM calls run without a surrounding database transaction. Completion stores the
+summary and `NOTE_INDEX_REQUESTED` atomically. Terminal retry exhaustion stores both the failed
+outbox state and `NoteStatus.FAILED` atomically.
+
+The current chat remains the authoritative summary input. OpenAI embeddings retrieve related prior
+notes as untrusted secondary context for terminology and continuity; DeepSeek produces the final
+summary. The captured `throughMessageId` makes the input stable even if the user continues the chat
+after requesting a summary.
+
+RAG persistence is domain-owned rather than Spring AI `VectorStore` storage. `note.rag_chunks`
+stores `user_id` and `note_id` as relational columns, and every similarity query requires the
+authenticated user ID. Spring AI remains responsible for token splitting, batching, embedding, and
+chat-model calls. Exact cosine search follows the mandatory user filter; no global ANN index is
+used until production measurements justify a tenant-aware indexing strategy.
+
+Persisted note state is the source of truth. The status SSE endpoint immediately reads PostgreSQL,
+polls only the ownership-filtered note, emits changes, and closes on `READY` or `FAILED`. This makes
+reconnects and multiple service instances correct without in-memory coordination; the linear
+per-connection polling cost and future alternatives are documented in `TECH_DEBT.md`.
