@@ -43,6 +43,10 @@ spring:
 note:
   rag:
     chunk-size: 800
+  summary:
+    retrieval-query-max-chars: 8000
+    retrieval-top-k: 5
+    retrieval-min-similarity: 0.70
   outbox:
     poll-interval-ms: 1000
     max-attempts: 3

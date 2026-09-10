@@ -20,8 +20,10 @@ class OutboxService(
     private val outboxEventRepository: OutboxEventRepository,
     private val outboxLeasePolicy: OutboxLeasePolicy,
     private val outboxProperties: OutboxProperties,
+    terminalFailureHandlers: List<OutboxTerminalFailureHandler>,
 ) {
     private val log = AppLogger.of(OutboxService::class)
+    private val terminalFailureHandlers = terminalFailureHandlers.associateBy { it.type }
 
     /**
      * Participates in the caller's transaction (e.g. alongside saving the note itself) - that's
@@ -84,7 +86,8 @@ class OutboxService(
     /**
      * Handles a failure from external work or completion in a fresh, short transaction. The
      * processor deliberately invokes it after the handler has returned, so no provider or vector
-     * store call holds a database connection.
+     * store call holds a database connection. On the final attempt, the outbox state and any
+     * registered domain failure transition commit or roll back together.
      */
     @Transactional
     fun recordFailure(eventId: UUID, ex: Exception) {
@@ -93,7 +96,18 @@ class OutboxService(
             log.error("cannot record failure - outbox event no longer exists", "recordFailure", ex)
             return
         }
+        if (event.status != OutboxEventStatus.PROCESSING) {
+            log.error(
+                "cannot record failure for outbox event id=$eventId with status=${event.status}",
+                "recordFailure",
+                ex,
+            )
+            return
+        }
         applyFailure(event, ex, "recordFailure")
+        if (event.status == OutboxEventStatus.FAILED) {
+            terminalFailureHandlers[event.type]?.handleTerminalFailure(event)
+        }
         outboxEventRepository.save(event)
     }
 

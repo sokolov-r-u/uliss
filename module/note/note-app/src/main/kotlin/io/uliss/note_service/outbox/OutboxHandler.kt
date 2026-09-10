@@ -6,3 +6,10 @@ interface OutboxHandler {
 
     fun handle(event: OutboxEventEntity)
 }
+
+interface OutboxTerminalFailureHandler {
+
+    val type: OutboxEventType
+
+    fun handleTerminalFailure(event: OutboxEventEntity)
+}

@@ -21,6 +21,7 @@ private val SUMMARY_LEASE: Duration = Duration.ofSeconds(494)
 class OutboxServiceTest {
 
     private val outboxEventRepository = Mockito.mock(OutboxEventRepository::class.java)
+    private val terminalFailureHandler = Mockito.mock(OutboxTerminalFailureHandler::class.java)
     private val leasePolicy = OutboxLeasePolicy(
         embeddingProperties = OpenAiEmbeddingProperties().apply {
             timeout = Duration.ofSeconds(60)
@@ -34,10 +35,14 @@ class OutboxServiceTest {
         outboxProperties = OutboxProperties(),
     )
 
-    private fun service(maxAttempts: Int = 3) = OutboxService(
-        outboxEventRepository,
-        leasePolicy,
-        OutboxProperties(maxAttempts = maxAttempts),
+    private fun service(
+        maxAttempts: Int = 3,
+        terminalFailureHandlers: List<OutboxTerminalFailureHandler> = emptyList(),
+    ) = OutboxService(
+        outboxEventRepository = outboxEventRepository,
+        outboxLeasePolicy = leasePolicy,
+        outboxProperties = OutboxProperties(maxAttempts = maxAttempts),
+        terminalFailureHandlers = terminalFailureHandlers,
     )
 
     private fun pendingEvent(
@@ -144,7 +149,7 @@ class OutboxServiceTest {
     @Test
     fun `recordFailure reschedules with backoff and keeps PENDING below the attempt limit`() {
         val service = service()
-        val event = pendingEvent(attempts = 1)
+        val event = pendingEvent(attempts = 1).also { it.status = OutboxEventStatus.PROCESSING }
         val before = event.nextAttemptAt
         Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
@@ -159,8 +164,10 @@ class OutboxServiceTest {
 
     @Test
     fun `recordFailure marks the event FAILED once the attempt limit is reached`() {
-        val service = service()
-        val event = pendingEvent(attempts = 2)
+        Mockito.`when`(terminalFailureHandler.type).thenReturn(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        val service = service(terminalFailureHandlers = listOf(terminalFailureHandler))
+        val event = pendingEvent(attempts = 2, type = OutboxEventType.NOTE_SUMMARY_REQUESTED)
+            .also { it.status = OutboxEventStatus.PROCESSING }
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
         Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
@@ -168,12 +175,13 @@ class OutboxServiceTest {
 
         assertEquals(OutboxEventStatus.FAILED, event.status)
         assertEquals(3, event.attempts)
+        Mockito.verify(terminalFailureHandler).handleTerminalFailure(event)
     }
 
     @Test
     fun `recordFailure reloads the event fresh and applies the same backoff bookkeeping`() {
         val service = service()
-        val event = pendingEvent(attempts = 1)
+        val event = pendingEvent(attempts = 1).also { it.status = OutboxEventStatus.PROCESSING }
         Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
@@ -193,6 +201,19 @@ class OutboxServiceTest {
 
         service.recordFailure(eventId, RuntimeException("save failed"))
 
+        Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
+    }
+
+    @Test
+    fun `recordFailure ignores an event that is no longer processing`() {
+        val service = service()
+        val event = pendingEvent().also { it.status = OutboxEventStatus.COMPLETED }
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+
+        service.recordFailure(event.id, RuntimeException("late failure"))
+
+        assertEquals(OutboxEventStatus.COMPLETED, event.status)
+        assertEquals(0, event.attempts)
         Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
 }
