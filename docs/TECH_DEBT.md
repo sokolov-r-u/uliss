@@ -89,6 +89,86 @@ was chosen:
 
 Recorded as a future plan — implementation (backend + frontend) is a separate task.
 
+## Retention/cleanup job for terminal outbox events (`note-service`)
+
+**Status:** not implemented. Nothing currently deletes rows from `note.outbox_event` — `COMPLETED`
+and `FAILED` events accumulate in the table forever.
+
+### Problem
+
+`OutboxService`/`OutboxPoller` (`module/note/note-app/.../outbox/`) only ever transition events
+between `PENDING`/`PROCESSING`/`COMPLETED`/`FAILED` — there's no job that removes (or archives) rows
+once they reach a terminal status (`COMPLETED`, `FAILED`). Under sustained traffic this table grows
+unbounded, which eventually affects `findClaimable`'s index scan (`idx_outbox_event_status_next_attempt`)
+and general table/index bloat.
+
+Noted while discussing `OutboxService.recordFailure`'s "event no longer exists" guard: today that
+branch is unreachable (nothing deletes rows), but a retention job would be the first real path to it.
+
+### Not in scope for the current task
+
+Recorded as a future task — design and implement a scheduled cleanup (e.g. delete `COMPLETED`/`FAILED`
+rows older than some retention window) as a separate piece of work; needs a decision on retention
+period and whether terminal events should be deleted outright or archived first.
+
+## Scalable note-status delivery (`note-service`)
+
+**Status:** current per-connection database polling is acceptable for the initial rollout; replace
+it after measuring real concurrency.
+
+### Problem
+
+`NoteService.streamNoteStatus` currently opens an independent polling loop for every active SSE
+connection. Each loop reads the ownership-filtered note row once per second until it reaches
+`READY` or `FAILED`. This keeps PostgreSQL as the source of truth and works across application
+instances, but database load grows linearly with the number of users viewing generating notes.
+
+### Candidate approaches
+
+- Add a per-instance batch poller that collects the IDs of all locally observed notes and loads
+  their statuses with one bounded `WHERE id IN (...)` query per interval. This preserves the current
+  database-based correctness model without introducing new infrastructure.
+- Publish committed status changes through Redis and forward them to local SSE subscribers. Redis
+  lowers delivery latency and removes frequent PostgreSQL reads, but plain Pub/Sub is not durable.
+  The implementation must therefore retain an initial database read and either a low-frequency
+  safety poll or another recovery mechanism for missed notifications. Publishing should happen
+  after the note transaction commits; strict delivery guarantees may reuse the outbox.
+
+### Not in scope for the current task
+
+Keep the one-second per-connection polling implementation for the initial release. Choose between
+batch polling and Redis using observed concurrent SSE connections, database load, deployment
+topology, and whether Redis is already part of the production infrastructure.
+
+## Comment style migration to the new KDoc rule (project-wide)
+
+**Status:** not implemented. New rule adopted in `CLAUDE.md` ("Notes") going forward; existing
+comments predating the rule were not retrofitted, except in the outbox-related files touched while
+the rule was introduced (`module/note/note-app/.../outbox/*`, `module/lib/database/.../outbox/*`).
+
+### Problem
+
+Per `CLAUDE.md`, any comment longer than one line must be KDoc (`/** ... */`) directly above the
+declaration it documents, not a multi-line `//` block; a KDoc covering 2+ distinct cases/branches
+should use a bold-label paragraph per case (see `OutboxPoller.poll()` for the pattern) instead of a
+dense paragraph or a dash-bullet list. Multi-line `//` blocks predating this rule still exist
+throughout the codebase, e.g. (non-exhaustive):
+
+- `module/lib/database/.../audit/AuditorAwareImpl.kt`
+- `module/lib/security/.../config/AuditorConfig.kt`
+- `module/note/note-app/.../config/WebMvcPathPrefixConfig.kt`
+- `module/note/note-app/.../model/ChatMessageStatus.kt`
+- `module/user/user-app/.../config/WebMvcPathPrefixConfig.kt`
+- assorted test files (`MockitoTestHelpers.kt` in both `note-app` and `user-app`,
+  `ChatControllerTest.kt`, `AskControllerTest.kt`, `ProfileControllerTest.kt`,
+  `RetryAspectTest.kt`)
+
+### Not in scope for the current task
+
+Recorded as a future cleanup pass — convert the remaining multi-line `//` comments across the
+codebase to the KDoc format on a later, dedicated task rather than as a side effect of unrelated
+changes.
+
 ## AI-generated chat title on first message (`note-service`)
 
 **Status:** not implemented. `ChatService.createChat` (`module/note/note-app/.../service/ChatService.kt:24`)

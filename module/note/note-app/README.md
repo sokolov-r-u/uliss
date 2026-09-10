@@ -1,48 +1,71 @@
 # Note service
 
-`module/note/note-app` (`:note`, package `io.uliss.note_service`) provides one-shot AI requests and persistent chat with
-synchronous and SSE-streamed assistant replies. The database also contains the initial shape for future notes and
-retrieval-augmented generation, but retrieval, embeddings, and indexing are not implemented.
+`module/note/note-app` (`:note`, package `io.uliss.note_service`) owns one-shot AI requests,
+persistent chats, asynchronous chat summaries, notes, and per-user retrieval-augmented generation (RAG).
+`WebMvcPathPrefixConfig` adds `/note` to every REST controller.
 
-## AI configuration
+## AI providers and configuration
 
-The service uses Spring AI with the DeepSeek starter. Provider credentials and the model come from environment-backed
-Spring configuration. `ChatClientConfig` builds a provider-neutral `ChatClient`, so a future provider change should
-remain primarily a dependency/configuration concern.
+Chat and summarization use the provider-neutral Spring AI `ChatClient`, backed by DeepSeek. RAG uses
+Spring AI's `EmbeddingModel` with OpenAI `text-embedding-3-small` at 1536 dimensions. Required
+credentials are `DEEPSEEK_API_KEY` and `OPENAI_API_KEY`; `DEEPSEEK_MODEL` and
+`OPENAI_EMBEDDING_MODEL` override the defaults.
 
-The DeepSeek starter contributes Spring AI retry auto-configuration. The shared application retry bean is therefore
-named `optimisticLockRetryTemplate` to avoid a `retryTemplate` collision.
+`spring.ai.model.chat=deepseek` and `spring.ai.model.embedding=openai` select the two providers
+explicitly. The shared optimistic-lock retry bean remains named `optimisticLockRetryTemplate` to
+avoid colliding with Spring AI retry auto-configuration.
 
-## Chat API and persistence
+## Chat and summary APIs
 
-`WebMvcPathPrefixConfig` adds `/note` to REST controllers. `ChatController` exposes chat creation/listing, message
-history, synchronous replies, and streaming replies beneath `/note/chats`.
+`ChatController` exposes chat creation/listing, message history, synchronous replies, and streamed
+replies under `/note/chats`. `ChatService` performs chat lookups using both chat ID and authenticated
+user ID, so missing and foreign chats are indistinguishable.
 
-`ChatService.requireOwnedChat` performs every lookup using both chat and authenticated user identifiers. Missing and
-foreign chats both return not found.
+`POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
+short transaction it creates a `GENERATING` note, links it to the chat, and publishes a
+`NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
+`202 Accepted`, a `Location` header for the note, and the placeholder identity/status.
 
-`AssistantService` handles the model call:
+The summary worker loads only messages through that boundary, builds a deterministic retrieval
+query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
+current chat is authoritative; related notes are delimited as untrusted secondary context. A
+successful non-blank model response atomically changes the note to `READY` and publishes
+`NOTE_INDEX_REQUESTED`. The final configured failure changes a still-generating note to `FAILED` in
+the same transaction that terminally fails the outbox event.
 
-- synchronous failure persists a `FAILED` assistant message before propagating the error;
-- streaming buffers emitted content, sends `token`, `done`, or `error` SSE events, derives the final message status from
-  content and termination, and persists on a bounded-elastic scheduler because JPA is blocking.
+## Note API and status delivery
 
-The frontend re-fetches message history after a stream terminates, making the persisted status the source of truth.
+- `GET /note/notes` returns the authenticated user's notes newest first.
+- `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
+- `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
+  status changes, and closes on `READY` or `FAILED`.
 
-## Database
+Note JSON contains `id`, `source`, `status`, nullable `content`, `createdAt`, and `updatedAt`.
+Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
+after `READY`. Status delivery currently polls PostgreSQL once per second per open connection on a
+bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 
-Flyway creates the service-owned `note` schema, enables pgvector, and defines notes, placeholder embedding storage,
-chats, messages, and future chat-to-note links. The vector dimension is provisional until an embedding model is
-selected.
+## Outbox and RAG storage
 
-The RAG-oriented tables are scaffolding only. Current deferred work, including chat-history pagination and generated
-titles, is described in `docs/TECH_DEBT.md`.
+The poller claims due work with `FOR UPDATE SKIP LOCKED`, runs each event independently on Boot's
+virtual-thread task executor, and keeps embedding, retrieval, and LLM calls outside database
+transactions. Current defaults are four concurrent events, three outbox attempts, exponential
+backoff, and a visibility lease derived from provider timeouts with a safety factor.
 
-The application can start without a DeepSeek key, but actual AI calls will fail authentication. Starting the application
-or calling the provider still requires explicit permission under repository rules.
+RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed
+columns with an ownership-preserving composite foreign key; they are not authorization metadata in
+generic JSON. Spring AI still owns token splitting and embedding/batching. `JdbcRagChunkStore`
+performs replacement and ownership-filtered exact cosine retrieval. `READY` means the note is
+readable; its follow-up indexing event may still be pending.
+
+The application context can start without provider keys, but provider-backed calls will fail;
+background summary/index work then follows the outbox retry policy. Starting the application or
+making provider calls requires explicit permission under repository rules.
+
+Deferred chat pagination, generated chat titles, outbox retention, and scalable status delivery are
+tracked in `docs/TECH_DEBT.md`.
 
 ```bash
 ./gradlew :note:test
 ./gradlew :note:integrationTest
 ```
-

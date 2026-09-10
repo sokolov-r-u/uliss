@@ -6,8 +6,8 @@ import io.uliss.exception.utils.ErrorCode
 import io.uliss.exception.utils.MESSAGE_KEY
 import io.uliss.exception.utils.UNKNOWN_PATH
 import io.uliss.exception.utils.URI_PREFIX
+import io.uliss.logging.logger.AppLogger
 import jakarta.validation.ConstraintViolationException
-import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
@@ -24,7 +24,7 @@ import java.time.Instant
 
 @ControllerAdvice
 class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
-    private val log = LoggerFactory.getLogger(GlobalExceptionHandler::class.simpleName)
+    private val log = AppLogger.of(GlobalExceptionHandler::class)
 
     @ExceptionHandler(ServerException::class)
     fun handleServerException(ex: ServerException, request: WebRequest): ResponseEntity<Any>? =
@@ -62,7 +62,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
     private fun handleException(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ResponseEntity<Any>? {
         val response = getExceptionResponse(ex, httpStatus, request)
         if (httpStatus.is5xxServerError) {
-            log.error("server error on ${response.path}", ex)
+            log.error("server error on ${response.path}", "handleException", ex)
         }
         return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
     }

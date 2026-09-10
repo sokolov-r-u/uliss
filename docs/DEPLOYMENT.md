@@ -36,6 +36,21 @@ path below is unchanged and still fully supported** — this is an additional op
 - Rebuild + `docker compose -f infra/docker-compose.yml --profile full up -d` again to pick up new
   images (`:latest` + Compose recreates a service when its image content changes).
 
+## Note-service AI credentials and background work
+
+Chat replies and final summaries require `DEEPSEEK_API_KEY`; retrieval and indexing embeddings
+require `OPENAI_API_KEY`. The complete summary pipeline therefore needs both keys in `infra/.env`;
+copy the full key set from `infra/env.example.properties`. `DEEPSEEK_MODEL` and
+`OPENAI_EMBEDDING_MODEL` are optional overrides. Compose supplies this file through `env_file`, and
+Kubernetes supplies the same values from the generated `uliss-secret` through `envFrom`.
+
+The note-service context and health endpoint can start without valid provider credentials, but
+provider-backed calls will fail; queued summary/index work consumes the configured retries.
+Summary/index work is stored in PostgreSQL before processing, so restarting or rolling out
+note-service does not discard queued events. Multiple replicas can claim work concurrently through
+`FOR UPDATE SKIP LOCKED`; keep all replicas on compatible code and database migrations because the
+outbox payloads are consumed by any instance.
+
 ## Deploying to Kubernetes (minikube)
 
 Manifests and kustomize live under `infra/`, deployed with one command: `kubectl apply -k infra`.

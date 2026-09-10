@@ -14,13 +14,41 @@ spring:
   threads:
     virtual:
       enabled: true
+  http:
+    clients:
+      connect-timeout: 10s
+      read-timeout: 120s
   datasource:
     url: ${POSTGRES_URL}?currentSchema=note
   flyway:
     schemas: note
     default-schema: note
   ai:
+    retry:
+      max-attempts: 2
+    model:
+      chat: deepseek
+      embedding: openai
     deepseek:
       api-key: ${DEEPSEEK_API_KEY:}
       chat:
         model: ${DEEPSEEK_MODEL:deepseek-v4-flash}
+    openai:
+      api-key: ${OPENAI_API_KEY:}
+      embedding:
+        model: ${OPENAI_EMBEDDING_MODEL:text-embedding-3-small}
+        dimensions: 1536
+        timeout: 60s
+        max-retries: 1
+note:
+  rag:
+    chunk-size: 800
+  summary:
+    retrieval-query-max-chars: 8000
+    retrieval-top-k: 5
+    retrieval-min-similarity: 0.70
+  outbox:
+    poll-interval-ms: 1000
+    max-attempts: 3
+    concurrency: 4
+    lease-safety-factor: 1.3
