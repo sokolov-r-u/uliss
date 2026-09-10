@@ -111,6 +111,35 @@ Recorded as a future task — design and implement a scheduled cleanup (e.g. del
 rows older than some retention window) as a separate piece of work; needs a decision on retention
 period and whether terminal events should be deleted outright or archived first.
 
+## Scalable note-status delivery (`note-service`)
+
+**Status:** current per-connection database polling is acceptable for the initial rollout; replace
+it after measuring real concurrency.
+
+### Problem
+
+`NoteService.streamNoteStatus` currently opens an independent polling loop for every active SSE
+connection. Each loop reads the ownership-filtered note row once per second until it reaches
+`READY` or `FAILED`. This keeps PostgreSQL as the source of truth and works across application
+instances, but database load grows linearly with the number of users viewing generating notes.
+
+### Candidate approaches
+
+- Add a per-instance batch poller that collects the IDs of all locally observed notes and loads
+  their statuses with one bounded `WHERE id IN (...)` query per interval. This preserves the current
+  database-based correctness model without introducing new infrastructure.
+- Publish committed status changes through Redis and forward them to local SSE subscribers. Redis
+  lowers delivery latency and removes frequent PostgreSQL reads, but plain Pub/Sub is not durable.
+  The implementation must therefore retain an initial database read and either a low-frequency
+  safety poll or another recovery mechanism for missed notifications. Publishing should happen
+  after the note transaction commits; strict delivery guarantees may reuse the outbox.
+
+### Not in scope for the current task
+
+Keep the one-second per-connection polling implementation for the initial release. Choose between
+batch polling and Redis using observed concurrent SSE connections, database load, deployment
+topology, and whether Redis is already part of the production infrastructure.
+
 ## Comment style migration to the new KDoc rule (project-wide)
 
 **Status:** not implemented. New rule adopted in `CLAUDE.md` ("Notes") going forward; existing

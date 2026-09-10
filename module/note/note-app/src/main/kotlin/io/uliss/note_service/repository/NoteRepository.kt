@@ -8,4 +8,5 @@ import java.util.UUID
 @Repository
 interface NoteRepository : JpaRepository<NoteEntity, UUID> {
     fun findByIdAndUserId(id: UUID, userId: UUID): NoteEntity?
+    fun findByUserIdOrderByCreatedAtDescIdDesc(userId: UUID): List<NoteEntity>
 }

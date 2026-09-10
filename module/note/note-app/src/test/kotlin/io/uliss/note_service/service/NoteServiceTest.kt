@@ -1,6 +1,8 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.dto.NoteStatusResponse
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
@@ -12,9 +14,13 @@ import io.uliss.note_service.repository.NoteRepository
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
+import reactor.test.StepVerifier
 import tools.jackson.databind.json.JsonMapper
+import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class NoteServiceTest {
@@ -24,6 +30,66 @@ class NoteServiceTest {
     private val outboxService = Mockito.mock(OutboxService::class.java)
     private val objectMapper = JsonMapper.builder().build()
     private val noteService = NoteService(noteRepository, chatNoteRepository, outboxService, objectMapper)
+
+    @Test
+    fun `getNotes returns only repository-owned notes in repository order`() {
+        val userId = UUID.randomUUID()
+        val linkedNote = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val manualNote = NoteEntity(userId, "manual", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
+            .thenReturn(listOf(linkedNote, manualNote))
+
+        val notes = noteService.getNotes(userId)
+
+        assertEquals(listOf(linkedNote.id, manualNote.id), notes.map { it.id })
+        Mockito.verifyNoInteractions(chatNoteRepository)
+    }
+
+    @Test
+    fun `getNote hides a missing or foreign note behind not found`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { noteService.getNote(userId, noteId) }
+        Mockito.verifyNoInteractions(chatNoteRepository)
+    }
+
+    @Test
+    fun `streamNoteStatus emits the current terminal state and completes immediately`() {
+        val userId = UUID.randomUUID()
+        val updatedAt = Instant.parse("2026-09-10T10:15:30Z")
+        val note = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY).apply {
+            this.updatedAt = updatedAt
+        }
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        StepVerifier.create(noteService.streamNoteStatus(userId, note.id))
+            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, updatedAt))
+            .verifyComplete()
+
+        Mockito.verify(noteRepository).findByIdAndUserId(note.id, userId)
+        Mockito.verifyNoInteractions(chatNoteRepository)
+    }
+
+    @Test
+    fun `streamNoteStatus suppresses unchanged states and completes after a transition`() {
+        val userId = UUID.randomUUID()
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        val ready = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY).apply {
+            id = generating.id
+        }
+        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId))
+            .thenReturn(generating, generating, ready)
+
+        StepVerifier.create(noteService.streamNoteStatus(userId, generating.id))
+            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null))
+            .expectNext(NoteStatusResponse(ready.id, NoteStatus.READY, null))
+            .expectComplete()
+            .verify(Duration.ofSeconds(4))
+
+        Mockito.verify(noteRepository, Mockito.times(3)).findByIdAndUserId(generating.id, userId)
+    }
 
     @Test
     fun `createChatSummary saves a CHAT_SUMMARY note, links it to the chat, and publishes an indexing event`() {
