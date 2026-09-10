@@ -70,11 +70,43 @@ class ChatServiceTest {
         val chat = ChatEntity(userId, "Trip planning")
         val message = ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE)
         Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(chat)
-        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)).thenReturn(listOf(message))
+        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(listOf(message))
 
         val result = chatService.getMessages(userId, chatId)
 
         assertSame(message, result.single())
+    }
+
+    @Test
+    fun `getSummaryContext returns the owned chat title and messages only through the boundary`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Trip planning")
+        val first = ChatMessageEntity(chatId, ChatMessageRole.USER, "first", ChatMessageStatus.COMPLETE)
+        val boundary = ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "second", ChatMessageStatus.COMPLETE)
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(chat)
+        Mockito.`when`(chatMessageRepository.findThroughMessage(chatId, boundary.id))
+            .thenReturn(listOf(first, boundary))
+
+        val result = chatService.getSummaryContext(userId, chatId, boundary.id)
+
+        assertEquals("Trip planning", result.title)
+        assertEquals(listOf(first, boundary), result.messages)
+    }
+
+    @Test
+    fun `getSummaryContext rejects a boundary that does not belong to the chat`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId))
+            .thenReturn(ChatEntity(userId, "Trip planning"))
+        val throughMessageId = UUID.randomUUID()
+        Mockito.`when`(chatMessageRepository.findThroughMessage(chatId, throughMessageId))
+            .thenReturn(emptyList())
+
+        assertFailsWith<IllegalStateException> {
+            chatService.getSummaryContext(userId, chatId, throughMessageId)
+        }
     }
 
     @Test
@@ -95,7 +127,8 @@ class ChatServiceTest {
         val chat = ChatEntity(userId, "Trip planning")
         val priorMessage = ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "hello", ChatMessageStatus.COMPLETE)
         Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(chat)
-        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)).thenReturn(listOf(priorMessage))
+        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId))
+            .thenReturn(listOf(priorMessage))
         Mockito.`when`(chatMessageRepository.save(anyValue()))
             .thenAnswer { it.getArgument<ChatMessageEntity>(0) }
 

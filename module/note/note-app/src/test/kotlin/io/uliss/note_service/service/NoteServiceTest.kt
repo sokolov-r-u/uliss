@@ -75,6 +75,37 @@ class NoteServiceTest {
         assertTrue(payload.contains(throughMessageId.toString()))
     }
 
+    @Test
+    fun `completeChatSummary changes a generating note to ready and publishes indexing`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(noteRepository.save(note)).thenReturn(note)
+
+        val completed = noteService.completeChatSummary(userId, note.id, "summary text")
+
+        assertTrue(completed)
+        assertEquals("summary text", note.content)
+        assertEquals(NoteStatus.READY, note.status)
+        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
+        assertTrue(payload.contains(note.id.toString()))
+        assertTrue(payload.contains(userId.toString()))
+    }
+
+    @Test
+    fun `completeChatSummary does nothing when the note is no longer generating`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "existing", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        val completed = noteService.completeChatSummary(userId, note.id, "late summary")
+
+        assertEquals(false, completed)
+        assertEquals("existing", note.content)
+        Mockito.verify(noteRepository, Mockito.never()).save(note)
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
     private fun publishedPayload(expectedType: OutboxEventType): String {
         Mockito.verify(outboxService).publish(anyValue(), anyValue())
         val invocation = Mockito.mockingDetails(outboxService).invocations.single { it.method.name == "publish" }

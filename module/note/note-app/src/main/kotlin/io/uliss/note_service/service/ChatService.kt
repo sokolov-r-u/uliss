@@ -13,6 +13,11 @@ import java.util.UUID
 
 private const val DEFAULT_CHAT_TITLE = "New chat"
 
+internal data class ChatSummaryContext(
+    val title: String,
+    val messages: List<ChatMessageEntity>,
+)
+
 @Service
 @Transactional(readOnly = true)
 class ChatService(
@@ -29,7 +34,16 @@ class ChatService(
 
     fun getMessages(userId: UUID, chatId: UUID): List<ChatMessageEntity> {
         requireOwnedChat(userId, chatId)
-        return chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)
+        return chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+    }
+
+    internal fun getSummaryContext(userId: UUID, chatId: UUID, throughMessageId: UUID): ChatSummaryContext {
+        val chat = requireOwnedChat(userId, chatId)
+        val history = chatMessageRepository.findThroughMessage(chatId, throughMessageId)
+        check(history.lastOrNull()?.id == throughMessageId) {
+            "summary boundary message id=$throughMessageId not found in chat id=$chatId"
+        }
+        return ChatSummaryContext(chat.title, history)
     }
 
     /**
@@ -39,7 +53,7 @@ class ChatService(
     @Transactional
     fun appendUserMessage(userId: UUID, chatId: UUID, prompt: String): List<ChatMessageEntity> {
         requireOwnedChat(userId, chatId)
-        val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAsc(chatId)
+        val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
         val userMessage = chatMessageRepository.save(
             ChatMessageEntity(chatId, ChatMessageRole.USER, prompt, ChatMessageStatus.COMPLETE)
         )

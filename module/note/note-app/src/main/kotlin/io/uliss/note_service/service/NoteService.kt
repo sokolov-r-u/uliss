@@ -50,6 +50,20 @@ class NoteService(
         return note
     }
 
+    @Transactional
+    fun completeChatSummary(userId: UUID, noteId: UUID, content: String): Boolean {
+        require(content.isNotBlank()) { "summary content must not be blank" }
+        val note = noteRepository.findByIdAndUserId(noteId, userId) ?: return false
+        if (note.status != NoteStatus.GENERATING) return false
+
+        note.content = content
+        note.status = NoteStatus.READY
+        noteRepository.save(note)
+        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
+        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        return true
+    }
+
     /**
      * The note, the chat<->note link, and the indexing outbox event commit atomically - either all
      * three persist, or none do.
