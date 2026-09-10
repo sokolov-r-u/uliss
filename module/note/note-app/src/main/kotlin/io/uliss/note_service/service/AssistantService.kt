@@ -12,7 +12,6 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
-import reactor.core.publisher.SignalType
 import reactor.core.scheduler.Schedulers
 import java.util.UUID
 
@@ -42,30 +41,38 @@ class AssistantService(
 
     fun streamReply(userId: UUID, chatId: UUID, prompt: String): Flux<String> {
         val history = chatService.appendUserMessage(userId, chatId, prompt)
-        val buffer = StringBuilder()
-        return chatClient.prompt()
+        val content = chatClient.prompt()
             .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
             .messages(toAiMessages(history))
             .stream()
             .content()
-            .doOnNext(buffer::append)
-            // Attached to the raw content stream (before any SSE framing/onErrorResume downstream in
-            // the controller) so the SignalType here always reflects the true termination cause.
-            .doFinally { signal ->
-                val status = when {
-                    signal == SignalType.ON_COMPLETE -> ChatMessageStatus.COMPLETE
-                    buffer.isNotEmpty() -> ChatMessageStatus.PARTIAL
-                    else -> ChatMessageStatus.FAILED
-                }
-                // doFinally runs on the Reactor Netty event-loop thread of the WebClient call to
-                // DeepSeek - hop off it before the blocking JPA write.
-                Mono.fromRunnable<Unit> { chatService.persistAssistantReply(chatId, buffer.toString(), status) }
-                    .subscribeOn(Schedulers.boundedElastic())
-                    .subscribe(
-                        {},
-                        { ex -> log.error("failed to persist assistant reply for chat=$chatId", "streamReply", ex) })
-            }
+
+        // Async cleanup delays the terminal signal, so the controller cannot append `done` until
+        // the reply is durable. Cancellation follows the same off-event-loop persistence path.
+        return Flux.usingWhen(
+            Mono.fromSupplier { StringBuilder() },
+            { reply -> content.doOnNext(reply::append) },
+            { reply -> persistReply(chatId, reply, ChatMessageStatus.COMPLETE) },
+            { reply, _ -> persistReply(chatId, reply, incompleteStatus(reply)) },
+            { reply -> persistReply(chatId, reply, incompleteStatus(reply)) },
+        )
     }
+
+    private fun persistReply(
+        chatId: UUID,
+        content: StringBuilder,
+        status: ChatMessageStatus,
+    ): Mono<Void> = Mono.fromCallable {
+        chatService.persistAssistantReply(chatId, content.toString(), status)
+    }
+        .subscribeOn(Schedulers.boundedElastic())
+        .doOnError { ex ->
+            log.error("failed to persist assistant reply for chat=$chatId", "persistReply", ex)
+        }
+        .then()
+
+    private fun incompleteStatus(content: StringBuilder): ChatMessageStatus =
+        if (content.isNotEmpty()) ChatMessageStatus.PARTIAL else ChatMessageStatus.FAILED
 
     private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history.map {
         when (it.role) {

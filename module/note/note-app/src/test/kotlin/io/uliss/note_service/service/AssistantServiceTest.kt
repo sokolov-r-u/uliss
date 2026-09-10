@@ -17,8 +17,11 @@ import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class AssistantServiceTest {
 
@@ -78,23 +81,34 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun `streamReply emits tokens and persists COMPLETE on normal completion`() {
+    fun `streamReply emits tokens but waits for COMPLETE persistence before completion`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        val persistenceStarted = CountDownLatch(1)
+        val releasePersistence = CountDownLatch(1)
         mockRequestChain()
         Mockito.`when`(chatService.appendUserMessage(userId, chatId, "hi")).thenReturn(history(chatId))
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Hel", "lo"))
+        Mockito.`when`(
+            chatService.persistAssistantReply(chatId, "Hello", ChatMessageStatus.COMPLETE)
+        ).thenAnswer {
+            persistenceStarted.countDown()
+            assertTrue(releasePersistence.await(1, TimeUnit.SECONDS))
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "Hello", ChatMessageStatus.COMPLETE)
+        }
 
         val flux = assistantService.streamReply(userId, chatId, "hi")
 
         StepVerifier.create(flux)
             .expectNext("Hel", "lo")
+            .then { assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS)) }
+            .expectNoEvent(Duration.ofMillis(100))
+            .then(releasePersistence::countDown)
             .verifyComplete()
         Mockito.verify(chatService).appendUserMessage(userId, chatId, "hi")
-        Mockito.verify(chatService, Mockito.timeout(1000))
-            .persistAssistantReply(chatId, "Hello", ChatMessageStatus.COMPLETE)
+        Mockito.verify(chatService).persistAssistantReply(chatId, "Hello", ChatMessageStatus.COMPLETE)
     }
 
     @Test
@@ -114,8 +128,7 @@ class AssistantServiceTest {
             .expectNext("Hi")
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
-        Mockito.verify(chatService, Mockito.timeout(1000))
-            .persistAssistantReply(chatId, "Hi", ChatMessageStatus.PARTIAL)
+        Mockito.verify(chatService).persistAssistantReply(chatId, "Hi", ChatMessageStatus.PARTIAL)
     }
 
     @Test
@@ -133,7 +146,50 @@ class AssistantServiceTest {
         StepVerifier.create(flux)
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
+        Mockito.verify(chatService).persistAssistantReply(chatId, "", ChatMessageStatus.FAILED)
+    }
+
+    @Test
+    fun `streamReply propagates persistence failure instead of completing`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        mockRequestChain()
+        Mockito.`when`(chatService.appendUserMessage(userId, chatId, "hi")).thenReturn(history(chatId))
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Hello"))
+        Mockito.`when`(
+            chatService.persistAssistantReply(chatId, "Hello", ChatMessageStatus.COMPLETE)
+        ).thenThrow(IllegalStateException("database unavailable"))
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, "hi"))
+            .expectNext("Hello")
+            .expectErrorSatisfies { error ->
+                assertTrue(
+                    generateSequence(error) { it.cause }
+                        .any { it.message?.contains("database unavailable") == true }
+                )
+            }
+            .verify(Duration.ofSeconds(1))
+    }
+
+    @Test
+    fun `streamReply persists PARTIAL when the client cancels after content`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        mockRequestChain()
+        Mockito.`when`(chatService.appendUserMessage(userId, chatId, "hi")).thenReturn(history(chatId))
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.content())
+            .thenReturn(Flux.concat(Flux.just("Hi"), Flux.never()))
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, "hi"))
+            .expectNext("Hi")
+            .thenCancel()
+            .verify(Duration.ofSeconds(1))
+
         Mockito.verify(chatService, Mockito.timeout(1000))
-            .persistAssistantReply(chatId, "", ChatMessageStatus.FAILED)
+            .persistAssistantReply(chatId, "Hi", ChatMessageStatus.PARTIAL)
     }
 }

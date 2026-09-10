@@ -11,26 +11,39 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.outbox.OutboxEventRepository
 import io.uliss.note_service.outbox.OutboxEventType
+import io.uliss.note_service.prompt.ChatPrompts
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.service.AssistantService
+import io.uliss.note_service.service.ChatFacade
+import io.uliss.note_service.service.ChatService
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito
+import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.Message
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
+import org.springframework.test.context.bean.override.mockito.MockitoBean
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import reactor.core.publisher.Flux
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -60,6 +73,18 @@ class NoteLifecycleApiIntegrationTest {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var assistantService: AssistantService
+
+    @Autowired
+    lateinit var chatFacade: ChatFacade
+
+    @MockitoBean
+    lateinit var chatClient: ChatClient
+
+    @MockitoSpyBean
+    lateinit var chatService: ChatService
 
     @Test
     fun `summary request persists placeholder link and outbox event before returning 202`() {
@@ -97,6 +122,47 @@ class NoteLifecycleApiIntegrationTest {
         assertEquals(userId.toString(), payload["userId"].stringValue())
         assertEquals(chat.id.toString(), payload["chatId"].stringValue())
         assertEquals(message.id.toString(), payload["throughMessageId"].stringValue())
+    }
+
+    @Test
+    fun `summary boundary includes the assistant reply after the stream completes`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Streamed chat"))
+        val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        val persistenceStarted = CountDownLatch(1)
+        val releasePersistence = CountDownLatch(1)
+        Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Final", " answer"))
+        Mockito.doAnswer { invocation ->
+            persistenceStarted.countDown()
+            assertTrue(releasePersistence.await(1, TimeUnit.SECONDS))
+            invocation.callRealMethod()
+        }.`when`(chatService).persistAssistantReply(
+            chat.id,
+            "Final answer",
+            ChatMessageStatus.COMPLETE,
+        )
+
+        val streamedReply = assistantService.streamReply(userId, chat.id, "Question").collectList().toFuture()
+
+        assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS))
+        assertFalse(streamedReply.isDone)
+        releasePersistence.countDown()
+        assertEquals(listOf("Final", " answer"), streamedReply.get(1, TimeUnit.SECONDS))
+
+        chatFacade.requestSummary(userId, chat.id)
+
+        val assistantMessage = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chat.id).last()
+        assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.role)
+        val event = outboxEventRepository.findAll().single {
+            it.type == OutboxEventType.NOTE_SUMMARY_REQUESTED && it.payload.contains(chat.id.toString())
+        }
+        val payload = objectMapper.readTree(event.payload)
+        assertEquals(assistantMessage.id.toString(), payload["throughMessageId"].stringValue())
     }
 
     @Test
