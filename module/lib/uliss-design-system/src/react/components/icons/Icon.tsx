@@ -6,7 +6,7 @@ import React from 'react'
 // external library.
 
 export type IconName =
-    | 'menu' | 'close' | 'journal' | 'arrowUp' | 'arrowIn' | 'arrowOut' | 'sort'
+    | 'menu' | 'close' | 'journal' | 'arrowUp' | 'stop' | 'arrowIn' | 'arrowOut' | 'sort'
     | 'plus' | 'star' | 'pulse' | 'noteDoc' | 'chatBubble' | 'filter' | 'tick'
     | 'chevron' | 'caret' | 'search' | 'summary' | 'cal' | 'gear' | 'collapse'
     | 'panelRight' | 'dots' | 'node' | 'constellation' | 'mic' | 'tag'
@@ -31,6 +31,7 @@ const GLYPHS: Record<IconName, Glyph> = {
     close: {d: 'M6 6l12 12M18 6L6 18', sw: 1.6},
     journal: {d: 'M4 6h16M4 12h16M4 18h11', sw: 1.5},
     arrowUp: {d: 'M12 19V6M6 11l6-6 6 6', sw: 1.8},
+    stop: {rect: [7, 7, 10, 10], sw: 1.6},
     arrowIn: {d: 'M4 12h13M12 7l5 5-5 5M20 5v14', sw: 1.6},
     arrowOut: {d: 'M20 12H7M12 7l-5 5 5 5M4 5v14', sw: 1.6},
     sort: {d: 'M7 4v15M4 16l3 3 3-3M17 20V5M14 8l3-3 3 3', sw: 1.7},

@@ -140,6 +140,29 @@ Keep the one-second per-connection polling implementation for the initial releas
 batch polling and Redis using observed concurrent SSE connections, database load, deployment
 topology, and whether Redis is already part of the production infrastructure.
 
+## Markdown rendering for AI-generated content (`web`)
+
+**Status:** not implemented. Chat replies and generated note content are currently rendered as
+plain text even though an AI provider may return Markdown.
+
+Add a shared frontend Markdown renderer for persisted assistant messages and generated note
+content. Raw HTML must remain disabled or be explicitly sanitized; links need safe external-link
+handling. Cover headings, paragraphs, lists, emphasis, links, inline code, fenced code blocks, and
+malicious input in component tests. Keep the persisted source text unchanged so rendering rules can
+evolve without rewriting stored content.
+
+## Record successful summarization in chat history (`note-service`)
+
+**Status:** not implemented. A completed chat summary creates a note, but the source chat does not
+receive a visible history entry recording that the summary was created.
+
+After the summary transaction reaches `READY`, persist a chat activity/system message identifying
+the created note. The write must be atomic with successful completion and idempotent across outbox
+retries, so one summary produces at most one history entry. Decide the new message role/API shape
+with the frontend, render it separately from user/assistant dialogue, and exclude it from AI prompt
+history and future summary source messages. Failed summary attempts must not claim that a summary
+was completed.
+
 ## Comment style migration to the new KDoc rule (project-wide)
 
 **Status:** not implemented. New rule adopted in `CLAUDE.md` ("Notes") going forward; existing

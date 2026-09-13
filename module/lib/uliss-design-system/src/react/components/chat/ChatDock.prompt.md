@@ -12,3 +12,5 @@ The composer at the foot of a chat.
 - The dock is a native form with a controlled text input and separate submit/mic buttons. `disabled` blocks the
   composer;
   `voiceDisabled` honestly disables voice without simulating a recording state. Tab order is input → mic → send.
+- During an active generation, set `generationActive` and `onStop`. The input and mic are disabled and the submit tile
+  is replaced by a native `Stop generation` button; tab order ends on Stop.

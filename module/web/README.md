@@ -25,9 +25,10 @@ uses a mobile screen TopBar and drawer below 768px, a permanent compact rail fro
 collapsible/resizable sidebar from 1024px. Routes cover chats, notes,
 constellations, sky, updates, search, and settings; unknown routes return to chats.
 
-Notes, constellations, sky, updates, and search currently have no complete backend. Their screens use design-system
-empty states instead of simulated data. Appearance settings are functional and persisted locally; other settings remain
-limited to behavior supported by current APIs.
+Constellations, sky, updates, and search currently have no complete backend. Their screens use design-system empty
+states instead of simulated data. Notes use the note-service list, detail, and authenticated status-stream contracts.
+Appearance settings are functional and persisted locally; other settings remain limited to behavior supported by
+current APIs.
 
 Those backend-less areas are split into typed, data-independent view components and production adapters.
 `NoteViewModel`,
@@ -40,9 +41,15 @@ presentation; production adapters pass empty collections or no graph model until
 `chatApi.ts` contains thin authenticated API wrappers. `lib/sse.ts` parses arbitrary SSE frames from an authenticated
 `ReadableStream`, while `streamChatReply.ts` handles the chat event names.
 
-On send, `ChatPage` adds optimistic user and assistant entries, streams tokens, then always re-fetches message history.
-Persisted `COMPLETE`, `PARTIAL`, and `FAILED` statuses therefore remain authoritative. The request is aborted on
-unmount. Voice input is visibly disabled because no speech backend exists.
+On send, `ChatPage` adds optimistic user and assistant entries and streams tokens. Send stays locked through persistence
+reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL` or `FAILED` assistant reply for up to
+15 seconds. A trailing persisted user message is reconciled after refresh as well. Persisted `COMPLETE`, `PARTIAL`, and
+`FAILED` statuses remain authoritative, and a failed reconciliation requires an explicit retry before another turn.
+The request and polling are aborted on route changes. Voice input is visibly disabled because no speech backend exists.
+
+Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
+`/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
+`FAILED` remains visible. Note content is rendered as plain text. Unsupported rename and delete actions are not shown.
 
 ## Onboarding
 
@@ -59,6 +66,7 @@ adjacent `.prompt.md` usage rules are the available source of truth unless an ex
 ```bash
 npm run typecheck -w @uliss/web
 npm run build -w @uliss/web
+npm run test -w @uliss/web
 ```
 
 The repository rules prohibit starting Vite dev or preview servers without explicit permission.

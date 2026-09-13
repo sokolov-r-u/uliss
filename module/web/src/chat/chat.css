@@ -106,6 +106,29 @@
     font-family: var(--font-text);
     font-size: 11px;
     color: var(--terracotta);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.chat-summary-notice,
+.chat-settling-notice {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px 8px;
+    font-family: var(--font-text);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.chat-summary-notice a {
+    color: var(--accent-2);
+}
+
+.chat-summary-error {
+    color: var(--terracotta);
 }
 
 /* ── Composer (DS ChatDock shape) ────────────────────────────── */

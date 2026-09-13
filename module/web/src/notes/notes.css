@@ -1,0 +1,68 @@
+.notes-state,
+.note-detail-state {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 24px var(--gutter);
+    color: var(--text-muted);
+    font-family: var(--font-text);
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.notes-state-error,
+.note-detail-error {
+    color: var(--terracotta);
+}
+
+.notes-state p,
+.note-detail-state p {
+    margin: 0 0 16px;
+}
+
+.note-detail {
+    height: 100%;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.note-detail-header {
+    display: flex;
+    align-items: baseline;
+    gap: 14px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--line);
+}
+
+.note-back-link {
+    color: var(--text-muted);
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 2px;
+    text-decoration: none;
+    text-transform: uppercase;
+}
+
+.note-back-link:hover {
+    color: var(--accent-2);
+}
+
+.note-detail-state h1 {
+    margin: 0 0 10px;
+    color: var(--cream);
+    font-family: var(--font-text);
+    font-size: 24px;
+    font-weight: var(--w-body);
+}
+
+.note-content {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 32px var(--gutter) 56px;
+    color: var(--cream);
+    font-family: var(--font-text);
+    font-size: var(--text-reading);
+    line-height: 1.72;
+    white-space: pre-wrap;
+}

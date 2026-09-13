@@ -9,6 +9,8 @@ export interface ChatDockProps {
     onSubmit?: FormEventHandler<HTMLFormElement>
     disabled?: boolean
     voiceDisabled?: boolean
+    generationActive?: boolean
+    onStop?: () => void
     onMic?: () => void
     /** Centred above the field — reserved for ActionChip. */
     children?: ReactNode
@@ -23,6 +25,8 @@ export function ChatDock({
                              onSubmit,
                              disabled = false,
                              voiceDisabled = false,
+                             generationActive = false,
+                             onStop,
                              onMic,
                              children,
                              className,
@@ -44,7 +48,7 @@ export function ChatDock({
                     value={value}
                     onChange={onChange}
                     placeholder={placeholder}
-                    disabled={disabled}
+                    disabled={disabled || generationActive}
                     aria-label="Message"
                     style={{
                         flex: 1,
@@ -60,14 +64,21 @@ export function ChatDock({
                     }}
                 />
                 <IconButton s={34} title={voiceDisabled ? 'Voice input unavailable' : 'Voice input'}
-                            disabled={voiceDisabled || disabled} onClick={onMic}
+                            disabled={voiceDisabled || disabled || generationActive} onClick={onMic}
                             style={{background: 'var(--bg-muted)'}}>
                     <Icon name="mic" size={18}/>
                 </IconButton>
-                <IconButton s={34} title="Send" type="submit" disabled={disabled || value.trim() === ''}
-                            style={{background: 'var(--bg-muted)'}}>
-                    <Icon name="arrowUp" size={18}/>
-                </IconButton>
+                {generationActive ? (
+                    <IconButton s={34} title="Stop generation" type="button" onClick={onStop}
+                                style={{background: 'var(--bg-muted)'}}>
+                        <Icon name="stop" size={18}/>
+                    </IconButton>
+                ) : (
+                    <IconButton s={34} title="Send" type="submit" disabled={disabled || value.trim() === ''}
+                                style={{background: 'var(--bg-muted)'}}>
+                        <Icon name="arrowUp" size={18}/>
+                    </IconButton>
+                )}
             </div>
         </form>
     )

@@ -13,3 +13,4 @@ Every icon in Uliss — one component, a name, a size; inherits `currentColor`.
 - `rotate={-90}` turns `chevron` into a right-pointing disclosure; `rotate={180}` collapses it.
 - `mic` takes `fill` — outline when idle, filled while recording.
 - Never introduce a glyph outside `ICON_NAMES` without adding it here first.
+- `stop` is the square generation-stop glyph used when an active chat request replaces the send action.

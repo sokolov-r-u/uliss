@@ -11,7 +11,7 @@ const scenarios = [
     'login', 'register', 'onboarding-name', 'onboarding-profile', 'onboarding-busy',
     'shell-drawer', 'shell-rail', 'shell-sidebar', 'shell-collapsed',
     'chats-empty', 'chats-list', 'chats-conversation',
-    'notes-empty', 'notes-populated', 'notes-menu',
+    'notes-empty', 'notes-populated', 'notes-menu', 'notes-detail-ready',
     'search-empty', 'search-populated',
     'constellations-empty', 'constellations-populated',
     'sky-empty', 'sky-populated', 'updates-empty', 'updates-populated',

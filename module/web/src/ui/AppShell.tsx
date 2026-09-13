@@ -23,8 +23,12 @@ export function AppShell() {
         sky: 'Sky', updates: 'Updates', settings: 'Settings', appearance: 'Appearance',
         account: 'Account', language: 'Language',
     }
-    const label = labels[segment.at(-1) ?? 'chats'] ?? 'Chats'
-    const title = segment[0] === 'chats' && segment.length > 1 ? 'Conversation' : undefined
+    const detailRoute = segment.length > 1 && (segment[0] === 'chats' || segment[0] === 'notes')
+    const labelKey = detailRoute ? segment[0] : (segment.at(-1) ?? 'chats')
+    const label = labels[labelKey] ?? 'Chats'
+    const title = segment[0] === 'chats' && segment.length > 1
+        ? 'Conversation'
+        : segment[0] === 'notes' && segment.length > 1 ? 'Note' : undefined
 
     const openNav = () => {
         restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
