@@ -3,6 +3,9 @@ spring:
     driver-class-name: org.postgresql.Driver
     username: ${POSTGRES_USER}
     password: ${POSTGRES_PASSWORD}
+    hikari:
+      maximum-pool-size: ${uliss.database.pool.maximum-size:${DB_POOL_MAX_SIZE:5}}
+      minimum-idle: ${uliss.database.pool.minimum-idle:${DB_POOL_MIN_IDLE:1}}
   jpa:
     hibernate:
       ddl-auto: none
