@@ -2,8 +2,11 @@ package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.ChatTurn
 import io.uliss.note_service.model.ChatTurnStatus
+import io.uliss.note_service.model.RequestFingerprint
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.sql.ResultSet
 import java.util.UUID
 
@@ -13,6 +16,7 @@ class ChatTurnStore(
 ) {
 
     /** Serializes short turn reservations for one owned chat; no provider call holds this lock. */
+    @Transactional(propagation = Propagation.MANDATORY)
     fun lockOwnedChat(userId: UUID, chatId: UUID): Boolean =
         jdbcTemplate.query(LOCK_OWNED_CHAT_SQL, { _, _ -> true }, chatId, userId).isNotEmpty()
 
@@ -20,7 +24,7 @@ class ChatTurnStore(
         turnId: UUID,
         userId: UUID,
         chatId: UUID,
-        requestFingerprint: ByteArray,
+        requestFingerprint: RequestFingerprint,
         leaseMillis: Long,
     ): ChatTurn? {
         require(leaseMillis > 0) { "leaseMillis must be positive" }
@@ -30,24 +34,32 @@ class ChatTurnStore(
             turnId,
             userId,
             chatId,
-            requestFingerprint,
+            requestFingerprint.toByteArray(),
             ChatTurnStatus.GENERATING.name,
             leaseMillis,
         ).singleOrNull()
     }
 
-    fun findById(turnId: UUID): ChatTurn? =
-        jdbcTemplate.query(FIND_BY_ID_SQL, ::mapTurn, turnId).singleOrNull()
+    fun findById(userId: UUID, turnId: UUID): ChatTurn? =
+        jdbcTemplate.query(FIND_BY_ID_SQL, ::mapTurn, turnId, userId).singleOrNull()
 
-    fun findGenerating(chatId: UUID): ChatTurn? =
+    fun findGenerating(userId: UUID, chatId: UUID): ChatTurn? =
         jdbcTemplate.query(
             FIND_GENERATING_SQL,
             ::mapTurn,
             chatId,
+            userId,
             ChatTurnStatus.GENERATING.name,
         ).singleOrNull()
 
-    fun claimExpired(turnId: UUID, expectedAttempt: Int, maxAttempts: Int, leaseMillis: Long): ChatTurn? {
+    fun claimExpired(
+        turnId: UUID,
+        userId: UUID,
+        chatId: UUID,
+        expectedAttempt: Int,
+        maxAttempts: Int,
+        leaseMillis: Long,
+    ): ChatTurn? {
         require(maxAttempts > 0) { "maxAttempts must be positive" }
         require(leaseMillis > 0) { "leaseMillis must be positive" }
         return jdbcTemplate.query(
@@ -55,6 +67,8 @@ class ChatTurnStore(
             ::mapTurn,
             leaseMillis,
             turnId,
+            userId,
+            chatId,
             ChatTurnStatus.GENERATING.name,
             expectedAttempt,
             maxAttempts,
@@ -63,6 +77,8 @@ class ChatTurnStore(
 
     fun transitionToTerminal(
         turnId: UUID,
+        userId: UUID,
+        chatId: UUID,
         attempt: Int,
         status: ChatTurnStatus,
     ): Boolean {
@@ -72,20 +88,26 @@ class ChatTurnStore(
             { _, _ -> true },
             status.name,
             turnId,
+            userId,
+            chatId,
             attempt,
             ChatTurnStatus.GENERATING.name,
         ).isNotEmpty()
     }
 
-    fun failExpiredAtAttemptLimit(turnId: UUID, maxAttempts: Int): Boolean =
-        jdbcTemplate.query(
+    fun failExpiredAtAttemptLimit(turnId: UUID, userId: UUID, chatId: UUID, maxAttempts: Int): Boolean {
+        require(maxAttempts > 0) { "maxAttempts must be positive" }
+        return jdbcTemplate.query(
             FAIL_EXPIRED_AT_LIMIT_SQL,
             { _, _ -> true },
             ChatTurnStatus.FAILED.name,
             turnId,
+            userId,
+            chatId,
             ChatTurnStatus.GENERATING.name,
             maxAttempts,
         ).isNotEmpty()
+    }
 
     fun cancelGenerating(turnId: UUID, userId: UUID, chatId: UUID): Boolean =
         jdbcTemplate.query(
@@ -103,7 +125,7 @@ class ChatTurnStore(
             id = resultSet.getObject("id", UUID::class.java),
             userId = resultSet.getObject("user_id", UUID::class.java),
             chatId = resultSet.getObject("chat_id", UUID::class.java),
-            requestFingerprint = resultSet.getBytes("request_fingerprint"),
+            requestFingerprint = RequestFingerprint.from(resultSet.getBytes("request_fingerprint")),
             status = ChatTurnStatus.valueOf(resultSet.getString("status")),
             attempt = resultSet.getInt("attempt"),
             leaseUntil = resultSet.getTimestamp("lease_until")?.toInstant(),
@@ -141,13 +163,13 @@ class ChatTurnStore(
         const val FIND_BY_ID_SQL = """
             SELECT $TURN_COLUMNS
             FROM note.chat_turn
-            WHERE id = ?
+            WHERE id = ? AND user_id = ?
         """
 
         const val FIND_GENERATING_SQL = """
             SELECT $TURN_COLUMNS
             FROM note.chat_turn
-            WHERE chat_id = ? AND status = ?
+            WHERE chat_id = ? AND user_id = ? AND status = ?
         """
 
         const val CLAIM_EXPIRED_SQL = """
@@ -157,6 +179,8 @@ class ChatTurnStore(
                 updated_at = CURRENT_TIMESTAMP,
                 version = COALESCE(version, 0) + 1
             WHERE id = ?
+              AND user_id = ?
+              AND chat_id = ?
               AND status = ?
               AND attempt = ?
               AND attempt < ?
@@ -168,7 +192,7 @@ class ChatTurnStore(
             UPDATE note.chat_turn
             SET status = ?, lease_until = NULL, updated_at = CURRENT_TIMESTAMP,
                 version = COALESCE(version, 0) + 1
-            WHERE id = ? AND attempt = ? AND status = ?
+            WHERE id = ? AND user_id = ? AND chat_id = ? AND attempt = ? AND status = ?
             RETURNING id
         """
 
@@ -177,6 +201,8 @@ class ChatTurnStore(
             SET status = ?, lease_until = NULL, updated_at = CURRENT_TIMESTAMP,
                 version = COALESCE(version, 0) + 1
             WHERE id = ?
+              AND user_id = ?
+              AND chat_id = ?
               AND status = ?
               AND attempt >= ?
               AND lease_until <= CURRENT_TIMESTAMP
