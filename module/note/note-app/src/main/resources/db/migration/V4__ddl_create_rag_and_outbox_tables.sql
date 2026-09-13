@@ -20,6 +20,30 @@ CREATE INDEX idx_rag_chunks_user_note ON note.rag_chunks (user_id, note_id);
 ALTER TABLE note.notes
     ADD COLUMN source VARCHAR(16) NOT NULL DEFAULT 'MANUAL' CHECK (source IN ('MANUAL', 'CHAT_SUMMARY'));
 
+-- Reserves one summary result for a user-scoped idempotency key. The deferred note reference lets
+-- the reservation win before the preallocated placeholder note is inserted in the same transaction.
+CREATE TABLE note.summary_request
+(
+    user_id            UUID        NOT NULL,
+    idempotency_key    UUID        NOT NULL,
+    chat_id            UUID        NOT NULL,
+    through_message_id UUID        NOT NULL,
+    note_id            UUID        NOT NULL,
+    created_at         TIMESTAMPTZ NOT NULL,
+    updated_at         TIMESTAMPTZ NOT NULL,
+    version            BIGINT,
+    PRIMARY KEY (user_id, idempotency_key),
+    CONSTRAINT uq_summary_request_note_id UNIQUE (note_id),
+    CONSTRAINT fk_summary_request_chat_owner
+        FOREIGN KEY (chat_id, user_id) REFERENCES note.chat (id, user_id) ON DELETE CASCADE,
+    CONSTRAINT fk_summary_request_boundary
+        FOREIGN KEY (through_message_id, chat_id)
+            REFERENCES note.chat_message (id, chat_id) ON DELETE CASCADE,
+    CONSTRAINT fk_summary_request_note_owner
+        FOREIGN KEY (note_id, user_id) REFERENCES note.notes (id, user_id) ON DELETE CASCADE
+            DEFERRABLE INITIALLY DEFERRED
+);
+
 -- Transactional Outbox: chat-summary generation and indexing are durable, retried work.
 CREATE TABLE note.outbox_event
 (

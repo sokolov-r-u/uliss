@@ -40,7 +40,8 @@ export function findPersistedReply(
         const message = history[index]
         if (message.role === 'USER') return undefined
         if (message.role === 'ASSISTANT'
-            && (message.status === 'COMPLETE' || message.status === 'PARTIAL' || message.status === 'FAILED')) {
+            && (message.status === 'COMPLETE' || message.status === 'PARTIAL'
+                || message.status === 'FAILED' || message.status === 'CANCELED')) {
             return message
         }
     }

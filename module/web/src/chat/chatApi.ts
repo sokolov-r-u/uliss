@@ -6,7 +6,7 @@
 import {authFetch} from '../auth/apiClient'
 
 export type ChatMessageRole = 'USER' | 'ASSISTANT'
-export type ChatMessageStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED'
+export type ChatMessageStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED' | 'CANCELED'
 
 export type Chat = {
     id: string
@@ -17,6 +17,7 @@ export type Chat = {
 
 export type ChatMessage = {
     id: string
+    turnId?: string
     role: ChatMessageRole
     status: ChatMessageStatus
     content: string

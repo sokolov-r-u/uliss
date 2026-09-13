@@ -13,13 +13,14 @@ export type DisplayMessage = {
 function statusLabel(status: ChatMessageStatus): string | null {
     if (status === 'PARTIAL') return 'interrupted'
     if (status === 'FAILED') return 'failed to reply'
+    if (status === 'CANCELED') return 'stopped'
     return null
 }
 
 /**
  * A conversation turn as a 2px rule + alignment (DS `Bubble`) — never a capsule, never labelled on
- * the user's side. Extends the DS component with the streaming caret and a `PARTIAL`/`FAILED`
- * status line, both of which reflect real backend state (see `ChatPage` / `chatApi`).
+ * the user's side. Extends the DS component with the streaming caret and an incomplete status
+ * line, both of which reflect real backend state (see `ChatPage` / `chatApi`).
  */
 export function Bubble({role, status, content, pending}: DisplayMessage) {
     const label = pending ? null : statusLabel(status)

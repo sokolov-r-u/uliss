@@ -18,9 +18,12 @@ class ChatMessageEntity(
     var content: String,
     @Enumerated(EnumType.STRING)
     var status: ChatMessageStatus,
+    @Column(name = "turn_id")
+    var turnId: UUID? = null,
 ) : UuidEntity() {
 
     override fun toString(): String {
-        return "ChatMessageEntity(id=$id, chatId=$chatId, role=$role, status=$status" + super.toString()
+        return "ChatMessageEntity(id=$id, chatId=$chatId, turnId=$turnId, role=$role, status=$status" +
+                super.toString()
     }
 }
