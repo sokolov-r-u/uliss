@@ -30,10 +30,10 @@ class ChatFacade(
         assistantService.streamReply(userId, chatId, prompt)
 
     @Transactional
-    fun requestSummary(userId: UUID, chatId: UUID): NoteEntity {
+    fun requestSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity {
         val history = chatService.getMessages(userId, chatId)
         val throughMessageId = history.lastOrNull()?.id
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
-        return noteService.requestChatSummary(userId, chatId, throughMessageId)
+        return noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
     }
 }

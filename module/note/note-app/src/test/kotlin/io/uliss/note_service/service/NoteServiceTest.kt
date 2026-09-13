@@ -1,8 +1,10 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.NoteStatusResponse
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
@@ -11,6 +13,8 @@ import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.repository.SummaryRequest
+import io.uliss.note_service.repository.SummaryRequestStore
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
@@ -27,9 +31,16 @@ class NoteServiceTest {
 
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
     private val chatNoteRepository = Mockito.mock(ChatNoteRepository::class.java)
+    private val summaryRequestStore = Mockito.mock(SummaryRequestStore::class.java)
     private val outboxService = Mockito.mock(OutboxService::class.java)
     private val objectMapper = JsonMapper.builder().build()
-    private val noteService = NoteService(noteRepository, chatNoteRepository, outboxService, objectMapper)
+    private val noteService = NoteService(
+        noteRepository,
+        chatNoteRepository,
+        summaryRequestStore,
+        outboxService,
+        objectMapper,
+    )
 
     @Test
     fun `getNotes returns only repository-owned notes in repository order`() {
@@ -119,15 +130,35 @@ class NoteServiceTest {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val throughMessageId = UUID.randomUUID()
-        Mockito.`when`(noteRepository.save(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(
+            summaryRequestStore.reserve(
+                anyValue(),
+                anyValue(),
+                anyValue(),
+                anyValue(),
+                anyValue(),
+            )
+        ).thenAnswer { invocation ->
+            SummaryRequest(
+                invocation.getArgument(0),
+                invocation.getArgument(1),
+                invocation.getArgument(2),
+                invocation.getArgument(3),
+                invocation.getArgument(4),
+                Instant.now(),
+            )
+        }
+        Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
         Mockito.`when`(chatNoteRepository.save(anyValue())).thenAnswer { it.getArgument<ChatNoteEntity>(0) }
 
-        val note = noteService.requestChatSummary(userId, chatId, throughMessageId)
+        val note = noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
 
         assertEquals(userId, note.userId)
         assertEquals(null, note.content)
         assertEquals(NoteSource.CHAT_SUMMARY, note.source)
         assertEquals(NoteStatus.GENERATING, note.status)
+        assertEquals(7, note.id.version())
 
         val linkCaptor = ArgumentCaptor.forClass(ChatNoteEntity::class.java)
         Mockito.verify(chatNoteRepository).save(linkCaptor.capture())
@@ -139,6 +170,103 @@ class NoteServiceTest {
         assertTrue(payload.contains(userId.toString()))
         assertTrue(payload.contains(chatId.toString()))
         assertTrue(payload.contains(throughMessageId.toString()))
+    }
+
+    @Test
+    fun `requestChatSummary replay returns the original note without publishing again`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val originalNote = NoteEntity(userId, "ready", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(summaryRequestStore.find(userId, idempotencyKey)).thenReturn(
+            SummaryRequest(
+                userId,
+                idempotencyKey,
+                chatId,
+                UUID.randomUUID(),
+                originalNote.id,
+                Instant.now(),
+            )
+        )
+        Mockito.`when`(noteRepository.findByIdAndUserId(originalNote.id, userId)).thenReturn(originalNote)
+
+        val replayed = noteService.requestChatSummary(
+            userId,
+            chatId,
+            UUID.randomUUID(),
+            idempotencyKey,
+        )
+
+        assertEquals(originalNote, replayed)
+        Mockito.verifyNoInteractions(chatNoteRepository, outboxService)
+    }
+
+    @Test
+    fun `requestChatSummary reports an internal error when the winning reservation cannot be loaded`() {
+        val error = assertFailsWith<InternalException> {
+            noteService.requestChatSummary(
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+            )
+        }
+
+        assertEquals(
+            "summary request reservation detected an idempotency conflict, " +
+                    "but the request created by the winning transaction could not be loaded",
+            error.message,
+        )
+        Mockito.verifyNoInteractions(noteRepository, chatNoteRepository, outboxService)
+    }
+
+    @Test
+    fun `requestChatSummary reports an internal error when the replayed note cannot be loaded`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(summaryRequestStore.find(userId, idempotencyKey)).thenReturn(
+            SummaryRequest(
+                userId,
+                idempotencyKey,
+                chatId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                Instant.now(),
+            )
+        )
+
+        val error = assertFailsWith<InternalException> {
+            noteService.requestChatSummary(userId, chatId, UUID.randomUUID(), idempotencyKey)
+        }
+
+        assertEquals(
+            "summary request was loaded after an idempotent retry, " +
+                    "but its referenced note could not be found",
+            error.message,
+        )
+        Mockito.verifyNoInteractions(chatNoteRepository, outboxService)
+    }
+
+    @Test
+    fun `requestChatSummary rejects reuse for another chat`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(summaryRequestStore.find(userId, idempotencyKey)).thenReturn(
+            SummaryRequest(
+                userId,
+                idempotencyKey,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                Instant.now(),
+            )
+        )
+
+        assertFailsWith<IdempotencyKeyReusedException> {
+            noteService.requestChatSummary(userId, UUID.randomUUID(), UUID.randomUUID(), idempotencyKey)
+        }
+        Mockito.verifyNoInteractions(noteRepository, chatNoteRepository, outboxService)
     }
 
     @Test

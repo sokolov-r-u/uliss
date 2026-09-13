@@ -44,7 +44,6 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @Tag("integration")
@@ -96,6 +95,7 @@ class NoteLifecycleApiIntegrationTest {
 
         val result = mockMvc.post("/note/chats/${chat.id}/summarize") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", UUID.randomUUID())
         }.andExpect {
             status { isAccepted() }
             jsonPath("$.chatId") { value(chat.id.toString()) }
@@ -103,9 +103,8 @@ class NoteLifecycleApiIntegrationTest {
             jsonPath("$.content") { doesNotExist() }
         }.andReturn()
 
-        val location = assertNotNull(result.response.getHeader("Location"))
-        val noteId = UUID.fromString(location.substringAfterLast('/'))
-        assertEquals("/note/notes/$noteId", location)
+        val response = objectMapper.readTree(result.response.contentAsString)
+        val noteId = UUID.fromString(response["noteId"].stringValue())
 
         val note = noteRepository.findById(noteId).orElseThrow()
         assertEquals(userId, note.userId)
@@ -154,7 +153,7 @@ class NoteLifecycleApiIntegrationTest {
         releasePersistence.countDown()
         assertEquals(listOf("Final", " answer"), streamedReply.get(1, TimeUnit.SECONDS))
 
-        chatFacade.requestSummary(userId, chat.id)
+        chatFacade.requestSummary(userId, chat.id, UUID.randomUUID())
 
         val assistantMessage = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chat.id).last()
         assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.role)

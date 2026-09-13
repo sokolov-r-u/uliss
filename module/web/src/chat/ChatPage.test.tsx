@@ -12,7 +12,18 @@ vi.mock('./chatApi', () => ({
     notifyChatListChanged: vi.fn(),
 }))
 vi.mock('./streamChatReply', () => ({streamAssistantReply: vi.fn()}))
-vi.mock('../notes/noteApi', () => ({requestChatSummary: vi.fn()}))
+vi.mock('../notes/noteApi', () => ({
+    requestChatSummary: vi.fn(),
+    NoteApiError: class NoteApiError extends Error {
+        constructor(
+            public readonly kind: string,
+            message: string,
+            public readonly status?: number,
+        ) {
+            super(message)
+        }
+    },
+}))
 
 const mockedGetMessages = vi.mocked(getMessages)
 const mockedSummary = vi.mocked(requestChatSummary)
@@ -29,6 +40,7 @@ describe('ChatPage summary flow', () => {
         mockedGetMessages.mockReset()
         mockedSummary.mockReset()
         mockedStream.mockReset()
+        sessionStorage.clear()
         mockedGetMessages.mockResolvedValue([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
             {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
@@ -44,11 +56,28 @@ describe('ChatPage summary flow', () => {
         expect(mockedSummary).not.toHaveBeenCalled()
 
         await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
-        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1'))
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String)))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
         expect(notifyChatListChanged).not.toHaveBeenCalled()
+    })
+
+    it('reuses the summary idempotency key after an ambiguous failure', async () => {
+        mockedSummary
+            .mockRejectedValueOnce(new Error('connection lost'))
+            .mockResolvedValueOnce({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+
+        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        expect(await screen.findByText('connection lost')).toBeInTheDocument()
+        const firstKey = mockedSummary.mock.calls[0]?.[1]
+
+        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
+        expect(mockedSummary.mock.calls[1]?.[1]).toBe(firstKey)
+        expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
     })
 
     it('keeps Stop active until the matching PARTIAL reply is persisted', async () => {

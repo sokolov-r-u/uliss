@@ -8,10 +8,12 @@ import java.util.UUID
 
 private val uuidGenerator = Generators.timeBasedEpochGenerator()
 
+fun generateId(): UUID = uuidGenerator.generate()
+
 @MappedSuperclass
 abstract class UuidEntity(
     @Id
-    var id: UUID = uuidGenerator.generate()
+    var id: UUID = generateId()
 ) : AbstractEntity() {
 
     override fun equals(other: Any?): Boolean {

@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Link, useParams} from 'react-router-dom'
 import {ActionChip, Button, Kicker, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {requestChatSummary} from '../notes/noteApi'
+import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
 import {
@@ -28,6 +28,10 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
+function summaryKeyStorageKey(chatId: string): string {
+    return `uliss.chat-summary.v1:${chatId}`
+}
+
 export function ChatPage() {
     const {chatId} = useParams<{ chatId: string }>()
     const [pagePhase, setPagePhase] = useState<PagePhase>('loading')
@@ -47,6 +51,7 @@ export function ChatPage() {
     const generationPhaseRef = useRef<GenerationPhase>('idle')
     const summaryPendingRef = useRef(false)
     const summaryRequestIdRef = useRef(0)
+    const summaryIdempotencyKeyRef = useRef<string | null>(null)
     const routeRevisionRef = useRef(0)
     const mountedRef = useRef(true)
 
@@ -116,6 +121,7 @@ export function ChatPage() {
         setSummaryPending(false)
         summaryPendingRef.current = false
         summaryRequestIdRef.current += 1
+        summaryIdempotencyKeyRef.current = sessionStorage.getItem(summaryKeyStorageKey(chatId))
         getMessages(chatId, loadController.signal)
             .then((history) => {
                 if (!active) return
@@ -194,16 +200,31 @@ export function ChatPage() {
     async function confirmSummary() {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const requestId = summaryRequestIdRef.current + 1
+        const storageKey = summaryKeyStorageKey(chatId)
+        const idempotencyKey = summaryIdempotencyKeyRef.current ?? crypto.randomUUID()
         summaryRequestIdRef.current = requestId
+        summaryIdempotencyKeyRef.current = idempotencyKey
+        sessionStorage.setItem(storageKey, idempotencyKey)
         summaryPendingRef.current = true
         setSummaryPending(true)
         setSummaryError(null)
         try {
-            const summary = await requestChatSummary(chatId)
+            const summary = await requestChatSummary(chatId, idempotencyKey)
+            sessionStorage.removeItem(storageKey)
+            if (summaryIdempotencyKeyRef.current === idempotencyKey) {
+                summaryIdempotencyKeyRef.current = null
+            }
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId) return
             setAcceptedNoteId(summary.noteId)
             setSummaryDialog(false)
         } catch (error) {
+            if (error instanceof NoteApiError && error.kind === 'http'
+                && (error.status === 400 || error.status === 404 || error.status === 409)) {
+                sessionStorage.removeItem(storageKey)
+                if (summaryIdempotencyKeyRef.current === idempotencyKey) {
+                    summaryIdempotencyKeyRef.current = null
+                }
+            }
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
             setSummaryError(error instanceof Error ? error.message : String(error))

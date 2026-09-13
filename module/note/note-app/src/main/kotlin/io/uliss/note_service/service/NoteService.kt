@@ -1,10 +1,12 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.NoteResponse
 import io.uliss.note_service.dto.NoteStatusResponse
 import io.uliss.note_service.dto.toResponse
 import io.uliss.note_service.dto.toStatusResponse
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -16,6 +18,7 @@ import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.repository.SummaryRequestStore
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
@@ -29,6 +32,7 @@ import java.util.UUID
 class NoteService(
     private val noteRepository: NoteRepository,
     private val chatNoteRepository: ChatNoteRepository,
+    private val summaryRequestStore: SummaryRequestStore,
     private val outboxService: OutboxService,
     private val objectMapper: ObjectMapper,
 ) {
@@ -64,21 +68,43 @@ class NoteService(
         userId: UUID,
         chatId: UUID,
         throughMessageId: UUID,
+        idempotencyKey: UUID,
     ): NoteEntity {
-        val note = noteRepository.save(
-            NoteEntity(
-                userId = userId,
-                content = null,
-                source = NoteSource.CHAT_SUMMARY,
-                status = NoteStatus.GENERATING,
-            )
+        val candidateNote = NoteEntity(
+            userId = userId,
+            content = null,
+            source = NoteSource.CHAT_SUMMARY,
+            status = NoteStatus.GENERATING,
         )
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, note.id)))
+        val reservation = summaryRequestStore.reserve(
+            userId = userId,
+            idempotencyKey = idempotencyKey,
+            chatId = chatId,
+            throughMessageId = throughMessageId,
+            noteId = candidateNote.id,
+        )
+
+        if (reservation == null) {
+            val existing = summaryRequestStore.find(userId, idempotencyKey)
+                ?: throw InternalException(
+                    "summary request reservation detected an idempotency conflict, " +
+                            "but the request created by the winning transaction could not be loaded"
+                )
+            if (existing.chatId != chatId) throw IdempotencyKeyReusedException()
+            return noteRepository.findByIdAndUserId(existing.noteId, userId)
+                ?: throw InternalException(
+                    "summary request was loaded after an idempotent retry, " +
+                            "but its referenced note could not be found"
+                )
+        }
+
+        noteRepository.saveAndFlush(candidateNote)
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
         val payload = objectMapper.writeValueAsString(
-            NoteSummaryRequestedPayload(note.id, userId, chatId, throughMessageId)
+            NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
-        return note
+        return candidateNote
     }
 
     @Transactional

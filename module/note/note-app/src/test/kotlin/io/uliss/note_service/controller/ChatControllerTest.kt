@@ -3,6 +3,7 @@ package io.uliss.note_service.controller
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
+import io.uliss.note_service.anyValue
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -199,20 +200,22 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `summarizeChat accepts generation and returns the placeholder location`() {
+    fun `summarizeChat accepts generation and returns the placeholder`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val createdAt = Instant.parse("2026-09-09T10:15:30Z")
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING).apply {
             this.createdAt = createdAt
         }
-        Mockito.`when`(chatFacade.requestSummary(userId, chatId)).thenReturn(note)
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey)).thenReturn(note)
 
         mockMvc.post("/note/chats/$chatId/summarize") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
         }.andExpect {
             status { isAccepted() }
-            header { string("Location", "/note/notes/${note.id}") }
+            header { string("Idempotency-Key", idempotencyKey.toString()) }
             jsonPath("$.noteId") { value(note.id.toString()) }
             jsonPath("$.chatId") { value(chatId.toString()) }
             jsonPath("$.status") { value("GENERATING") }
@@ -222,14 +225,37 @@ class ChatControllerTest {
     }
 
     @Test
+    fun `summarizeChat requires an idempotency key`() {
+        mockMvc.post("/note/chats/${UUID.randomUUID()}/summarize") {
+            with(jwt())
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `summarizeChat rejects an invalid idempotency key`() {
+        mockMvc.post("/note/chats/${UUID.randomUUID()}/summarize") {
+            with(jwt())
+            header("Idempotency-Key", "not-a-uuid")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
     fun `summarizeChat for a chat owned by another user returns 404`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(userId, chatId))
+        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue()))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", UUID.randomUUID())
         }.andExpect {
             status { isNotFound() }
         }
@@ -239,11 +265,12 @@ class ChatControllerTest {
     fun `summarizeChat for a chat with no messages returns 400`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(userId, chatId))
+        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue()))
             .thenThrow(BadRequestException("chat id=$chatId has no messages to summarize"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", UUID.randomUUID())
         }.andExpect {
             status { isBadRequest() }
         }

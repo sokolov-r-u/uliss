@@ -126,8 +126,11 @@ async function responseJson(response: Response): Promise<unknown> {
     }
 }
 
-export async function requestChatSummary(chatId: string): Promise<ChatSummaryResponse> {
-    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, {method: 'POST'})
+export async function requestChatSummary(chatId: string, idempotencyKey: string): Promise<ChatSummaryResponse> {
+    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, {
+        method: 'POST',
+        headers: {'Idempotency-Key': idempotencyKey},
+    })
     await requireOk(response, 'summary request')
     if (response.status !== 202) throw new NoteApiError('protocol', `unexpected summary status (${response.status})`)
     const summary = parseSummary(await responseJson(response))

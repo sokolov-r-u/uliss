@@ -1,5 +1,6 @@
 package io.uliss.note_service.controller
 
+import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.ChatMessageResponse
 import io.uliss.note_service.dto.ChatResponse
 import io.uliss.note_service.dto.ChatSummaryResponse
@@ -7,6 +8,7 @@ import io.uliss.note_service.dto.CreateChatRequest
 import io.uliss.note_service.dto.SendMessageRequest
 import io.uliss.note_service.dto.toChatSummaryResponse
 import io.uliss.note_service.dto.toResponse
+import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.ChatFacade
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
@@ -20,10 +22,10 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import org.springframework.web.util.UriComponentsBuilder
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import java.util.UUID
@@ -73,14 +75,24 @@ class ChatController(
     fun summarizeChat(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable chatId: UUID,
+        @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
     ): ResponseEntity<ChatSummaryResponse> {
-        val note = chatFacade.requestSummary(jwt.getUserId(), chatId)
-        val location = UriComponentsBuilder.fromPath("/note/notes")
-            .pathSegment(note.id.toString())
-            .build()
-            .toUri()
+        val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
+        val note = chatFacade.requestSummary(jwt.getUserId(), chatId, idempotencyKey)
         return ResponseEntity.accepted()
-            .location(location)
-            .body(note.toChatSummaryResponse(chatId))
+            .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
+            .body(note.toChatSummaryResponse(chatId).copy(status = NoteStatus.GENERATING))
+    }
+
+    private fun parseIdempotencyKey(value: String): UUID {
+        return try {
+            UUID.fromString(value)
+        } catch (_: IllegalArgumentException) {
+            throw BadRequestException("invalid $IDEMPOTENCY_KEY_HEADER header")
+        }
+    }
+
+    private companion object {
+        const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
     }
 }
