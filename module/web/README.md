@@ -82,5 +82,7 @@ npm run visual:test -w @uliss/web
 npm run visual:update -w @uliss/web
 ```
 
-Both commands start the harness server and therefore require the explicit application-run permission described in the
-repository instructions.
+Both commands run the complete Playwright suite in the version-pinned `linux/amd64` container used by GitHub Actions.
+That container is the canonical screenshot platform; do not update baselines with a native macOS or arm64 Playwright
+run. The commands start the harness server inside Docker and therefore require the explicit application-run permission
+described in the repository instructions.
