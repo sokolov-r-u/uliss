@@ -45,6 +45,8 @@ describe('ChatPage summary flow', () => {
 
         await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1'))
+        expect(await screen.findByRole('status', {name: 'Summary note'}))
+            .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
         expect(notifyChatListChanged).not.toHaveBeenCalled()
     })

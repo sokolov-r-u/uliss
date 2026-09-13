@@ -240,8 +240,16 @@ export function ChatPage() {
                 <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>
             </div>
             <MessageThread messages={messages}/>
-            {acceptedNoteId && <p className="chat-summary-notice">Summary started. <Link
-                to={`/notes/${acceptedNoteId}`}>Open note</Link></p>}
+            {acceptedNoteId && <section
+                className="chat-summary-notice"
+                role="status"
+                aria-label="Summary note">
+                <div className="chat-summary-notice-header">
+                    <p><span>Uliss is writing a note</span> — summary started</p>
+                    <Link to={`/notes/${acceptedNoteId}`}>Open note</Link>
+                </div>
+                <p className="chat-summary-notice-detail">Generating in the background</p>
+            </section>}
             {streamNotice && <div className="chat-stream-notice">
                 <span>{streamNotice}</span>{generationPhase === 'reconciliation-required'
                 && <Button size="sm" variant="quiet" onClick={retryReconciliation}>Retry</Button>}</div>}
