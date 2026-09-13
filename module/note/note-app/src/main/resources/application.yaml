@@ -40,6 +40,11 @@ spring:
         dimensions: 1536
         timeout: 60s
         max-retries: 1
+uliss:
+  database:
+    pool:
+      maximum-size: ${NOTE_DB_POOL_MAX_SIZE:8}
+      minimum-idle: ${NOTE_DB_POOL_MIN_IDLE:1}
 note:
   rag:
     chunk-size: 800
