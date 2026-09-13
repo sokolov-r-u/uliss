@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react'
 import {ChatDock} from '@uliss/design-system'
 
 /**
@@ -9,11 +10,17 @@ export function ChatComposer({
                                  onChange,
                                  onSubmit,
                                  disabled,
+                                 generationActive,
+                                 onStop,
+                                 action,
                              }: {
     value: string
     onChange: (v: string) => void
     onSubmit: () => void
     disabled?: boolean
+    generationActive?: boolean
+    onStop?: () => void
+    action?: ReactNode
 }) {
     return (
         <ChatDock
@@ -21,12 +28,16 @@ export function ChatComposer({
             value={value}
             onChange={(event) => onChange(event.target.value)}
             disabled={disabled}
+            generationActive={generationActive}
+            onStop={onStop}
             voiceDisabled
             placeholder="Write a thought…"
             onSubmit={(e) => {
                 e.preventDefault()
                 onSubmit()
             }}
-        />
+        >
+            {action}
+        </ChatDock>
     )
 }

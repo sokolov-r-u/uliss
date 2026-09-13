@@ -6,12 +6,15 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "test": "vitest run",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "visual:build": "vite build --config visual/vite.config.ts",
     "visual:serve": "vite --config visual/vite.config.ts --host 127.0.0.1 --port 4173 --strictPort",
-    "visual:test": "playwright test",
-    "visual:update": "playwright test --update-snapshots"
+    "visual:test": "../../scripts/playwright-docker.sh test",
+    "visual:test:container": "playwright test",
+    "visual:update": "../../scripts/playwright-docker.sh update",
+    "visual:update:container": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@uliss/design-system": "*",
@@ -24,8 +27,13 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "@playwright/test": "^1.55.0",
+    "@playwright/test": "1.62.1",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.6.1",
     "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "vite": "^6.0.7",
+    "vitest": "^4.1.11",
+    "jsdom": "^26.1.0"
   }
 }

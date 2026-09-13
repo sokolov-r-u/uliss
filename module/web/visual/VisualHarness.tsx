@@ -19,6 +19,7 @@ import {
     Wordmark
 } from '@uliss/design-system'
 import {NotesView} from '../src/notes/NotesPage'
+import {NoteDetailView} from '../src/notes/NoteDetailPage'
 import {SearchView} from '../src/search/SearchPage'
 import {ConstellationsView} from '../src/constellations/ConstellationsPage'
 import {SkyView} from '../src/sky/SkyPage'
@@ -89,8 +90,9 @@ function ShellFixture({mode}: { mode: 'drawer' | 'rail' | 'sidebar' | 'collapsed
     </div>
 }
 
-function ChatsFixture({kind}: { kind: 'empty' | 'list' | 'conversation' }) {
+function ChatsFixture({kind}: { kind: 'empty' | 'list' | 'conversation' | 'streaming' }) {
     const [draft, setDraft] = useState('')
+    const [streaming, setStreaming] = useState(kind === 'streaming')
     if (kind === 'empty') return <div className="visual-screen"><EmptyState title="No chats yet"
                                                                             body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
                                                                             action="Start a chat"/></div>
@@ -104,7 +106,9 @@ function ChatsFixture({kind}: { kind: 'empty' | 'list' | 'conversation' }) {
         <div className="message-thread"><Bubble role="uliss">You have come back to this thought three
             times.</Bubble><Bubble role="me">It keeps being the same problem in different clothes.</Bubble><Bubble
             role="uliss">Then the constraint may be a frame, not a wall.<span className="bubble-cursor"/></Bubble></div>
-        <ChatDock value={draft} onChange={(event) => setDraft(event.target.value)} voiceDisabled/></div>
+        <ChatDock value={draft} onChange={(event) => setDraft(event.target.value)} voiceDisabled
+                  disabled={!streaming && kind === 'streaming'} generationActive={streaming}
+                  onStop={() => setStreaming(false)}/></div>
 }
 
 function SettingsFixture({kind}: { kind: string }) {
@@ -152,10 +156,31 @@ export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario.startsWith('shell-')) return <ShellFixture
         mode={scenario.replace('shell-', '') as 'drawer' | 'rail' | 'sidebar' | 'collapsed'}/>
     if (scenario.startsWith('chats-')) return <ChatsFixture
-        kind={scenario.replace('chats-', '') as 'empty' | 'list' | 'conversation'}/>
+        kind={scenario.replace('chats-', '') as 'empty' | 'list' | 'conversation' | 'streaming'}/>
     if (scenario === 'notes-empty') return <NotesView notes={[]}/>
-    if (scenario === 'notes-populated') return <NotesView notes={NOTES}/>
-    if (scenario === 'notes-menu') return <NotesView notes={NOTES} initialMenuId="142"/>
+    if (scenario === 'notes-populated') return <NotesView notes={NOTES} onRename={() => undefined}
+                                                          onDelete={() => undefined}/>
+    if (scenario === 'notes-menu') return <NotesView notes={NOTES} initialMenuId="142"
+                                                     onRename={() => undefined} onDelete={() => undefined}/>
+    if (scenario === 'notes-detail-ready') return <NoteDetailView state={{
+        status: 'ready', note: {
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY',
+            content: 'Constraints are not always walls.\n\nSometimes they are the frame that makes the work legible.',
+            createdAt: '2026-09-11T00:00:00Z',
+        }
+    }}/>
+    if (scenario === 'notes-detail-generating') return <NoteDetailView state={{
+        status: 'generating', note: {
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null,
+        }
+    }}/>
+    if (scenario === 'notes-detail-failed') return <NoteDetailView state={{
+        status: 'failed', note: {
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'FAILED', content: null,
+        }
+    }}/>
+    if (scenario === 'notes-detail-error') return <NoteDetailView state={{status: 'error', message: 'Connection lost.'}}
+                                                                  onRetry={() => undefined}/>
     if (scenario === 'search-empty') return <SearchView query="ritual" model={{totalNotes: 0, notes: [], chats: []}}
                                                         onQueryChange={() => undefined}/>
     if (scenario === 'search-populated') return <SearchView query="ritual" model={SEARCH}

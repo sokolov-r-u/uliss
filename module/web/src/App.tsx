@@ -8,6 +8,7 @@ import {AppShell} from './ui/AppShell'
 import {ChatListPage} from './chat/ChatListPage'
 import {ChatPage} from './chat/ChatPage'
 import {NotesPage} from './notes/NotesPage'
+import {NoteDetailPage} from './notes/NoteDetailPage'
 import {ConstellationsPage} from './constellations/ConstellationsPage'
 import {SkyPage} from './sky/SkyPage'
 import {UpdatesPage} from './updates/UpdatesPage'
@@ -54,6 +55,7 @@ export function App() {
           <Route path="chats" element={<ChatListPage/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
           <Route path="notes" element={<NotesPage/>}/>
+          <Route path="notes/:noteId" element={<NoteDetailPage/>}/>
           <Route path="search" element={<SearchPage/>}/>
           <Route path="constellations" element={<ConstellationsPage/>}/>
           <Route path="sky" element={<SkyPage/>}/>
