@@ -54,8 +54,8 @@ export async function createChat(title?: string): Promise<Chat> {
     return chat
 }
 
-export async function getMessages(chatId: string): Promise<ChatMessage[]> {
-    const res = await authFetch(`/note/chats/${chatId}/messages`)
+export async function getMessages(chatId: string, signal?: AbortSignal): Promise<ChatMessage[]> {
+    const res = await authFetch(`/note/chats/${chatId}/messages`, {signal})
     if (!res.ok) throw new Error(`chat messages fetch failed (${res.status})`)
     return (await res.json()) as ChatMessage[]
 }

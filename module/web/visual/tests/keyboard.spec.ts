@@ -57,3 +57,25 @@ test('radio controls expose checked and disabled state', async ({page}) => {
     await expect(labels.getByRole('radio', {name: 'Auto'})).toBeChecked()
     await expect(labels.getByRole('radio', {name: 'Auto'})).toBeDisabled()
 })
+
+test('active chat generation replaces Send with keyboard-operable Stop', async ({page}) => {
+    await page.goto('/visual/index.html?scenario=chats-streaming')
+    await expect(page.getByRole('textbox', {name: 'Message'})).toBeDisabled()
+    await expect(page.getByRole('button', {name: 'Send'})).toHaveCount(0)
+    const stop = page.getByRole('button', {name: 'Stop generation'})
+    await stop.focus()
+    await stop.press('Enter')
+    await expect(page.getByRole('button', {name: 'Send'})).toBeDisabled()
+    await expect(stop).toHaveCount(0)
+})
+
+test('note terminal and retry states expose truthful controls', async ({page}) => {
+    await page.goto('/visual/index.html?scenario=notes-detail-failed')
+    await expect(page.getByRole('heading', {name: 'Summary failed'})).toBeVisible()
+    await expect(page.getByRole('link', {name: '‹ notes'})).toBeVisible()
+
+    await page.goto('/visual/index.html?scenario=notes-detail-error')
+    const retry = page.getByRole('button', {name: 'Retry'})
+    await retry.focus()
+    await expect(retry).toBeFocused()
+})

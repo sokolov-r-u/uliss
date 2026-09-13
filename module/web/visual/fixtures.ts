@@ -32,7 +32,8 @@ export const NOTES: NoteViewModel[] = [
         title: 'Notes on forgetting',
         excerpt: 'I trust the graph to remember so I am free to lose the thread.',
         date: 'Jun 18',
-        linkCount: 6
+        linkCount: 6,
+        unread: false
     },
     {
         id: '137',
@@ -40,7 +41,8 @@ export const NOTES: NoteViewModel[] = [
         title: 'Why I resisted it',
         excerpt: 'Every ritual I kept started as something I mocked.',
         date: 'Jun 15',
-        linkCount: 1
+        linkCount: 1,
+        unread: false
     },
 ]
 

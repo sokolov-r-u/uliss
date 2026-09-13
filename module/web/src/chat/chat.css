@@ -106,6 +106,75 @@
     font-family: var(--font-text);
     font-size: 11px;
     color: var(--terracotta);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.chat-settling-notice {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px 8px;
+    font-family: var(--font-text);
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+.chat-summary-notice {
+    box-sizing: border-box;
+    width: calc(100% - 40px);
+    max-width: 680px;
+    margin: 0 auto 8px;
+    padding: 14px 16px 13px;
+    background: color-mix(in srgb, var(--accent) 12%, var(--bg-panel));
+    border-left: 2px solid var(--accent);
+    font-family: var(--font-text);
+}
+
+.chat-summary-notice-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.chat-summary-notice-header p {
+    margin: 0;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.45;
+}
+
+.chat-summary-notice-header p span {
+    color: var(--cream);
+}
+
+.chat-summary-notice a {
+    color: var(--accent-2);
+    font-size: 9px;
+    font-weight: var(--w-ui);
+    letter-spacing: 2px;
+    text-decoration: none;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.chat-summary-notice a:hover {
+    color: var(--cream);
+}
+
+.chat-summary-notice-detail {
+    margin: 12px 0 0;
+    color: var(--text-faint);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+}
+
+.chat-summary-error {
+    color: var(--terracotta);
 }
 
 /* ── Composer (DS ChatDock shape) ────────────────────────────── */
