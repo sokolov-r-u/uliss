@@ -69,6 +69,11 @@ export function ChatPage() {
         notifyChatListChanged()
     }
 
+    function requireReconciliation() {
+        updateGenerationPhase('reconciliation-required')
+        setStreamNotice('The saved reply could not be confirmed. Retry before sending another message.')
+    }
+
     async function reconcile(
         target: ReconciliationTarget,
         poll: boolean,
@@ -85,14 +90,14 @@ export function ChatPage() {
                 ? await reconcileUntilTerminal((signal) => getMessages(chatId, signal), target, {signal: controller.signal})
                 : await getMessages(chatId, controller.signal)
             if (!poll && !findPersistedReply(history, target)) {
-                throw new Error('The saved reply could not be confirmed yet.')
+                if (mountedRef.current && routeRevisionRef.current === routeRevision) requireReconciliation()
+                return
             }
             if (mountedRef.current && routeRevisionRef.current === routeRevision) applyPersistedHistory(history)
         } catch (error) {
             if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                 || error instanceof AuthRequiredError || isAbortError(error)) return
-            updateGenerationPhase('reconciliation-required')
-            setStreamNotice('The saved reply could not be confirmed. Retry before sending another message.')
+            requireReconciliation()
         } finally {
             if (reconciliationAbortRef.current === controller) reconciliationAbortRef.current = null
         }

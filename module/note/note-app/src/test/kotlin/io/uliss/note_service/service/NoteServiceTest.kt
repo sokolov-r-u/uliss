@@ -159,6 +159,14 @@ class NoteServiceTest {
         assertEquals(NoteSource.CHAT_SUMMARY, note.source)
         assertEquals(NoteStatus.GENERATING, note.status)
         assertEquals(7, note.id.version())
+        Mockito.verify(summaryRequestStore).reserve(
+            userId,
+            idempotencyKey,
+            chatId,
+            throughMessageId,
+            note.id,
+        )
+        Mockito.verify(summaryRequestStore, Mockito.never()).find(anyValue(), anyValue())
 
         val linkCaptor = ArgumentCaptor.forClass(ChatNoteEntity::class.java)
         Mockito.verify(chatNoteRepository).save(linkCaptor.capture())

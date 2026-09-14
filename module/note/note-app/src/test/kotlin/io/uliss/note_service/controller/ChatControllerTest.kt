@@ -1,9 +1,11 @@
 package io.uliss.note_service.controller
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -16,8 +18,11 @@ import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
 import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
@@ -30,11 +35,13 @@ import org.springframework.test.web.servlet.post
 import reactor.core.publisher.Flux
 import java.time.Instant
 import java.util.UUID
+import kotlin.test.assertTrue
 
 // SecurityConfig/CorsProperties/GlobalExceptionHandler imported explicitly: @WebMvcTest does not
 // auto-load third-party AutoConfiguration.imports entries, only beans it discovers itself.
 @WebMvcTest(ChatController::class)
 @Import(SecurityConfig::class, CorsProperties::class, GlobalExceptionHandler::class)
+@ExtendWith(OutputCaptureExtension::class)
 class ChatControllerTest {
 
     @Autowired
@@ -215,6 +222,7 @@ class ChatControllerTest {
             header("Idempotency-Key", idempotencyKey)
         }.andExpect {
             status { isAccepted() }
+            header { doesNotExist("Location") }
             header { string("Idempotency-Key", idempotencyKey.toString()) }
             jsonPath("$.noteId") { value(note.id.toString()) }
             jsonPath("$.chatId") { value(chatId.toString()) }
@@ -244,6 +252,84 @@ class ChatControllerTest {
             jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
         }
         Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `summarizeChat rejects an empty idempotency key`() {
+        mockMvc.post("/note/chats/${UUID.randomUUID()}/summarize") {
+            with(jwt())
+            header("Idempotency-Key", "")
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `summarizeChat replay preserves the accepted representation for every current note status`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+
+        listOf(NoteStatus.GENERATING, NoteStatus.READY, NoteStatus.FAILED).forEach { currentStatus ->
+            val idempotencyKey = UUID.randomUUID()
+            val note = NoteEntity(userId, "current content", NoteSource.CHAT_SUMMARY, currentStatus)
+            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey)).thenReturn(note)
+
+            mockMvc.post("/note/chats/$chatId/summarize") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+                header("Idempotency-Key", idempotencyKey)
+            }.andExpect {
+                status { isAccepted() }
+                header { string("Idempotency-Key", idempotencyKey.toString()) }
+                jsonPath("$.noteId") { value(note.id.toString()) }
+                jsonPath("$.status") { value("GENERATING") }
+            }
+        }
+    }
+
+    @Test
+    fun `summarizeChat rejects reuse of a key for another chat`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey))
+            .thenThrow(IdempotencyKeyReusedException())
+
+        mockMvc.post("/note/chats/$chatId/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("IDEMPOTENCY_KEY_REUSED") }
+        }
+    }
+
+    @Test
+    fun `summarizeChat logs an internal idempotency invariant failure`(output: CapturedOutput) {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val messages = listOf(
+            "summary request reservation detected an idempotency conflict, " +
+                    "but the request created by the winning transaction could not be loaded",
+            "summary request was loaded after an idempotent retry, " +
+                    "but its referenced note could not be found",
+        )
+
+        messages.forEach { message ->
+            val idempotencyKey = UUID.randomUUID()
+            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey))
+                .thenThrow(InternalException(message))
+
+            mockMvc.post("/note/chats/$chatId/summarize") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+                header("Idempotency-Key", idempotencyKey)
+            }.andExpect {
+                status { isInternalServerError() }
+                jsonPath("$.code") { value("INTERNAL_ERROR") }
+            }
+            assertTrue(output.out.contains(message))
+        }
     }
 
     @Test

@@ -61,7 +61,7 @@ class SummaryRequestStore(
                 (user_id, idempotency_key, chat_id, through_message_id, note_id,
                  created_at, updated_at, version)
             VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (user_id, idempotency_key) DO NOTHING
             RETURNING $REQUEST_COLUMNS
         """
 
