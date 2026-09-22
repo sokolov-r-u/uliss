@@ -4,10 +4,9 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.NoteEntity
-import io.uliss.note_service.service.type.AssistantStreamEvent
+import io.uliss.note_service.service.type.AssistantReplyStream
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import reactor.core.publisher.Flux
 import java.util.UUID
 
 @Service
@@ -24,8 +23,8 @@ class ChatFacade(
     fun getMessages(userId: UUID, chatId: UUID): List<ChatMessageEntity> =
         chatService.getMessages(userId, chatId)
 
-    fun streamMessage(userId: UUID, chatId: UUID, turnId: UUID, prompt: String): Flux<AssistantStreamEvent> =
-        assistantService.streamReply(userId, chatId, turnId, prompt)
+    fun streamMessage(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
+        assistantService.streamReply(userId, chatId, idempotencyKey, prompt)
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
         assistantService.cancelTurn(userId, chatId, turnId)

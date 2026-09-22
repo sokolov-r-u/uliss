@@ -71,12 +71,13 @@ class AssistantServiceTest {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
-        val turn = turn(userId, chatId, turnId, ChatTurnStatus.GENERATING)
+        val idempotencyKey = UUID.randomUUID()
+        val turn = turn(userId, chatId, turnId, ChatTurnStatus.GENERATING).copy(idempotencyKey = idempotencyKey)
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         val persistenceStarted = CountDownLatch(1)
         val releasePersistence = CountDownLatch(1)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi"))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history(chatId, turnId)))
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Hel", "lo"))
@@ -88,7 +89,9 @@ class AssistantServiceTest {
             true
         }
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi"))
+        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        assertEquals(turnId, reply.turnId)
+        StepVerifier.create(reply.events)
             .expectNext(AssistantStreamEvent.AppendText("Hel"), AssistantStreamEvent.AppendText("lo"))
             .then { assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS)) }
             .expectNoEvent(Duration.ofMillis(100))
@@ -121,7 +124,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Hi", ChatTurnStatus.PARTIAL)
         ).thenReturn(true)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi"))
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
             .expectNext(AssistantStreamEvent.AppendText("Hi"))
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
@@ -145,7 +148,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
         ).thenReturn(true)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi"))
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
     }
@@ -155,19 +158,25 @@ class AssistantServiceTest {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
-        val complete = turn(userId, chatId, turnId, ChatTurnStatus.COMPLETE)
-        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi"))
+        val idempotencyKey = UUID.randomUUID()
+        val complete = turn(userId, chatId, turnId, ChatTurnStatus.COMPLETE).copy(idempotencyKey = idempotencyKey)
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
             .thenReturn(ChatTurnRequestResolution.AlreadyFinished(complete))
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi"))
+        val replay = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        assertEquals(turnId, replay.turnId)
+        StepVerifier.create(replay.events)
             .expectNext(AssistantStreamEvent.GenerationCompleted)
             .verifyComplete()
 
         val pendingTurnId = UUID.randomUUID()
         val pending = turn(userId, chatId, pendingTurnId, ChatTurnStatus.GENERATING)
-        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, pendingTurnId, "next"))
+            .copy(idempotencyKey = idempotencyKey)
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "next"))
             .thenReturn(ChatTurnRequestResolution.AlreadyGenerating(pending))
-        StepVerifier.create(assistantService.streamReply(userId, chatId, pendingTurnId, "next"))
+        val pendingReply = assistantService.streamReply(userId, chatId, idempotencyKey, "next")
+        assertEquals(pendingTurnId, pendingReply.turnId)
+        StepVerifier.create(pendingReply.events)
             .expectNext(AssistantStreamEvent.GenerationPending(60_000))
             .verifyComplete()
 
@@ -192,7 +201,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "obsolete", ChatTurnStatus.COMPLETE)
         ).thenReturn(false)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi"))
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
             .expectErrorMatches { error ->
                 generateSequence(error) { it.cause }

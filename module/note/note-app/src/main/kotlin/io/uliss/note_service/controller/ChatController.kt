@@ -59,14 +59,16 @@ class ChatController(
         @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
         @Valid @RequestBody request: SendMessageRequest,
     ): ResponseEntity<Flux<ServerSentEvent<String>>> {
-        val turnId = parseIdempotencyKey(idempotencyKeyHeader)
-        val stream = chatFacade.streamMessage(jwt.getUserId(), chatId, turnId, request.content)
+        val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
+        val reply = chatFacade.streamMessage(jwt.getUserId(), chatId, idempotencyKey, request.content)
+        val stream = reply.events
             .map(::toServerSentEvent)
             .onErrorResume {
                 Flux.just(ServerSentEvent.builder("FAILED").event("error").build())
             }
         return ResponseEntity.ok()
-            .header(IDEMPOTENCY_KEY_HEADER, turnId.toString())
+            .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
+            .header(CHAT_TURN_ID_HEADER, reply.turnId.toString())
             .contentType(MediaType.TEXT_EVENT_STREAM)
             .body(stream)
     }
@@ -114,5 +116,6 @@ class ChatController(
 
     private companion object {
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
+        const val CHAT_TURN_ID_HEADER = "Chat-Turn-Id"
     }
 }

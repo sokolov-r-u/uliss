@@ -5,6 +5,7 @@ import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatTurnStatus
 import io.uliss.note_service.prompt.ChatPrompts
+import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.AssistantStreamEvent
 import io.uliss.note_service.service.type.ChatTurnRequestResolution
 import org.springframework.ai.chat.client.ChatClient
@@ -24,13 +25,18 @@ class AssistantService(
 ) {
     private val log = AppLogger.of(AssistantService::class)
 
-    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): Flux<AssistantStreamEvent> =
+    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
         when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
-            is ChatTurnRequestResolution.StartGeneration -> streamNewGeneration(resolution)
+            is ChatTurnRequestResolution.StartGeneration ->
+                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution))
             is ChatTurnRequestResolution.AlreadyGenerating ->
-                Flux.just(AssistantStreamEvent.GenerationPending(resolution.turn.retryAfterMs))
+                AssistantReplyStream(
+                    resolution.turn.id,
+                    Flux.just(AssistantStreamEvent.GenerationPending(resolution.turn.retryAfterMs)),
+                )
 
-            is ChatTurnRequestResolution.AlreadyFinished -> Flux.just(resolution.turn.status.toReplayEvent())
+            is ChatTurnRequestResolution.AlreadyFinished ->
+                AssistantReplyStream(resolution.turn.id, Flux.just(resolution.turn.status.toReplayEvent()))
         }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {

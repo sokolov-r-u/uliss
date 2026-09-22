@@ -5,6 +5,7 @@ import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
@@ -14,6 +15,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.ChatFacade
+import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.AssistantStreamEvent
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
@@ -149,27 +151,32 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `streamMessage happy path emits token and done SSE events`() {
+    fun `streamMessage returns distinct request and turn identities with append and done events`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamMessage(userId, chatId, idempotencyKey, "hi"))
             .thenReturn(
-                Flux.just(
-                    AssistantStreamEvent.AppendText("Hel"),
-                    AssistantStreamEvent.AppendText("lo"),
-                    AssistantStreamEvent.GenerationCompleted,
+                AssistantReplyStream(
+                    turnId,
+                    Flux.just(
+                        AssistantStreamEvent.AppendText("Hel"),
+                        AssistantStreamEvent.AppendText("lo"),
+                        AssistantStreamEvent.GenerationCompleted,
+                    ),
                 )
             )
 
         mockMvc.post("/note/chats/$chatId/messages/stream") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
-            header("Idempotency-Key", turnId)
+            header("Idempotency-Key", idempotencyKey)
             contentType = MediaType.APPLICATION_JSON
             content = """{"content":"hi"}"""
         }.asyncDispatch().andExpect {
             status { isOk() }
-            header { string("Idempotency-Key", turnId.toString()) }
+            header { string("Idempotency-Key", idempotencyKey.toString()) }
+            header { string("Chat-Turn-Id", turnId.toString()) }
             content {
                 contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
                 string(Matchers.containsString("event:append"))
@@ -185,9 +192,12 @@ class ChatControllerTest {
         val turnId = UUID.randomUUID()
         Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
             .thenReturn(
-                Flux.concat(
-                    Flux.just(AssistantStreamEvent.AppendText("Hi")),
-                    Flux.error(RuntimeException("boom")),
+                AssistantReplyStream(
+                    turnId,
+                    Flux.concat(
+                        Flux.just(AssistantStreamEvent.AppendText("Hi")),
+                        Flux.error(RuntimeException("boom")),
+                    ),
                 )
             )
 
@@ -228,6 +238,30 @@ class ChatControllerTest {
     }
 
     @Test
+    fun `stream reservation errors preserve HTTP status without exposing a turn header`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        listOf(
+            NotFoundException("chat not found") to 404,
+            IdempotencyKeyReusedException() to 409,
+            ChatTurnAlreadyGeneratingException(chatId, UUID.randomUUID()) to 409,
+        ).forEach { (failure, expectedStatus) ->
+            Mockito.doThrow(failure).`when`(chatFacade)
+                .streamMessage(userId, chatId, idempotencyKey, "hi")
+            mockMvc.post("/note/chats/$chatId/messages/stream") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+                header("Idempotency-Key", idempotencyKey)
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"content":"hi"}"""
+            }.andExpect {
+                status { isEqualTo(expectedStatus) }
+                header { doesNotExist("Chat-Turn-Id") }
+            }
+        }
+    }
+
+    @Test
     fun `streamMessage exposes pending and terminal replay events`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
@@ -237,16 +271,19 @@ class ChatControllerTest {
             AssistantStreamEvent.GenerationFailed(io.uliss.note_service.model.ChatTurnStatus.FAILED) to "event:error",
         ).forEach { (event, expectedEvent) ->
             val turnId = UUID.randomUUID()
-            Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
-                .thenReturn(Flux.just(event))
+            val idempotencyKey = UUID.randomUUID()
+            Mockito.`when`(chatFacade.streamMessage(userId, chatId, idempotencyKey, "hi"))
+                .thenReturn(AssistantReplyStream(turnId, Flux.just(event)))
 
             mockMvc.post("/note/chats/$chatId/messages/stream") {
                 with(jwt().jwt { it.claim("userId", userId.toString()) })
-                header("Idempotency-Key", turnId)
+                header("Idempotency-Key", idempotencyKey)
                 contentType = MediaType.APPLICATION_JSON
                 content = """{"content":"hi"}"""
             }.asyncDispatch().andExpect {
                 status { isOk() }
+                header { string("Idempotency-Key", idempotencyKey.toString()) }
+                header { string("Chat-Turn-Id", turnId.toString()) }
                 content { string(Matchers.containsString(expectedEvent)) }
             }
         }

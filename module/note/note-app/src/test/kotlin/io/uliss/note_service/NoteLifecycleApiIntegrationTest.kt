@@ -6,6 +6,7 @@ import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.ChatNoteId
+import io.uliss.note_service.model.ChatTurnStatus
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
@@ -18,7 +19,8 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatFacade
-import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTurnService
+import io.uliss.note_service.service.type.AssistantStreamEvent
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -44,6 +46,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 @Tag("integration")
@@ -83,7 +86,7 @@ class NoteLifecycleApiIntegrationTest {
     lateinit var chatClient: ChatClient
 
     @MockitoSpyBean
-    lateinit var chatService: ChatService
+    lateinit var chatTurnService: ChatTurnService
 
     @Test
     fun `summary request persists placeholder link and outbox event before returning 202`() {
@@ -137,31 +140,89 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Final", " answer"))
         Mockito.doAnswer { invocation ->
+            assertEquals(userId, invocation.getArgument(0))
+            assertEquals(chat.id, invocation.getArgument(1))
+            assertEquals(1, invocation.getArgument(3))
+            assertEquals("Final answer", invocation.getArgument(4))
+            assertEquals(ChatTurnStatus.COMPLETE, invocation.getArgument(5))
             persistenceStarted.countDown()
             assertTrue(releasePersistence.await(1, TimeUnit.SECONDS))
             invocation.callRealMethod()
-        }.`when`(chatService).persistAssistantReply(
-            chat.id,
-            "Final answer",
-            ChatMessageStatus.COMPLETE,
+        }.`when`(chatTurnService).finishGenerationAttempt(
+            anyValue(),
+            anyValue(),
+            anyValue(),
+            Mockito.anyInt(),
+            anyValue(),
+            anyValue(),
         )
 
-        val streamedReply = assistantService.streamReply(userId, chat.id, "Question").collectList().toFuture()
+        val reply = assistantService.streamReply(userId, chat.id, UUID.randomUUID(), "Question")
+        val streamedReply = reply.events.collectList().toFuture()
 
-        assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS))
-        assertFalse(streamedReply.isDone)
-        releasePersistence.countDown()
-        assertEquals(listOf("Final", " answer"), streamedReply.get(1, TimeUnit.SECONDS))
+        try {
+            assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS))
+            assertFalse(streamedReply.isDone)
+        } finally {
+            releasePersistence.countDown()
+        }
+        assertEquals(
+            listOf(
+                AssistantStreamEvent.AppendText("Final"),
+                AssistantStreamEvent.AppendText(" answer"),
+                AssistantStreamEvent.GenerationCompleted,
+            ),
+            streamedReply.get(1, TimeUnit.SECONDS),
+        )
 
         chatFacade.requestSummary(userId, chat.id, UUID.randomUUID())
 
         val assistantMessage = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chat.id).last()
         assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.role)
+        assertEquals(reply.turnId, assistantMessage.turnId)
+        assertEquals(ChatMessageStatus.COMPLETE, assistantMessage.status)
         val event = outboxEventRepository.findAll().single {
             it.type == OutboxEventType.NOTE_SUMMARY_REQUESTED && it.payload.contains(chat.id.toString())
         }
         val payload = objectMapper.readTree(event.payload)
         assertEquals(assistantMessage.id.toString(), payload["throughMessageId"].stringValue())
+    }
+
+    @Test
+    fun `stream HTTP replay returns the persisted turn identity without generating twice`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "HTTP stream"))
+        val key = UUID.randomUUID()
+        val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Answer"))
+
+        fun send() = mockMvc.post("/note/chats/${chat.id}/messages/stream") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", key)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"Question"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            header { string("Idempotency-Key", key.toString()) }
+            content { string(Matchers.containsString("event:done")) }
+        }.andReturn().response
+
+        val first = send()
+        val turnId = UUID.fromString(first.getHeader("Chat-Turn-Id"))
+        assertNotEquals(key, turnId)
+        assertTrue(first.contentAsString.contains("event:append"))
+        val replay = send()
+        assertEquals(turnId.toString(), replay.getHeader("Chat-Turn-Id"))
+        assertFalse(replay.contentAsString.contains("event:append"))
+        val messages = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chat.id)
+        assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
+        assertTrue(messages.all { it.turnId == turnId })
+        Mockito.verify(chatClient, Mockito.times(1)).prompt()
     }
 
     @Test
