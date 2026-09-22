@@ -9,20 +9,33 @@ import {parseSseStream} from '../lib/sse'
 
 export type StreamOutcome = 'done' | 'error'
 
+export class ChatStreamHttpError extends Error {
+    constructor(public readonly status: number) {
+        super(`chat stream request failed (${status})`)
+        this.name = 'ChatStreamHttpError'
+    }
+}
+
 export async function streamAssistantReply(
     chatId: string,
     content: string,
+    idempotencyKey: string,
     opts: { onAppendText: (text: string) => void; signal?: AbortSignal },
 ): Promise<StreamOutcome> {
     const res = await authFetch(`/note/chats/${chatId}/messages/stream`, {
         method: 'POST',
         // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
         // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
-        headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream'},
+        headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'text/event-stream',
+            'Idempotency-Key': idempotencyKey,
+        },
         body: JSON.stringify({content}),
         signal: opts.signal,
     })
-    if (!res.ok || !res.body) return 'error'
+    if (!res.ok) throw new ChatStreamHttpError(res.status)
+    if (!res.body) return 'error'
 
     for await (const evt of parseSseStream(res.body, opts.signal)) {
         if (evt.event === 'append') opts.onAppendText(evt.data)

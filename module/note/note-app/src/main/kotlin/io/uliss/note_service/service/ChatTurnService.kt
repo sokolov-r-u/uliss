@@ -219,10 +219,25 @@ class ChatTurnService(
             expectedAttempt = existing.attempt,
             maxAttempts = executionPolicy.maxAttempts,
             leaseMillis = executionPolicy.lease.toMillis(),
-        ) ?: throw InternalException(
-            "chat turn id=${existing.id} could not reclaim its expired attempt=${existing.attempt} lease"
         )
-        return ChatTurnRequestResolution.StartGeneration(claimed, loadProviderHistory(claimed))
+        if (claimed != null) {
+            return ChatTurnRequestResolution.StartGeneration(claimed, loadProviderHistory(claimed))
+        }
+
+        val current = loadTurn(
+            existing.userId,
+            existing.id,
+            "chat turn disappeared while reclaiming its expired attempt=${existing.attempt}",
+        )
+        if (current.status != ChatTurnStatus.GENERATING) {
+            return ChatTurnRequestResolution.AlreadyFinished(current)
+        }
+        if (current.attempt != existing.attempt || current.retryAfterMs > 0) {
+            return resolveExistingTurn(current)
+        }
+        throw InternalException(
+            "chat turn id=${existing.id} remained expired after its attempt=${existing.attempt} reclaim was rejected"
+        )
     }
 
     private fun loadProviderHistory(turn: ChatTurn): List<ChatMessageEntity> {

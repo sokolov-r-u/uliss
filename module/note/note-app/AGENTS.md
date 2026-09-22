@@ -13,7 +13,8 @@ note-service.
   synchronous calls.
 - Streaming must derive `COMPLETE`, `PARTIAL`, or `FAILED` from the terminal signal and buffered content, and run
   blocking JPA persistence off the reactive event-loop thread.
-- Preserve the SSE contract (`token`, `done`, `error`) and the `/note` prefix supplied by `WebMvcPathPrefixConfig`.
+- Preserve the SSE contract (`append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
+  `WebMvcPathPrefixConfig`.
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
 - The shared optimistic-lock retry bean is `optimisticLockRetryTemplate`; do not introduce a conflicting generic
   `retryTemplate` bean.
@@ -23,7 +24,9 @@ note-service.
 - Keep controller code limited to transport and authentication mapping; conversation orchestration belongs in services.
 - Changes to SSE events, message status, ownership lookup, or chat DTOs are frontend contract changes and require
   synchronized web tests/changes.
-- Flyway migrations are append-only. Preserve the service-owned `note` schema and pgvector compatibility.
+- Flyway migrations are append-only after release. The unreleased V3/V4 migrations may be amended by the active
+  chat-idempotency task; recreate disposable databases after checksum changes. Preserve the service-owned `note`
+  schema and pgvector compatibility.
 - Message pagination and first-message title generation are deferred in `docs/TECH_DEBT.md`; do not implement them
   incidentally.
 
@@ -33,4 +36,3 @@ note-service.
 - Use `./gradlew :note:integrationTest` for persistence, migration, AI wiring, or streaming integration changes; Docker
   is required.
 - Do not run `:note:bootRun`, call the external AI provider, or write to the database without explicit permission.
-

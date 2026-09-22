@@ -27,14 +27,18 @@ describe('streamAssistantReply', () => {
         ]))
         const receivedText: string[] = []
 
-        await expect(streamAssistantReply('chat-1', 'Hi', {
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {
             onAppendText: (text) => receivedText.push(text),
         })).resolves.toBe('done')
 
         expect(receivedText).toEqual(['Hel', 'lo'])
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/messages/stream', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream'},
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                'Idempotency-Key': 'key-1',
+            },
             body: JSON.stringify({content: 'Hi'}),
         })
     })

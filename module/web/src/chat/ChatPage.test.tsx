@@ -11,7 +11,14 @@ vi.mock('./chatApi', () => ({
     getMessages: vi.fn(),
     notifyChatListChanged: vi.fn(),
 }))
-vi.mock('./streamChatReply', () => ({streamAssistantReply: vi.fn()}))
+vi.mock('./streamChatReply', () => ({
+    streamAssistantReply: vi.fn(),
+    ChatStreamHttpError: class ChatStreamHttpError extends Error {
+        constructor(public readonly status: number) {
+            super(`chat stream request failed (${status})`)
+        }
+    },
+}))
 vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
     NoteApiError: class NoteApiError extends Error {
@@ -158,7 +165,7 @@ describe('ChatPage summary flow', () => {
                 {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'Next question'},
                 {id: 'a-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Partial reply'},
             ])
-        mockedStream.mockImplementation(async (_chatId, _content, options) => {
+        mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
             options.onAppendText('Partial')
             await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
                 reject(new DOMException('aborted', 'AbortError'))
@@ -175,5 +182,28 @@ describe('ChatPage summary flow', () => {
         await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
         expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
         expect(notifyChatListChanged).toHaveBeenCalledOnce()
+    })
+
+    it('reuses the persisted chat idempotency key when reconciliation is retried', async () => {
+        mockedGetMessages.mockResolvedValue([
+            {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+        ])
+        mockedStream.mockResolvedValue('done')
+        renderPage()
+        const input = await screen.findByRole('textbox', {name: 'Message'})
+        await userEvent.type(input, 'Next question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByRole('button', {name: 'Retry'})).toBeEnabled()
+        const firstKey = mockedStream.mock.calls[0]?.[2]
+        expect(firstKey).toEqual(expect.any(String))
+        expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}'))
+            .toMatchObject({idempotencyKey: firstKey, content: 'Next question'})
+
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+
+        await waitFor(() => expect(mockedStream).toHaveBeenCalledTimes(2))
+        expect(mockedStream.mock.calls[1]?.[2]).toBe(firstKey)
     })
 })

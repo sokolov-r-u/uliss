@@ -362,6 +362,50 @@ class ChatTurnServiceTest {
     }
 
     @Test
+    fun `expired claim reloads a turn concurrently completed by the original attempt`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val canonicalKey = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
+        Mockito.`when`(store.findByIdempotencyKey(userId, chatId, canonicalKey)).thenReturn(null)
+        Mockito.`when`(store.findGenerating(userId, chatId)).thenReturn(null)
+        Mockito.`when`(store.insert(anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), Mockito.anyLong()))
+            .thenAnswer {
+                generatingTurn(userId, chatId, it.getArgument(0), canonicalKey, it.getArgument(4))
+            }
+        Mockito.`when`(messages.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(emptyList())
+        Mockito.`when`(messages.save(anyValue())).thenAnswer { it.getArgument<ChatMessageEntity>(0) }
+        val fingerprint = assertIs<ChatTurnRequestResolution.StartGeneration>(
+            service.resolveTurnRequest(userId, chatId, canonicalKey, "hi")
+        ).turn.requestFingerprint
+
+        val expired = generatingTurn(
+            userId,
+            chatId,
+            turnId,
+            idempotencyKey,
+            fingerprint,
+            retryAfterMs = 0,
+        )
+        val completed = expired.copy(
+            status = ChatTurnStatus.COMPLETE,
+            leaseUntil = null,
+            retryAfterMs = 0,
+        )
+        Mockito.`when`(store.findByIdempotencyKey(userId, chatId, idempotencyKey)).thenReturn(expired)
+        Mockito.`when`(store.claimExpired(turnId, userId, chatId, 1, 3, 300_000)).thenReturn(null)
+        Mockito.`when`(store.findById(userId, turnId)).thenReturn(completed)
+
+        val result = assertIs<ChatTurnRequestResolution.AlreadyFinished>(
+            service.resolveTurnRequest(userId, chatId, idempotencyKey, "hi")
+        )
+
+        assertSame(completed, result.turn)
+    }
+
+    @Test
     fun `finalization saves assistant only when the fenced transition wins`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
