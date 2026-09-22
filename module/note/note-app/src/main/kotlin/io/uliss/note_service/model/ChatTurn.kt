@@ -38,6 +38,7 @@ data class ChatTurn(
     val id: UUID,
     val userId: UUID,
     val chatId: UUID,
+    val idempotencyKey: UUID,
     val requestFingerprint: RequestFingerprint,
     val status: ChatTurnStatus,
     val attempt: Int,

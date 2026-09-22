@@ -12,7 +12,7 @@ export type StreamOutcome = 'done' | 'error'
 export async function streamAssistantReply(
     chatId: string,
     content: string,
-    opts: { onToken: (chunk: string) => void; signal?: AbortSignal },
+    opts: { onAppendText: (text: string) => void; signal?: AbortSignal },
 ): Promise<StreamOutcome> {
     const res = await authFetch(`/note/chats/${chatId}/messages/stream`, {
         method: 'POST',
@@ -25,7 +25,7 @@ export async function streamAssistantReply(
     if (!res.ok || !res.body) return 'error'
 
     for await (const evt of parseSseStream(res.body, opts.signal)) {
-        if (evt.event === 'token') opts.onToken(evt.data)
+        if (evt.event === 'append') opts.onAppendText(evt.data)
         else if (evt.event === 'done') return 'done'
         else if (evt.event === 'error') return 'error'
     }

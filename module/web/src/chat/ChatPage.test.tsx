@@ -159,7 +159,7 @@ describe('ChatPage summary flow', () => {
                 {id: 'a-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Partial reply'},
             ])
         mockedStream.mockImplementation(async (_chatId, _content, options) => {
-            options.onToken('Partial')
+            options.onAppendText('Partial')
             await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
                 reject(new DOMException('aborted', 'AbortError'))
             }, {once: true}))

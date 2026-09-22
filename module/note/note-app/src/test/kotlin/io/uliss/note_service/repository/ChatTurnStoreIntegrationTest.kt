@@ -45,6 +45,7 @@ class ChatTurnStoreIntegrationTest {
     fun `turn lookups enforce ownership`() {
         val userId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
         val chatId = transactionTemplate.execute {
             val chat = chatRepository.save(ChatEntity(userId, "owned chat"))
             entityManager.flush()
@@ -54,6 +55,7 @@ class ChatTurnStoreIntegrationTest {
                     turnId = turnId,
                     userId = userId,
                     chatId = chat.id,
+                    idempotencyKey = idempotencyKey,
                     requestFingerprint = RequestFingerprint.from(ByteArray(32) { it.toByte() }),
                     leaseMillis = 60_000,
                 ),
@@ -63,8 +65,10 @@ class ChatTurnStoreIntegrationTest {
 
         try {
             assertNotNull(store.findById(userId, turnId))
+            assertNotNull(store.findByIdempotencyKey(userId, chatId, idempotencyKey))
             assertNotNull(store.findGenerating(userId, chatId))
             assertNull(store.findById(UUID.randomUUID(), turnId))
+            assertNull(store.findByIdempotencyKey(UUID.randomUUID(), chatId, idempotencyKey))
             assertNull(store.findGenerating(UUID.randomUUID(), chatId))
         } finally {
             transactionTemplate.executeWithoutResult {

@@ -24,6 +24,7 @@ class ChatTurnStore(
         turnId: UUID,
         userId: UUID,
         chatId: UUID,
+        idempotencyKey: UUID,
         requestFingerprint: RequestFingerprint,
         leaseMillis: Long,
     ): ChatTurn? {
@@ -34,6 +35,7 @@ class ChatTurnStore(
             turnId,
             userId,
             chatId,
+            idempotencyKey,
             requestFingerprint.toByteArray(),
             ChatTurnStatus.GENERATING.name,
             leaseMillis,
@@ -42,6 +44,15 @@ class ChatTurnStore(
 
     fun findById(userId: UUID, turnId: UUID): ChatTurn? =
         jdbcTemplate.query(FIND_BY_ID_SQL, ::mapTurn, turnId, userId).singleOrNull()
+
+    fun findByIdempotencyKey(userId: UUID, chatId: UUID, idempotencyKey: UUID): ChatTurn? =
+        jdbcTemplate.query(
+            FIND_BY_IDEMPOTENCY_KEY_SQL,
+            ::mapTurn,
+            chatId,
+            userId,
+            idempotencyKey,
+        ).singleOrNull()
 
     fun findGenerating(userId: UUID, chatId: UUID): ChatTurn? =
         jdbcTemplate.query(
@@ -125,6 +136,7 @@ class ChatTurnStore(
             id = resultSet.getObject("id", UUID::class.java),
             userId = resultSet.getObject("user_id", UUID::class.java),
             chatId = resultSet.getObject("chat_id", UUID::class.java),
+            idempotencyKey = resultSet.getObject("idempotency_key", UUID::class.java),
             requestFingerprint = RequestFingerprint.from(resultSet.getBytes("request_fingerprint")),
             status = ChatTurnStatus.valueOf(resultSet.getString("status")),
             attempt = resultSet.getInt("attempt"),
@@ -134,7 +146,7 @@ class ChatTurnStore(
 
     private companion object {
         const val TURN_COLUMNS = """
-            id, user_id, chat_id, request_fingerprint, status, attempt, lease_until,
+            id, user_id, chat_id, idempotency_key, request_fingerprint, status, attempt, lease_until,
             GREATEST(
                 0,
                 CEIL(EXTRACT(EPOCH FROM (lease_until - CURRENT_TIMESTAMP)) * 1000)
@@ -150,13 +162,13 @@ class ChatTurnStore(
 
         const val INSERT_SQL = """
             INSERT INTO note.chat_turn
-                (id, user_id, chat_id, request_fingerprint, status, attempt, lease_until,
+                (id, user_id, chat_id, idempotency_key, request_fingerprint, status, attempt, lease_until,
                  created_at, updated_at, version)
             VALUES
-                (?, ?, ?, ?, ?, 1,
+                (?, ?, ?, ?, ?, ?, 1,
                  CURRENT_TIMESTAMP + (? * INTERVAL '1 millisecond'),
                  CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0)
-            ON CONFLICT DO NOTHING
+            ON CONFLICT (chat_id, idempotency_key) DO NOTHING
             RETURNING $TURN_COLUMNS
         """
 
@@ -164,6 +176,12 @@ class ChatTurnStore(
             SELECT $TURN_COLUMNS
             FROM note.chat_turn
             WHERE id = ? AND user_id = ?
+        """
+
+        const val FIND_BY_IDEMPOTENCY_KEY_SQL = """
+            SELECT $TURN_COLUMNS
+            FROM note.chat_turn
+            WHERE chat_id = ? AND user_id = ? AND idempotency_key = ?
         """
 
         const val FIND_GENERATING_SQL = """

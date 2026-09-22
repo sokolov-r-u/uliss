@@ -14,6 +14,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.ChatFacade
+import io.uliss.note_service.service.type.AssistantStreamEvent
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
 import org.hamcrest.Matchers
@@ -135,10 +136,11 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `sendMessage with blank content is rejected with 400`() {
+    fun `streamMessage with blank content is rejected with 400`() {
         val chatId = UUID.randomUUID()
-        mockMvc.post("/note/chats/$chatId/messages") {
+        mockMvc.post("/note/chats/$chatId/messages/stream") {
             with(jwt())
+            header("Idempotency-Key", UUID.randomUUID())
             contentType = MediaType.APPLICATION_JSON
             content = """{"content":""}"""
         }.andExpect {
@@ -147,39 +149,30 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `sendMessage happy path returns the assistant's reply`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.sendMessage(userId, chatId, "6*7?"))
-            .thenReturn(ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "42", ChatMessageStatus.COMPLETE))
-
-        mockMvc.post("/note/chats/$chatId/messages") {
-            with(jwt().jwt { it.claim("userId", userId.toString()) })
-            contentType = MediaType.APPLICATION_JSON
-            content = """{"content":"6*7?"}"""
-        }.andExpect {
-            status { isOk() }
-            jsonPath("$.content") { value("42") }
-            jsonPath("$.role") { value("ASSISTANT") }
-            jsonPath("$.status") { value("COMPLETE") }
-        }
-    }
-
-    @Test
     fun `streamMessage happy path emits token and done SSE events`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.streamMessage(userId, chatId, "hi")).thenReturn(Flux.just("Hel", "lo"))
+        val turnId = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
+            .thenReturn(
+                Flux.just(
+                    AssistantStreamEvent.AppendText("Hel"),
+                    AssistantStreamEvent.AppendText("lo"),
+                    AssistantStreamEvent.GenerationCompleted,
+                )
+            )
 
         mockMvc.post("/note/chats/$chatId/messages/stream") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", turnId)
             contentType = MediaType.APPLICATION_JSON
             content = """{"content":"hi"}"""
         }.asyncDispatch().andExpect {
             status { isOk() }
+            header { string("Idempotency-Key", turnId.toString()) }
             content {
                 contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
-                string(Matchers.containsString("event:token"))
+                string(Matchers.containsString("event:append"))
                 string(Matchers.containsString("event:done"))
             }
         }
@@ -189,21 +182,88 @@ class ChatControllerTest {
     fun `streamMessage surfaces a mid-stream failure as an error SSE event, never a done event`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.streamMessage(userId, chatId, "hi"))
-            .thenReturn(Flux.concat(Flux.just("Hi"), Flux.error(RuntimeException("boom"))))
+        val turnId = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
+            .thenReturn(
+                Flux.concat(
+                    Flux.just(AssistantStreamEvent.AppendText("Hi")),
+                    Flux.error(RuntimeException("boom")),
+                )
+            )
 
         mockMvc.post("/note/chats/$chatId/messages/stream") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", turnId)
             contentType = MediaType.APPLICATION_JSON
             content = """{"content":"hi"}"""
         }.asyncDispatch().andExpect {
             status { isOk() }
             content {
-                string(Matchers.containsString("event:token"))
+                string(Matchers.containsString("event:append"))
                 string(Matchers.containsString("event:error"))
                 string(Matchers.not(Matchers.containsString("event:done")))
             }
         }
+    }
+
+    @Test
+    fun `streamMessage requires a valid idempotency key`() {
+        val chatId = UUID.randomUUID()
+        mockMvc.post("/note/chats/$chatId/messages/stream") {
+            with(jwt())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        mockMvc.post("/note/chats/$chatId/messages/stream") {
+            with(jwt())
+            header("Idempotency-Key", "not-a-uuid")
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `streamMessage exposes pending and terminal replay events`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        listOf(
+            AssistantStreamEvent.GenerationPending(1500) to "event:pending",
+            AssistantStreamEvent.GenerationCompleted to "event:done",
+            AssistantStreamEvent.GenerationFailed(io.uliss.note_service.model.ChatTurnStatus.FAILED) to "event:error",
+        ).forEach { (event, expectedEvent) ->
+            val turnId = UUID.randomUUID()
+            Mockito.`when`(chatFacade.streamMessage(userId, chatId, turnId, "hi"))
+                .thenReturn(Flux.just(event))
+
+            mockMvc.post("/note/chats/$chatId/messages/stream") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+                header("Idempotency-Key", turnId)
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"content":"hi"}"""
+            }.asyncDispatch().andExpect {
+                status { isOk() }
+                content { string(Matchers.containsString(expectedEvent)) }
+            }
+        }
+    }
+
+    @Test
+    fun `cancelTurn returns no content`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+
+        mockMvc.post("/note/chats/$chatId/turns/$turnId/cancel") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNoContent() }
+        }
+        Mockito.verify(chatFacade).cancelTurn(userId, chatId, turnId)
     }
 
     @Test

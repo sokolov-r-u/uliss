@@ -178,10 +178,10 @@ export function ChatPage() {
         try {
             const outcome = await streamAssistantReply(chatId, content, {
                 signal: controller.signal,
-                onToken: (chunk) => {
+                onAppendText: (text) => {
                     if (!mountedRef.current) return
                     setMessages((previous) => previous.map((message) =>
-                        message.id === placeholderId ? {...message, content: message.content + chunk} : message,
+                        message.id === placeholderId ? {...message, content: message.content + text} : message,
                     ))
                 },
             })

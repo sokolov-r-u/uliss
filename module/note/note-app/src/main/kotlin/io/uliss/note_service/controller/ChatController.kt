@@ -10,6 +10,7 @@ import io.uliss.note_service.dto.toChatSummaryResponse
 import io.uliss.note_service.dto.toResponse
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.ChatFacade
+import io.uliss.note_service.service.type.AssistantStreamEvent
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -27,7 +28,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
-import reactor.core.publisher.Mono
 import java.util.UUID
 
 @RestController
@@ -52,24 +52,34 @@ class ChatController(
     ): List<ChatMessageResponse> =
         chatFacade.getMessages(jwt.getUserId(), chatId).map { it.toResponse() }
 
-    @PostMapping("/{chatId}/messages")
-    fun sendMessage(
-        @AuthenticationPrincipal jwt: Jwt,
-        @PathVariable chatId: UUID,
-        @Valid @RequestBody request: SendMessageRequest,
-    ): ChatMessageResponse =
-        chatFacade.sendMessage(jwt.getUserId(), chatId, request.content).toResponse()
-
     @PostMapping("/{chatId}/messages/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamMessage(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable chatId: UUID,
+        @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
         @Valid @RequestBody request: SendMessageRequest,
-    ): Flux<ServerSentEvent<String>> =
-        chatFacade.streamMessage(jwt.getUserId(), chatId, request.content)
-            .map { token -> ServerSentEvent.builder(token).event("token").build() }
-            .concatWith(Mono.just(ServerSentEvent.builder("").event("done").build()))
-            .onErrorResume { Flux.just(ServerSentEvent.builder("stream failed").event("error").build()) }
+    ): ResponseEntity<Flux<ServerSentEvent<String>>> {
+        val turnId = parseIdempotencyKey(idempotencyKeyHeader)
+        val stream = chatFacade.streamMessage(jwt.getUserId(), chatId, turnId, request.content)
+            .map(::toServerSentEvent)
+            .onErrorResume {
+                Flux.just(ServerSentEvent.builder("FAILED").event("error").build())
+            }
+        return ResponseEntity.ok()
+            .header(IDEMPOTENCY_KEY_HEADER, turnId.toString())
+            .contentType(MediaType.TEXT_EVENT_STREAM)
+            .body(stream)
+    }
+
+    @PostMapping("/{chatId}/turns/{turnId}/cancel")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun cancelTurn(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable chatId: UUID,
+        @PathVariable turnId: UUID,
+    ) {
+        chatFacade.cancelTurn(jwt.getUserId(), chatId, turnId)
+    }
 
     @PostMapping("/{chatId}/summarize")
     fun summarizeChat(
@@ -90,6 +100,16 @@ class ChatController(
         } catch (_: IllegalArgumentException) {
             throw BadRequestException("invalid $IDEMPOTENCY_KEY_HEADER header")
         }
+    }
+
+    private fun toServerSentEvent(event: AssistantStreamEvent): ServerSentEvent<String> = when (event) {
+        is AssistantStreamEvent.AppendText -> ServerSentEvent.builder(event.text).event("append").build()
+        is AssistantStreamEvent.GenerationPending ->
+            ServerSentEvent.builder(event.retryAfterMs.toString()).event("pending").build()
+
+        AssistantStreamEvent.GenerationCompleted -> ServerSentEvent.builder("").event("done").build()
+        is AssistantStreamEvent.GenerationFailed ->
+            ServerSentEvent.builder(event.status.name).event("error").build()
     }
 
     private companion object {
