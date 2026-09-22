@@ -2,6 +2,7 @@ import {AuthRequiredError} from '../auth/apiClient'
 import type {ChatMessage} from './chatApi'
 
 export interface ReconciliationTarget {
+    turnId?: string
     afterMessageId?: string
     userContent: string
     userMessageId?: string
@@ -28,11 +29,17 @@ export function findPersistedReply(
     history: ChatMessage[],
     target: ReconciliationTarget,
 ): ChatMessage | undefined {
+    if (target.turnId) {
+        return history.find((message) => message.turnId === target.turnId && message.role === 'ASSISTANT'
+            && ['COMPLETE', 'PARTIAL', 'FAILED', 'CANCELED'].includes(message.status))
+    }
+    // Only historical persisted rows may be reconciled without a turn identity.
+    if (!target.userMessageId) return undefined
     const start = suffixStart(history, target.afterMessageId)
     const userIndex = history.findIndex((message, index) =>
         index >= start
         && message.role === 'USER'
-        && (target.userMessageId ? message.id === target.userMessageId : message.content === target.userContent),
+        && message.id === target.userMessageId && !message.turnId,
     )
     if (userIndex === -1) return undefined
 
@@ -40,6 +47,7 @@ export function findPersistedReply(
         const message = history[index]
         if (message.role === 'USER') return undefined
         if (message.role === 'ASSISTANT'
+            && !message.turnId
             && (message.status === 'COMPLETE' || message.status === 'PARTIAL'
                 || message.status === 'FAILED' || message.status === 'CANCELED')) {
             return message
@@ -52,6 +60,7 @@ export function targetForTrailingUser(history: ChatMessage[]): ReconciliationTar
     const last = history.at(-1)
     if (!last || last.role !== 'USER') return undefined
     return {
+        turnId: last.turnId,
         afterMessageId: history.at(-2)?.id,
         userContent: last.content,
         userMessageId: last.id,
@@ -84,6 +93,7 @@ export async function reconcileUntilTerminal(
     const timeoutMs = options.timeoutMs ?? 15_000
     const startedAt = Date.now()
     const controller = new AbortController()
+    if (options.signal?.aborted) throw abortError()
     let timedOut = false
     const onAbort = () => controller.abort()
     options.signal?.addEventListener('abort', onAbort, {once: true})

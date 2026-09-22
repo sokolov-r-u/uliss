@@ -1,10 +1,11 @@
-import {render, screen, waitFor} from '@testing-library/react'
+import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {getMessages, notifyChatListChanged} from './chatApi'
+import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
-import {streamAssistantReply} from './streamChatReply'
+import {cancelChatTurn, ChatStreamHttpError, streamAssistantReply} from './streamChatReply'
+import {clearTokens} from '../auth/tokenStore'
 import {ChatPage} from './ChatPage'
 
 vi.mock('./chatApi', () => ({
@@ -13,6 +14,7 @@ vi.mock('./chatApi', () => ({
 }))
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
+    cancelChatTurn: vi.fn(),
     ChatStreamHttpError: class ChatStreamHttpError extends Error {
         constructor(public readonly status: number) {
             super(`chat stream request failed (${status})`)
@@ -47,6 +49,8 @@ describe('ChatPage summary flow', () => {
         mockedGetMessages.mockReset()
         mockedSummary.mockReset()
         mockedStream.mockReset()
+        vi.mocked(cancelChatTurn).mockReset().mockResolvedValue(undefined)
+        vi.mocked(notifyChatListChanged).mockClear()
         sessionStorage.clear()
         mockedGetMessages.mockResolvedValue([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
@@ -162,10 +166,11 @@ describe('ChatPage summary flow', () => {
             .mockResolvedValueOnce([
                 {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-                {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'Next question'},
-                {id: 'a-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Partial reply'},
+                {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'Next question'},
+                {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Partial reply'},
             ])
         mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
+            options.onTurnId('turn-2')
             options.onAppendText('Partial')
             await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
                 reject(new DOMException('aborted', 'AbortError'))
@@ -182,6 +187,7 @@ describe('ChatPage summary flow', () => {
         await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
         expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
         expect(notifyChatListChanged).toHaveBeenCalledOnce()
+        expect(cancelChatTurn).not.toHaveBeenCalled()
     })
 
     it('reuses the persisted chat idempotency key when reconciliation is retried', async () => {
@@ -205,5 +211,207 @@ describe('ChatPage summary flow', () => {
 
         await waitFor(() => expect(mockedStream).toHaveBeenCalledTimes(2))
         expect(mockedStream.mock.calls[1]?.[2]).toBe(firstKey)
+    })
+
+    it('persists the header before settling and waits for the exact pending turn', async () => {
+        let finishHistory!: (history: ChatMessage[]) => void
+        mockedGetMessages.mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise((resolve) => {
+            finishHistory = resolve
+        }))
+        mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+            options.onTurnId('turn-2')
+            return 'pending'
+        })
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'same')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        expect(await screen.findByText('Saving the reply…')).toBeInTheDocument()
+        expect(screen.getByRole('textbox', {name: 'Message'})).toBeDisabled()
+        expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}'))
+            .toMatchObject({turnId: 'turn-2', content: 'same'})
+        await act(async () => finishHistory([
+            {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'same'},
+            {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
+        ]))
+        expect(await screen.findByText('Saved answer')).toBeInTheDocument()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+        expect(mockedStream).toHaveBeenCalledOnce()
+    })
+
+    it('recovers a saved turn after reload without replaying generation', async () => {
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
+            idempotencyKey: 'key-2', turnId: 'turn-2', content: 'same',
+        }))
+        mockedGetMessages.mockResolvedValue([
+            {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'same'},
+            {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
+        ])
+        renderPage()
+        expect(await screen.findByText('Saved answer')).toBeInTheDocument()
+        expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+        expect(mockedStream).not.toHaveBeenCalled()
+    })
+
+    it('does not adopt another turn when the response header was lost', async () => {
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
+            idempotencyKey: 'lost-key', content: 'Question',
+        }))
+        renderPage()
+        expect(await screen.findByRole('button', {name: 'Retry'})).toBeEnabled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).not.toBeNull()
+        mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+            options.onTurnId('turn-recovered')
+            return 'done'
+        })
+        mockedGetMessages.mockResolvedValue([
+            {id: 'u', turnId: 'turn-recovered', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a', turnId: 'turn-recovered', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered'},
+        ])
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        expect(await screen.findByText('Recovered')).toBeInTheDocument()
+        expect(mockedStream.mock.calls[0]?.[2]).toBe('lost-key')
+    })
+
+    it('uses durable cancellation when Stop has no terminal persisted reply', async () => {
+        mockedGetMessages.mockResolvedValue([])
+        mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+            options.onTurnId('turn-stop')
+            await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'))
+            }, {once: true}))
+            return 'done'
+        })
+        vi.mocked(cancelChatTurn).mockImplementation(async () => {
+            mockedGetMessages.mockResolvedValue([
+                {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+            ])
+        })
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await userEvent.click(await screen.findByRole('button', {name: 'Stop generation'}))
+        await waitFor(() => expect(cancelChatTurn).toHaveBeenCalledWith('chat-1', 'turn-stop', expect.any(AbortSignal)))
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it.each([400, 404, 409])('clears a definitive chat %i failure and permits a fresh action', async (status) => {
+        mockedStream.mockRejectedValue(new ChatStreamHttpError(status))
+        renderPage()
+        const input = await screen.findByRole('textbox', {name: 'Message'})
+        await userEvent.type(input, 'Question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(input).toBeEnabled())
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+        const oldKey = mockedStream.mock.calls[0]?.[2]
+        await userEvent.type(input, 'Question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(mockedStream).toHaveBeenCalledTimes(2))
+        expect(mockedStream.mock.calls[1]?.[2]).not.toBe(oldKey)
+    })
+
+    it('restores a requested Stop after reload and cancels without starting a stream', async () => {
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
+            idempotencyKey: 'stop-key', turnId: 'turn-stop', content: 'Question', stopRequested: true,
+        }))
+        mockedGetMessages.mockResolvedValue([
+            {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
+        ])
+        vi.mocked(cancelChatTurn).mockImplementation(async () => {
+            mockedGetMessages.mockResolvedValue([
+                {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+            ])
+        })
+        renderPage()
+        await waitFor(() => expect(cancelChatTurn).toHaveBeenCalledOnce())
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+        expect(mockedStream).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('retains Stop before headers arrive and recovers its turn identity on Retry', async () => {
+        mockedGetMessages.mockResolvedValue([])
+        mockedStream.mockImplementationOnce(async (_chat, _content, _key, options) => {
+            await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'))
+            }, {once: true}))
+            return 'done'
+        }).mockImplementationOnce(async (_chat, _content, _key, options) => {
+            options.onTurnId('recovered-stop')
+            expect(options.signal?.aborted).toBe(true)
+            throw new DOMException('aborted', 'AbortError')
+        })
+        vi.mocked(cancelChatTurn).mockImplementation(async () => {
+            mockedGetMessages.mockResolvedValue([
+                {id: 'a', turnId: 'recovered-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+            ])
+        })
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await userEvent.click(await screen.findByRole('button', {name: 'Stop generation'}))
+        expect(await screen.findByRole('button', {name: 'Retry'})).toBeEnabled()
+        expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}').stopRequested).toBe(true)
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        await waitFor(() => expect(cancelChatTurn)
+            .toHaveBeenCalledWith('chat-1', 'recovered-stop', expect.any(AbortSignal)))
+        expect(mockedStream.mock.calls[1]?.[2]).toBe(mockedStream.mock.calls[0]?.[2])
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+    })
+
+    it('retries a failed durable cancellation without restarting generation', async () => {
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
+            idempotencyKey: 'stop-key', turnId: 'turn-stop', content: 'Question', stopRequested: true,
+        }))
+        mockedGetMessages.mockResolvedValue([])
+        vi.mocked(cancelChatTurn).mockRejectedValueOnce(new Error('connection lost'))
+            .mockImplementationOnce(async () => {
+                mockedGetMessages.mockResolvedValue([
+                    {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+                ])
+            })
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+        expect(cancelChatTurn).toHaveBeenCalledTimes(2)
+        expect(mockedStream).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('aborts on unmount without durable cancellation and retains the retry identity', async () => {
+        let signal: AbortSignal | undefined
+        mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+            signal = options.signal
+            options.onTurnId('turn-unmounted')
+            await new Promise<void>((_resolve, reject) => signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'))
+            }, {once: true}))
+            return 'done'
+        })
+        const page = renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        page.unmount()
+        await act(async () => {
+        })
+        expect(signal?.aborted).toBe(true)
+        expect(cancelChatTurn).not.toHaveBeenCalled()
+        expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}'))
+            .toMatchObject({turnId: 'turn-unmounted'})
+    })
+
+    it('clears pending operation identities on authentication reset but keeps preferences', () => {
+        sessionStorage.setItem('uliss.tokens', '{}')
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', '{"turnId":"turn-1"}')
+        sessionStorage.setItem('uliss.chat-summary.v1:chat-1', 'key')
+        sessionStorage.setItem('preference', 'keep')
+        clearTokens()
+        expect(sessionStorage.getItem('uliss.tokens')).toBeNull()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+        expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
+        expect(sessionStorage.getItem('preference')).toBe('keep')
     })
 })

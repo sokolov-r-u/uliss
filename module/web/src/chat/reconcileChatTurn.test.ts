@@ -17,10 +17,25 @@ describe('chat turn reconciliation', () => {
 
     it('does not match an assistant before the persisted boundary', () => {
         const history = [user('u-old', 'same'), assistant('a-old'), user('u-new', 'same')]
-        expect(findPersistedReply(history, {afterMessageId: 'a-old', userContent: 'same'})).toBeUndefined()
+        expect(findPersistedReply(history, {
+            afterMessageId: 'a-old', userContent: 'same', userMessageId: 'u-new',
+        })).toBeUndefined()
         expect(findPersistedReply([...history, assistant('a-new', 'PARTIAL')], {
-            afterMessageId: 'a-old', userContent: 'same',
+            afterMessageId: 'a-old', userContent: 'same', userMessageId: 'u-new',
         })?.id).toBe('a-new')
+    })
+
+    it('matches only the exact turn even when another turn contains identical text', () => {
+        const history = [
+            {...user('u-1', 'same'), turnId: 'other'},
+            {...assistant('a-1'), turnId: 'other'},
+            {...user('u-2', 'same'), turnId: 'expected'},
+        ]
+        const target = {turnId: 'expected', userContent: 'same'}
+        expect(findPersistedReply(history, target)).toBeUndefined()
+        expect(findPersistedReply([...history, {...assistant('a-2', 'CANCELED'), turnId: 'expected'}], target)?.id)
+            .toBe('a-2')
+        expect(findPersistedReply(history, {userContent: 'same'})).toBeUndefined()
     })
 
     it('builds a stable target for a trailing persisted user', () => {
@@ -35,7 +50,7 @@ describe('chat turn reconciliation', () => {
         const load = vi.fn()
             .mockResolvedValueOnce([user('u', 'question')])
             .mockResolvedValueOnce([user('u', 'question'), assistant('a', 'PARTIAL')])
-        const result = reconcileUntilTerminal(load, {userContent: 'question'})
+        const result = reconcileUntilTerminal(load, {userContent: 'question', userMessageId: 'u'})
         await vi.advanceTimersByTimeAsync(250)
         await expect(result).resolves.toHaveLength(2)
     })

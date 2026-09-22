@@ -11,7 +11,7 @@ import {
     type ReconciliationTarget,
     targetForTrailingUser,
 } from './reconcileChatTurn'
-import {ChatStreamHttpError, streamAssistantReply} from './streamChatReply'
+import {cancelChatTurn, ChatStreamHttpError, streamAssistantReply} from './streamChatReply'
 import {MessageThread} from './MessageThread'
 import {ChatComposer} from './ChatComposer'
 import type {DisplayMessage} from './Bubble'
@@ -34,6 +34,8 @@ function summaryKeyStorageKey(chatId: string): string {
 
 interface PendingChatRequest {
     idempotencyKey: string
+    turnId?: string
+    stopRequested?: boolean
     content: string
     afterMessageId?: string
 }
@@ -48,12 +50,16 @@ function readPendingChatRequest(chatId: string): PendingChatRequest | null {
     try {
         const value = JSON.parse(serialized) as Partial<PendingChatRequest>
         if (typeof value.idempotencyKey !== 'string' || typeof value.content !== 'string'
+            || (value.turnId !== undefined && typeof value.turnId !== 'string')
+            || (value.stopRequested !== undefined && typeof value.stopRequested !== 'boolean')
             || (value.afterMessageId !== undefined && typeof value.afterMessageId !== 'string')) {
             sessionStorage.removeItem(chatRequestStorageKey(chatId))
             return null
         }
         return {
             idempotencyKey: value.idempotencyKey,
+            turnId: value.turnId,
+            stopRequested: value.stopRequested,
             content: value.content,
             afterMessageId: value.afterMessageId,
         }
@@ -125,14 +131,29 @@ export function ChatPage() {
         reconciliationTargetRef.current = target
         updateGenerationPhase('settling')
         try {
+            if (!target.turnId && !target.userMessageId) {
+                requireReconciliation()
+                return
+            }
+            if (pendingChatRequestRef.current?.stopRequested && target.turnId) {
+                const saved = await getMessages(chatId, controller.signal)
+                if (!mountedRef.current || routeRevisionRef.current !== routeRevision || controller.signal.aborted) return
+                if (findPersistedReply(saved, target)) {
+                    clearPendingChatRequest()
+                    applyPersistedHistory(saved)
+                    return
+                }
+                await cancelChatTurn(chatId, target.turnId, controller.signal)
+            }
             const history = poll
                 ? await reconcileUntilTerminal((signal) => getMessages(chatId, signal), target, {signal: controller.signal})
                 : await getMessages(chatId, controller.signal)
             if (!poll && !findPersistedReply(history, target)) {
-                if (mountedRef.current && routeRevisionRef.current === routeRevision) requireReconciliation()
+                if (mountedRef.current && routeRevisionRef.current === routeRevision
+                    && !controller.signal.aborted) requireReconciliation()
                 return
             }
-            if (mountedRef.current && routeRevisionRef.current === routeRevision) {
+            if (mountedRef.current && routeRevisionRef.current === routeRevision && !controller.signal.aborted) {
                 clearPendingChatRequest()
                 applyPersistedHistory(history)
             }
@@ -179,6 +200,7 @@ export function ChatPage() {
                 const pendingRequest = pendingChatRequestRef.current
                 if (pendingRequest) {
                     const pendingTarget: ReconciliationTarget = {
+                        turnId: pendingRequest.turnId,
                         afterMessageId: pendingRequest.afterMessageId,
                         userContent: pendingRequest.content,
                     }
@@ -186,7 +208,8 @@ export function ChatPage() {
                         clearPendingChatRequest(pendingRequest.idempotencyKey)
                     } else {
                         reconciliationTargetRef.current = pendingTarget
-                        requireReconciliation()
+                        if (pendingRequest.turnId) void reconcile(pendingTarget, true, routeRevision)
+                        else requireReconciliation()
                     }
                     return
                 }
@@ -224,19 +247,41 @@ export function ChatPage() {
         try {
             const outcome = await streamAssistantReply(chatId, request.content, request.idempotencyKey, {
                 signal: controller.signal,
+                onTurnId: (turnId) => {
+                    if (!mountedRef.current || routeRevisionRef.current !== routeRevision
+                        || pendingChatRequestRef.current !== request
+                        || !sessionStorage.getItem(chatRequestStorageKey(chatId))) return
+                    request.turnId = turnId
+                    target.turnId = turnId
+                    sessionStorage.setItem(chatRequestStorageKey(chatId), JSON.stringify(request))
+                    if (request.stopRequested) controller.abort()
+                },
                 onAppendText: (text) => {
-                    if (!mountedRef.current) return
+                    if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
                     setMessages((previous) => previous.map((message) =>
                         message.id === placeholderId ? {...message, content: message.content + text} : message,
                     ))
                 },
             })
-            poll = outcome === 'error'
+            poll = outcome !== 'done'
         } catch (error) {
+            if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
             if (error instanceof AuthRequiredError) return
             if (error instanceof ChatStreamHttpError
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
                 clearPendingChatRequest(request.idempotencyKey)
+                try {
+                    const history = await getMessages(chatId, controller.signal)
+                    if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
+                    applyPersistedHistory(history)
+                    setStreamNotice(`The message was not accepted (${error.status}). Please try again.`)
+                    const activeTarget = targetForTrailingUser(history)
+                    if (activeTarget) await reconcile(activeTarget, true, routeRevision)
+                } catch (loadError) {
+                    if (!(loadError instanceof AuthRequiredError) && !isAbortError(loadError)
+                        && mountedRef.current && routeRevisionRef.current === routeRevision) requireReconciliation()
+                }
+                return
             }
             poll = true
         } finally {
@@ -274,21 +319,32 @@ export function ChatPage() {
         await executeChatRequest(request, target, placeholderId)
     }
 
+    function stopGeneration() {
+        const request = pendingChatRequestRef.current
+        if (!chatId || !request) return
+        request.stopRequested = true
+        sessionStorage.setItem(chatRequestStorageKey(chatId), JSON.stringify(request))
+        if (streamAbortRef.current) streamAbortRef.current.abort()
+        else if (reconciliationTargetRef.current) void reconcile(reconciliationTargetRef.current, true)
+    }
+
     function retryReconciliation() {
         const target = reconciliationTargetRef.current
         const pendingRequest = pendingChatRequestRef.current
         if (!target) return
-        if (!pendingRequest) {
+        if (!pendingRequest || (pendingRequest.stopRequested && pendingRequest.turnId)) {
             void reconcile(target, true)
             return
         }
         const now = Date.now()
         const placeholderId = `local-reply-${now}`
-        setMessages((previous) => {
-            const last = previous.at(-1)
-            const withUser = last?.role === 'USER' && last.content === pendingRequest.content
-                ? previous
-                : [...previous, {
+        setMessages(() => {
+            const saved = toDisplay(persistedMessages)
+            const hasUser = pendingRequest.turnId && persistedMessages.some((message) =>
+                message.role === 'USER' && message.turnId === pendingRequest.turnId)
+            const withUser = hasUser
+                ? saved
+                : [...saved, {
                     id: `local-user-${now}`,
                     role: 'USER' as const,
                     status: 'COMPLETE' as const,
@@ -389,8 +445,9 @@ export function ChatPage() {
                 onChange={setDraft}
                 onSubmit={() => void onSend()}
                 disabled={generationPhase !== 'idle'}
-                generationActive={generationPhase === 'streaming'}
-                onStop={() => streamAbortRef.current?.abort()}
+                generationActive={generationPhase === 'streaming'
+                    || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}
+                onStop={stopGeneration}
                 action={<ActionChip label="Summarize" disabled={!canSummarize}
                                     onClick={() => {
                                         setSummaryError(null)
