@@ -79,10 +79,12 @@ application services or outbox handlers.
 
 ## Streamed chat turn
 
-The client-generated `Idempotency-Key` is the `turnId`. The server also calculates a SHA-256
-request fingerprint from the fingerprint format version, `chatId`, and UTF-8 prompt bytes. The ID
-identifies the operation; the fingerprint prevents the same ID from being reused for different
-input.
+The client generates an `Idempotency-Key` for one logical send and retains it while that operation
+is unresolved. PostgreSQL scopes this key to the chat. The backend separately generates the
+`chat_turn.id`, returns it in `Chat-Turn-Id`, and stores it on the turn's USER and ASSISTANT
+messages. The server also calculates a SHA-256 request fingerprint from the fingerprint format
+version and the exact UTF-8 prompt bytes. The fingerprint prevents the same client key from being
+reused for different input in the same chat.
 
 ```mermaid
 sequenceDiagram
@@ -95,18 +97,18 @@ sequenceDiagram
     participant TS as ChatTurnStore
     participant MR as ChatMessageRepository
     participant AI as ChatClient
-    C ->> HC: POST messages/stream<br/>Idempotency-Key = turnId
-    HC ->> F: streamMessage(userId, chatId, turnId, prompt)
+    C ->> HC: POST messages/stream<br/>Idempotency-Key = client key
+    HC ->> F: streamMessage(userId, chatId, idempotencyKey, prompt)
     F ->> A: streamReply(...)
     A ->> L: resolveTurnRequest(...)
 
     rect rgb(235, 245, 255)
         Note over L, MR: Transaction 1: reserve or resolve the turn
         L ->> TS: lockOwnedChat(userId, chatId)
-        L ->> TS: findById(userId, turnId)
+        L ->> TS: findByIdempotencyKey(userId, chatId, idempotencyKey)
         alt New turn
             L ->> TS: findGenerating(userId, chatId)
-            L ->> TS: insert GENERATING turn<br/>attempt = 1, lease_until set
+            L ->> TS: insert backend turn ID<br/>GENERATING, attempt = 1, lease_until set
             L ->> MR: load prior history
             L ->> MR: save COMPLETE user message
             L -->> A: StartGeneration(turn, history)
@@ -137,13 +139,13 @@ sequenceDiagram
             L ->> MR: save assistant message
         end
         A -->> HC: GenerationCompleted
-        HC -->> C: event: done
+        HC -->> C: 200 + echoed Idempotency-Key<br/>Chat-Turn-Id = backend turn ID<br/>event: done
     else AlreadyGenerating
         A -->> HC: GenerationPending(retryAfterMs)
-        HC -->> C: event: pending
+        HC -->> C: same headers<br/>event: pending
     else AlreadyFinished
         A -->> HC: completed or failed replay event
-        HC -->> C: event: done or error
+        HC -->> C: same headers<br/>event: done or error
     end
 ```
 
@@ -151,14 +153,17 @@ Important behavior:
 
 - The owned chat row is locked only while reserving or resolving a turn. The lock is released before
   the provider call.
-- Only one `GENERATING` turn is allowed per user and chat. A different `turnId` while one is active
+- Only one `GENERATING` turn is allowed per chat. A different idempotency key while one is active
   produces `CHAT_TURN_ACTIVE`.
-- Reusing a `turnId` with another chat or prompt produces `IDEMPOTENCY_KEY_REUSED`.
+- Reusing an idempotency key with different prompt content in the same chat produces
+  `IDEMPOTENCY_KEY_REUSED`. The same key in another chat is an independent operation.
 - A live lease returns `pending`; an expired lease may be reclaimed with a higher attempt number.
 - Finalization is fenced by `turnId + userId + chatId + attempt + GENERATING`. A late provider result
   cannot overwrite a cancellation or the result of a newer attempt.
 - A completed replay emits the terminal event but does not replay old text chunks. The client
   reconciles the durable assistant message from chat history.
+- The SPA uses `Chat-Turn-Id` for history reconciliation and cancellation. It uses the client key
+  only to retry the same unresolved send.
 - Provider completion becomes `COMPLETE`. An interruption after some text becomes `PARTIAL`; an
   interruption before any text becomes `FAILED`.
 

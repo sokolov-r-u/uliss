@@ -25,6 +25,12 @@ cancellation, and summary requests under `/note/chats`. Stream events are `appen
 `done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
+`POST /note/chats/{chatId}/messages/stream` requires a client-generated UUID in `Idempotency-Key`.
+The key identifies retries of one logical send within that chat. The backend generates a separate
+durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
+history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
+returns `done` or `error` without replaying text fragments or calling the provider again.
+
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a
 `NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
