@@ -73,6 +73,18 @@
     padding: 24px 20px;
 }
 
+.message-history-status {
+    flex: 0 0 auto;
+    min-height: 18px;
+    margin: 0 0 12px;
+    color: var(--text-faint);
+    font-family: var(--font-text);
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-align: center;
+    text-transform: uppercase;
+}
+
 .bubble-cursor {
     display: inline-block;
     width: 7px;
