@@ -5,12 +5,12 @@ note-service.
 
 ## Invariants
 
-- The service owns one-shot AI requests, persistent chats, and the future note/RAG schema. Do not describe RAG retrieval
-  or indexing as implemented until corresponding code exists.
+- The service owns persistent chats, asynchronous summaries, notes, and the future note/RAG schema. Do not describe
+  RAG retrieval or indexing as implemented until corresponding code exists.
 - Every chat read/write must enforce ownership with the authenticated user identifier. A chat owned by someone else
   remains indistinguishable from a missing chat.
-- Persist the user message before requesting an assistant response. Persist `FAILED` assistant messages for failed
-  synchronous calls.
+- Persist the user message before requesting an assistant response. Persist a terminal `FAILED` assistant message when
+  a turn fails before producing content.
 - Streaming must derive `COMPLETE`, `PARTIAL`, or `FAILED` from the terminal signal and buffered content, and run
   blocking JPA persistence off the reactive event-loop thread.
 - Preserve the SSE contract (`append`, `pending`, `done`, `error`) and the `/note` prefix supplied by

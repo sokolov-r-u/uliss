@@ -39,7 +39,9 @@ presentation; production adapters pass empty collections or no graph model until
 ## Chat
 
 `chatApi.ts` contains thin authenticated API wrappers. `lib/sse.ts` parses arbitrary SSE frames from an authenticated
-`ReadableStream`, while `streamChatReply.ts` handles the chat event names.
+`ReadableStream`, while `streamChatReply.ts` handles the chat event names. The SPA sends messages only through
+`POST /note/chats/{chatId}/messages/stream`; the removed synchronous message and one-shot `/note/ask` contracts have no
+frontend callers.
 
 On send, `ChatPage` adds optimistic user and assistant entries and streams tokens. Send stays locked through persistence
 reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL` or `FAILED` assistant reply for up to
