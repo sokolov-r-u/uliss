@@ -1,8 +1,8 @@
-import {act, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
+import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {cancelChatTurn, ChatStreamHttpError, streamAssistantReply} from './streamChatReply'
 import {clearTokens} from '../auth/tokenStore'
@@ -38,6 +38,14 @@ const mockedGetMessages = vi.mocked(getMessages)
 const mockedSummary = vi.mocked(requestChatSummary)
 const mockedStream = vi.mocked(streamAssistantReply)
 
+function messagePage(
+    messages: ChatMessage[],
+    nextCursor: string | null = null,
+    hasMore = false,
+): ChatMessagePage {
+    return {messages, nextCursor, hasMore}
+}
+
 function renderPage() {
     return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Routes>
         <Route path="/chats/:chatId" element={<ChatPage/>}/>
@@ -52,11 +60,37 @@ describe('ChatPage summary flow', () => {
         vi.mocked(cancelChatTurn).mockReset().mockResolvedValue(undefined)
         vi.mocked(notifyChatListChanged).mockClear()
         sessionStorage.clear()
-        mockedGetMessages.mockResolvedValue([
+        mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
             {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-        ])
+        ]))
         mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+    })
+
+    it('starts a turn when the page is served without Web Crypto', async () => {
+        const originalCrypto = globalThis.crypto
+        Object.defineProperty(globalThis, 'crypto', {configurable: true, value: undefined})
+        mockedGetMessages.mockResolvedValueOnce(messagePage([])).mockResolvedValueOnce(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+        ]))
+        mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
+            options.onTurnId('turn-1')
+            return 'done'
+        })
+
+        try {
+            renderPage()
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+            await waitFor(() => expect(mockedStream).toHaveBeenCalledOnce())
+            expect(mockedStream.mock.calls[0]?.[2])
+                .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+            expect(await screen.findByText('Answer')).toBeInTheDocument()
+        } finally {
+            Object.defineProperty(globalThis, 'crypto', {configurable: true, value: originalCrypto})
+        }
     })
 
     it('requires confirmation and exposes the accepted note link', async () => {
@@ -136,14 +170,14 @@ describe('ChatPage summary flow', () => {
 
     it('requires reconciliation when a completed stream has no persisted reply', async () => {
         mockedGetMessages
-            .mockResolvedValueOnce([
+            .mockResolvedValueOnce(messagePage([
                 {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-            ])
-            .mockResolvedValueOnce([
+            ]))
+            .mockResolvedValueOnce(messagePage([
                 {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-            ])
+            ]))
         mockedStream.mockResolvedValue('done')
         renderPage()
         const input = await screen.findByRole('textbox', {name: 'Message'})
@@ -159,16 +193,16 @@ describe('ChatPage summary flow', () => {
 
     it('keeps Stop active until the matching PARTIAL reply is persisted', async () => {
         mockedGetMessages
-            .mockResolvedValueOnce([
+            .mockResolvedValueOnce(messagePage([
                 {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-            ])
-            .mockResolvedValueOnce([
+            ]))
+            .mockResolvedValueOnce(messagePage([
                 {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
                 {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'Next question'},
                 {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Partial reply'},
-            ])
+            ]))
         mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
             options.onTurnId('turn-2')
             options.onAppendText('Partial')
@@ -191,10 +225,10 @@ describe('ChatPage summary flow', () => {
     })
 
     it('reuses the persisted chat idempotency key when reconciliation is retried', async () => {
-        mockedGetMessages.mockResolvedValue([
+        mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
             {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-        ])
+        ]))
         mockedStream.mockResolvedValue('done')
         renderPage()
         const input = await screen.findByRole('textbox', {name: 'Message'})
@@ -214,8 +248,8 @@ describe('ChatPage summary flow', () => {
     })
 
     it('persists the header before settling and waits for the exact pending turn', async () => {
-        let finishHistory!: (history: ChatMessage[]) => void
-        mockedGetMessages.mockResolvedValueOnce([]).mockImplementationOnce(() => new Promise((resolve) => {
+        let finishHistory!: (history: ChatMessagePage) => void
+        mockedGetMessages.mockResolvedValueOnce(messagePage([])).mockImplementationOnce(() => new Promise((resolve) => {
             finishHistory = resolve
         }))
         mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
@@ -229,10 +263,10 @@ describe('ChatPage summary flow', () => {
         expect(screen.getByRole('textbox', {name: 'Message'})).toBeDisabled()
         expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}'))
             .toMatchObject({turnId: 'turn-2', content: 'same'})
-        await act(async () => finishHistory([
+        await act(async () => finishHistory(messagePage([
             {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'same'},
             {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
-        ]))
+        ])))
         expect(await screen.findByText('Saved answer')).toBeInTheDocument()
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
         expect(mockedStream).toHaveBeenCalledOnce()
@@ -242,10 +276,10 @@ describe('ChatPage summary flow', () => {
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
             idempotencyKey: 'key-2', turnId: 'turn-2', content: 'same',
         }))
-        mockedGetMessages.mockResolvedValue([
+        mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'same'},
             {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
-        ])
+        ]))
         renderPage()
         expect(await screen.findByText('Saved answer')).toBeInTheDocument()
         expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled()
@@ -264,17 +298,17 @@ describe('ChatPage summary flow', () => {
             options.onTurnId('turn-recovered')
             return 'done'
         })
-        mockedGetMessages.mockResolvedValue([
+        mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u', turnId: 'turn-recovered', role: 'USER', status: 'COMPLETE', content: 'Question'},
             {id: 'a', turnId: 'turn-recovered', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered'},
-        ])
+        ]))
         await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
         expect(await screen.findByText('Recovered')).toBeInTheDocument()
         expect(mockedStream.mock.calls[0]?.[2]).toBe('lost-key')
     })
 
     it('uses durable cancellation when Stop has no terminal persisted reply', async () => {
-        mockedGetMessages.mockResolvedValue([])
+        mockedGetMessages.mockResolvedValue(messagePage([]))
         mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
             options.onTurnId('turn-stop')
             await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
@@ -283,10 +317,10 @@ describe('ChatPage summary flow', () => {
             return 'done'
         })
         vi.mocked(cancelChatTurn).mockImplementation(async () => {
-            mockedGetMessages.mockResolvedValue([
+            mockedGetMessages.mockResolvedValue(messagePage([
                 {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
-            ])
+            ]))
         })
         renderPage()
         await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
@@ -316,14 +350,14 @@ describe('ChatPage summary flow', () => {
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
             idempotencyKey: 'stop-key', turnId: 'turn-stop', content: 'Question', stopRequested: true,
         }))
-        mockedGetMessages.mockResolvedValue([
+        mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
-        ])
+        ]))
         vi.mocked(cancelChatTurn).mockImplementation(async () => {
-            mockedGetMessages.mockResolvedValue([
+            mockedGetMessages.mockResolvedValue(messagePage([
                 {id: 'u', turnId: 'turn-stop', role: 'USER', status: 'COMPLETE', content: 'Question'},
                 {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
-            ])
+            ]))
         })
         renderPage()
         await waitFor(() => expect(cancelChatTurn).toHaveBeenCalledOnce())
@@ -333,7 +367,7 @@ describe('ChatPage summary flow', () => {
     })
 
     it('retains Stop before headers arrive and recovers its turn identity on Retry', async () => {
-        mockedGetMessages.mockResolvedValue([])
+        mockedGetMessages.mockResolvedValue(messagePage([]))
         mockedStream.mockImplementationOnce(async (_chat, _content, _key, options) => {
             await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
                 reject(new DOMException('aborted', 'AbortError'))
@@ -345,9 +379,9 @@ describe('ChatPage summary flow', () => {
             throw new DOMException('aborted', 'AbortError')
         })
         vi.mocked(cancelChatTurn).mockImplementation(async () => {
-            mockedGetMessages.mockResolvedValue([
+            mockedGetMessages.mockResolvedValue(messagePage([
                 {id: 'a', turnId: 'recovered-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
-            ])
+            ]))
         })
         renderPage()
         await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
@@ -366,12 +400,12 @@ describe('ChatPage summary flow', () => {
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
             idempotencyKey: 'stop-key', turnId: 'turn-stop', content: 'Question', stopRequested: true,
         }))
-        mockedGetMessages.mockResolvedValue([])
+        mockedGetMessages.mockResolvedValue(messagePage([]))
         vi.mocked(cancelChatTurn).mockRejectedValueOnce(new Error('connection lost'))
             .mockImplementationOnce(async () => {
-                mockedGetMessages.mockResolvedValue([
+                mockedGetMessages.mockResolvedValue(messagePage([
                     {id: 'a', turnId: 'turn-stop', role: 'ASSISTANT', status: 'CANCELED', content: ''},
-                ])
+                ]))
             })
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
@@ -379,6 +413,140 @@ describe('ChatPage summary flow', () => {
         expect(cancelChatTurn).toHaveBeenCalledTimes(2)
         expect(mockedStream).not.toHaveBeenCalled()
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('loads sequential older pages once and stops at the beginning', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Third'},
+                {id: 'm-4', role: 'ASSISTANT', status: 'COMPLETE', content: 'Fourth'},
+            ], 'm-3', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-1', role: 'USER', status: 'COMPLETE', content: 'First'},
+                {id: 'm-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Second'},
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Third'},
+            ]))
+        const view = renderPage()
+        await screen.findByText('Fourth')
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        thread.scrollTop = 0
+
+        fireEvent.scroll(thread)
+
+        expect(await screen.findByText('First')).toBeInTheDocument()
+        expect(screen.getAllByText('Third')).toHaveLength(1)
+        expect(screen.getByText('Beginning of conversation')).toBeInTheDocument()
+        fireEvent.scroll(thread)
+        expect(mockedGetMessages).toHaveBeenCalledTimes(2)
+        expect(mockedGetMessages.mock.calls[1]).toEqual([
+            'chat-1', {before: 'm-3', signal: expect.any(AbortSignal)},
+        ])
+    })
+
+    it('deduplicates an active older request and aborts it when the route changes', async () => {
+        let olderSignal: AbortSignal | undefined
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Latest'},
+            ], 'm-2', true))
+            .mockImplementationOnce((_chatId, options) => {
+                olderSignal = options?.signal
+                return new Promise(() => undefined)
+            })
+        const view = renderPage()
+        await screen.findByText('Latest')
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        thread.scrollTop = 0
+
+        fireEvent.scroll(thread)
+        fireEvent.scroll(thread)
+        await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledTimes(2))
+        await userEvent.click(screen.getByRole('link', {name: '‹ chats'}))
+
+        expect(olderSignal?.aborted).toBe(true)
+    })
+
+    it('keeps older messages when reconciliation refreshes overlapping latest-page truth', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Tail question'},
+                {id: 'm-4', role: 'ASSISTANT', status: 'COMPLETE', content: 'Old tail answer'},
+            ], 'm-3', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-1', role: 'USER', status: 'COMPLETE', content: 'Old question'},
+                {id: 'm-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Old answer'},
+            ]))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Tail question'},
+                {id: 'm-4', role: 'ASSISTANT', status: 'COMPLETE', content: 'Updated tail answer'},
+                {id: 'm-5', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'New question'},
+                {id: 'm-6', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'New answer'},
+            ], 'm-3', true))
+        mockedStream.mockImplementation(async (_chatId, _content, _key, options) => {
+            options.onTurnId('turn-new')
+            return 'done'
+        })
+        const view = renderPage()
+        await screen.findByText('Old tail answer')
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        thread.scrollTop = 0
+        fireEvent.scroll(thread)
+        await screen.findByText('Old question')
+
+        await userEvent.type(screen.getByRole('textbox', {name: 'Message'}), 'New question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('New answer')).toBeInTheDocument()
+        expect(screen.getByText('Old question')).toBeInTheDocument()
+        expect(screen.getByText('Updated tail answer')).toBeInTheDocument()
+        expect(screen.queryByText('Old tail answer')).not.toBeInTheDocument()
+        expect(screen.getAllByText('Tail question')).toHaveLength(1)
+    })
+
+    it('rebuilds a stale window and resets its cursor when the latest page no longer overlaps', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Previous tail question'},
+                {id: 'm-4', role: 'ASSISTANT', status: 'COMPLETE', content: 'Previous tail answer'},
+            ], 'm-3', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-1', role: 'USER', status: 'COMPLETE', content: 'Loaded old question'},
+                {id: 'm-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Loaded old answer'},
+            ]))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-101', role: 'USER', status: 'COMPLETE', content: 'New window start'},
+                {id: 'm-102', role: 'ASSISTANT', status: 'COMPLETE', content: 'Another client answer'},
+                {id: 'm-103', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'Current question'},
+                {id: 'm-104', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'Current answer'},
+            ], 'm-101', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-99', role: 'USER', status: 'COMPLETE', content: 'Recovered gap question'},
+                {id: 'm-100', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered gap answer'},
+            ], 'm-99', true))
+        mockedStream.mockImplementation(async (_chatId, _content, _key, options) => {
+            options.onTurnId('turn-new')
+            return 'done'
+        })
+        const view = renderPage()
+        await screen.findByText('Previous tail answer')
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        thread.scrollTop = 0
+        fireEvent.scroll(thread)
+        await screen.findByText('Loaded old question')
+
+        await userEvent.type(screen.getByRole('textbox', {name: 'Message'}), 'Current question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('Current answer')).toBeInTheDocument()
+        expect(screen.queryByText('Previous tail answer')).not.toBeInTheDocument()
+        expect(screen.queryByText('Loaded old question')).not.toBeInTheDocument()
+
+        thread.scrollTop = 0
+        fireEvent.scroll(thread)
+        expect(await screen.findByText('Recovered gap question')).toBeInTheDocument()
+        expect(mockedGetMessages.mock.calls[3]).toEqual([
+            'chat-1', {before: 'm-101', signal: expect.any(AbortSignal)},
+        ])
     })
 
     it('aborts on unmount without durable cancellation and retains the retry identity', async () => {

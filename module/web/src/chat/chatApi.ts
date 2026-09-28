@@ -24,6 +24,18 @@ export type ChatMessage = {
     createdAt?: string
 }
 
+export type ChatMessagePage = {
+    messages: ChatMessage[]
+    nextCursor: string | null
+    hasMore: boolean
+}
+
+export type GetMessagesOptions = {
+    before?: string
+    limit?: number
+    signal?: AbortSignal
+}
+
 const chatListListeners = new Set<() => void>()
 
 /** Subscribe persistent chat-list consumers to mutations made by this client. */
@@ -55,8 +67,13 @@ export async function createChat(title?: string): Promise<Chat> {
     return chat
 }
 
-export async function getMessages(chatId: string, signal?: AbortSignal): Promise<ChatMessage[]> {
-    const res = await authFetch(`/note/chats/${chatId}/messages`, {signal})
+export async function getMessages(
+    chatId: string,
+    {before, limit = 50, signal}: GetMessagesOptions = {},
+): Promise<ChatMessagePage> {
+    const query = new URLSearchParams({limit: String(limit)})
+    if (before) query.set('before', before)
+    const res = await authFetch(`/note/chats/${chatId}/messages?${query}`, {signal})
     if (!res.ok) throw new Error(`chat messages fetch failed (${res.status})`)
-    return (await res.json()) as ChatMessage[]
+    return (await res.json()) as ChatMessagePage
 }

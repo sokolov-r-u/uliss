@@ -2,8 +2,9 @@ import type {ReactNode} from 'react'
 import {ChatDock} from '@uliss/design-system'
 
 /**
- * The composer at the foot of a chat — DS `ChatDock` shape (46px `--bg-panel` field, `--line-strong`
- * edge, inline tiles). Voice and typing share the dock; the mic is disabled (text-only chat).
+ * The composer at the foot of a chat — DS `ChatDock` shape (46px minimum `--bg-panel` field,
+ * `--line-strong` edge, inline tiles). Voice and typing share the dock; the mic is disabled
+ * (text-only chat).
  */
 export function ChatComposer({
                                  value,

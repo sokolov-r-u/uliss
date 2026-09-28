@@ -1,7 +1,7 @@
 package io.uliss.note_service.controller
 
 import io.uliss.exception.common.BadRequestException
-import io.uliss.note_service.dto.ChatMessageResponse
+import io.uliss.note_service.dto.ChatMessagePageResponse
 import io.uliss.note_service.dto.ChatResponse
 import io.uliss.note_service.dto.ChatSummaryResponse
 import io.uliss.note_service.dto.CreateChatRequest
@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
@@ -49,8 +50,16 @@ class ChatController(
     fun getMessages(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable chatId: UUID,
-    ): List<ChatMessageResponse> =
-        chatFacade.getMessages(jwt.getUserId(), chatId).map { it.toResponse() }
+        @RequestParam(required = false) before: UUID?,
+        @RequestParam(defaultValue = "$DEFAULT_MESSAGE_PAGE_SIZE") limit: Int,
+    ): ChatMessagePageResponse {
+        if (limit !in MIN_MESSAGE_PAGE_SIZE..MAX_MESSAGE_PAGE_SIZE) {
+            throw BadRequestException(
+                "limit must be between $MIN_MESSAGE_PAGE_SIZE and $MAX_MESSAGE_PAGE_SIZE"
+            )
+        }
+        return chatFacade.getMessages(jwt.getUserId(), chatId, before, limit).toResponse()
+    }
 
     @PostMapping("/{chatId}/messages/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamMessage(
@@ -117,5 +126,8 @@ class ChatController(
     private companion object {
         const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
         const val CHAT_TURN_ID_HEADER = "Chat-Turn-Id"
+        const val DEFAULT_MESSAGE_PAGE_SIZE = 50
+        const val MIN_MESSAGE_PAGE_SIZE = 1
+        const val MAX_MESSAGE_PAGE_SIZE = 100
     }
 }

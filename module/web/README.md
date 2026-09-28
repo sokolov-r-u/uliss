@@ -43,11 +43,19 @@ presentation; production adapters pass empty collections or no graph model until
 `POST /note/chats/{chatId}/messages/stream`; the removed synchronous message and one-shot `/note/ask` contracts have no
 frontend callers.
 
+Opening a chat loads the latest 50 persisted messages. Reaching the top requests the next older
+page with the backend-provided exclusive cursor, deduplicates by message ID, and prepends it while
+preserving the visible scroll anchor. Only one older-page request runs at a time; pagination stops
+at `hasMore=false`, and route changes abort stale requests. The top of the thread exposes loading
+and beginning-of-conversation states.
+
 On send, `ChatPage` adds optimistic user and assistant entries and streams tokens. Send stays locked through persistence
 reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL` or `FAILED` assistant reply for up to
 15 seconds. A trailing persisted user message is reconciled after refresh as well. Persisted `COMPLETE`, `PARTIAL`, and
-`FAILED` statuses remain authoritative, and a failed reconciliation requires an explicit retry before another turn.
-The request and polling are aborted on route changes. Voice input is visibly disabled because no speech backend exists.
+`FAILED` statuses remain authoritative. Reconciliation refreshes the latest page, replaces overlapping persisted rows,
+and appends new tail rows without discarding older pages already loaded. A failed reconciliation requires an explicit
+retry before another turn. The request and polling are aborted on route changes. Voice input is visibly disabled because
+no speech backend exists.
 
 Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
@@ -88,3 +96,22 @@ Both commands run the complete Playwright suite in the version-pinned `linux/amd
 That container is the canonical screenshot platform; do not update baselines with a native macOS or arm64 Playwright
 run. The commands start the harness server inside Docker and therefore require the explicit application-run permission
 described in the repository instructions.
+
+For a failure, rerun only the exact Playwright title first. Additional Playwright arguments are forwarded into the
+container:
+
+```bash
+npm run visual:test -w @uliss/web -- --grep "chats-conversation · phone"
+```
+
+Inspect the generated `expected`, `actual`, and `diff` files under `visual/test-results`. If the change is unintended,
+fix the source and repeat the targeted test. If the new rendering is accepted, update only that target and verify it:
+
+```bash
+npm run visual:update -w @uliss/web -- --grep "chats-conversation · phone"
+npm run visual:test -w @uliss/web -- --grep "chats-conversation · phone"
+```
+
+Use the local `visual:serve` harness for fast manual iteration, but never generate canonical baselines on the host.
+Run the complete Docker suite once, after all targeted tests pass, before committing. Do not start with a full snapshot
+update: it can accept unrelated regressions and makes the review surface unnecessarily large.

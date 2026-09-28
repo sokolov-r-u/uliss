@@ -25,6 +25,18 @@ cancellation, and summary requests under `/note/chats`. Stream events are `appen
 `done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
+`GET /note/chats/{chatId}/messages` uses backward keyset pagination over UUID v7 message IDs. The
+latest page uses `limit=50` by default; callers may request 1 through 100 messages and pass the
+exclusive `before=<messageId>` cursor returned by the previous response. The response contains
+chronological `messages`, nullable `nextCursor`, and `hasMore`. The `(chat_id, id DESC)` index serves
+this UI read path, while the existing creation-time index remains available for chronological
+history reads.
+
+Pagination applies only to the browser history endpoint. Chat generation still loads the complete
+ordered conversation, and summary generation still loads every message through its immutable
+boundary. Summary creation obtains that boundary through a separate ownership-checked latest-message
+lookup rather than from a UI page.
+
 `POST /note/chats/{chatId}/messages/stream` requires a client-generated UUID in `Idempotency-Key`.
 The key identifies retries of one logical send within that chat. The backend generates a separate
 durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
@@ -72,8 +84,8 @@ The application context can start without provider keys, but provider-backed cal
 background summary/index work then follows the outbox retry policy. Starting the application or
 making provider calls requires explicit permission under repository rules.
 
-Deferred chat pagination, generated chat titles, outbox retention, and scalable status delivery are
-tracked in `docs/TECH_DEBT.md`.
+Generated chat titles, outbox retention, and scalable status delivery are tracked in
+`docs/TECH_DEBT.md`.
 
 ```bash
 ./gradlew :note:test

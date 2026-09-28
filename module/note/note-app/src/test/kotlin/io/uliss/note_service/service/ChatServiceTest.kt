@@ -10,6 +10,7 @@ import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import org.springframework.data.domain.PageRequest
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -64,17 +65,57 @@ class ChatServiceTest {
     }
 
     @Test
-    fun `getMessages returns ordered history for an owned chat`() {
+    fun `getMessages returns a chronological latest page and uses the extra row as hasMore`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val chat = ChatEntity(userId, "Trip planning")
-        val message = ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE)
+        val oldest = message(chatId, "oldest")
+        val middle = message(chatId, "middle")
+        val newest = message(chatId, "newest")
         Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(chat)
-        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(listOf(message))
+        Mockito.`when`(chatMessageRepository.findLatestPage(chatId, PageRequest.of(0, 3)))
+            .thenReturn(listOf(newest, middle, oldest))
 
-        val result = chatService.getMessages(userId, chatId)
+        val result = chatService.getMessages(userId, chatId, before = null, limit = 2)
 
-        assertSame(message, result.single())
+        assertEquals(listOf(middle, newest), result.messages)
+        assertEquals(middle.id, result.nextCursor)
+        assertEquals(true, result.hasMore)
+    }
+
+    @Test
+    fun `getMessages applies an exclusive cursor and marks the end of history`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val before = UUID.randomUUID()
+        val oldest = message(chatId, "oldest")
+        val newer = message(chatId, "newer")
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId))
+            .thenReturn(ChatEntity(userId, "Trip planning"))
+        Mockito.`when`(chatMessageRepository.findPageBefore(chatId, before, PageRequest.of(0, 3)))
+            .thenReturn(listOf(newer, oldest))
+
+        val result = chatService.getMessages(userId, chatId, before, limit = 2)
+
+        assertEquals(listOf(oldest, newer), result.messages)
+        assertEquals(null, result.nextCursor)
+        assertEquals(false, result.hasMore)
+    }
+
+    @Test
+    fun `getMessages returns an empty terminal page`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId))
+            .thenReturn(ChatEntity(userId, "Trip planning"))
+        Mockito.`when`(chatMessageRepository.findLatestPage(chatId, PageRequest.of(0, 51)))
+            .thenReturn(emptyList())
+
+        val result = chatService.getMessages(userId, chatId, before = null, limit = 50)
+
+        assertEquals(emptyList(), result.messages)
+        assertEquals(null, result.nextCursor)
+        assertEquals(false, result.hasMore)
     }
 
     @Test
@@ -116,8 +157,35 @@ class ChatServiceTest {
         Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(null)
 
         assertFailsWith<NotFoundException> {
-            chatService.getMessages(userId, chatId)
+            chatService.getMessages(userId, chatId, before = null, limit = 50)
         }
+        Mockito.verifyNoInteractions(chatMessageRepository)
+    }
+
+    @Test
+    fun `getLatestMessageId returns the latest id for an owned chat`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val latestMessageId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId))
+            .thenReturn(ChatEntity(userId, "Trip planning"))
+        Mockito.`when`(chatMessageRepository.findLatestMessageId(chatId)).thenReturn(latestMessageId)
+
+        val result = chatService.getLatestMessageId(userId, chatId)
+
+        assertEquals(latestMessageId, result)
+    }
+
+    @Test
+    fun `getLatestMessageId enforces ownership before reading messages`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> {
+            chatService.getLatestMessageId(userId, chatId)
+        }
+        Mockito.verifyNoInteractions(chatMessageRepository)
     }
 
     @Test
@@ -165,4 +233,7 @@ class ChatServiceTest {
         assertEquals("partial answer", result.content)
         assertEquals(ChatMessageStatus.PARTIAL, result.status)
     }
+
+    private fun message(chatId: UUID, content: String) =
+        ChatMessageEntity(chatId, ChatMessageRole.USER, content, ChatMessageStatus.COMPLETE)
 }

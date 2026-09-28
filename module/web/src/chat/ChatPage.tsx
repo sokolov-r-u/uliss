@@ -3,8 +3,9 @@ import {Link, useParams} from 'react-router-dom'
 import {ActionChip, Button, Kicker, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
+import {generateClientUuid} from '../lib/clientUuid'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
+import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {
     findPersistedReply,
     reconcileUntilTerminal,
@@ -22,6 +23,25 @@ type GenerationPhase = 'idle' | 'streaming' | 'settling' | 'reconciliation-requi
 
 function toDisplay(messages: ChatMessage[]): DisplayMessage[] {
     return messages.map(({id, role, status, content}) => ({id, role, status, content}))
+}
+
+function mergeLatestMessages(existing: ChatMessage[], latest: ChatMessage[]): ChatMessage[] {
+    const latestById = new Map(latest.map((message) => [message.id, message]))
+    const existingIds = new Set(existing.map((message) => message.id))
+    return [
+        ...existing.map((message) => latestById.get(message.id) ?? message),
+        ...latest.filter((message) => !existingIds.has(message.id)),
+    ]
+}
+
+function hasMessageOverlap(existing: ChatMessage[], latest: ChatMessage[]): boolean {
+    const existingIds = new Set(existing.map((message) => message.id))
+    return latest.some((message) => existingIds.has(message.id))
+}
+
+function prependOlderMessages(existing: ChatMessage[], older: ChatMessage[]): ChatMessage[] {
+    const existingIds = new Set(existing.map((message) => message.id))
+    return [...older.filter((message) => !existingIds.has(message.id)), ...existing]
 }
 
 function isAbortError(error: unknown): boolean {
@@ -75,6 +95,8 @@ export function ChatPage() {
     const [loadError, setLoadError] = useState<string | null>(null)
     const [persistedMessages, setPersistedMessages] = useState<ChatMessage[]>([])
     const [messages, setMessages] = useState<DisplayMessage[]>([])
+    const [hasMore, setHasMore] = useState(false)
+    const [isLoadingOlder, setIsLoadingOlder] = useState(false)
     const [draft, setDraft] = useState('')
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
@@ -83,6 +105,12 @@ export function ChatPage() {
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [acceptedNoteId, setAcceptedNoteId] = useState<string | null>(null)
     const streamAbortRef = useRef<AbortController | null>(null)
+    const olderAbortRef = useRef<AbortController | null>(null)
+    const olderLoadingRef = useRef(false)
+    const persistedMessagesRef = useRef<ChatMessage[]>([])
+    const nextCursorRef = useRef<string | null>(null)
+    const hasMoreRef = useRef(false)
+    const loadedOlderRef = useRef(false)
     const pendingChatRequestRef = useRef<PendingChatRequest | null>(null)
     const reconciliationAbortRef = useRef<AbortController | null>(null)
     const reconciliationTargetRef = useRef<ReconciliationTarget | null>(null)
@@ -98,9 +126,27 @@ export function ChatPage() {
         setGenerationPhase(phase)
     }
 
-    function applyPersistedHistory(history: ChatMessage[]) {
+    function replacePersistedWindow(history: ChatMessage[]) {
+        persistedMessagesRef.current = history
         setPersistedMessages(history)
         setMessages(toDisplay(history))
+    }
+
+    function updateOlderBoundary(cursor: string | null, more: boolean) {
+        nextCursorRef.current = cursor
+        hasMoreRef.current = more
+        setHasMore(more)
+    }
+
+    function applyPersistedHistory(page: ChatMessagePage) {
+        const current = persistedMessagesRef.current
+        if (current.length > 0 && page.messages.length > 0 && !hasMessageOverlap(current, page.messages)) {
+            loadedOlderRef.current = false
+            replacePersistedWindow(page.messages)
+        } else {
+            replacePersistedWindow(mergeLatestMessages(current, page.messages))
+        }
+        if (!loadedOlderRef.current) updateOlderBoundary(page.nextCursor, page.hasMore)
         updateGenerationPhase('idle')
         setStreamNotice(null)
         reconciliationTargetRef.current = null
@@ -136,26 +182,35 @@ export function ChatPage() {
                 return
             }
             if (pendingChatRequestRef.current?.stopRequested && target.turnId) {
-                const saved = await getMessages(chatId, controller.signal)
+                const savedPage = await getMessages(chatId, {signal: controller.signal})
+                const saved = savedPage.messages
                 if (!mountedRef.current || routeRevisionRef.current !== routeRevision || controller.signal.aborted) return
                 if (findPersistedReply(saved, target)) {
                     clearPendingChatRequest()
-                    applyPersistedHistory(saved)
+                    applyPersistedHistory(savedPage)
                     return
                 }
                 await cancelChatTurn(chatId, target.turnId, controller.signal)
             }
+            let refreshedPage: ChatMessagePage | undefined
             const history = poll
-                ? await reconcileUntilTerminal((signal) => getMessages(chatId, signal), target, {signal: controller.signal})
-                : await getMessages(chatId, controller.signal)
+                ? await reconcileUntilTerminal(async (signal) => {
+                    refreshedPage = await getMessages(chatId, {signal})
+                    return refreshedPage.messages
+                }, target, {signal: controller.signal})
+                : (refreshedPage = await getMessages(chatId, {signal: controller.signal})).messages
             if (!poll && !findPersistedReply(history, target)) {
                 if (mountedRef.current && routeRevisionRef.current === routeRevision
                     && !controller.signal.aborted) requireReconciliation()
                 return
             }
             if (mountedRef.current && routeRevisionRef.current === routeRevision && !controller.signal.aborted) {
+                if (!refreshedPage) {
+                    requireReconciliation()
+                    return
+                }
                 clearPendingChatRequest()
-                applyPersistedHistory(history)
+                applyPersistedHistory({...refreshedPage, messages: history})
             }
         } catch (error) {
             if (!mountedRef.current || routeRevisionRef.current !== routeRevision
@@ -181,6 +236,12 @@ export function ChatPage() {
         const loadController = new AbortController()
         streamAbortRef.current?.abort()
         reconciliationAbortRef.current?.abort()
+        olderAbortRef.current?.abort()
+        olderLoadingRef.current = false
+        loadedOlderRef.current = false
+        replacePersistedWindow([])
+        updateOlderBoundary(null, false)
+        setIsLoadingOlder(false)
         setPagePhase('loading')
         setLoadError(null)
         updateGenerationPhase('idle')
@@ -191,11 +252,12 @@ export function ChatPage() {
         summaryRequestIdRef.current += 1
         summaryIdempotencyKeyRef.current = sessionStorage.getItem(summaryKeyStorageKey(chatId))
         pendingChatRequestRef.current = readPendingChatRequest(chatId)
-        getMessages(chatId, loadController.signal)
-            .then((history) => {
+        getMessages(chatId, {signal: loadController.signal})
+            .then((page) => {
                 if (!active) return
-                setPersistedMessages(history)
-                setMessages(toDisplay(history))
+                const history = page.messages
+                replacePersistedWindow(history)
+                updateOlderBoundary(page.nextCursor, page.hasMore)
                 setPagePhase('ready')
                 const pendingRequest = pendingChatRequestRef.current
                 if (pendingRequest) {
@@ -227,8 +289,37 @@ export function ChatPage() {
             loadController.abort()
             streamAbortRef.current?.abort()
             reconciliationAbortRef.current?.abort()
+            olderAbortRef.current?.abort()
         }
     }, [chatId])
+
+    async function loadOlderMessages() {
+        const cursor = nextCursorRef.current
+        if (!chatId || !cursor || !hasMoreRef.current || olderLoadingRef.current) return
+        const routeRevision = routeRevisionRef.current
+        const controller = new AbortController()
+        olderAbortRef.current?.abort()
+        olderAbortRef.current = controller
+        olderLoadingRef.current = true
+        setIsLoadingOlder(true)
+        try {
+            const page = await getMessages(chatId, {before: cursor, signal: controller.signal})
+            if (!mountedRef.current || routeRevisionRef.current !== routeRevision || controller.signal.aborted) return
+            loadedOlderRef.current = true
+            replacePersistedWindow(prependOlderMessages(persistedMessagesRef.current, page.messages))
+            updateOlderBoundary(page.nextCursor, page.hasMore)
+        } catch (error) {
+            if (!mountedRef.current || routeRevisionRef.current !== routeRevision
+                || error instanceof AuthRequiredError || isAbortError(error)) return
+            setStreamNotice(error instanceof Error ? error.message : String(error))
+        } finally {
+            if (olderAbortRef.current === controller) {
+                olderAbortRef.current = null
+                olderLoadingRef.current = false
+                if (mountedRef.current && routeRevisionRef.current === routeRevision) setIsLoadingOlder(false)
+            }
+        }
+    }
 
     async function executeChatRequest(
         request: PendingChatRequest,
@@ -271,9 +362,10 @@ export function ChatPage() {
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
                 clearPendingChatRequest(request.idempotencyKey)
                 try {
-                    const history = await getMessages(chatId, controller.signal)
+                    const page = await getMessages(chatId, {signal: controller.signal})
+                    const history = page.messages
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
-                    applyPersistedHistory(history)
+                    applyPersistedHistory(page)
                     setStreamNotice(`The message was not accepted (${error.status}). Please try again.`)
                     const activeTarget = targetForTrailingUser(history)
                     if (activeTarget) await reconcile(activeTarget, true, routeRevision)
@@ -297,9 +389,9 @@ export function ChatPage() {
         if (!chatId || generationPhaseRef.current !== 'idle' || content === '') return
 
         const request: PendingChatRequest = {
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey: generateClientUuid(),
             content,
-            afterMessageId: persistedMessages.at(-1)?.id,
+            afterMessageId: persistedMessagesRef.current.at(-1)?.id,
         }
         pendingChatRequestRef.current = request
         sessionStorage.setItem(chatRequestStorageKey(chatId), JSON.stringify(request))
@@ -365,7 +457,7 @@ export function ChatPage() {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
-        const idempotencyKey = summaryIdempotencyKeyRef.current ?? crypto.randomUUID()
+        const idempotencyKey = summaryIdempotencyKeyRef.current ?? generateClientUuid()
         summaryRequestIdRef.current = requestId
         summaryIdempotencyKeyRef.current = idempotencyKey
         sessionStorage.setItem(storageKey, idempotencyKey)
@@ -424,7 +516,8 @@ export function ChatPage() {
                 <Link to="/chats" className="chat-back-link">‹ chats</Link>
                 <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>
             </div>
-            <MessageThread messages={messages}/>
+            <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
+                           onLoadOlder={() => void loadOlderMessages()}/>
             {acceptedNoteId && <section
                 className="chat-summary-notice"
                 role="status"

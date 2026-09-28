@@ -1,9 +1,6 @@
 package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
-import io.uliss.note_service.model.ChatMessageEntity
-import io.uliss.note_service.model.ChatMessageRole
-import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
@@ -20,17 +17,12 @@ class ChatFacadeTest {
     private val noteService = Mockito.mock(NoteService::class.java)
     private val chatFacade = ChatFacade(chatService, assistantService, noteService)
 
-    private fun history(chatId: UUID) = listOf(
-        ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE),
-        ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "hello", ChatMessageStatus.COMPLETE),
-    )
-
     @Test
     fun `requestSummary rejects a chat with no messages`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        Mockito.`when`(chatService.getMessages(userId, chatId)).thenReturn(emptyList())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(null)
 
         assertFailsWith<BadRequestException> {
             chatFacade.requestSummary(userId, chatId, idempotencyKey)
@@ -39,13 +31,12 @@ class ChatFacadeTest {
     }
 
     @Test
-    fun `requestSummary uses the last message as the immutable summary boundary`() {
+    fun `requestSummary uses the separately loaded latest message as the immutable summary boundary`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        val history = history(chatId)
-        val throughMessageId = history.last().id
-        Mockito.`when`(chatService.getMessages(userId, chatId)).thenReturn(history)
+        val throughMessageId = UUID.randomUUID()
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(throughMessageId)
         val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
         Mockito.`when`(
             noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
@@ -54,6 +45,7 @@ class ChatFacadeTest {
         val result = chatFacade.requestSummary(userId, chatId, idempotencyKey)
 
         assertSame(savedNote, result)
+        Mockito.verify(chatService).getLatestMessageId(userId, chatId)
         Mockito.verify(noteService).requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
     }
 }
