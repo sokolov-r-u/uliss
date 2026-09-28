@@ -17,7 +17,8 @@ node {
 }
 
 // Runs the design-system npm build (postcss autoprefixer -> dist/**, structure preserved)
-val buildDesignSystem by tasks.registering(NpmTask::class) {
+val buildDesignSystem = tasks.register<NpmTask>("buildDesignSystem") {
+	description = "Builds the design-system CSS assets with PostCSS."
 	dependsOn(tasks.named("npmInstall"))
 	workingDir.set(rootProject.layout.projectDirectory.asFile)
 	args.set(listOf("run", "build", "-w", "@uliss/design-system"))

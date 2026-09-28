@@ -55,13 +55,15 @@ workflows. Machine-specific Gradle properties are copied from `gradle.properties
 ./gradlew :auth:test
 ./gradlew :auth:integrationTest
 ./gradlew jacocoRootReport
+./gradlew testWeb
 npm install
 npm run build -w @uliss/web
 npm run typecheck -w @uliss/design-system
 ```
 
 `jacocoRootReport` merges available unit and integration-test execution data. Integration tests use PostgreSQL through
-Testcontainers and require a running Docker daemon.
+Testcontainers and require a running Docker daemon. `testWeb` runs the web unit/component tests first, then the
+Playwright visual/browser suite in Docker; it requires Docker and may need network access to pull the pinned image.
 
 ## Local and container environments
 

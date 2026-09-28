@@ -33,8 +33,9 @@ editing the SPA.
 - Use `npm run build -w @uliss/web` for final module verification.
 - Also verify the design-system package when changing shared component usage or exports.
 - Do not run the Vite dev/preview server without explicit permission.
-- When a visual snapshot fails, first rerun its exact Playwright title through `visual:test -- --grep <title>`. Inspect
-  the
-  expected, actual, and diff artifacts before changing source or baselines. Fix source for an unintended regression;
-  update only the accepted target through `visual:update -- --grep <title>`. Run the complete visual suite once after
-  all targeted checks pass. Never change component geometry solely to match an outdated snapshot.
+- When a frontend visual/snapshot test fails, inspect the expected, actual, and diff artifacts and identify the
+  affected source and snapshot files. Tell the user which screens changed and what to review; wait for the user's
+  explicit approval before changing expected screenshots. After approval, update only the approved failing titles with
+  `visual:update -- --grep <title>`, rerun those exact titles with `visual:test -- --grep <title>`, then run the
+  complete
+  visual suite. Never change component geometry solely to match an outdated snapshot.

@@ -60,7 +60,7 @@ tasks.register<JacocoReport>("jacocoRootReport") {
 val webImageVersion =
     (groovy.json.JsonSlurper().parse(file("module/web/package.json")) as Map<*, *>)["version"] as String
 
-val buildWebImage by tasks.registering(Exec::class) {
+val buildWebImage = tasks.register<Exec>("buildWebImage") {
     group = "docker"
     description = "Builds the web Docker image (uliss/web:latest + uliss/web:$webImageVersion)."
     workingDir = rootDir
@@ -86,4 +86,25 @@ tasks.register("buildAllImages") {
         ":note:jibDockerBuild",
         buildWebImage,
     )
+}
+
+val testWebUnit = tasks.register<Exec>("testWebUnit") {
+    group = "verification"
+    description = "Runs the web application's Vitest unit and component tests."
+    workingDir = rootDir
+    commandLine("npm", "run", "test", "-w", "@uliss/web")
+}
+
+val testWebVisual = tasks.register<Exec>("testWebVisual") {
+    group = "verification"
+    description = "Runs the web application's Playwright visual and browser tests in Docker."
+    workingDir = rootDir
+    commandLine("npm", "run", "visual:test", "-w", "@uliss/web")
+    mustRunAfter(testWebUnit)
+}
+
+tasks.register("testWeb") {
+    group = "verification"
+    description = "Runs all web unit/component tests followed by the browser visual test suite."
+    dependsOn(testWebUnit, testWebVisual)
 }
