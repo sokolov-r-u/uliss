@@ -503,6 +503,52 @@ describe('ChatPage summary flow', () => {
         expect(screen.getAllByText('Tail question')).toHaveLength(1)
     })
 
+    it('rebuilds a stale window and resets its cursor when the latest page no longer overlaps', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-3', role: 'USER', status: 'COMPLETE', content: 'Previous tail question'},
+                {id: 'm-4', role: 'ASSISTANT', status: 'COMPLETE', content: 'Previous tail answer'},
+            ], 'm-3', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-1', role: 'USER', status: 'COMPLETE', content: 'Loaded old question'},
+                {id: 'm-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Loaded old answer'},
+            ]))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-101', role: 'USER', status: 'COMPLETE', content: 'New window start'},
+                {id: 'm-102', role: 'ASSISTANT', status: 'COMPLETE', content: 'Another client answer'},
+                {id: 'm-103', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'Current question'},
+                {id: 'm-104', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'Current answer'},
+            ], 'm-101', true))
+            .mockResolvedValueOnce(messagePage([
+                {id: 'm-99', role: 'USER', status: 'COMPLETE', content: 'Recovered gap question'},
+                {id: 'm-100', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered gap answer'},
+            ], 'm-99', true))
+        mockedStream.mockImplementation(async (_chatId, _content, _key, options) => {
+            options.onTurnId('turn-new')
+            return 'done'
+        })
+        const view = renderPage()
+        await screen.findByText('Previous tail answer')
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        thread.scrollTop = 0
+        fireEvent.scroll(thread)
+        await screen.findByText('Loaded old question')
+
+        await userEvent.type(screen.getByRole('textbox', {name: 'Message'}), 'Current question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('Current answer')).toBeInTheDocument()
+        expect(screen.queryByText('Previous tail answer')).not.toBeInTheDocument()
+        expect(screen.queryByText('Loaded old question')).not.toBeInTheDocument()
+
+        thread.scrollTop = 0
+        fireEvent.scroll(thread)
+        expect(await screen.findByText('Recovered gap question')).toBeInTheDocument()
+        expect(mockedGetMessages.mock.calls[3]).toEqual([
+            'chat-1', {before: 'm-101', signal: expect.any(AbortSignal)},
+        ])
+    })
+
     it('aborts on unmount without durable cancellation and retains the retry identity', async () => {
         let signal: AbortSignal | undefined
         mockedStream.mockImplementation(async (_chat, _content, _key, options) => {

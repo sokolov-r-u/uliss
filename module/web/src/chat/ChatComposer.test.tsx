@@ -25,6 +25,7 @@ describe('ChatComposer', () => {
     it('grows with wrapped content and scrolls after reaching its maximum height', () => {
         const page = render(<ChatComposer value="short" onChange={() => undefined} onSubmit={() => undefined}/>)
         const input = screen.getByRole('textbox', {name: 'Message'})
+        expect(input).toHaveStyle({height: '34px', overflowY: 'hidden'})
         Object.defineProperty(input, 'scrollHeight', {configurable: true, value: 80})
 
         page.rerender(<ChatComposer value="a longer wrapped value" onChange={() => undefined}

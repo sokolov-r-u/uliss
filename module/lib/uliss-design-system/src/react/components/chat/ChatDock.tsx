@@ -3,7 +3,7 @@ import {useLayoutEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 
-const TEXTAREA_MIN_HEIGHT = 24
+const TEXTAREA_MIN_HEIGHT = 34
 const TEXTAREA_MAX_HEIGHT = 144
 
 export interface ChatDockProps {
@@ -62,7 +62,7 @@ export function ChatDock({
                 alignItems: 'flex-end',
                 gap: 8,
                 minHeight: 46,
-                padding: '6px 6px 6px 16px',
+                padding: '5px 6px 5px 16px',
                 background: 'var(--bg-panel)',
                 border: '1px solid var(--line-strong)'
             }}>
@@ -83,7 +83,7 @@ export function ChatDock({
                         maxHeight: TEXTAREA_MAX_HEIGHT,
                         border: 0,
                         outline: 0,
-                        padding: '2px 0',
+                        padding: '7px 0',
                         resize: 'none',
                         overflowX: 'hidden',
                         overflowY: 'hidden',

@@ -34,6 +34,11 @@ function mergeLatestMessages(existing: ChatMessage[], latest: ChatMessage[]): Ch
     ]
 }
 
+function hasMessageOverlap(existing: ChatMessage[], latest: ChatMessage[]): boolean {
+    const existingIds = new Set(existing.map((message) => message.id))
+    return latest.some((message) => existingIds.has(message.id))
+}
+
 function prependOlderMessages(existing: ChatMessage[], older: ChatMessage[]): ChatMessage[] {
     const existingIds = new Set(existing.map((message) => message.id))
     return [...older.filter((message) => !existingIds.has(message.id)), ...existing]
@@ -134,8 +139,13 @@ export function ChatPage() {
     }
 
     function applyPersistedHistory(page: ChatMessagePage) {
-        const history = mergeLatestMessages(persistedMessagesRef.current, page.messages)
-        replacePersistedWindow(history)
+        const current = persistedMessagesRef.current
+        if (current.length > 0 && page.messages.length > 0 && !hasMessageOverlap(current, page.messages)) {
+            loadedOlderRef.current = false
+            replacePersistedWindow(page.messages)
+        } else {
+            replacePersistedWindow(mergeLatestMessages(current, page.messages))
+        }
         if (!loadedOlderRef.current) updateOlderBoundary(page.nextCursor, page.hasMore)
         updateGenerationPhase('idle')
         setStreamNotice(null)
@@ -195,8 +205,11 @@ export function ChatPage() {
                 return
             }
             if (mountedRef.current && routeRevisionRef.current === routeRevision && !controller.signal.aborted) {
+                if (!refreshedPage) {
+                    requireReconciliation()
+                    return
+                }
                 clearPendingChatRequest()
-                if (!refreshedPage) throw new Error('message reconciliation returned no page')
                 applyPersistedHistory({...refreshedPage, messages: history})
             }
         } catch (error) {
