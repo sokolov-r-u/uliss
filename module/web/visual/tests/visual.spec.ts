@@ -32,17 +32,67 @@ for (const viewport of viewports) {
     }
 }
 
-const grounds = ['obsidian', 'void']
-const accents = ['ochre', 'terracotta', 'patina', 'bone']
-const reads = ['compact', 'regular', 'large', 'larger']
+const grounds = {
+    obsidian: {bgDeep: '#0a0a0a', bgSurface: '#161616'},
+    void: {bgDeep: '#020407', bgSurface: '#101010'},
+} as const
+const accents = {
+    ochre: {accent: '#d99a4e', accent2: '#f0c06a'},
+    terracotta: {accent: '#c8643c', accent2: '#d99a4e'},
+    patina: {accent: '#5c8a72', accent2: '#8fae82'},
+    bone: {accent: '#b9a888', accent2: '#e8d3a8'},
+} as const
+const reads = {
+    compact: {size: '13px', leading: '1.58'},
+    regular: {size: '14.5px', leading: '1.51'},
+    large: {size: '16px', leading: '1.51'},
+    larger: {size: '18px', leading: '1.45'},
+} as const
 
-for (const ground of grounds) for (const accent of accents) for (const read of reads) {
-    test(`theme ${ground} · ${accent} · ${read}`, async ({page}) => {
+const themeSmokeCases = [
+    {ground: 'obsidian', accent: 'ochre', read: 'compact'},
+    {ground: 'void', accent: 'terracotta', read: 'regular'},
+    {ground: 'obsidian', accent: 'patina', read: 'large'},
+    {ground: 'void', accent: 'bone', read: 'larger'},
+] as const
+
+for (const {ground, accent, read} of themeSmokeCases) {
+    test(`theme smoke ${ground} · ${accent} · ${read}`, async ({page}) => {
         await page.setViewportSize({width: 360, height: 748})
-        await page.goto(`/visual/index.html?scenario=chats-conversation&ground=${ground}&accent=${accent}&read=${read}`)
-        await expect(page).toHaveScreenshot(`theme-${ground}-${accent}-${read}.png`, {animations: 'disabled'})
+        await page.goto(`/visual/index.html?scenario=notes-detail-ready&ground=${ground}&accent=${accent}&read=${read}`)
+        await expect(page).toHaveScreenshot(`theme-smoke-${ground}-${accent}-${read}.png`, {animations: 'disabled'})
     })
 }
+
+test('all appearance token combinations resolve without horizontal overflow', async ({page}) => {
+    await page.setViewportSize({width: 360, height: 748})
+    await page.goto('/visual/index.html?scenario=notes-detail-ready')
+
+    for (const [ground, expectedGround] of Object.entries(grounds)) {
+        for (const [accent, expectedAccent] of Object.entries(accents)) {
+            for (const [read, expectedRead] of Object.entries(reads)) {
+                const actual = await page.evaluate(({ground, accent, read}) => {
+                    const root = document.documentElement
+                    root.dataset.ground = ground
+                    root.dataset.accent = accent
+                    root.dataset.read = read
+                    const styles = getComputedStyle(root)
+                    return {
+                        bgDeep: styles.getPropertyValue('--bg-deep').trim(),
+                        bgSurface: styles.getPropertyValue('--bg-surface').trim(),
+                        accent: styles.getPropertyValue('--accent').trim(),
+                        accent2: styles.getPropertyValue('--accent-2').trim(),
+                        size: styles.getPropertyValue('--read-size').trim(),
+                        leading: styles.getPropertyValue('--read-leading').trim(),
+                        overflows: root.scrollWidth > root.clientWidth,
+                    }
+                }, {ground, accent, read})
+
+                expect(actual).toEqual({...expectedGround, ...expectedAccent, ...expectedRead, overflows: false})
+            }
+        }
+    }
+})
 
 test('reduced motion snapshot', async ({page}) => {
     await page.emulateMedia({reducedMotion: 'reduce'})

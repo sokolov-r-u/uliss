@@ -96,3 +96,22 @@ Both commands run the complete Playwright suite in the version-pinned `linux/amd
 That container is the canonical screenshot platform; do not update baselines with a native macOS or arm64 Playwright
 run. The commands start the harness server inside Docker and therefore require the explicit application-run permission
 described in the repository instructions.
+
+For a failure, rerun only the exact Playwright title first. Additional Playwright arguments are forwarded into the
+container:
+
+```bash
+npm run visual:test -w @uliss/web -- --grep "chats-conversation · phone"
+```
+
+Inspect the generated `expected`, `actual`, and `diff` files under `visual/test-results`. If the change is unintended,
+fix the source and repeat the targeted test. If the new rendering is accepted, update only that target and verify it:
+
+```bash
+npm run visual:update -w @uliss/web -- --grep "chats-conversation · phone"
+npm run visual:test -w @uliss/web -- --grep "chats-conversation · phone"
+```
+
+Use the local `visual:serve` harness for fast manual iteration, but never generate canonical baselines on the host.
+Run the complete Docker suite once, after all targeted tests pass, before committing. Do not start with a full snapshot
+update: it can accept unrelated regressions and makes the review surface unnecessarily large.

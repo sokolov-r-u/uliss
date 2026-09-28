@@ -17,6 +17,7 @@ case "${1:-}" in
         exit 2
         ;;
 esac
+shift
 
 docker run --rm --init --ipc=host --platform linux/amd64 \
     --env CI=true \
@@ -24,4 +25,5 @@ docker run --rm --init --ipc=host --platform linux/amd64 \
     --volume /work/node_modules \
     --workdir /work \
     "$playwright_image" \
-    /bin/sh -c "npm ci && npm run $playwright_script -w @uliss/web"
+    /bin/sh -c 'npm ci && container_script=$1 && shift && npm run "$container_script" -w @uliss/web -- "$@"' \
+    playwright-docker "$playwright_script" "$@"
