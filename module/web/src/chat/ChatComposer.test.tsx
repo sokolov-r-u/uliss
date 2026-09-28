@@ -4,6 +4,20 @@ import {describe, expect, it, vi} from 'vitest'
 import {ChatComposer} from './ChatComposer'
 
 describe('ChatComposer', () => {
+    it('submits by clicking Send and pressing Enter', async () => {
+        const onSubmit = vi.fn()
+        const onChange = vi.fn()
+        const page = render(<ChatComposer value="draft" onChange={onChange} onSubmit={onSubmit}/>)
+
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        expect(onSubmit).toHaveBeenCalledOnce()
+
+        page.rerender(<ChatComposer value="draft" onChange={onChange} onSubmit={onSubmit}/>)
+        await userEvent.click(screen.getByRole('textbox', {name: 'Message'}))
+        await userEvent.keyboard('{Enter}')
+        expect(onSubmit).toHaveBeenCalledTimes(2)
+    })
+
     it('replaces send with Stop during generation', async () => {
         const onStop = vi.fn()
         const onSubmit = vi.fn()

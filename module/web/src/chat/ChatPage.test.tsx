@@ -59,6 +59,32 @@ describe('ChatPage summary flow', () => {
         mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
     })
 
+    it('starts a turn when the page is served without Web Crypto', async () => {
+        const originalCrypto = globalThis.crypto
+        Object.defineProperty(globalThis, 'crypto', {configurable: true, value: undefined})
+        mockedGetMessages.mockResolvedValueOnce([]).mockResolvedValueOnce([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+        ])
+        mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
+            options.onTurnId('turn-1')
+            return 'done'
+        })
+
+        try {
+            renderPage()
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Question')
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+            await waitFor(() => expect(mockedStream).toHaveBeenCalledOnce())
+            expect(mockedStream.mock.calls[0]?.[2])
+                .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
+            expect(await screen.findByText('Answer')).toBeInTheDocument()
+        } finally {
+            Object.defineProperty(globalThis, 'crypto', {configurable: true, value: originalCrypto})
+        }
+    })
+
     it('requires confirmation and exposes the accepted note link', async () => {
         renderPage()
         const summarize = await screen.findByRole('button', {name: 'Summarize'})

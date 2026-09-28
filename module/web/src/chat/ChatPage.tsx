@@ -3,6 +3,7 @@ import {Link, useParams} from 'react-router-dom'
 import {ActionChip, Button, Kicker, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
+import {generateClientUuid} from '../lib/clientUuid'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {type ChatMessage, getMessages, notifyChatListChanged} from './chatApi'
 import {
@@ -297,7 +298,7 @@ export function ChatPage() {
         if (!chatId || generationPhaseRef.current !== 'idle' || content === '') return
 
         const request: PendingChatRequest = {
-            idempotencyKey: crypto.randomUUID(),
+            idempotencyKey: generateClientUuid(),
             content,
             afterMessageId: persistedMessages.at(-1)?.id,
         }
@@ -365,7 +366,7 @@ export function ChatPage() {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
-        const idempotencyKey = summaryIdempotencyKeyRef.current ?? crypto.randomUUID()
+        const idempotencyKey = summaryIdempotencyKeyRef.current ?? generateClientUuid()
         summaryRequestIdRef.current = requestId
         summaryIdempotencyKeyRef.current = idempotencyKey
         sessionStorage.setItem(storageKey, idempotencyKey)
