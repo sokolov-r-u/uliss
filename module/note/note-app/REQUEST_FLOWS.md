@@ -69,13 +69,48 @@ application services or outbox handlers.
 |---------------------------------------------------|-----------------------------------------------------------------------|----------------------------------------------------|
 | `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService`                         | Creates an owned chat                              |
 | `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService`                         | Lists the user's chats                             |
-| `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                         | Returns ownership-filtered history                 |
+| `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                         | Returns an ownership-filtered cursor page          |
 | `POST /note/chats/{chatId}/messages/stream`       | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService` | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService` | Cancels an active turn                             |
 | `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`           | Creates or replays an asynchronous summary request |
 | `GET /note/notes`                                 | `NoteController -> NoteService`                                       | Lists the user's notes                             |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                       | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                       | Streams persisted note status changes              |
+
+## Paginated chat history
+
+The browser reads history backward with an exclusive UUID v7 cursor. Every page is returned in
+chronological order even though PostgreSQL selects `limit + 1` rows in descending ID order. The
+extra row determines `hasMore` and is not returned. Missing and foreign chats both fail the
+ownership lookup with 404 before message data is read.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Web client
+    participant HC as ChatController
+    participant F as ChatFacade
+    participant CS as ChatService
+    participant DB as PostgreSQL
+    C ->> HC: GET chats/{chatId}/messages?limit=50
+    HC ->> F: getMessages(userId, chatId, null, 50)
+    F ->> CS: getMessages(...)
+    CS ->> DB: verify owned chat
+    CS ->> DB: newest 51 rows by id DESC
+    CS -->> C: chronological messages + nextCursor + hasMore
+    loop User reaches the top while hasMore
+        C ->> HC: GET messages?limit=50&before=nextCursor
+        HC ->> F: getMessages(userId, chatId, before, 50)
+        F ->> CS: getMessages(...)
+        CS ->> DB: id < before, newest 51 rows by id DESC
+        CS -->> C: older chronological page
+        Note over C: deduplicate by id and prepend<br/>while preserving the scroll anchor
+    end
+```
+
+This endpoint is the only paginated history path. `ChatTurnService` continues loading the complete
+ordered conversation for provider generation. `ChatService.getSummaryContext` continues loading
+all messages through the captured summary boundary.
 
 ## Streamed chat turn
 
@@ -236,9 +271,8 @@ sequenceDiagram
     participant OS as OutboxService
     C ->> HC: POST chats/{chatId}/summarize<br/>Idempotency-Key
     HC ->> F: requestSummary(userId, chatId, key)
-    F ->> CS: getMessages(userId, chatId)
-    CS -->> F: owned, ordered history
-    F ->> F: select last message as immutable boundary
+    F ->> CS: getLatestMessageId(userId, chatId)
+    CS -->> F: owned latest-message boundary
     F ->> NS: requestChatSummary(..., throughMessageId, key)
 
     rect rgb(235, 245, 255)
