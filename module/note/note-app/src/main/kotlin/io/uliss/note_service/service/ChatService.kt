@@ -7,6 +7,8 @@ import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.service.type.ChatMessageCursorPage
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -32,9 +34,26 @@ class ChatService(
     fun getChats(userId: UUID): List<ChatEntity> =
         chatRepository.findByUserIdOrderByCreatedAtDesc(userId)
 
-    fun getMessages(userId: UUID, chatId: UUID): List<ChatMessageEntity> {
+    fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
         requireOwnedChat(userId, chatId)
-        return chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+        val pageable = PageRequest.of(0, limit + 1)
+        val descendingMessages = if (before == null) {
+            chatMessageRepository.findLatestPage(chatId, pageable)
+        } else {
+            chatMessageRepository.findPageBefore(chatId, before, pageable)
+        }
+        val hasMore = descendingMessages.size > limit
+        val retainedMessages = descendingMessages.take(limit)
+        return ChatMessageCursorPage(
+            messages = retainedMessages.reversed(),
+            nextCursor = retainedMessages.lastOrNull()?.id?.takeIf { hasMore },
+            hasMore = hasMore,
+        )
+    }
+
+    fun getLatestMessageId(userId: UUID, chatId: UUID): UUID? {
+        requireOwnedChat(userId, chatId)
+        return chatMessageRepository.findLatestMessageId(chatId)
     }
 
     internal fun getSummaryContext(userId: UUID, chatId: UUID, throughMessageId: UUID): ChatSummaryContext {

@@ -2,9 +2,9 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.model.ChatEntity
-import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.service.type.AssistantReplyStream
+import io.uliss.note_service.service.type.ChatMessageCursorPage
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -20,8 +20,8 @@ class ChatFacade(
 
     fun getChats(userId: UUID): List<ChatEntity> = chatService.getChats(userId)
 
-    fun getMessages(userId: UUID, chatId: UUID): List<ChatMessageEntity> =
-        chatService.getMessages(userId, chatId)
+    fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage =
+        chatService.getMessages(userId, chatId, before, limit)
 
     fun streamMessage(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
         assistantService.streamReply(userId, chatId, idempotencyKey, prompt)
@@ -32,8 +32,7 @@ class ChatFacade(
 
     @Transactional
     fun requestSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity {
-        val history = chatService.getMessages(userId, chatId)
-        val throughMessageId = history.lastOrNull()?.id
+        val throughMessageId = chatService.getLatestMessageId(userId, chatId)
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
         return noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
     }
