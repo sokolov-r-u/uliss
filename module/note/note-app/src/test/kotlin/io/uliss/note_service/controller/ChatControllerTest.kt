@@ -17,6 +17,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.ChatFacade
 import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.AssistantStreamEvent
+import io.uliss.note_service.service.type.ChatMessageCursorPage
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
 import org.hamcrest.Matchers
@@ -109,25 +110,78 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `getMessages happy path returns the ordered history`() {
+    fun `getMessages uses the default page size and returns the page envelope`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val message = ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE)
-        Mockito.`when`(chatFacade.getMessages(userId, chatId)).thenReturn(listOf(message))
+        val nextCursor = UUID.randomUUID()
+        Mockito.`when`(chatFacade.getMessages(userId, chatId, null, 50))
+            .thenReturn(ChatMessageCursorPage(listOf(message), nextCursor, true))
 
         mockMvc.get("/note/chats/$chatId/messages") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isOk() }
-            jsonPath("$[0].content") { value("hi") }
+            jsonPath("$.messages[0].content") { value("hi") }
+            jsonPath("$.nextCursor") { value(nextCursor.toString()) }
+            jsonPath("$.hasMore") { value(true) }
         }
+        Mockito.verify(chatFacade).getMessages(userId, chatId, null, 50)
+    }
+
+    @Test
+    fun `getMessages propagates an explicit cursor and limit`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val before = UUID.randomUUID()
+        Mockito.`when`(chatFacade.getMessages(userId, chatId, before, 25))
+            .thenReturn(ChatMessageCursorPage(emptyList(), null, false))
+
+        mockMvc.get("/note/chats/$chatId/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            param("before", before.toString())
+            param("limit", "25")
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.messages") { isEmpty() }
+            jsonPath("$.nextCursor") { doesNotExist() }
+            jsonPath("$.hasMore") { value(false) }
+        }
+        Mockito.verify(chatFacade).getMessages(userId, chatId, before, 25)
+    }
+
+    @Test
+    fun `getMessages rejects limits outside the allowed range`() {
+        val chatId = UUID.randomUUID()
+
+        listOf("0", "101").forEach { limit ->
+            mockMvc.get("/note/chats/$chatId/messages") {
+                with(jwt())
+                param("limit", limit)
+            }.andExpect {
+                status { isBadRequest() }
+                jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
+            }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `getMessages rejects an invalid cursor`() {
+        mockMvc.get("/note/chats/${UUID.randomUUID()}/messages") {
+            with(jwt())
+            param("before", "not-a-uuid")
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
     }
 
     @Test
     fun `getMessages for a chat owned by another user returns 404`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.getMessages(userId, chatId))
+        Mockito.`when`(chatFacade.getMessages(userId, chatId, null, 50))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
         mockMvc.get("/note/chats/$chatId/messages") {
