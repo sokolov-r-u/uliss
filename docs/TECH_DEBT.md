@@ -163,6 +163,41 @@ with the frontend, render it separately from user/assistant dialogue, and exclud
 history and future summary source messages. Failed summary attempts must not claim that a summary
 was completed.
 
+## User-centric RAG query for chat summaries (`note-service`)
+
+**Status:** current retrieval works, but its long-chat query can overrepresent verbose assistant
+messages. The revised weighting is agreed; implementation is deferred.
+
+`NoteSummaryRequestedHandler.retrievalQuery` currently uses the complete transcript while it fits
+the configured limit. For a longer chat it keeps the first two user messages and fills the remaining
+budget from the recent conversation regardless of role. Long assistant answers can therefore
+dominate the embedding even though the user's intent, constraints, corrections, and preferences are
+the primary signals for finding related notes.
+
+Change only the RAG retrieval-query representation, not the authoritative input used to generate
+the final note:
+
+- Give roughly 75% of the retrieval-query character budget to meaningful user messages. Preserve
+  the initial request, subsequent constraints/corrections, and the most recent user messages before
+  less informative acknowledgements or intermediate messages.
+- Give the remaining roughly 25% to the last one or two `COMPLETE` assistant responses so retrieval
+  still reflects the conversation's current result and terminology. Do not let failed or canceled
+  assistant output displace user context.
+- Continue sending the complete chat through the captured `throughMessageId` to the summary model.
+  Omitting earlier assistant messages from the final prompt would lose explanations, decisions,
+  alternatives, and intermediate results needed for a standalone note.
+- Strengthen the summary system prompt: prioritize user goals, constraints, corrections, and
+  decisions; use assistant messages for explanations and proposed solutions; do not present an
+  assistant proposal as a user decision unless the conversation supports that conclusion.
+- Keep retrieved notes as untrusted secondary context. The current chat remains authoritative, and
+  related-note content must never supply instructions or facts claimed to have occurred in it.
+
+Add deterministic tests for short and over-budget chats, user/assistant budget allocation,
+selection of initial/corrective/recent user messages, exclusion of non-complete assistant output,
+and preservation of the complete bounded transcript in the final model prompt. A future two-query
+approach (user intent plus recent outcome, followed by result fusion and deduplication) may be
+evaluated separately if one user-centric embedding does not provide sufficient retrieval quality.
+
 ## Comment style migration to the new KDoc rule (project-wide)
 
 **Status:** not implemented. New rule adopted in `CLAUDE.md` ("Notes") going forward; existing
