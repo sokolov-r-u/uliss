@@ -47,6 +47,23 @@ val answer = 42
         expect(screen.getByText('unsafe')).not.toHaveAttribute('href')
         expect(screen.getByText('unsafe')).not.toHaveAttribute('node')
     })
+
+    it('keeps the streaming caret inside the final paragraph', () => {
+        const view = render(<MarkdownContent content="The partial answer" pending/>)
+        const caret = view.container.querySelector('.bubble-cursor')
+
+        expect(caret).toBeInTheDocument()
+        expect(caret?.parentElement?.tagName).toBe('P')
+        expect(caret).toHaveAttribute('aria-hidden', 'true')
+    })
+
+    it('places the streaming caret after a final code block', () => {
+        const view = render(<MarkdownContent content={'```kotlin\nval answer = 42\n```'} pending/>)
+        const caret = view.container.querySelector('.bubble-cursor')
+
+        expect(caret).toBeInTheDocument()
+        expect(caret?.parentElement).toHaveClass('markdown-content')
+    })
 })
 
 describe('AI Markdown boundaries', () => {
