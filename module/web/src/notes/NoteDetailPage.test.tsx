@@ -49,4 +49,30 @@ describe('NoteDetailPage', () => {
         expect(await screen.findByRole('heading', {name: 'Note not found'})).toBeInTheDocument()
         expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
     })
+
+    it('shows a protocol error when a READY note has no content', async () => {
+        mockedGetNote.mockResolvedValue({
+            id: 'note-1',
+            source: 'CHAT_SUMMARY',
+            status: 'READY',
+            content: null,
+        })
+
+        renderPage()
+
+        expect(await screen.findByRole('heading', {name: 'Could not load the note'})).toBeInTheDocument()
+        expect(screen.getByText('ready note content is unavailable')).toBeInTheDocument()
+    })
+
+    it('shows a protocol error when refetched note is not READY after the READY event', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null})
+            .mockResolvedValueOnce({id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null})
+        mockedStatus.mockResolvedValue('READY')
+
+        renderPage()
+
+        expect(await screen.findByRole('heading', {name: 'Could not load the note'})).toBeInTheDocument()
+        expect(screen.getByText('ready note content is unavailable')).toBeInTheDocument()
+    })
 })

@@ -92,6 +92,9 @@ class NoteSummaryRequestedHandlerTest {
             .arguments[0] as String
         assertTrue(systemPrompt.contains("Preserve important domain terms, technology names, and acronyms"))
         assertTrue(systemPrompt.contains("Do not invent synonyms, acronym expansions, or terminology"))
+        assertTrue(systemPrompt.contains("Use GitHub Flavored Markdown"))
+        assertTrue(systemPrompt.contains("Do not output raw HTML"))
+        assertTrue(systemPrompt.contains("wrap the whole note in a code fence"))
         Mockito.verify(noteService).completeChatSummary(payload.userId, payload.noteId, "Final summary")
     }
 

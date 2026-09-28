@@ -1,0 +1,144 @@
+.markdown-content {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.markdown-content > :first-child {
+    margin-top: 0;
+}
+
+.markdown-content > :last-child {
+    margin-bottom: 0;
+}
+
+.markdown-content p,
+.markdown-content ul,
+.markdown-content ol,
+.markdown-content blockquote,
+.markdown-content pre,
+.markdown-content table,
+.markdown-content hr {
+    margin: 0 0 0.9em;
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    margin: 1.25em 0 0.55em;
+    color: var(--cream);
+    font-family: var(--font-text);
+    font-weight: var(--read-weight-bold);
+    line-height: 1.25;
+}
+
+.markdown-content h1 {
+    font-size: 1.5em;
+}
+
+.markdown-content h2 {
+    font-size: 1.3em;
+}
+
+.markdown-content h3 {
+    font-size: 1.15em;
+}
+
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+    font-size: 1em;
+}
+
+.markdown-content strong {
+    font-weight: var(--read-weight-bold);
+}
+
+.markdown-content ul,
+.markdown-content ol {
+    padding-left: 1.5em;
+}
+
+.markdown-content li + li {
+    margin-top: 0.3em;
+}
+
+.markdown-content li > p {
+    margin-bottom: 0.35em;
+}
+
+.markdown-content blockquote {
+    padding-left: 1em;
+    border-left: 2px solid var(--line-strong);
+    color: var(--cream-dim);
+}
+
+.markdown-content a {
+    color: var(--accent-2);
+    text-decoration-color: color-mix(in srgb, var(--accent-2) 55%, transparent);
+    text-underline-offset: 0.18em;
+}
+
+.markdown-content a:hover {
+    text-decoration-color: var(--accent-2);
+}
+
+.markdown-content code,
+.markdown-content pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.markdown-content code {
+    padding: 0.08em 0.3em;
+    background: var(--bg-muted);
+    font-size: 0.88em;
+}
+
+.markdown-content pre {
+    max-width: 100%;
+    overflow-x: auto;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    background: var(--bg-panel);
+    font-size: 0.86em;
+    line-height: 1.55;
+    white-space: pre;
+}
+
+.markdown-content pre code {
+    padding: 0;
+    background: transparent;
+    font-size: inherit;
+}
+
+.markdown-content table {
+    display: block;
+    max-width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+}
+
+.markdown-content th,
+.markdown-content td {
+    padding: 0.45em 0.65em;
+    border: 1px solid var(--line);
+    text-align: left;
+}
+
+.markdown-content th {
+    color: var(--cream);
+    font-weight: var(--read-weight-bold);
+}
+
+.markdown-content hr {
+    border: 0;
+    border-top: 1px solid var(--line);
+}
+
+.markdown-content input[type='checkbox'] {
+    margin-right: 0.45em;
+    accent-color: var(--accent);
+}
