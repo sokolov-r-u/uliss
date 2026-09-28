@@ -1,11 +1,15 @@
-import type {ChangeEventHandler, FormEventHandler, ReactNode} from 'react'
+import type {ChangeEventHandler, FormEventHandler, KeyboardEventHandler, ReactNode} from 'react'
+import {useLayoutEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
+
+const TEXTAREA_MIN_HEIGHT = 24
+const TEXTAREA_MAX_HEIGHT = 144
 
 export interface ChatDockProps {
     placeholder?: string
     value: string
-    onChange: ChangeEventHandler<HTMLInputElement>
+    onChange: ChangeEventHandler<HTMLTextAreaElement>
     onSubmit?: FormEventHandler<HTMLFormElement>
     disabled?: boolean
     voiceDisabled?: boolean
@@ -31,36 +35,67 @@ export function ChatDock({
                              children,
                              className,
                          }: ChatDockProps) {
+    const inputRef = useRef<HTMLTextAreaElement>(null)
+
+    useLayoutEffect(() => {
+        const input = inputRef.current
+        if (!input) return
+        input.style.height = '0px'
+        const height = Math.max(TEXTAREA_MIN_HEIGHT, Math.min(input.scrollHeight, TEXTAREA_MAX_HEIGHT))
+        input.style.height = `${height}px`
+        input.style.overflowY = input.scrollHeight > TEXTAREA_MAX_HEIGHT ? 'auto' : 'hidden'
+    }, [value])
+
+    const handleKeyDown: KeyboardEventHandler<HTMLTextAreaElement> = (event) => {
+        if (event.key !== 'Enter' || event.shiftKey || event.nativeEvent.isComposing) return
+        event.preventDefault()
+        if (!disabled && !generationActive && value.trim() !== '') {
+            event.currentTarget.form?.requestSubmit()
+        }
+    }
+
     return (
         <form className={className} onSubmit={onSubmit} style={{padding: '10px 16px 18px', flex: '0 0 auto'}}>
             {children && <div style={{display: 'flex', justifyContent: 'center', marginBottom: 10}}>{children}</div>}
             <div style={{
                 display: 'flex',
-                alignItems: 'center',
+                alignItems: 'flex-end',
                 gap: 8,
-                height: 46,
-                padding: '0 6px 0 16px',
+                minHeight: 46,
+                padding: '6px 6px 6px 16px',
                 background: 'var(--bg-panel)',
                 border: '1px solid var(--line-strong)'
             }}>
-                <input
-                    type="text"
+                <textarea
+                    ref={inputRef}
+                    rows={1}
+                    wrap="soft"
                     value={value}
                     onChange={onChange}
+                    onKeyDown={handleKeyDown}
                     placeholder={placeholder}
                     disabled={disabled || generationActive}
                     aria-label="Message"
                     style={{
                         flex: 1,
                         minWidth: 0,
-                        height: '100%',
+                        minHeight: TEXTAREA_MIN_HEIGHT,
+                        maxHeight: TEXTAREA_MAX_HEIGHT,
                         border: 0,
                         outline: 0,
+                        padding: '2px 0',
+                        resize: 'none',
+                        overflowX: 'hidden',
+                        overflowY: 'hidden',
                         background: 'transparent',
                         color: 'var(--cream)',
                         fontFamily: 'var(--font-text)',
                         fontSize: 12.5,
-                        letterSpacing: '0.3px'
+                        lineHeight: '20px',
+                        letterSpacing: '0.3px',
+                        whiteSpace: 'pre-wrap',
+                        overflowWrap: 'break-word',
+                        wordBreak: 'normal'
                     }}
                 />
                 <IconButton s={34} title={voiceDisabled ? 'Voice input unavailable' : 'Voice input'}
