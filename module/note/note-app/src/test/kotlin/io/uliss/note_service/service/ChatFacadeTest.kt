@@ -29,10 +29,11 @@ class ChatFacadeTest {
     fun `requestSummary rejects a chat with no messages`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
         Mockito.`when`(chatService.getMessages(userId, chatId)).thenReturn(emptyList())
 
         assertFailsWith<BadRequestException> {
-            chatFacade.requestSummary(userId, chatId)
+            chatFacade.requestSummary(userId, chatId, idempotencyKey)
         }
         Mockito.verifyNoInteractions(noteService)
     }
@@ -41,15 +42,18 @@ class ChatFacadeTest {
     fun `requestSummary uses the last message as the immutable summary boundary`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
         val history = history(chatId)
         val throughMessageId = history.last().id
         Mockito.`when`(chatService.getMessages(userId, chatId)).thenReturn(history)
         val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteService.requestChatSummary(userId, chatId, throughMessageId)).thenReturn(savedNote)
+        Mockito.`when`(
+            noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
+        ).thenReturn(savedNote)
 
-        val result = chatFacade.requestSummary(userId, chatId)
+        val result = chatFacade.requestSummary(userId, chatId, idempotencyKey)
 
         assertSame(savedNote, result)
-        Mockito.verify(noteService).requestChatSummary(userId, chatId, throughMessageId)
+        Mockito.verify(noteService).requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
     }
 }

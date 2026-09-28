@@ -33,8 +33,11 @@ describe('noteApi', () => {
             noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING', createdAt: '2026-09-11T00:00:00Z',
         }, 202))
 
-        await expect(requestChatSummary('chat-1')).resolves.toMatchObject({noteId: 'note-1'})
-        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {method: 'POST'})
+        await expect(requestChatSummary('chat-1', 'request-1')).resolves.toMatchObject({noteId: 'note-1'})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1'},
+        })
     })
 
     it('distinguishes not found from retryable failures', async () => {

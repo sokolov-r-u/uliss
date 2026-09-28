@@ -6,20 +6,20 @@ generation are partially scaffolded.
 
 ## Modules
 
-| Gradle/npm module      | Directory                        | Purpose                                                                       |
-|------------------------|----------------------------------|-------------------------------------------------------------------------------|
-| `:auth`                | `module/auth`                    | OAuth2/OIDC authorization server and server-rendered login/registration UI    |
-| `:user`                | `module/user/user-app`           | User profiles, onboarding REST API, and internal gRPC API                     |
-| `:user-api`            | `module/user/user-api`           | Protobuf/gRPC contract shared with auth                                       |
-| `:note`                | `module/note/note-app`           | Persistent chats, SSE responses, one-shot AI requests, and future RAG storage |
-| `@uliss/web`           | `module/web`                     | React/Vite SPA                                                                |
-| `:security`            | `module/lib/security`            | Shared resource-server configuration and OAuth mediator                       |
-| `:database`            | `module/lib/database`            | Shared JPA, Flyway, auditing, and entity infrastructure                       |
-| `:exception`           | `module/lib/exception`           | Error handling and optimistic-lock retry support                              |
-| `:logging`             | `module/lib/logging`             | Shared structured/AOP logging                                                 |
-| `:monitoring`          | `module/lib/monitoring`          | Shared actuator configuration                                                 |
-| `:validation`          | `module/lib/validation`          | Shared Bean Validation constraints                                            |
-| `:uliss-design-system` | `module/lib/uliss-design-system` | CSS tokens, fonts, React components, and auth static resources                |
+| Gradle/npm module      | Directory                        | Purpose                                                                    |
+|------------------------|----------------------------------|----------------------------------------------------------------------------|
+| `:auth`                | `module/auth`                    | OAuth2/OIDC authorization server and server-rendered login/registration UI |
+| `:user`                | `module/user/user-app`           | User profiles, onboarding REST API, and internal gRPC API                  |
+| `:user-api`            | `module/user/user-api`           | Protobuf/gRPC contract shared with auth                                    |
+| `:note`                | `module/note/note-app`           | Persistent chats, SSE responses, asynchronous summaries, and RAG storage   |
+| `@uliss/web`           | `module/web`                     | React/Vite SPA                                                             |
+| `:security`            | `module/lib/security`            | Shared resource-server configuration and OAuth mediator                    |
+| `:database`            | `module/lib/database`            | Shared JPA, Flyway, auditing, and entity infrastructure                    |
+| `:exception`           | `module/lib/exception`           | Error handling and optimistic-lock retry support                           |
+| `:logging`             | `module/lib/logging`             | Shared structured/AOP logging                                              |
+| `:monitoring`          | `module/lib/monitoring`          | Shared actuator configuration                                              |
+| `:validation`          | `module/lib/validation`          | Shared Bean Validation constraints                                         |
+| `:uliss-design-system` | `module/lib/uliss-design-system` | CSS tokens, fonts, React components, and auth static resources             |
 
 The definitive Gradle mapping is in `settings.gradle.kts`. Dependency and toolchain versions live in
 `gradle/libs.versions.toml`; the Gradle version comes from `gradle/wrapper/gradle-wrapper.properties`.

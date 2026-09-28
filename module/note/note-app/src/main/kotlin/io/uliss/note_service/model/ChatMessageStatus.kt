@@ -15,4 +15,7 @@ enum class ChatMessageStatus {
      * the failed attempt isn't silently invisible after a reload.
      */
     FAILED,
+
+    /** The user explicitly stopped generation before a complete reply was persisted. */
+    CANCELED,
 }

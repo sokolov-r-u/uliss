@@ -6,7 +6,7 @@
 import {authFetch} from '../auth/apiClient'
 
 export type ChatMessageRole = 'USER' | 'ASSISTANT'
-export type ChatMessageStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED'
+export type ChatMessageStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED' | 'CANCELED'
 
 export type Chat = {
     id: string
@@ -17,6 +17,7 @@ export type Chat = {
 
 export type ChatMessage = {
     id: string
+    turnId?: string
     role: ChatMessageRole
     status: ChatMessageStatus
     content: string
@@ -58,15 +59,4 @@ export async function getMessages(chatId: string, signal?: AbortSignal): Promise
     const res = await authFetch(`/note/chats/${chatId}/messages`, {signal})
     if (!res.ok) throw new Error(`chat messages fetch failed (${res.status})`)
     return (await res.json()) as ChatMessage[]
-}
-
-/** Synchronous (non-streaming) reply — the streaming endpoint (`streamChatReply.ts`) drives the UI. */
-export async function sendMessage(chatId: string, content: string): Promise<ChatMessage> {
-    const res = await authFetch(`/note/chats/${chatId}/messages`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({content}),
-    })
-    if (!res.ok) throw new Error(`chat send failed (${res.status})`)
-    return (await res.json()) as ChatMessage
 }

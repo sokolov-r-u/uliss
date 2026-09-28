@@ -32,6 +32,12 @@ export function setTokens(tokens: Tokens): void {
 
 export function clearTokens(): void {
   sessionStorage.removeItem(KEY)
+    for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
+        const key = sessionStorage.key(index)
+        if (key?.startsWith('uliss.chat-turn.') || key?.startsWith('uliss.chat-summary.')) {
+            sessionStorage.removeItem(key)
+        }
+    }
 }
 
 export function isExpired(tokens: Tokens): boolean {

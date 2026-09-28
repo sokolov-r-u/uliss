@@ -1,8 +1,11 @@
 # Note service
 
-`module/note/note-app` (`:note`, package `io.uliss.note_service`) owns one-shot AI requests,
-persistent chats, asynchronous chat summaries, notes, and per-user retrieval-augmented generation (RAG).
+`module/note/note-app` (`:note`, package `io.uliss.note_service`) owns persistent chats,
+asynchronous chat summaries, notes, and per-user retrieval-augmented generation (RAG).
 `WebMvcPathPrefixConfig` adds `/note` to every REST controller.
+
+See [REQUEST_FLOWS.md](REQUEST_FLOWS.md) for endpoint call order, transaction boundaries, chat-turn
+states, and asynchronous summary/indexing diagrams.
 
 ## AI providers and configuration
 
@@ -17,14 +20,21 @@ avoid colliding with Spring AI retry auto-configuration.
 
 ## Chat and summary APIs
 
-`ChatController` exposes chat creation/listing, message history, synchronous replies, and streamed
-replies under `/note/chats`. `ChatService` performs chat lookups using both chat ID and authenticated
-user ID, so missing and foreign chats are indistinguishable.
+`ChatController` exposes chat creation/listing, message history, idempotent streamed replies, turn
+cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
+`done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
+ID, so missing and foreign chats are indistinguishable.
+
+`POST /note/chats/{chatId}/messages/stream` requires a client-generated UUID in `Idempotency-Key`.
+The key identifies retries of one logical send within that chat. The backend generates a separate
+durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
+history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
+returns `done` or `error` without replaying text fragments or calling the provider again.
 
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a
 `NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
-`202 Accepted`, a `Location` header for the note, and the placeholder identity/status.
+`202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status.
 
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
