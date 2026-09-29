@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch} from '../auth/apiClient'
-import {cancelChatTurn, streamAssistantReply} from './streamChatReply'
+import {cancelChatTurn, streamAssistantReply, streamInitialAssistantReply} from './streamChatReply'
 
 vi.mock('../auth/apiClient', () => ({authFetch: vi.fn()}))
 
@@ -39,7 +39,7 @@ describe('streamAssistantReply', () => {
 
         expect(receivedText).toEqual(['Hel', 'lo'])
         expect(onTurnId).toHaveBeenCalledWith('turn-1')
-        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/messages/stream', {
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/messages', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -58,6 +58,42 @@ describe('streamAssistantReply', () => {
             .resolves.toBe('pending')
         expect(onTurnId).toHaveBeenCalledWith('turn-1')
         expect(onAppendText).not.toHaveBeenCalled()
+    })
+
+    it('captures the backend-created chat identity from the initial response headers', async () => {
+        const response = sseResponse(['event: done\ndata:\n\n'])
+        response.headers.set('Chat-Id', 'chat-1')
+        mockedFetch.mockResolvedValue(response)
+        const onChatId = vi.fn()
+        const onTurnId = vi.fn()
+
+        await expect(streamInitialAssistantReply('Hi', 'key-1', {
+            onChatId,
+            onTurnId,
+            onAppendText: vi.fn(),
+        })).resolves.toBe('done')
+
+        expect(onChatId).toHaveBeenCalledWith('chat-1')
+        expect(onTurnId).toHaveBeenCalledWith('turn-1')
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                'Idempotency-Key': 'key-1',
+            },
+            body: JSON.stringify({content: 'Hi'}),
+        })
+    })
+
+    it('rejects an initial response without the backend chat identity', async () => {
+        mockedFetch.mockResolvedValue(sseResponse(['event: done\ndata:\n\n']))
+
+        await expect(streamInitialAssistantReply('Hi', 'key-1', {
+            onChatId: vi.fn(),
+            onTurnId: vi.fn(),
+            onAppendText: vi.fn(),
+        })).rejects.toThrow('Chat-Id')
     })
 
     it('preserves the identity when the body ends without a terminal event', async () => {

@@ -3,7 +3,7 @@ import {useEffect, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {Button, EmptyState, ListHeader, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {type Chat, createChat, listChats} from './chatApi'
+import {type Chat, listChats} from './chatApi'
 import './chat.css'
 
 type ListState =
@@ -22,8 +22,6 @@ function formatDate(iso?: string): string {
 export function ChatListPage() {
     const navigate = useNavigate()
     const [state, setState] = useState<ListState>({status: 'loading'})
-    const [creating, setCreating] = useState(false)
-    const [createError, setCreateError] = useState<string | null>(null)
 
     useEffect(() => {
         let active = true
@@ -44,16 +42,7 @@ export function ChatListPage() {
     }, [])
 
     function onNewChat() {
-        if (creating) return
-        setCreating(true)
-        setCreateError(null)
-        createChat()
-            .then((chat) => navigate(`/chats/${chat.id}`))
-            .catch((e: unknown) => {
-                if (e instanceof AuthRequiredError) return
-                setCreateError(e instanceof Error ? e.message : String(e))
-                setCreating(false)
-            })
+        navigate('/chats/new')
     }
 
     return (
@@ -62,14 +51,13 @@ export function ChatListPage() {
                 kicker="Chats"
                 total={state.status === 'ready' ? state.chats.length : undefined}
                 right={
-                    <Button variant="quiet" disabled={creating} onClick={onNewChat}>
-                        {creating ? 'Creating…' : 'New chat'}
+                    <Button variant="quiet" onClick={onNewChat}>
+                        New chat
                     </Button>
                 }
             />
 
             <div className="chat-list-body">
-                {createError && <p className="chat-state chat-state-error">{createError}</p>}
                 {state.status === 'loading' && <p className="chat-state">Loading…</p>}
                 {state.status === 'error' && <p className="chat-state chat-state-error">{state.message}</p>}
 
@@ -77,7 +65,7 @@ export function ChatListPage() {
                     <EmptyState
                         title="No chats yet"
                         body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
-                        action={creating ? 'Creating…' : 'Start a chat'}
+                        action="Start a chat"
                         onAction={onNewChat}
                     />
                 )}

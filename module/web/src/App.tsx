@@ -53,6 +53,7 @@ export function App() {
       >
           <Route index element={<Navigate to="/chats" replace/>}/>
           <Route path="chats" element={<ChatListPage/>}/>
+          <Route path="chats/new" element={<ChatPage newChat/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
           <Route path="notes" element={<NotesPage/>}/>
           <Route path="notes/:noteId" element={<NoteDetailPage/>}/>

@@ -4,7 +4,12 @@ import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
-import {cancelChatTurn, ChatStreamHttpError, streamAssistantReply} from './streamChatReply'
+import {
+    cancelChatTurn,
+    ChatStreamHttpError,
+    streamAssistantReply,
+    streamInitialAssistantReply,
+} from './streamChatReply'
 import {clearTokens} from '../auth/tokenStore'
 import {ChatPage} from './ChatPage'
 
@@ -14,6 +19,7 @@ vi.mock('./chatApi', () => ({
 }))
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
+    streamInitialAssistantReply: vi.fn(),
     cancelChatTurn: vi.fn(),
     ChatStreamHttpError: class ChatStreamHttpError extends Error {
         constructor(public readonly status: number) {
@@ -37,6 +43,7 @@ vi.mock('../notes/noteApi', () => ({
 const mockedGetMessages = vi.mocked(getMessages)
 const mockedSummary = vi.mocked(requestChatSummary)
 const mockedStream = vi.mocked(streamAssistantReply)
+const mockedInitialStream = vi.mocked(streamInitialAssistantReply)
 
 function messagePage(
     messages: ChatMessage[],
@@ -52,11 +59,19 @@ function renderPage() {
     </Routes></MemoryRouter>)
 }
 
+function renderNewPage() {
+    return render(<MemoryRouter initialEntries={['/chats/new']}><Routes>
+        <Route path="/chats/new" element={<ChatPage newChat/>}/>
+        <Route path="/chats/:chatId" element={<ChatPage/>}/>
+    </Routes></MemoryRouter>)
+}
+
 describe('ChatPage summary flow', () => {
     beforeEach(() => {
         mockedGetMessages.mockReset()
         mockedSummary.mockReset()
         mockedStream.mockReset()
+        mockedInitialStream.mockReset()
         vi.mocked(cancelChatTurn).mockReset().mockResolvedValue(undefined)
         vi.mocked(notifyChatListChanged).mockClear()
         sessionStorage.clear()
@@ -65,6 +80,74 @@ describe('ChatPage summary flow', () => {
             {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
         ]))
         mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+    })
+
+    it('opens an unpersisted empty chat and creates it on the first send', async () => {
+        const saved = messagePage([
+            {id: 'u-new', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'First question'},
+            {id: 'a-new', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'First answer'},
+        ])
+        mockedGetMessages.mockResolvedValue(saved)
+        mockedInitialStream.mockImplementation(async (content, _key, options) => {
+            expect(content).toBe('First question')
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            return 'done'
+        })
+
+        renderNewPage()
+
+        const input = await screen.findByRole('textbox', {name: 'Message'})
+        expect(mockedInitialStream).not.toHaveBeenCalled()
+        expect(mockedGetMessages).not.toHaveBeenCalled()
+
+        await userEvent.type(input, 'First question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        await waitFor(() => expect(mockedInitialStream).toHaveBeenCalledOnce())
+        expect(mockedStream).not.toHaveBeenCalled()
+        expect(await screen.findByText('First answer')).toBeInTheDocument()
+        expect(mockedGetMessages).toHaveBeenCalledWith(
+            'chat-new',
+            expect.objectContaining({signal: expect.anything()}),
+        )
+    })
+
+    it('retries initial creation with the same key when the chat id header was lost', async () => {
+        mockedInitialStream
+            .mockRejectedValueOnce(new Error('connection lost'))
+            .mockImplementationOnce(async (_content, _key, options) => {
+                options.onChatId('chat-recovered')
+                options.onTurnId('turn-recovered')
+                return 'done'
+            })
+        mockedGetMessages.mockResolvedValue(messagePage([
+            {
+                id: 'u-recovered',
+                turnId: 'turn-recovered',
+                role: 'USER',
+                status: 'COMPLETE',
+                content: 'First question',
+            },
+            {
+                id: 'a-recovered',
+                turnId: 'turn-recovered',
+                role: 'ASSISTANT',
+                status: 'COMPLETE',
+                content: 'Recovered answer',
+            },
+        ]))
+
+        renderNewPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'First question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
+        await waitFor(() => expect(mockedInitialStream).toHaveBeenCalledTimes(2))
+        expect(mockedInitialStream.mock.calls[1]?.[1]).toBe(mockedInitialStream.mock.calls[0]?.[1])
+        expect(mockedStream).not.toHaveBeenCalled()
+        expect(await screen.findByText('Recovered answer')).toBeInTheDocument()
+        expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
     })
 
     it('starts a turn when the page is served without Web Crypto', async () => {

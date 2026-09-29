@@ -63,7 +63,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                                                                         size={16}/></IconButton>
                     </div>
 
-                    <NavLink to="/chats" onClick={onClose} className="side-nav-new">
+                    <NavLink to="/chats/new" onClick={onClose} className="side-nav-new">
                         <span className="side-nav-new-icon"><Icon name="plus" size={15}/></span>
                         <span className="side-nav-new-label">New</span>
                     </NavLink>

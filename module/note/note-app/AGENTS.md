@@ -24,11 +24,12 @@ note-service.
 - Keep controller code limited to transport and authentication mapping; conversation orchestration belongs in services.
 - Changes to SSE events, message status, ownership lookup, or chat DTOs are frontend contract changes and require
   synchronized web tests/changes.
-- Flyway migrations are append-only after release. The unreleased V3/V4 migrations may be amended by the active
-  chat-idempotency task; recreate disposable databases after checksum changes. Preserve the service-owned `note`
-  schema and pgvector compatibility.
-- Message pagination and first-message title generation are deferred in `docs/TECH_DEBT.md`; do not implement them
-  incidentally.
+- Flyway migrations are append-only. Add a new versioned migration for every schema change; never edit an existing
+  migration. Preserve the service-owned `note` schema and pgvector compatibility.
+- Message pagination is limited to the existing browser-history contract. Initial chat creation and first-turn
+  reservation are one transaction; derive the title there from the first user message. The frontend must not generate
+  chat IDs or titles, and no provider call may be added for title generation without explicit scope. Persist the initial
+  request key so a retry can recover the backend-generated chat after response loss.
 
 ## Verification
 

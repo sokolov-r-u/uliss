@@ -201,7 +201,7 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Answer"))
 
-        fun send() = mockMvc.post("/note/chats/${chat.id}/messages/stream") {
+        fun send() = mockMvc.post("/note/chats/${chat.id}/messages") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
             header("Idempotency-Key", key)
             contentType = MediaType.APPLICATION_JSON
