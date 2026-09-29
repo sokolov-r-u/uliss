@@ -23,34 +23,81 @@ class ChatServiceTest {
     private val chatService = ChatService(chatRepository, chatMessageRepository)
 
     @Test
-    fun `createChat uses the given title`() {
+    fun `createChat derives the title and returns the persisted chat`() {
         val userId = UUID.randomUUID()
-        Mockito.`when`(chatRepository.save(anyValue())).thenAnswer { it.getArgument<ChatEntity>(0) }
+        val idempotencyKey = UUID.randomUUID()
+        val persistedChat = ChatEntity(userId, "persisted").apply { id = UUID.randomUUID() }
+        var insertedTitle: String? = null
+        Mockito.`when`(
+            chatRepository.insertChatOnConflictDoNothing(anyValue(), anyValue(), anyValue(), anyValue())
+        ).thenAnswer {
+            assertEquals(userId, it.getArgument(1))
+            assertEquals(idempotencyKey, it.getArgument(2))
+            insertedTitle = it.getArgument(3)
+            1
+        }
+        Mockito.`when`(chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+            .thenReturn(persistedChat)
 
-        val result = chatService.createChat(userId, "Trip planning")
+        val result = chatService.createChat(
+            userId,
+            idempotencyKey,
+            "  Explain PostgreSQL locks\nwithout jargon  ",
+        )
 
-        assertEquals("Trip planning", result.title)
-        assertEquals(userId, result.userId)
+        assertSame(persistedChat, result)
+        assertEquals("Explain PostgreSQL locks without jargon", insertedTitle)
     }
 
     @Test
-    fun `createChat falls back to a default title when null`() {
+    fun `createChat returns the original chat when the idempotent insert loses the conflict`() {
         val userId = UUID.randomUUID()
-        Mockito.`when`(chatRepository.save(anyValue())).thenAnswer { it.getArgument<ChatEntity>(0) }
+        val idempotencyKey = UUID.randomUUID()
+        val originalChat = ChatEntity(userId, "Original title").apply { id = UUID.randomUUID() }
+        Mockito.`when`(
+            chatRepository.insertChatOnConflictDoNothing(anyValue(), anyValue(), anyValue(), anyValue())
+        ).thenReturn(0)
+        Mockito.`when`(chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+            .thenReturn(originalChat)
 
-        val result = chatService.createChat(userId, null)
+        val result = chatService.createChat(userId, idempotencyKey, "Changed retry content")
 
-        assertEquals("New chat", result.title)
+        assertSame(originalChat, result)
+        assertEquals("Original title", result.title)
+        Mockito.verify(chatRepository).findByUserIdAndIdempotencyKey(userId, idempotencyKey)
     }
 
     @Test
-    fun `createChat falls back to a default title when blank`() {
+    fun `createChat truncates a Unicode title to 50 code points including ellipsis`() {
         val userId = UUID.randomUUID()
-        Mockito.`when`(chatRepository.save(anyValue())).thenAnswer { it.getArgument<ChatEntity>(0) }
+        val idempotencyKey = UUID.randomUUID()
+        val persistedChat = ChatEntity(userId, "persisted")
+        var insertedTitle: String? = null
+        Mockito.`when`(
+            chatRepository.insertChatOnConflictDoNothing(anyValue(), anyValue(), anyValue(), anyValue())
+        ).thenAnswer {
+            insertedTitle = it.getArgument(3)
+            1
+        }
+        Mockito.`when`(chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+            .thenReturn(persistedChat)
 
-        val result = chatService.createChat(userId, "   ")
+        chatService.createChat(userId, idempotencyKey, "${"😀".repeat(48)} tail")
 
-        assertEquals("New chat", result.title)
+        val title = checkNotNull(insertedTitle)
+        assertEquals("${"😀".repeat(47)}...", title)
+        assertEquals(50, title.codePointCount(0, title.length))
+    }
+
+    @Test
+    fun `createChat fails when the repository cannot recover the persisted result`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+
+        assertFailsWith<IllegalStateException> {
+            chatService.createChat(userId, idempotencyKey, "hello")
+        }
+        Mockito.verify(chatRepository).findByUserIdAndIdempotencyKey(userId, idempotencyKey)
     }
 
     @Test

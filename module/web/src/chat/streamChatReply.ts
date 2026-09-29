@@ -1,5 +1,5 @@
 /**
- * Drives the streaming reply endpoint (`POST /note/chats/{id}/messages/stream`). Native
+ * Drives the streaming reply endpoints (`POST /note/chats` and `POST /note/chats/{id}/messages`). Native
  * `EventSource` can't send the Bearer header, so this goes through `authFetch` + `response.body`
  * fed into the generic `parseSseStream` (see lib/sse.ts). `AuthRequiredError`/`AbortError` (from
  * `opts.signal`) propagate to the caller unchanged — this module only interprets the SSE protocol.
@@ -8,6 +8,12 @@ import {authFetch} from '../auth/apiClient'
 import {parseSseStream} from '../lib/sse'
 
 export type StreamOutcome = 'done' | 'error' | 'pending'
+
+type StreamOptions = {
+    onAppendText: (text: string) => void
+    onTurnId: (turnId: string) => void
+    signal?: AbortSignal
+}
 
 export class ChatStreamHttpError extends Error {
     constructor(public readonly status: number) {
@@ -20,9 +26,26 @@ export async function streamAssistantReply(
     chatId: string,
     content: string,
     idempotencyKey: string,
-    opts: { onAppendText: (text: string) => void; onTurnId: (turnId: string) => void; signal?: AbortSignal },
+    opts: StreamOptions,
 ): Promise<StreamOutcome> {
-    const res = await authFetch(`/note/chats/${chatId}/messages/stream`, {
+    return streamReply(`/note/chats/${chatId}/messages`, content, idempotencyKey, opts)
+}
+
+export async function streamInitialAssistantReply(
+    content: string,
+    idempotencyKey: string,
+    opts: StreamOptions & { onChatId: (chatId: string) => void },
+): Promise<StreamOutcome> {
+    return streamReply('/note/chats', content, idempotencyKey, opts)
+}
+
+async function streamReply(
+    path: string,
+    content: string,
+    idempotencyKey: string,
+    opts: StreamOptions & { onChatId?: (chatId: string) => void },
+): Promise<StreamOutcome> {
+    const res = await authFetch(path, {
         method: 'POST',
         // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
         // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
@@ -35,8 +58,15 @@ export async function streamAssistantReply(
         signal: opts.signal,
     })
     if (!res.ok) throw new ChatStreamHttpError(res.status)
+    let chatId: string | undefined
+    if (opts.onChatId) {
+        const responseChatId = res.headers.get('Chat-Id')
+        if (!responseChatId) throw new Error('initial chat stream response is missing Chat-Id')
+        chatId = responseChatId
+    }
     const turnId = res.headers.get('Chat-Turn-Id')
     if (!turnId) throw new Error('chat stream response is missing Chat-Turn-Id')
+    if (opts.onChatId && chatId) opts.onChatId(chatId)
     opts.onTurnId(turnId)
     if (opts.signal?.aborted) {
         await res.body?.cancel()

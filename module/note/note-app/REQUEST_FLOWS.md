@@ -65,17 +65,17 @@ application services or outbox handlers.
 
 ## Endpoint routing
 
-| Request                                           | Synchronous call path                                                 | Result                                             |
-|---------------------------------------------------|-----------------------------------------------------------------------|----------------------------------------------------|
-| `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService`                         | Creates an owned chat                              |
-| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService`                         | Lists the user's chats                             |
-| `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                         | Returns an ownership-filtered cursor page          |
-| `POST /note/chats/{chatId}/messages/stream`       | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService` | Reserves or replays a turn, then returns SSE       |
-| `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService` | Cancels an active turn                             |
-| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`           | Creates or replays an asynchronous summary request |
-| `GET /note/notes`                                 | `NoteController -> NoteService`                                       | Lists the user's notes                             |
-| `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                       | Returns an ownership-filtered note                 |
-| `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                       | Streams persisted note status changes              |
+| Request                                           | Synchronous call path                                                               | Result                                             |
+|---------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------|
+| `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService + AssistantService -> ChatTurnService` | Creates the chat and reserves its first turn       |
+| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService`                                       | Lists the user's chats                             |
+| `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                                       | Returns an ownership-filtered cursor page          |
+| `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
+| `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
+| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or replays an asynchronous summary request |
+| `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
+| `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
+| `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
 
 ## Paginated chat history
 
@@ -115,11 +115,13 @@ all messages through the captured summary boundary.
 ## Streamed chat turn
 
 The client generates an `Idempotency-Key` for one logical send and retains it while that operation
-is unresolved. PostgreSQL scopes this key to the chat. The backend separately generates the
-`chat_turn.id`, returns it in `Chat-Turn-Id`, and stores it on the turn's USER and ASSISTANT
-messages. The server also calculates a SHA-256 request fingerprint from the fingerprint format
-version and the exact UTF-8 prompt bytes. The fingerprint prevents the same client key from being
-reused for different input in the same chat.
+is unresolved. For the first message, no chat ID is supplied: the backend generates it, persists the
+same key as the user-scoped chat idempotency key, and returns `Chat-Id`. A lost response can therefore
+be retried with the same key without creating another chat. Subsequent-turn keys are scoped to the
+known chat. The backend separately generates `chat_turn.id`, returns it in `Chat-Turn-Id`, and stores
+it on the turn's USER and ASSISTANT messages. The server also calculates a SHA-256 request
+fingerprint from the fingerprint format version and the exact UTF-8 prompt bytes. The fingerprint
+prevents the same client key from being reused for different input.
 
 ```mermaid
 sequenceDiagram
@@ -132,8 +134,8 @@ sequenceDiagram
     participant TS as ChatTurnStore
     participant MR as ChatMessageRepository
     participant AI as ChatClient
-    C ->> HC: POST messages/stream<br/>Idempotency-Key = client key
-    HC ->> F: streamMessage(userId, chatId, idempotencyKey, prompt)
+  C ->> HC: POST messages<br/>Idempotency-Key = client key
+  HC ->> F: streamReply(userId, chatId, idempotencyKey, prompt)
     F ->> A: streamReply(...)
     A ->> L: resolveTurnRequest(...)
 

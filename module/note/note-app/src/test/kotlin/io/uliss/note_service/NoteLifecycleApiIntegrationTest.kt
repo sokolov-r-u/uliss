@@ -18,8 +18,8 @@ import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.AssistantService
-import io.uliss.note_service.service.ChatFacade
 import io.uliss.note_service.service.ChatTurnService
+import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.type.AssistantStreamEvent
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Tag
@@ -201,7 +201,7 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Answer"))
 
-        fun send() = mockMvc.post("/note/chats/${chat.id}/messages/stream") {
+        fun send() = mockMvc.post("/note/chats/${chat.id}/messages") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
             header("Idempotency-Key", key)
             contentType = MediaType.APPLICATION_JSON
@@ -223,6 +223,79 @@ class NoteLifecycleApiIntegrationTest {
         assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
         assertTrue(messages.all { it.turnId == turnId })
         Mockito.verify(chatClient, Mockito.times(1)).prompt()
+    }
+
+    @Test
+    fun `initial stream atomically creates the chat and replays both backend identities`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("First answer"))
+
+        fun send() = mockMvc.post("/note/chats") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", key)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"  First question\nwith context  "}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            header { string("Idempotency-Key", key.toString()) }
+            header { exists("Chat-Id") }
+            header { exists("Chat-Turn-Id") }
+            content { string(Matchers.containsString("event:done")) }
+        }.andReturn().response
+
+        val first = send()
+        val chatId = UUID.fromString(first.getHeader("Chat-Id"))
+        val turnId = UUID.fromString(first.getHeader("Chat-Turn-Id"))
+        assertNotEquals(key, chatId)
+        assertNotEquals(key, turnId)
+        assertNotEquals(chatId, turnId)
+        assertTrue(first.contentAsString.contains("event:append"))
+        assertEquals("First question with context", chatRepository.findById(chatId).orElseThrow().title)
+        val replay = send()
+        assertEquals(chatId.toString(), replay.getHeader("Chat-Id"))
+        assertEquals(turnId.toString(), replay.getHeader("Chat-Turn-Id"))
+        assertFalse(replay.contentAsString.contains("event:append"))
+        val messages = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+        assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
+        assertTrue(messages.all { it.turnId == turnId })
+        Mockito.verify(chatClient, Mockito.times(1)).prompt()
+    }
+
+    @Test
+    fun `initial provider setup failure keeps the reserved chat and persists FAILED`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.doThrow(RuntimeException("provider setup failed")).`when`(chatClient).prompt()
+
+        val response = mockMvc.post("/note/chats") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"Question that must remain durable"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            header { exists("Chat-Id") }
+            header { exists("Chat-Turn-Id") }
+            content {
+                string(Matchers.containsString("event:error"))
+                string(Matchers.not(Matchers.containsString("event:done")))
+            }
+        }.andReturn().response
+
+        val chatId = UUID.fromString(response.getHeader("Chat-Id"))
+        val turnId = UUID.fromString(response.getHeader("Chat-Turn-Id"))
+        assertEquals(chatId, chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)?.id)
+        val messages = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+        assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
+        assertEquals(listOf(ChatMessageStatus.COMPLETE, ChatMessageStatus.FAILED), messages.map { it.status })
+        assertTrue(messages.all { it.turnId == turnId })
     }
 
     @Test

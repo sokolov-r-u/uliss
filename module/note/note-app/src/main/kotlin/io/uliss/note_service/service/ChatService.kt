@@ -1,5 +1,6 @@
 package io.uliss.note_service.service
 
+import io.uliss.database.entity.generateId
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
@@ -10,10 +11,9 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.service.type.ChatMessageCursorPage
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-
-private const val DEFAULT_CHAT_TITLE = "New chat"
 
 internal data class ChatSummaryContext(
     val title: String,
@@ -27,9 +27,17 @@ class ChatService(
     private val chatMessageRepository: ChatMessageRepository,
 ) {
 
-    @Transactional
-    fun createChat(userId: UUID, title: String?): ChatEntity =
-        chatRepository.save(ChatEntity(userId, title?.takeIf { it.isNotBlank() } ?: DEFAULT_CHAT_TITLE))
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun createChat(userId: UUID, idempotencyKey: UUID, content: String): ChatEntity {
+        chatRepository.insertChatOnConflictDoNothing(
+            id = generateId(),
+            userId = userId,
+            idempotencyKey = idempotencyKey,
+            title = generateInitialTitle(content),
+        )
+        return chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+            ?: error("initial chat could not be loaded after insert")
+    }
 
     fun getChats(userId: UUID): List<ChatEntity> =
         chatRepository.findByUserIdOrderByCreatedAtDesc(userId)
@@ -83,7 +91,23 @@ class ChatService(
     fun persistAssistantReply(chatId: UUID, content: String, status: ChatMessageStatus): ChatMessageEntity =
         chatMessageRepository.save(ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, content, status))
 
-    private fun requireOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
+    fun requireOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
         chatRepository.findByIdAndUserId(chatId, userId)
             ?: throw NotFoundException("chat id=$chatId not found")
+
+    private fun generateInitialTitle(content: String): String {
+        val normalized = content.trim().replace(Regex("\\s+"), " ")
+        val codePointCount = normalized.codePointCount(0, normalized.length)
+        if (codePointCount <= INITIAL_TITLE_MAX_CODE_POINTS) return normalized
+
+        val prefixCodePoints = INITIAL_TITLE_MAX_CODE_POINTS - INITIAL_TITLE_SUFFIX.length
+        val prefixEnd = normalized.offsetByCodePoints(0, prefixCodePoints)
+        return normalized.substring(0, prefixEnd).trimEnd() + INITIAL_TITLE_SUFFIX
+    }
+
+    private companion object {
+        const val INITIAL_TITLE_MAX_CODE_POINTS = 50
+        const val INITIAL_TITLE_SUFFIX = "..."
+    }
+
 }

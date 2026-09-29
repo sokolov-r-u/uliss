@@ -172,24 +172,17 @@ Recorded as a future cleanup pass — convert the remaining multi-line `//` comm
 codebase to the KDoc format on a later, dedicated task rather than as a side effect of unrelated
 changes.
 
-## AI-generated chat title on first message (`note-service`)
+## AI-generated semantic chat title (`note-service`)
 
-**Status:** not implemented. `ChatService.createChat` (`module/note/note-app/.../service/ChatService.kt:24`)
-always falls back to the hardcoded `DEFAULT_CHAT_TITLE = "New chat"` when the client doesn't pass a
-`title` (`CreateChatRequest.title` is optional, `module/note/note-app/.../dto/CreateChatRequest.kt`).
+**Status:** optional enhancement, not implemented. The backend initial-turn transaction creates the
+chat with a whitespace-normalized prefix of the first user message, truncated to 50 Unicode code
+points with `...` when needed. The frontend sends only the prompt and a request `Idempotency-Key`; it
+does not derive or submit a title or chat ID. This is deterministic and adds no provider latency or
+failure mode. The request key lets the backend recover both generated identities.
 
-### Problem
-
-When a chat is created together with its first message, the neural network should also come up with a
-short, meaningful chat title derived from that message, instead of leaving every chat named "New chat"
-(or requiring the client to invent one). This needs a separate call/prompt to the AI provider
-(DeepSeek) to generate the title — analogous to how ChatGPT/Claude-style products title conversations
-from the first user message.
-
-### Not in scope for the current task
-
-Recorded as a future plan — implementation (backend, and frontend if the title needs to appear/update
-asynchronously in the chat list) is a separate task.
+Generating a shorter semantic title with the configured chat provider would require a separate product
+decision covering provider cost, failure fallback, and whether the title update is synchronous or
+asynchronous. Do not add that provider call incidentally.
 
 ## Design system — deferred items (`:uliss-design-system`)
 

@@ -55,18 +55,6 @@ export async function listChats(): Promise<Chat[]> {
     return (await res.json()) as Chat[]
 }
 
-export async function createChat(title?: string): Promise<Chat> {
-    const res = await authFetch('/note/chats', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(title ? {title} : {}),
-    })
-    if (!res.ok) throw new Error(`chat create failed (${res.status})`)
-    const chat = (await res.json()) as Chat
-    notifyChatListChanged()
-    return chat
-}
-
 export async function getMessages(
     chatId: string,
     {before, limit = 50, signal}: GetMessagesOptions = {},

@@ -1,5 +1,7 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.InternalException
+import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
@@ -154,6 +156,33 @@ class AssistantServiceTest {
     }
 
     @Test
+    fun `provider setup starts on subscription and a synchronous failure finalizes FAILED`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val start = ChatTurnRequestResolution.StartGeneration(
+            turn(userId, chatId, turnId, ChatTurnStatus.GENERATING).copy(idempotencyKey = idempotencyKey),
+            history(chatId, turnId),
+        )
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
+            .thenReturn(start)
+        Mockito.doThrow(RuntimeException("provider setup failed")).`when`(chatClient).prompt()
+        Mockito.`when`(
+            chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
+        ).thenReturn(true)
+
+        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        Mockito.verify(chatClient, Mockito.never()).prompt()
+
+        StepVerifier.create(reply.events)
+            .expectErrorMatches { it.message == "provider setup failed" }
+            .verify(Duration.ofSeconds(1))
+        Mockito.verify(chatTurnService)
+            .finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
+    }
+
+    @Test
     fun `terminal and pending replays do not call the provider`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
@@ -222,6 +251,21 @@ class ChatTurnServiceTest {
     private val service = ChatTurnService(store, messages, executionPolicy)
 
     @Test
+    fun `missing or foreign chat is rejected before any turn lookup`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(false)
+
+        assertFailsWith<NotFoundException> {
+            service.resolveTurnRequest(userId, chatId, UUID.randomUUID(), "hello")
+        }
+
+        Mockito.verify(store).lockOwnedChat(userId, chatId)
+        Mockito.verifyNoMoreInteractions(store)
+        Mockito.verifyNoInteractions(messages)
+    }
+
+    @Test
     fun `first request reserves turn and saves exactly one turn-backed user message`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
@@ -252,6 +296,26 @@ class ChatTurnServiceTest {
         assertEquals(" exact ", result.history.single().content)
         assertEquals(result.turn.id, result.history.single().turnId)
         Mockito.verify(messages, Mockito.times(1)).save(anyValue())
+    }
+
+    @Test
+    fun `failed turn reservation does not persist the user message`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
+        Mockito.`when`(store.findByIdempotencyKey(userId, chatId, idempotencyKey)).thenReturn(null)
+        Mockito.`when`(store.findGenerating(userId, chatId)).thenReturn(null)
+        Mockito.`when`(messages.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(emptyList())
+        Mockito.`when`(
+            store.insert(anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), Mockito.anyLong())
+        ).thenReturn(null)
+
+        assertFailsWith<InternalException> {
+            service.resolveTurnRequest(userId, chatId, idempotencyKey, "hello")
+        }
+
+        Mockito.verify(messages, Mockito.never()).save(anyValue())
     }
 
     @Test

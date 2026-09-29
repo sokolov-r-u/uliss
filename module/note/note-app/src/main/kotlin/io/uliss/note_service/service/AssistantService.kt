@@ -25,19 +25,26 @@ class AssistantService(
 ) {
     private val log = AppLogger.of(AssistantService::class)
 
-    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
-        when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
+    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream {
+        return when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
             is ChatTurnRequestResolution.StartGeneration ->
-                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution))
+                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution), resolution.turn.chatId)
+
             is ChatTurnRequestResolution.AlreadyGenerating ->
                 AssistantReplyStream(
                     resolution.turn.id,
                     Flux.just(AssistantStreamEvent.GenerationPending(resolution.turn.retryAfterMs)),
+                    resolution.turn.chatId,
                 )
 
             is ChatTurnRequestResolution.AlreadyFinished ->
-                AssistantReplyStream(resolution.turn.id, Flux.just(resolution.turn.status.toReplayEvent()))
+                AssistantReplyStream(
+                    resolution.turn.id,
+                    Flux.just(resolution.turn.status.toReplayEvent()),
+                    resolution.turn.chatId,
+                )
         }
+    }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
         chatTurnService.cancelTurn(userId, chatId, turnId)
@@ -45,17 +52,11 @@ class AssistantService(
 
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
-    ): Flux<AssistantStreamEvent> {
-        val providerTokens = chatClient.prompt()
-            .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
-            .messages(toAiMessages(resolution.history))
-            .stream()
-            .content()
-
-        return Flux.usingWhen(
+    ): Flux<AssistantStreamEvent> =
+        Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
-                providerTokens
+                streamProviderTokens(resolution.history)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
@@ -63,6 +64,13 @@ class AssistantService(
             { reply, _ -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
         ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
+
+    private fun streamProviderTokens(history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
+        chatClient.prompt()
+            .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
+            .messages(toAiMessages(history))
+            .stream()
+            .content()
     }
 
     private fun persistAssistantResult(

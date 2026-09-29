@@ -40,7 +40,7 @@ presentation; production adapters pass empty collections or no graph model until
 
 `chatApi.ts` contains thin authenticated API wrappers. `lib/sse.ts` parses arbitrary SSE frames from an authenticated
 `ReadableStream`, while `streamChatReply.ts` handles the chat event names. The SPA sends messages only through
-`POST /note/chats/{chatId}/messages/stream`; the removed synchronous message and one-shot `/note/ask` contracts have no
+`POST /note/chats/{chatId}/messages`; the removed synchronous message and one-shot `/note/ask` contracts have no
 frontend callers.
 
 Opening a chat loads the latest 50 persisted messages. Reaching the top requests the next older
@@ -56,6 +56,13 @@ reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL`
 and appends new tail rows without discarding older pages already loaded. A failed reconciliation requires an explicit
 retry before another turn. The request and polling are aborted on route changes. Voice input is visibly disabled because
 no speech backend exists.
+
+The new-chat actions open `/chats/new` without calling the backend. On the first non-blank submission, the SPA sends
+only
+the prompt and one request `Idempotency-Key` to the initial-message stream endpoint. The backend generates `Chat-Id` and
+`Chat-Turn-Id`, atomically derives the title, creates the chat, reserves its first turn, and persists the user message
+before provider streaming begins. The SPA persists the request key until those identities are recovered, then replaces
+the route with the persisted chat URL.
 
 Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while

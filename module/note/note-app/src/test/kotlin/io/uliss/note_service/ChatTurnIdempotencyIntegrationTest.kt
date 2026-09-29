@@ -2,11 +2,14 @@ package io.uliss.note_service
 
 import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatTurnStatus
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.service.ChatTurnService
+import io.uliss.note_service.service.facade.ChatFacade
+import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.ChatTurnRequestResolution
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -23,6 +26,8 @@ import java.util.concurrent.TimeoutException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
 @Tag("integration")
@@ -32,6 +37,9 @@ class ChatTurnIdempotencyIntegrationTest {
 
     @Autowired
     lateinit var chatTurnService: ChatTurnService
+
+    @Autowired
+    lateinit var chatFacade: ChatFacade
 
     @Autowired
     lateinit var chatRepository: ChatRepository
@@ -44,6 +52,176 @@ class ChatTurnIdempotencyIntegrationTest {
 
     @Autowired
     lateinit var executionPolicy: ChatTurnExecutionPolicy
+
+    @Test
+    fun `initial turn atomically creates a titled chat and is replay-safe`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val content = "  Explain PostgreSQL locks\nwithout jargon  "
+
+        val first = chatFacade.streamReply(userId, null, idempotencyKey, content)
+        val replay = chatFacade.streamReply(userId, null, idempotencyKey, content)
+        val firstChatId = assertNotNull(first.chatId)
+
+        assertEquals(firstChatId, replay.chatId)
+        assertEquals(first.turnId, replay.turnId)
+        assertEquals(
+            "Explain PostgreSQL locks without jargon",
+            chatRepository.findById(firstChatId).orElseThrow().title,
+        )
+        assertTurnRows(firstChatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `initial retry with changed content is rejected without changing the original chat`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val first = chatFacade.streamReply(userId, null, idempotencyKey, "Original question")
+        val chatId = assertNotNull(first.chatId)
+
+        assertFailsWith<IdempotencyKeyReusedException> {
+            chatFacade.streamReply(userId, null, idempotencyKey, "Changed question")
+        }
+
+        assertEquals("Original question", chatRepository.findById(chatId).orElseThrow().title)
+        assertTurnRows(chatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `initial creation rollback removes the chat turn and user message together`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        var rolledBackChatId: UUID? = null
+
+        assertFailsWith<ExpectedRollback> {
+            transactionTemplate.executeWithoutResult {
+                rolledBackChatId = chatFacade.streamReply(userId, null, idempotencyKey, "retry me").chatId
+                throw ExpectedRollback()
+            }
+        }
+        val deletedChatId = checkNotNull(rolledBackChatId)
+
+        assertEquals(null, chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        assertEquals(0, count("SELECT COUNT(*) FROM note.chat_turn WHERE user_id = ?", userId))
+        assertEquals(0, count("SELECT COUNT(*) FROM note.chat_message WHERE chat_id = ?", deletedChatId))
+
+        val retry = chatFacade.streamReply(userId, null, idempotencyKey, "retry me")
+        val retryChatId = assertNotNull(retry.chatId)
+        assertNotEquals(deletedChatId, retryChatId)
+        assertTurnRows(retryChatId, retry.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `chat creation key stays on the chat and first turn only`() {
+        val userId = UUID.randomUUID()
+        val creationKey = UUID.randomUUID()
+        val initial = chatFacade.streamReply(userId, null, creationKey, "First question")
+        val chatId = assertNotNull(initial.chatId)
+        assertTrue(
+            chatTurnService.finishGenerationAttempt(
+                userId,
+                chatId,
+                initial.turnId,
+                1,
+                "First answer",
+                ChatTurnStatus.COMPLETE,
+            )
+        )
+
+        val nextTurnKey = UUID.randomUUID()
+        val next = chatFacade.streamReply(userId, chatId, nextTurnKey, "Follow-up question")
+
+        assertEquals(chatId, next.chatId)
+        assertNotEquals(initial.turnId, next.turnId)
+        assertEquals(
+            creationKey,
+            jdbcTemplate.queryForObject(
+                "SELECT idempotency_key FROM note.chat WHERE id = ?",
+                UUID::class.java,
+                chatId,
+            ),
+        )
+        assertEquals(
+            setOf(creationKey, nextTurnKey),
+            jdbcTemplate.queryForList(
+                "SELECT idempotency_key FROM note.chat_turn WHERE chat_id = ?",
+                UUID::class.java,
+                chatId,
+            ).toSet(),
+        )
+    }
+
+    @Test
+    fun `the same creation key is isolated between users`() {
+        val firstUserId = UUID.randomUUID()
+        val secondUserId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+
+        val first = chatFacade.streamReply(firstUserId, null, idempotencyKey, "hello")
+        val second = chatFacade.streamReply(secondUserId, null, idempotencyKey, "hello")
+
+        assertNotEquals(first.chatId, second.chatId)
+        assertNotEquals(first.turnId, second.turnId)
+        assertEquals(first.chatId, chatRepository.findByUserIdAndIdempotencyKey(firstUserId, idempotencyKey)?.id)
+        assertEquals(second.chatId, chatRepository.findByUserIdAndIdempotencyKey(secondUserId, idempotencyKey)?.id)
+    }
+
+    @Test
+    fun `initial title truncates by Unicode code points and includes the ellipsis`() {
+        val content = "  ${"😀".repeat(48)}   tail  "
+
+        val reply = chatFacade.streamReply(
+            UUID.randomUUID(),
+            null,
+            UUID.randomUUID(),
+            content,
+        )
+
+        val title = chatRepository.findById(assertNotNull(reply.chatId)).orElseThrow().title
+        assertEquals("${"😀".repeat(47)}...", title)
+        assertEquals(50, title.codePointCount(0, title.length))
+    }
+
+    @Test
+    fun `concurrent initial replay recovers the same backend-generated chat`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val winnerReady = CountDownLatch(1)
+        val releaseWinner = CountDownLatch(1)
+        val replayStarted = CountDownLatch(1)
+        val executor = Executors.newFixedThreadPool(2)
+
+        try {
+            val winner = executor.submit<AssistantReplyStream> {
+                transactionTemplate.execute {
+                    val reply = chatFacade.streamReply(userId, null, idempotencyKey, "hello")
+                    winnerReady.countDown()
+                    check(releaseWinner.await(5, TimeUnit.SECONDS)) { "winner release timed out" }
+                    reply
+                }
+            }
+            assertTrue(winnerReady.await(5, TimeUnit.SECONDS), "winner did not reach the commit barrier")
+
+            val replay = executor.submit<AssistantReplyStream> {
+                replayStarted.countDown()
+                chatFacade.streamReply(userId, null, idempotencyKey, "hello")
+            }
+            assertTrue(replayStarted.await(5, TimeUnit.SECONDS), "replay did not start")
+            assertFailsWith<TimeoutException> { replay.get(250, TimeUnit.MILLISECONDS) }
+
+            releaseWinner.countDown()
+            val first = winner.get(5, TimeUnit.SECONDS)
+            val duplicate = replay.get(5, TimeUnit.SECONDS)
+            val firstChatId = assertNotNull(first.chatId)
+
+            assertEquals(firstChatId, duplicate.chatId)
+            assertEquals(first.turnId, duplicate.turnId)
+            assertTurnRows(firstChatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+        } finally {
+            releaseWinner.countDown()
+            executor.shutdownNow()
+        }
+    }
 
     @Test
     fun `concurrent replay waits for the reservation and returns the same turn`() {

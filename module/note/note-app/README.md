@@ -20,8 +20,8 @@ avoid colliding with Spring AI retry auto-configuration.
 
 ## Chat and summary APIs
 
-`ChatController` exposes chat creation/listing, message history, idempotent streamed replies, turn
-cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
+`ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
+streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
 `done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
@@ -37,7 +37,15 @@ ordered conversation, and summary generation still loads every message through i
 boundary. Summary creation obtains that boundary through a separate ownership-checked latest-message
 lookup rather than from a UI page.
 
-`POST /note/chats/{chatId}/messages/stream` requires a client-generated UUID in `Idempotency-Key`.
+`POST /note/chats` requires a client-generated UUID in `Idempotency-Key` but no
+chat ID. In one transaction the backend generates the chat ID and title, persists the chat, reserves
+the first turn, and saves its user message. `Chat-Id` and `Chat-Turn-Id` response headers expose the
+two backend-generated identities. Both initial and subsequent stream responses include both headers.
+The same user-scoped idempotency key recovers the same chat after a
+lost response instead of creating a duplicate.
+
+`POST /note/chats/{chatId}/messages` handles subsequent turns and also requires a client-generated UUID in
+`Idempotency-Key`.
 The key identifies retries of one logical send within that chat. The backend generates a separate
 durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
 history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
@@ -84,7 +92,7 @@ The application context can start without provider keys, but provider-backed cal
 background summary/index work then follows the outbox retry policy. Starting the application or
 making provider calls requires explicit permission under repository rules.
 
-Generated chat titles, outbox retention, and scalable status delivery are tracked in
+Semantic AI-generated chat titles, outbox retention, and scalable status delivery are tracked in
 `docs/TECH_DEBT.md`.
 
 ```bash

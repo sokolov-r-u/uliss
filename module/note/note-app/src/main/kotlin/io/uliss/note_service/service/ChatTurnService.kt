@@ -75,43 +75,19 @@ class ChatTurnService(
         idempotencyKey: UUID,
         content: String,
     ): ChatTurnRequestResolution {
+        requireAndLockOwnedChat(userId, chatId)
+
+        val requestFingerprint = calculateRequestFingerprint(content)
+        findAndResolveExistingTurn(userId, chatId, idempotencyKey, requestFingerprint)?.let { return it }
+
+        ensureNoOtherTurnIsGenerating(userId, chatId)
+        return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content)
+    }
+
+    private fun requireAndLockOwnedChat(userId: UUID, chatId: UUID) {
         if (!chatTurnStore.lockOwnedChat(userId, chatId)) {
             throw NotFoundException("chat id=$chatId not found")
         }
-
-        val requestFingerprint = calculateRequestFingerprint(content)
-        chatTurnStore.findByIdempotencyKey(userId, chatId, idempotencyKey)?.let { existing ->
-            validateSameRequest(existing, requestFingerprint)
-            return resolveExistingTurn(existing)
-        }
-
-        chatTurnStore.findGenerating(userId, chatId)?.let { active ->
-            throw ChatTurnAlreadyGeneratingException(chatId, active.id)
-        }
-
-        val turnId = generateId()
-        val turn = chatTurnStore.insert(
-            turnId = turnId,
-            userId = userId,
-            chatId = chatId,
-            idempotencyKey = idempotencyKey,
-            requestFingerprint = requestFingerprint,
-            leaseMillis = executionPolicy.lease.toMillis(),
-        ) ?: throw InternalException(
-            "chat turn reservation for chat id=$chatId and its idempotency key could not be persisted"
-        )
-
-        val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
-        val userMessage = chatMessageRepository.save(
-            ChatMessageEntity(
-                chatId = chatId,
-                role = ChatMessageRole.USER,
-                content = content,
-                status = ChatMessageStatus.COMPLETE,
-                turnId = turnId,
-            )
-        )
-        return ChatTurnRequestResolution.StartGeneration(turn, priorHistory + userMessage)
     }
 
     /**
@@ -175,6 +151,67 @@ class ChatTurnService(
         }
         return loadTurn(userId, turnId, "chat turn disappeared after cancellation")
     }
+
+    private fun findAndResolveExistingTurn(
+        userId: UUID,
+        chatId: UUID,
+        idempotencyKey: UUID,
+        requestFingerprint: RequestFingerprint,
+    ): ChatTurnRequestResolution? {
+        val existing = chatTurnStore.findByIdempotencyKey(userId, chatId, idempotencyKey) ?: return null
+        validateSameRequest(existing, requestFingerprint)
+        return resolveExistingTurn(existing)
+    }
+
+    private fun ensureNoOtherTurnIsGenerating(userId: UUID, chatId: UUID) {
+        chatTurnStore.findGenerating(userId, chatId)?.let { active ->
+            throw ChatTurnAlreadyGeneratingException(chatId, active.id)
+        }
+    }
+
+    private fun startNewTurn(
+        userId: UUID,
+        chatId: UUID,
+        idempotencyKey: UUID,
+        requestFingerprint: RequestFingerprint,
+        content: String,
+    ): ChatTurnRequestResolution.StartGeneration {
+        val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+        val turn = reserveNewTurn(userId, chatId, idempotencyKey, requestFingerprint)
+        val userMessage = saveUserMessage(chatId, turn.id, content)
+        return ChatTurnRequestResolution.StartGeneration(turn, priorHistory + userMessage)
+    }
+
+    private fun reserveNewTurn(
+        userId: UUID,
+        chatId: UUID,
+        idempotencyKey: UUID,
+        requestFingerprint: RequestFingerprint,
+    ): ChatTurn {
+        val turnId = generateId()
+        val turn = chatTurnStore.insert(
+            turnId = turnId,
+            userId = userId,
+            chatId = chatId,
+            idempotencyKey = idempotencyKey,
+            requestFingerprint = requestFingerprint,
+            leaseMillis = executionPolicy.lease.toMillis(),
+        ) ?: throw InternalException(
+            "chat turn reservation for chat id=$chatId and its idempotency key could not be persisted"
+        )
+        return turn
+    }
+
+    private fun saveUserMessage(chatId: UUID, turnId: UUID, content: String): ChatMessageEntity =
+        chatMessageRepository.save(
+            ChatMessageEntity(
+                chatId = chatId,
+                role = ChatMessageRole.USER,
+                content = content,
+                status = ChatMessageStatus.COMPLETE,
+                turnId = turnId,
+            )
+        )
 
     private fun resolveExistingTurn(existing: ChatTurn): ChatTurnRequestResolution = when (existing.status) {
         ChatTurnStatus.COMPLETE,
