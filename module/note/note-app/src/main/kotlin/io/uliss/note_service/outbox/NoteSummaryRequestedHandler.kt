@@ -211,6 +211,9 @@ class NoteSummaryRequestedHandler(
         val SYSTEM_PROMPT = """
             Create a concise standalone note summarizing the current chat.
 
+            Use GitHub Flavored Markdown when formatting improves readability. Use headings, lists, tables, and fenced
+            code blocks where they help the note. Do not output raw HTML or wrap the whole note in a code fence.
+
             The current chat is the only authoritative source for what happened in the conversation.
 
             Preserve important domain terms, technology names, and acronyms used in the current chat.

@@ -1,4 +1,5 @@
 import {Bubble as DesignBubble} from '@uliss/design-system'
+import {MarkdownContent} from '../ui/MarkdownContent'
 import type {ChatMessageRole, ChatMessageStatus} from './chatApi'
 
 /** A message as rendered in the thread — a `ChatMessage` plus a client-only `pending` streaming flag. */
@@ -28,8 +29,9 @@ export function Bubble({role, status, content, pending}: DisplayMessage) {
     return (
         <div className={role === 'USER' ? 'bubble-adapter bubble-adapter-user' : 'bubble-adapter'}>
             <DesignBubble role={role === 'USER' ? 'me' : 'uliss'}>
-                {content}
-                {pending && <span className="bubble-cursor" aria-hidden/>}
+                {role === 'ASSISTANT'
+                    ? <MarkdownContent content={content} pending={pending}/>
+                    : <>{content}{pending && <span className="bubble-cursor" aria-hidden/>}</>}
             </DesignBubble>
             {label &&
                 <span className={role === 'USER' ? 'bubble-status bubble-status-user' : 'bubble-status'}>{label}</span>}

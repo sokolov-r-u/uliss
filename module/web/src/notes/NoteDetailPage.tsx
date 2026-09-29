@@ -2,13 +2,16 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import {Link, useParams} from 'react-router-dom'
 import {Button, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
+import {MarkdownContent} from '../ui/MarkdownContent'
 import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
 import './notes.css'
+
+type ReadyNote = Note & { content: string }
 
 type DetailState =
     | { status: 'loading' }
     | { status: 'generating'; note: Note }
-    | { status: 'ready'; note: Note }
+    | { status: 'ready'; note: ReadyNote }
     | { status: 'failed'; note: Note }
     | { status: 'not-found' }
     | { status: 'error'; message: string }
@@ -33,7 +36,11 @@ export function NoteDetailView({state, onRetry}: { state: DetailState; onRetry?:
             <div className="note-detail-state note-detail-error"><h1>Could not load the note</h1>
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
-        {state.status === 'ready' && <article className="note-content">{state.note.content}</article>}
+        {state.status === 'ready' && <article className="note-content">
+            {state.note.source === 'CHAT_SUMMARY'
+                ? <MarkdownContent content={state.note.content}/>
+                : state.note.content}
+        </article>}
     </div>
 }
 
@@ -51,8 +58,11 @@ export function NoteDetailPage() {
         try {
             const note = await getNote(noteId, controller.signal)
             if (note.status === 'READY') {
-                if (note.content == null) throw new NoteApiError('protocol', 'ready note content is unavailable')
-                setState({status: 'ready', note})
+                if (note.content == null) {
+                    setState({status: 'error', message: 'ready note content is unavailable'})
+                    return
+                }
+                setState({status: 'ready', note: {...note, content: note.content}})
                 return
             }
             if (note.status === 'FAILED') {
@@ -69,9 +79,10 @@ export function NoteDetailPage() {
             if (terminal === 'READY') {
                 const ready = await getNote(noteId, controller.signal)
                 if (ready.status !== 'READY' || ready.content == null) {
-                    throw new NoteApiError('protocol', 'ready note content is unavailable')
+                    setState({status: 'error', message: 'ready note content is unavailable'})
+                    return
                 }
-                setState({status: 'ready', note: ready})
+                setState({status: 'ready', note: {...ready, content: ready.content}})
             }
         } catch (error) {
             if (controller.signal.aborted || error instanceof AuthRequiredError || isAbortError(error)) return
