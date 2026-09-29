@@ -150,6 +150,33 @@ describe('ChatPage summary flow', () => {
         expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
     })
 
+    it('renders initial reply chunks before reconciliation loads persisted history', async () => {
+        let finishStream: (() => void) | undefined
+        mockedInitialStream.mockImplementation(async (_content, _key, options) => {
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            options.onAppendText('Live answer')
+            await new Promise<void>((resolve) => {
+                finishStream = resolve
+            })
+            return 'done'
+        })
+        mockedGetMessages.mockResolvedValue(messagePage([
+            {id: 'u-new', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'First question'},
+            {id: 'a-new', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
+        ]))
+
+        renderNewPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'First question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('Live answer')).toBeInTheDocument()
+        expect(mockedGetMessages).not.toHaveBeenCalled()
+        await act(async () => finishStream?.())
+        expect(await screen.findByText('Saved answer')).toBeInTheDocument()
+        expect(screen.queryByText('Live answer')).not.toBeInTheDocument()
+    })
+
     it('starts a turn when the page is served without Web Crypto', async () => {
         const originalCrypto = globalThis.crypto
         Object.defineProperty(globalThis, 'crypto', {configurable: true, value: undefined})

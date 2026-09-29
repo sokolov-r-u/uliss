@@ -40,7 +40,8 @@ lookup rather than from a UI page.
 `POST /note/chats` requires a client-generated UUID in `Idempotency-Key` but no
 chat ID. In one transaction the backend generates the chat ID and title, persists the chat, reserves
 the first turn, and saves its user message. `Chat-Id` and `Chat-Turn-Id` response headers expose the
-two backend-generated identities. The same user-scoped idempotency key recovers the same chat after a
+two backend-generated identities. Both initial and subsequent stream responses include both headers.
+The same user-scoped idempotency key recovers the same chat after a
 lost response instead of creating a duplicate.
 
 `POST /note/chats/{chatId}/messages` handles subsequent turns and also requires a client-generated UUID in

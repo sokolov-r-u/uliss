@@ -25,19 +25,26 @@ class AssistantService(
 ) {
     private val log = AppLogger.of(AssistantService::class)
 
-    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
-        when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
+    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream {
+        return when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
             is ChatTurnRequestResolution.StartGeneration ->
-                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution))
+                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution), resolution.turn.chatId)
+
             is ChatTurnRequestResolution.AlreadyGenerating ->
                 AssistantReplyStream(
                     resolution.turn.id,
                     Flux.just(AssistantStreamEvent.GenerationPending(resolution.turn.retryAfterMs)),
+                    resolution.turn.chatId,
                 )
 
             is ChatTurnRequestResolution.AlreadyFinished ->
-                AssistantReplyStream(resolution.turn.id, Flux.just(resolution.turn.status.toReplayEvent()))
+                AssistantReplyStream(
+                    resolution.turn.id,
+                    Flux.just(resolution.turn.status.toReplayEvent()),
+                    resolution.turn.chatId,
+                )
         }
+    }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
         chatTurnService.cancelTurn(userId, chatId, turnId)

@@ -20,7 +20,7 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
             ON CONFLICT (user_id, idempotency_key) DO NOTHING
         """,
     )
-    fun insertInitialChatIfAbsent(
+    fun insertChatOnConflictDoNothing(
         @Param("id") id: UUID,
         @Param("userId") userId: UUID,
         @Param("idempotencyKey") idempotencyKey: UUID,
@@ -30,15 +30,15 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
     @Query(
         nativeQuery = true,
         value = """
-            SELECT id
+            SELECT *
             FROM note.chat
             WHERE user_id = :userId AND idempotency_key = :idempotencyKey
         """,
     )
-    fun findIdByUserIdAndIdempotencyKey(
+    fun findByUserIdAndIdempotencyKey(
         @Param("userId") userId: UUID,
         @Param("idempotencyKey") idempotencyKey: UUID,
-    ): UUID?
+    ): ChatEntity?
 
     fun findByIdAndUserId(id: UUID, userId: UUID): ChatEntity?
     fun findByUserIdOrderByCreatedAtDesc(userId: UUID): List<ChatEntity>

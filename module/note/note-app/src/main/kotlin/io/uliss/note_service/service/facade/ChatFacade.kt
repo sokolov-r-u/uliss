@@ -1,8 +1,11 @@
-package io.uliss.note_service.service
+package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.service.AssistantService
+import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.ChatMessageCursorPage
 import org.springframework.stereotype.Service
@@ -16,15 +19,25 @@ class ChatFacade(
     private val noteService: NoteService,
 ) {
 
-    fun createChat(userId: UUID, title: String?): ChatEntity = chatService.createChat(userId, title)
-
     fun getChats(userId: UUID): List<ChatEntity> = chatService.getChats(userId)
 
     fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage =
         chatService.getMessages(userId, chatId, before, limit)
 
-    fun streamMessage(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream =
-        assistantService.streamReply(userId, chatId, idempotencyKey, prompt)
+    @Transactional
+    fun streamReply(
+        userId: UUID,
+        chatId: UUID?,
+        idempotencyKey: UUID,
+        prompt: String,
+    ): AssistantReplyStream {
+        val chat = if (chatId == null) {
+            chatService.createChat(userId, idempotencyKey, prompt)
+        } else {
+            chatService.requireOwnedChat(userId, chatId)
+        }
+        return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt)
+    }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
         assistantService.cancelTurn(userId, chatId, turnId)

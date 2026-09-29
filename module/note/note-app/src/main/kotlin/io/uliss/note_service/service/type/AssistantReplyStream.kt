@@ -6,5 +6,5 @@ import java.util.UUID
 data class AssistantReplyStream(
     val turnId: UUID,
     val events: Flux<AssistantStreamEvent>,
-    val chatId: UUID? = null,
+    val chatId: UUID,
 )

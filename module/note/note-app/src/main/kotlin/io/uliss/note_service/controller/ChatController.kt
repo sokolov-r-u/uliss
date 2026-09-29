@@ -8,7 +8,7 @@ import io.uliss.note_service.dto.SendMessageRequest
 import io.uliss.note_service.dto.toChatSummaryResponse
 import io.uliss.note_service.dto.toResponse
 import io.uliss.note_service.model.NoteStatus
-import io.uliss.note_service.service.ChatFacade
+import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.type.AssistantReplyStream
 import io.uliss.note_service.service.type.AssistantStreamEvent
 import io.uliss.security.utils.getUserId
@@ -63,7 +63,7 @@ class ChatController(
         @Valid @RequestBody request: SendMessageRequest,
     ): ResponseEntity<Flux<ServerSentEvent<String>>> {
         val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
-        val reply = chatFacade.streamInitialMessage(jwt.getUserId(), idempotencyKey, request.content)
+        val reply = chatFacade.streamReply(jwt.getUserId(), null, idempotencyKey, request.content)
         return streamResponse(reply, idempotencyKey)
     }
 
@@ -75,7 +75,7 @@ class ChatController(
         @Valid @RequestBody request: SendMessageRequest,
     ): ResponseEntity<Flux<ServerSentEvent<String>>> {
         val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
-        val reply = chatFacade.streamMessage(jwt.getUserId(), chatId, idempotencyKey, request.content)
+        val reply = chatFacade.streamReply(jwt.getUserId(), chatId, idempotencyKey, request.content)
         return streamResponse(reply, idempotencyKey)
     }
 
@@ -90,8 +90,8 @@ class ChatController(
             }
         val response = ResponseEntity.ok()
             .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
+            .header(CHAT_ID_HEADER, reply.chatId.toString())
             .header(CHAT_TURN_ID_HEADER, reply.turnId.toString())
-        reply.chatId?.let { response.header(CHAT_ID_HEADER, it.toString()) }
         return response
             .contentType(MediaType.TEXT_EVENT_STREAM)
             .body(stream)

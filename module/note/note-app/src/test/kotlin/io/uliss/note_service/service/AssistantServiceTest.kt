@@ -215,12 +215,11 @@ class ChatTurnServiceTest {
 
     private val store = Mockito.mock(ChatTurnStore::class.java)
     private val messages = Mockito.mock(ChatMessageRepository::class.java)
-    private val chatService = Mockito.mock(ChatService::class.java)
     private val executionPolicy = Mockito.mock(ChatTurnExecutionPolicy::class.java).also {
         Mockito.`when`(it.maxAttempts).thenReturn(3)
         Mockito.`when`(it.lease).thenReturn(Duration.ofSeconds(300))
     }
-    private val service = ChatTurnService(store, messages, executionPolicy, chatService)
+    private val service = ChatTurnService(store, messages, executionPolicy)
 
     @Test
     fun `first request reserves turn and saves exactly one turn-backed user message`() {
@@ -252,7 +251,6 @@ class ChatTurnServiceTest {
         assertEquals(idempotencyKey, result.turn.idempotencyKey)
         assertEquals(" exact ", result.history.single().content)
         assertEquals(result.turn.id, result.history.single().turnId)
-        Mockito.verify(chatService).setTitleFromInitialPrompt(userId, chatId, " exact ")
         Mockito.verify(messages, Mockito.times(1)).save(anyValue())
     }
 
@@ -280,7 +278,6 @@ class ChatTurnServiceTest {
         assertSame(first.turn, replay.turn)
         Mockito.verify(store, Mockito.times(1))
             .insert(anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), Mockito.anyLong())
-        Mockito.verify(chatService, Mockito.times(1)).setTitleFromInitialPrompt(userId, chatId, "hi")
         Mockito.verify(messages, Mockito.times(1)).save(anyValue())
     }
 

@@ -61,20 +61,28 @@ describe('streamAssistantReply', () => {
     })
 
     it('captures the backend-created chat identity from the initial response headers', async () => {
-        const response = sseResponse(['event: done\ndata:\n\n'])
+        const response = sseResponse(['event: append\ndata: Hello\n\nevent: done\ndata:\n\n'])
         response.headers.set('Chat-Id', 'chat-1')
         mockedFetch.mockResolvedValue(response)
+        const calls: string[] = []
         const onChatId = vi.fn()
         const onTurnId = vi.fn()
 
         await expect(streamInitialAssistantReply('Hi', 'key-1', {
-            onChatId,
-            onTurnId,
-            onAppendText: vi.fn(),
+            onChatId: (chatId) => {
+                calls.push(`chat:${chatId}`)
+                onChatId(chatId)
+            },
+            onTurnId: (turnId) => {
+                calls.push(`turn:${turnId}`)
+                onTurnId(turnId)
+            },
+            onAppendText: (text) => calls.push(`append:${text}`),
         })).resolves.toBe('done')
 
         expect(onChatId).toHaveBeenCalledWith('chat-1')
         expect(onTurnId).toHaveBeenCalledWith('turn-1')
+        expect(calls).toEqual(['chat:chat-1', 'turn:turn-1', 'append:Hello'])
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats', {
             method: 'POST',
             headers: {

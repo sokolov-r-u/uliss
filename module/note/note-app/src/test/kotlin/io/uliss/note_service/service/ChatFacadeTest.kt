@@ -1,12 +1,18 @@
 package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.service.facade.ChatFacade
+import io.uliss.note_service.service.type.AssistantReplyStream
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import reactor.core.publisher.Flux
 import java.util.UUID
+import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 
@@ -16,6 +22,60 @@ class ChatFacadeTest {
     private val assistantService = Mockito.mock(AssistantService::class.java)
     private val noteService = Mockito.mock(NoteService::class.java)
     private val chatFacade = ChatFacade(chatService, assistantService, noteService)
+
+    @Test
+    fun `streamReply creates a missing chat and exposes its backend identity`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        val assistantReply = AssistantReplyStream(turnId, Flux.empty(), chatId)
+        Mockito.`when`(chatService.createChat(userId, idempotencyKey, "hello"))
+            .thenReturn(chat)
+        Mockito.`when`(assistantService.streamReply(userId, chatId, idempotencyKey, "hello"))
+            .thenReturn(assistantReply)
+
+        val result = chatFacade.streamReply(userId, null, idempotencyKey, "hello")
+
+        assertEquals(chatId, result.chatId)
+        assertEquals(turnId, result.turnId)
+        assertSame(assistantReply.events, result.events)
+    }
+
+    @Test
+    fun `streamReply requires an existing chat without invoking creation`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        val assistantReply = AssistantReplyStream(turnId, Flux.empty(), chatId)
+        Mockito.`when`(chatService.requireOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(assistantService.streamReply(userId, chatId, idempotencyKey, "hello"))
+            .thenReturn(assistantReply)
+
+        val result = chatFacade.streamReply(userId, chatId, idempotencyKey, "hello")
+
+        assertSame(assistantReply, result)
+        Mockito.verify(chatService, Mockito.never()).createChat(userId, idempotencyKey, "hello")
+    }
+
+    @Test
+    fun `streamReply never creates a chat when the requested chat is missing`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatService.requireOwnedChat(userId, chatId))
+            .thenThrow(NotFoundException("chat id=$chatId not found"))
+
+        assertFailsWith<NotFoundException> {
+            chatFacade.streamReply(userId, chatId, idempotencyKey, "hello")
+        }
+
+        Mockito.verify(chatService, Mockito.never()).createChat(userId, idempotencyKey, "hello")
+        Mockito.verifyNoInteractions(assistantService)
+    }
 
     @Test
     fun `requestSummary rejects a chat with no messages`() {
