@@ -52,17 +52,11 @@ class AssistantService(
 
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
-    ): Flux<AssistantStreamEvent> {
-        val providerTokens = chatClient.prompt()
-            .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
-            .messages(toAiMessages(resolution.history))
-            .stream()
-            .content()
-
-        return Flux.usingWhen(
+    ): Flux<AssistantStreamEvent> =
+        Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
-                providerTokens
+                streamProviderTokens(resolution.history)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
@@ -70,6 +64,13 @@ class AssistantService(
             { reply, _ -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
         ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
+
+    private fun streamProviderTokens(history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
+        chatClient.prompt()
+            .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
+            .messages(toAiMessages(history))
+            .stream()
+            .content()
     }
 
     private fun persistAssistantResult(

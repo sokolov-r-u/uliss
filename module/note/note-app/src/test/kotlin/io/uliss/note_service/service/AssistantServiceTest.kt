@@ -156,6 +156,33 @@ class AssistantServiceTest {
     }
 
     @Test
+    fun `provider setup starts on subscription and a synchronous failure finalizes FAILED`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val start = ChatTurnRequestResolution.StartGeneration(
+            turn(userId, chatId, turnId, ChatTurnStatus.GENERATING).copy(idempotencyKey = idempotencyKey),
+            history(chatId, turnId),
+        )
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
+            .thenReturn(start)
+        Mockito.doThrow(RuntimeException("provider setup failed")).`when`(chatClient).prompt()
+        Mockito.`when`(
+            chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
+        ).thenReturn(true)
+
+        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        Mockito.verify(chatClient, Mockito.never()).prompt()
+
+        StepVerifier.create(reply.events)
+            .expectErrorMatches { it.message == "provider setup failed" }
+            .verify(Duration.ofSeconds(1))
+        Mockito.verify(chatTurnService)
+            .finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
+    }
+
+    @Test
     fun `terminal and pending replays do not call the provider`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

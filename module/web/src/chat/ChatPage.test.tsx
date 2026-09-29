@@ -1,6 +1,6 @@
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes} from 'react-router-dom'
+import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
@@ -59,11 +59,18 @@ function renderPage() {
     </Routes></MemoryRouter>)
 }
 
+function RoutePath() {
+    return <output data-testid="route-path">{useLocation().pathname}</output>
+}
+
 function renderNewPage() {
-    return render(<MemoryRouter initialEntries={['/chats/new']}><Routes>
-        <Route path="/chats/new" element={<ChatPage newChat/>}/>
-        <Route path="/chats/:chatId" element={<ChatPage/>}/>
-    </Routes></MemoryRouter>)
+    return render(<MemoryRouter initialEntries={['/chats/new']}>
+        <RoutePath/>
+        <Routes>
+            <Route path="/chats/new" element={<ChatPage newChat/>}/>
+            <Route path="/chats/:chatId" element={<ChatPage/>}/>
+        </Routes>
+    </MemoryRouter>)
 }
 
 describe('ChatPage summary flow', () => {
@@ -147,6 +154,7 @@ describe('ChatPage summary flow', () => {
         expect(mockedInitialStream.mock.calls[1]?.[1]).toBe(mockedInitialStream.mock.calls[0]?.[1])
         expect(mockedStream).not.toHaveBeenCalled()
         expect(await screen.findByText('Recovered answer')).toBeInTheDocument()
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/chats/chat-recovered')
         expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
     })
 
@@ -172,9 +180,13 @@ describe('ChatPage summary flow', () => {
 
         expect(await screen.findByText('Live answer')).toBeInTheDocument()
         expect(mockedGetMessages).not.toHaveBeenCalled()
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/chats/new')
+        expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).not.toBeNull()
         await act(async () => finishStream?.())
         expect(await screen.findByText('Saved answer')).toBeInTheDocument()
         expect(screen.queryByText('Live answer')).not.toBeInTheDocument()
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/chats/chat-new')
+        expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
     })
 
     it('starts a turn when the page is served without Web Crypto', async () => {

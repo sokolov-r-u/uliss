@@ -183,7 +183,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     function clearPendingChatRequest(expectedKey?: string, requestChatId = activeChatIdRef.current) {
         if (expectedKey && pendingChatRequestRef.current?.idempotencyKey !== expectedKey) return
         pendingChatRequestRef.current = null
-        sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
+        if (!newChat || !requestChatId) {
+            sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
+        }
         if (requestChatId) sessionStorage.removeItem(chatRequestStorageKey(requestChatId))
     }
 
@@ -420,7 +422,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         resolvedChatId = createdChatId
                         activeChatIdRef.current = createdChatId
                         request.initial = false
-                        sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
                         persistPendingChatRequest(request, createdChatId)
                     },
                 })
@@ -460,6 +461,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         } else if (mountedRef.current && routeRevisionRef.current === routeRevision) {
             requireReconciliation()
         }
+        if (newChat && mountedRef.current && routeRevisionRef.current === routeRevision && resolvedChatId) {
+            navigate(`/chats/${resolvedChatId}`, {replace: true})
+            sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
+        }
     }
 
     async function onSend() {
@@ -491,10 +496,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         ])
         setDraft('')
         await executeChatRequest(request, target, placeholderId, requestChatId)
-        const createdChatId = activeChatIdRef.current
-        if (newChat && mountedRef.current && createdChatId) {
-            navigate(`/chats/${createdChatId}`, {replace: true})
-        }
     }
 
     function stopGeneration() {

@@ -269,6 +269,36 @@ class NoteLifecycleApiIntegrationTest {
     }
 
     @Test
+    fun `initial provider setup failure keeps the reserved chat and persists FAILED`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.doThrow(RuntimeException("provider setup failed")).`when`(chatClient).prompt()
+
+        val response = mockMvc.post("/note/chats") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"Question that must remain durable"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            header { exists("Chat-Id") }
+            header { exists("Chat-Turn-Id") }
+            content {
+                string(Matchers.containsString("event:error"))
+                string(Matchers.not(Matchers.containsString("event:done")))
+            }
+        }.andReturn().response
+
+        val chatId = UUID.fromString(response.getHeader("Chat-Id"))
+        val turnId = UUID.fromString(response.getHeader("Chat-Turn-Id"))
+        assertEquals(chatId, chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)?.id)
+        val messages = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
+        assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
+        assertEquals(listOf(ChatMessageStatus.COMPLETE, ChatMessageStatus.FAILED), messages.map { it.status })
+        assertTrue(messages.all { it.turnId == turnId })
+    }
+
+    @Test
     fun `note list is ownership filtered and newest first`() {
         val userId = UUID.randomUUID()
         val older = saveNote(userId, "older", NoteStatus.READY, Instant.parse("2026-09-09T10:00:00Z"))
