@@ -58,13 +58,15 @@ async function streamReply(
         signal: opts.signal,
     })
     if (!res.ok) throw new ChatStreamHttpError(res.status)
+    let chatId: string | undefined
     if (opts.onChatId) {
-        const chatId = res.headers.get('Chat-Id')
-        if (!chatId) throw new Error('initial chat stream response is missing Chat-Id')
-        opts.onChatId(chatId)
+        const responseChatId = res.headers.get('Chat-Id')
+        if (!responseChatId) throw new Error('initial chat stream response is missing Chat-Id')
+        chatId = responseChatId
     }
     const turnId = res.headers.get('Chat-Turn-Id')
     if (!turnId) throw new Error('chat stream response is missing Chat-Turn-Id')
+    if (opts.onChatId && chatId) opts.onChatId(chatId)
     opts.onTurnId(turnId)
     if (opts.signal?.aborted) {
         await res.body?.cancel()

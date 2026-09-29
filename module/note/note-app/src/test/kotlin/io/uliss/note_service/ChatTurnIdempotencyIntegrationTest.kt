@@ -2,6 +2,7 @@ package io.uliss.note_service
 
 import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatTurnStatus
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
@@ -25,6 +26,7 @@ import java.util.concurrent.TimeoutException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -68,6 +70,100 @@ class ChatTurnIdempotencyIntegrationTest {
             chatRepository.findById(firstChatId).orElseThrow().title,
         )
         assertTurnRows(firstChatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `initial retry with changed content is rejected without changing the original chat`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val first = chatFacade.streamReply(userId, null, idempotencyKey, "Original question")
+        val chatId = assertNotNull(first.chatId)
+
+        assertFailsWith<IdempotencyKeyReusedException> {
+            chatFacade.streamReply(userId, null, idempotencyKey, "Changed question")
+        }
+
+        assertEquals("Original question", chatRepository.findById(chatId).orElseThrow().title)
+        assertTurnRows(chatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `initial creation rollback removes the chat turn and user message together`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        var rolledBackChatId: UUID? = null
+
+        assertFailsWith<ExpectedRollback> {
+            transactionTemplate.executeWithoutResult {
+                rolledBackChatId = chatFacade.streamReply(userId, null, idempotencyKey, "retry me").chatId
+                throw ExpectedRollback()
+            }
+        }
+        val deletedChatId = checkNotNull(rolledBackChatId)
+
+        assertEquals(null, chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+        assertEquals(0, count("SELECT COUNT(*) FROM note.chat_turn WHERE user_id = ?", userId))
+        assertEquals(0, count("SELECT COUNT(*) FROM note.chat_message WHERE chat_id = ?", deletedChatId))
+
+        val retry = chatFacade.streamReply(userId, null, idempotencyKey, "retry me")
+        val retryChatId = assertNotNull(retry.chatId)
+        assertNotEquals(deletedChatId, retryChatId)
+        assertTurnRows(retryChatId, retry.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)
+    }
+
+    @Test
+    fun `chat creation key stays on the chat and first turn only`() {
+        val userId = UUID.randomUUID()
+        val creationKey = UUID.randomUUID()
+        val initial = chatFacade.streamReply(userId, null, creationKey, "First question")
+        val chatId = assertNotNull(initial.chatId)
+        assertTrue(
+            chatTurnService.finishGenerationAttempt(
+                userId,
+                chatId,
+                initial.turnId,
+                1,
+                "First answer",
+                ChatTurnStatus.COMPLETE,
+            )
+        )
+
+        val nextTurnKey = UUID.randomUUID()
+        val next = chatFacade.streamReply(userId, chatId, nextTurnKey, "Follow-up question")
+
+        assertEquals(chatId, next.chatId)
+        assertNotEquals(initial.turnId, next.turnId)
+        assertEquals(
+            creationKey,
+            jdbcTemplate.queryForObject(
+                "SELECT idempotency_key FROM note.chat WHERE id = ?",
+                UUID::class.java,
+                chatId,
+            ),
+        )
+        assertEquals(
+            setOf(creationKey, nextTurnKey),
+            jdbcTemplate.queryForList(
+                "SELECT idempotency_key FROM note.chat_turn WHERE chat_id = ?",
+                UUID::class.java,
+                chatId,
+            ).toSet(),
+        )
+    }
+
+    @Test
+    fun `the same creation key is isolated between users`() {
+        val firstUserId = UUID.randomUUID()
+        val secondUserId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+
+        val first = chatFacade.streamReply(firstUserId, null, idempotencyKey, "hello")
+        val second = chatFacade.streamReply(secondUserId, null, idempotencyKey, "hello")
+
+        assertNotEquals(first.chatId, second.chatId)
+        assertNotEquals(first.turnId, second.turnId)
+        assertEquals(first.chatId, chatRepository.findByUserIdAndIdempotencyKey(firstUserId, idempotencyKey)?.id)
+        assertEquals(second.chatId, chatRepository.findByUserIdAndIdempotencyKey(secondUserId, idempotencyKey)?.id)
     }
 
     @Test

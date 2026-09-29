@@ -104,6 +104,21 @@ describe('streamAssistantReply', () => {
         })).rejects.toThrow('Chat-Id')
     })
 
+    it('does not expose a chat identity when the initial response has no turn identity', async () => {
+        const response = new Response('event: done\ndata:\n\n', {
+            headers: {'Chat-Id': 'chat-1'},
+        })
+        mockedFetch.mockResolvedValue(response)
+        const onChatId = vi.fn()
+
+        await expect(streamInitialAssistantReply('Hi', 'key-1', {
+            onChatId,
+            onTurnId: vi.fn(),
+            onAppendText: vi.fn(),
+        })).rejects.toThrow('Chat-Turn-Id')
+        expect(onChatId).not.toHaveBeenCalled()
+    })
+
     it('preserves the identity when the body ends without a terminal event', async () => {
         mockedFetch.mockResolvedValue(sseResponse([]))
         const onTurnId = vi.fn()

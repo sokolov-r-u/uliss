@@ -50,6 +50,24 @@ class ChatServiceTest {
     }
 
     @Test
+    fun `createChat returns the original chat when the idempotent insert loses the conflict`() {
+        val userId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val originalChat = ChatEntity(userId, "Original title").apply { id = UUID.randomUUID() }
+        Mockito.`when`(
+            chatRepository.insertChatOnConflictDoNothing(anyValue(), anyValue(), anyValue(), anyValue())
+        ).thenReturn(0)
+        Mockito.`when`(chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey))
+            .thenReturn(originalChat)
+
+        val result = chatService.createChat(userId, idempotencyKey, "Changed retry content")
+
+        assertSame(originalChat, result)
+        assertEquals("Original title", result.title)
+        Mockito.verify(chatRepository).findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+    }
+
+    @Test
     fun `createChat truncates a Unicode title to 50 code points including ellipsis`() {
         val userId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
