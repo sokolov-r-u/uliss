@@ -7,6 +7,7 @@ import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.ChatWithNoteCount
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
@@ -73,13 +74,15 @@ class ChatControllerTest {
     @Test
     fun `getChats returns the user's chats`() {
         val userId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.getChats(userId)).thenReturn(listOf(ChatEntity(userId, "Trip planning")))
+        Mockito.`when`(chatFacade.getChats(userId))
+            .thenReturn(listOf(ChatWithNoteCount(ChatEntity(userId, "Trip planning"), 2)))
 
         mockMvc.get("/note/chats") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isOk() }
             jsonPath("$[0].title") { value("Trip planning") }
+            jsonPath("$[0].noteCount") { value(2) }
         }
     }
 

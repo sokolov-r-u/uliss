@@ -1,14 +1,17 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
+import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
@@ -308,6 +311,77 @@ class NoteServiceTest {
         assertEquals("existing", note.content)
         Mockito.verify(noteRepository, Mockito.never()).save(note)
         Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `renameNote stores the normalized title and requests reindexing`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "content", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Old")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        val response = noteService.renameNote(userId, note.id, "  New  title ")
+
+        assertEquals("New title", response.title)
+        Mockito.verify(noteRepository).save(note)
+        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
+        assertTrue(payload.contains(note.id.toString()))
+    }
+
+    @Test
+    fun `renameNote rejects a note that is not ready`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertFailsWith<NoteNotReadyException> { noteService.renameNote(userId, note.id, "Title") }
+        Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `renameNote rejects an over-long title before loading the note`() {
+        assertFailsWith<BadRequestException> {
+            noteService.renameNote(UUID.randomUUID(), UUID.randomUUID(), "a".repeat(51))
+        }
+        Mockito.verifyNoInteractions(noteRepository)
+    }
+
+    @Test
+    fun `deleteNote removes an owned note in any status`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        noteService.deleteNote(userId, note.id)
+
+        Mockito.verify(noteRepository).delete(note)
+    }
+
+    @Test
+    fun `deleteNote hides a missing or foreign note behind not found`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { noteService.deleteNote(userId, noteId) }
+    }
+
+    @Test
+    fun `getNoteCounts maps linked note counts by chat id`() {
+        val withNotes = UUID.randomUUID()
+        val withoutNotes = UUID.randomUUID()
+        Mockito.`when`(chatNoteRepository.countNotesByChatIds(listOf(withNotes, withoutNotes)))
+            .thenReturn(listOf(ChatNoteCount(withNotes, 2)))
+
+        val counts = noteService.getNoteCounts(listOf(withNotes, withoutNotes))
+
+        assertEquals(mapOf(withNotes to 2), counts)
+    }
+
+    @Test
+    fun `getNoteCounts skips the query for no chats`() {
+        assertEquals(emptyMap(), noteService.getNoteCounts(emptyList()))
+        Mockito.verifyNoInteractions(chatNoteRepository)
     }
 
     private fun publishedPayload(expectedType: OutboxEventType): String {

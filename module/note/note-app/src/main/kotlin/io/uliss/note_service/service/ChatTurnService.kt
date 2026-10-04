@@ -16,6 +16,7 @@ import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatTurnStore
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.nio.ByteBuffer
 import java.nio.charset.StandardCharsets
@@ -82,6 +83,21 @@ class ChatTurnService(
 
         ensureNoOtherTurnIsGenerating(userId, chatId)
         return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content)
+    }
+
+    /**
+     * Locks the owned chat row for the caller's deletion transaction. A generating turn with a live
+     * lease must be stopped first so it cannot write into a deleted chat; an expired lease does not block.
+     *
+     * @throws NotFoundException when the chat does not exist or belongs to another user
+     * @throws ChatTurnAlreadyGeneratingException when a turn is generating under a live lease
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun lockChatForDeletion(userId: UUID, chatId: UUID) {
+        requireAndLockOwnedChat(userId, chatId)
+        chatTurnStore.findGenerating(userId, chatId)
+            ?.takeIf { it.retryAfterMs > 0 }
+            ?.let { throw ChatTurnAlreadyGeneratingException(chatId, it.id) }
     }
 
     private fun requireAndLockOwnedChat(userId: UUID, chatId: UUID) {

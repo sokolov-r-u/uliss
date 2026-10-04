@@ -505,6 +505,67 @@ class ChatTurnServiceTest {
         assertEquals(ChatMessageStatus.COMPLETE, saved.value.status)
     }
 
+    @Test
+    fun `lockChatForDeletion locks an owned chat without a generating turn`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
+
+        service.lockChatForDeletion(userId, chatId)
+
+        Mockito.verify(store).lockOwnedChat(userId, chatId)
+        Mockito.verify(store).findGenerating(userId, chatId)
+    }
+
+    @Test
+    fun `lockChatForDeletion hides a missing or foreign chat behind not found`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(false)
+
+        assertFailsWith<NotFoundException> { service.lockChatForDeletion(userId, chatId) }
+        Mockito.verify(store).lockOwnedChat(userId, chatId)
+        Mockito.verifyNoMoreInteractions(store)
+    }
+
+    @Test
+    fun `lockChatForDeletion rejects a chat whose turn is generating under a live lease`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
+        Mockito.`when`(store.findGenerating(userId, chatId)).thenReturn(
+            generatingTurn(
+                userId,
+                chatId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                RequestFingerprint.from(ByteArray(32)),
+                retryAfterMs = 5_000
+            )
+        )
+
+        assertFailsWith<ChatTurnAlreadyGeneratingException> { service.lockChatForDeletion(userId, chatId) }
+    }
+
+    @Test
+    fun `lockChatForDeletion allows a generating turn whose lease has expired`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
+        Mockito.`when`(store.findGenerating(userId, chatId)).thenReturn(
+            generatingTurn(
+                userId,
+                chatId,
+                UUID.randomUUID(),
+                UUID.randomUUID(),
+                RequestFingerprint.from(ByteArray(32)),
+                retryAfterMs = 0
+            )
+        )
+
+        service.lockChatForDeletion(userId, chatId)
+    }
+
     private fun generatingTurn(
         userId: UUID,
         chatId: UUID,

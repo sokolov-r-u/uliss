@@ -22,6 +22,8 @@ note-service.
 ## Implementation rules
 
 - Keep controller code limited to transport and authentication mapping; conversation orchestration belongs in services.
+- Services in different domains (chat, note) never call each other or each other's repositories; a facade composes
+  them. Within one domain a service may use a lower-level service (e.g. `AssistantService` → `ChatTurnService`).
 - Changes to SSE events, message status, ownership lookup, or chat DTOs are frontend contract changes and require
   synchronized web tests/changes.
 - Flyway migrations are append-only. Add a new versioned migration for every schema change; never edit an existing
@@ -41,8 +43,9 @@ within each role folder; split a role folder by domain only if it actually becom
 never preemptively (a `graph` domain is planned but doesn't exist yet).
 
 - `model/` — JPA `@Entity` + enums only. `model/payload/` — JSON blobs living inside another
-  entity's column (not their own table). `model/projection/` — hand-mapped via raw `JdbcTemplate`
-  (e.g. `ChatTurn`), not Hibernate-managed.
+  entity's column (not their own table). `model/projection/` — read-only row shapes that are not
+  Hibernate-managed entities: mapped via raw `JdbcTemplate` (e.g. `ChatTurn`) or a JPQL constructor
+  projection (e.g. `ChatNoteCount`).
 - `*Properties` (raw `@ConfigurationProperties`) live next to their sole consumer, never in a shared
   `properties/` folder. `policy/` holds classes that derive a value from properties plus other
   independent config sources (e.g. a computed lease `Duration`) — properties bind 1:1 from config,

@@ -18,15 +18,18 @@
   implementation. Task files are local and gitignored.
 - Do not resume an existing task file merely because its name looks related. First verify its status, base commit, and
   claims against the current branch and code.
-- Change at most 7 unique version-controlled files in one autonomous batch. New files count; repeated edits to the same
-  file do not. The ignored task journal and generated build/cache files do not count.
-- After changing and checking the seventh file, stop with a diff and verification summary for user review. Start a new
-  count after approval. Tasks changing at most 6 files need no routine checkpoint.
+- Change at most 5 unique version-controlled files in one autonomous batch. New files count; repeated edits to the same
+  file do not. Documentation (`*.md`), the ignored task journal, and generated build/cache files do not count.
+- After changing and checking the fifth file, stop with a diff and verification summary for user review. Start a new
+  count after approval. Tasks changing at most 5 files need no routine checkpoint.
+- Changes the user asks for while reviewing a batch are not limited by file count.
 - Keep the task file current after each coherent batch. Record durable deferred work in `docs/TECH_DEBT.md`, not in
   source TODO/FIXME comments.
 
 ## Verification
 
+- Preferred style is Red–Green–Refactor: write the test first, run it and see it fail for the expected reason, then
+  implement until it passes, then refactor with the tests still green.
 - Add or update tests for changed behavior when testable. Do not delete or weaken tests merely to make the build pass.
 - Test expectations may change only when the requested behavior intentionally changes the contract; explain that change.
 - Diagnose failures and fix issues within the agreed scope. Stop when a failure is unrelated, repeats without progress,

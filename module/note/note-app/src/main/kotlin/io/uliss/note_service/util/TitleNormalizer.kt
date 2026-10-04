@@ -8,6 +8,15 @@ object TitleNormalizer {
     private val HEADING_MARKER = Regex("^#+\\s*")
     private val QUOTE_PAIRS = mapOf('"' to '"', '\'' to '\'', '“' to '”', '«' to '»', '`' to '`')
 
+    const val USER_TITLE_RULE = "title must be 1 to 50 characters"
+
+    /** User-entered title, trimmed with whitespace runs collapsed; null when blank or over the limit. */
+    fun normalizeUserTitle(raw: String): String? {
+        val title = raw.trim().replace(WHITESPACE, " ")
+        if (title.isEmpty() || title.codePointCount(0, title.length) > MAX_CODE_POINTS) return null
+        return title
+    }
+
     /** First non-blank line of the user's message; the text is never altered beyond whitespace. */
     fun normalizeChatTitle(message: String): String =
         truncate(firstLine(message))

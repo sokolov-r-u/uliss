@@ -1,5 +1,7 @@
 package io.uliss.note_service.service.handler
 
+import io.uliss.exception.common.NotFoundException
+import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.model.ChatMessageEntity
@@ -43,18 +45,24 @@ class NoteSummaryRequestedHandler(
     private val chatService: ChatService,
     private val ragService: RagService,
     private val noteService: NoteService,
+    private val terminalFailureHandler: NoteSummaryTerminalFailureHandler,
     private val properties: NoteSummaryProperties,
 ) : OutboxHandler {
+
+    private val log = AppLogger.of(NoteSummaryRequestedHandler::class)
 
     override val type: OutboxEventType = OutboxEventType.NOTE_SUMMARY_REQUESTED
 
     override fun handle(event: OutboxEventEntity) {
         val payload = objectMapper.readValue(event.payload, NoteSummaryRequestedPayload::class.java)
-        val context = chatService.getSummaryContext(
-            payload.userId,
-            payload.chatId,
-            payload.throughMessageId,
-        )
+        val context = try {
+            chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId)
+        } catch (_: NotFoundException) {
+            // The chat was deleted after the request; retrying cannot succeed.
+            log.warn("chat id=${payload.chatId} not found, failing summary note id=${payload.noteId}", "handle")
+            terminalFailureHandler.handleTerminalFailure(event)
+            return
+        }
         val relatedChunks = ragService.search(
             userId = payload.userId,
             query = retrievalQuery(context),
