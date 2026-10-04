@@ -1,6 +1,7 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.note_service.exception.NoOutboxHandlerException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.outbox.infra.OutboxEventProcessor
 import io.uliss.note_service.outbox.infra.OutboxPoller

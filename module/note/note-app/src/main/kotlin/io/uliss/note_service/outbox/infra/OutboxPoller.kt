@@ -1,8 +1,8 @@
 package io.uliss.note_service.outbox.infra
 
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.exception.NoOutboxHandlerException
 import io.uliss.note_service.model.OutboxEventEntity
-import io.uliss.note_service.outbox.NoOutboxHandlerException
 import io.uliss.note_service.outbox.OutboxProperties
 import io.uliss.note_service.outbox.OutboxService
 import org.springframework.beans.factory.annotation.Qualifier
@@ -26,7 +26,7 @@ class OutboxPoller(
      * doesn't stop the rest of the batch.
      *
      *
-     * **[io.uliss.note_service.outbox.NoOutboxHandlerException]** - a programming/deployment bug (no handler registered for the
+     * **[NoOutboxHandlerException]** - a programming/deployment bug (no handler registered for the
      * type), not a retryable business failure. Just logged, doesn't count against attempts.
      *
      * Handler failures are recorded by [OutboxEventProcessor] in a separate transaction. An

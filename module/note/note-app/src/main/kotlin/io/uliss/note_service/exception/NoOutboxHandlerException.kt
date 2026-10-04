@@ -1,4 +1,6 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.exception
+
+import io.uliss.note_service.outbox.OutboxEventType
 
 /**
  * A programming/deployment bug (a type was published but no handler was ever registered for it) -
