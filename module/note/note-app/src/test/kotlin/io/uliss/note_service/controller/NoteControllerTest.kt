@@ -56,6 +56,7 @@ class NoteControllerTest {
                     id = noteId,
                     source = NoteSource.CHAT_SUMMARY,
                     status = NoteStatus.GENERATING,
+                    title = null,
                     content = null,
                     createdAt = createdAt,
                     updatedAt = createdAt,

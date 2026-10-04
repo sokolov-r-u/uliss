@@ -18,6 +18,7 @@ class NoteEntity(
     var source: NoteSource = NoteSource.MANUAL,
     @Enumerated(EnumType.STRING)
     var status: NoteStatus = NoteStatus.READY,
+    var title: String? = null,
 ) : AuditEntity() {
 
     override fun toString(): String {

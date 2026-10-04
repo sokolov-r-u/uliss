@@ -257,7 +257,7 @@ class NoteLifecycleApiIntegrationTest {
         assertNotEquals(key, turnId)
         assertNotEquals(chatId, turnId)
         assertTrue(first.contentAsString.contains("event:append"))
-        assertEquals("First question with context", chatRepository.findById(chatId).orElseThrow().title)
+        assertEquals("First question", chatRepository.findById(chatId).orElseThrow().title)
         val replay = send()
         assertEquals(chatId.toString(), replay.getHeader("Chat-Id"))
         assertEquals(turnId.toString(), replay.getHeader("Chat-Turn-Id"))
