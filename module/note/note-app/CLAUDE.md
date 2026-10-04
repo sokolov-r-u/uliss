@@ -30,6 +30,8 @@ note-service.
 - Initial chat creation and first-turn reservation happen in one transaction, deriving the title from the first user
   message there. The frontend must not generate chat IDs or titles; no provider call may be added for title
   generation without explicit scope.
+- A `CHAT_SUMMARY` note title comes from the same structured-output call as its content (`NoteDraft`); never add a
+  second provider call for it. Keep per-field output rules in `NoteDraft` schema descriptions, not the system prompt.
 - Persist the initial request key so a retry can recover the backend-generated chat after response loss.
 
 ## Package layout

@@ -58,9 +58,13 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
-current chat is authoritative; related notes are delimited as untrusted secondary context. A
-successful non-blank model response atomically changes the note to `READY` and publishes
-`NOTE_INDEX_REQUESTED`. The final configured failure changes a still-generating note to `FAILED` in
+current chat is authoritative; related notes are delimited as untrusted secondary context. One
+non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title` and
+Markdown `content`; field rules live in the `NoteDraft` JSON schema descriptions. Missing or blank
+`content` fails the attempt; a blank or missing title falls back to the first non-blank content
+line, normalized by `TitleNormalizer` (50 code points). Success atomically stores both fields,
+changes the note to `READY`, and publishes `NOTE_INDEX_REQUESTED`. The final configured failure changes a
+still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.
 
 ## Note API and status delivery
@@ -70,7 +74,8 @@ the same transaction that terminally fails the outbox event.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
   status changes, and closes on `READY` or `FAILED`.
 
-Note JSON contains `id`, `source`, `status`, nullable `content`, `createdAt`, and `updatedAt`.
+Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, and
+`updatedAt`. Notes created before stored titles keep a null `title`.
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
 after `READY`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
@@ -85,7 +90,8 @@ backoff, and a visibility lease derived from provider timeouts with a safety fac
 RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in
 generic JSON. Spring AI still owns token splitting and embedding/batching. `JdbcRagChunkStore`
-performs replacement and ownership-filtered exact cosine retrieval. `READY` means the note is
+performs replacement and ownership-filtered exact cosine retrieval. The indexed text is
+`title + "\n\n" + content` when a title exists, otherwise only `content`. `READY` means the note is
 readable; its follow-up indexing event may still be pending.
 
 The application context can start without provider keys, but provider-backed calls will fail;

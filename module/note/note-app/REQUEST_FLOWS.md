@@ -336,21 +336,22 @@ sequenceDiagram
     R ->> EM: embed(query)
     EM -->> R: query vector
     R ->> DB: ownership-filtered cosine search
-    SH ->> AI: generate summary(current chat, related notes)
-    AI -->> SH: summary text
-    SH ->> NS: completeChatSummary(userId, noteId, content)
+    SH ->> AI: entity(NoteDraft)(current chat, related notes)
+    AI -->> SH: NoteDraft(title, content)
+    SH ->> SH: require content, normalize title
+    SH ->> NS: completeChatSummary(userId, noteId, title, content)
 
     rect rgb(235, 245, 255)
         Note over NS, DB: Summary completion transaction
-        NS ->> DB: note GENERATING -> READY
+        NS ->> DB: store title/content, GENERATING -> READY
         NS ->> DB: publish NOTE_INDEX_REQUESTED
     end
     EP ->> OS: complete(summary event)
     P ->> EP: process(NOTE_INDEX_REQUESTED)
     EP ->> IH: handle(event)
     IH ->> DB: load owned READY note
-    IH ->> R: index(userId, noteId, content)
-    R ->> R: split content into chunks
+    IH ->> R: index(userId, noteId, title + content)
+    R ->> R: split text into chunks
     R ->> EM: embed(chunks)
     EM -->> R: chunk vectors
     R ->> DB: replace this note's rag_chunks
