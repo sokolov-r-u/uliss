@@ -10,6 +10,7 @@ import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -29,7 +30,7 @@ class ChatService(
             id = generateId(),
             userId = userId,
             idempotencyKey = idempotencyKey,
-            title = generateInitialTitle(content),
+            title = TitleNormalizer.normalizeChatTitle(content),
         )
         return chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
             ?: error("initial chat could not be loaded after insert")
@@ -90,20 +91,4 @@ class ChatService(
     fun requireOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
         chatRepository.findByIdAndUserId(chatId, userId)
             ?: throw NotFoundException("chat id=$chatId not found")
-
-    private fun generateInitialTitle(content: String): String {
-        val normalized = content.trim().replace(Regex("\\s+"), " ")
-        val codePointCount = normalized.codePointCount(0, normalized.length)
-        if (codePointCount <= INITIAL_TITLE_MAX_CODE_POINTS) return normalized
-
-        val prefixCodePoints = INITIAL_TITLE_MAX_CODE_POINTS - INITIAL_TITLE_SUFFIX.length
-        val prefixEnd = normalized.offsetByCodePoints(0, prefixCodePoints)
-        return normalized.substring(0, prefixEnd).trimEnd() + INITIAL_TITLE_SUFFIX
-    }
-
-    private companion object {
-        const val INITIAL_TITLE_MAX_CODE_POINTS = 50
-        const val INITIAL_TITLE_SUFFIX = "..."
-    }
-
 }

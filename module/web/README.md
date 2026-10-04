@@ -66,7 +66,9 @@ the route with the persisted chat URL.
 
 Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
-`FAILED` remains visible. Note content is rendered as plain text. Unsupported rename and delete actions are not shown.
+`FAILED` remains visible. A stored note `title` is shown in the list and above the detail content; notes without
+one fall back to their first content line. Chat-summary content is rendered as Markdown, manual note content as plain
+text. Unsupported rename and delete actions are not shown.
 
 ## Onboarding
 

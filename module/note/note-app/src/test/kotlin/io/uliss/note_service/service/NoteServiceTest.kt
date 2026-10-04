@@ -284,9 +284,10 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(noteRepository.save(note)).thenReturn(note)
 
-        val completed = noteService.completeChatSummary(userId, note.id, "summary text")
+        val completed = noteService.completeChatSummary(userId, note.id, "Summary title", "summary text")
 
         assertTrue(completed)
+        assertEquals("Summary title", note.title)
         assertEquals("summary text", note.content)
         assertEquals(NoteStatus.READY, note.status)
         val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
@@ -300,9 +301,10 @@ class NoteServiceTest {
         val note = NoteEntity(userId, "existing", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
 
-        val completed = noteService.completeChatSummary(userId, note.id, "late summary")
+        val completed = noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
 
         assertEquals(false, completed)
+        assertEquals(null, note.title)
         assertEquals("existing", note.content)
         Mockito.verify(noteRepository, Mockito.never()).save(note)
         Mockito.verifyNoInteractions(outboxService)

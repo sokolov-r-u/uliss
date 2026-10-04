@@ -66,7 +66,7 @@ class ChatTurnIdempotencyIntegrationTest {
         assertEquals(firstChatId, replay.chatId)
         assertEquals(first.turnId, replay.turnId)
         assertEquals(
-            "Explain PostgreSQL locks without jargon",
+            "Explain PostgreSQL locks",
             chatRepository.findById(firstChatId).orElseThrow().title,
         )
         assertTurnRows(firstChatId, first.turnId, expectedUserMessages = 1, expectedAssistantMessages = 0)

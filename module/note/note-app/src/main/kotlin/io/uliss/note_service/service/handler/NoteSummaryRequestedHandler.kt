@@ -1,6 +1,7 @@
 package io.uliss.note_service.service.handler
 
 import io.uliss.note_service.dto.internal.ChatSummaryContext
+import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
@@ -12,6 +13,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.util.ChatPrompts
+import io.uliss.note_service.util.TitleNormalizer
 import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Min
@@ -59,15 +61,15 @@ class NoteSummaryRequestedHandler(
             limit = properties.retrievalTopK,
             minSimilarity = properties.retrievalMinSimilarity,
         )
-        val summary = chatClient.prompt()
+        val draft: NoteDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
             .user(ChatPrompts.noteSummaryUserPrompt(context, relatedChunks))
             .call()
-            .content()
-            ?.trim()
-            .orEmpty()
-        check(summary.isNotBlank()) { "summary model returned blank content" }
-        noteService.completeChatSummary(payload.userId, payload.noteId, summary)
+            .entity(NoteDraft::class.java)
+        val content = draft?.content?.trim().orEmpty()
+        check(content.isNotBlank()) { "summary model returned blank content" }
+        val title = TitleNormalizer.normalizeNoteTitle(draft?.title, content)
+        noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
     }
 
     private fun retrievalQuery(context: ChatSummaryContext): String {

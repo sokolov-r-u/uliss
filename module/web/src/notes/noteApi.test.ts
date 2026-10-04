@@ -53,6 +53,24 @@ describe('noteApi', () => {
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
+    it('parses an optional note title', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'titled', source: 'CHAT_SUMMARY', status: 'READY', title: 'Ownership columns', content: 'Body'},
+            {id: 'legacy', source: 'CHAT_SUMMARY', status: 'READY', title: null, content: 'Body'},
+        ]))
+
+        const notes = await listNotes()
+
+        expect(notes.map((note) => note.title)).toEqual(['Ownership columns', undefined])
+    })
+
+    it('rejects a non-string note title', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 42, content: 'Body'},
+        ]))
+        await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('propagates authentication and abort control flow unchanged', async () => {
         const authError = new AuthRequiredError()
         mockedFetch.mockRejectedValueOnce(authError)

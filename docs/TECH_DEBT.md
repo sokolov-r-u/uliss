@@ -202,8 +202,10 @@ code changed for this item.
 ## AI-generated semantic chat title (`note-service`)
 
 **Status:** optional enhancement, not implemented. The backend initial-turn transaction creates the
-chat with a whitespace-normalized prefix of the first user message, truncated to 50 Unicode code
-points with `...` when needed. The frontend sends only the prompt and a request `Idempotency-Key`; it
+chat with the whitespace-normalized first non-blank line of the first user message, truncated to 50
+Unicode code points with `...` when needed (`TitleNormalizer`). Generated `CHAT_SUMMARY` notes already
+get a model title from their structured summary call; this item covers chat titles only. The frontend sends only the
+prompt and a request `Idempotency-Key`; it
 does not derive or submit a title or chat ID. This is deterministic and adds no provider latency or
 failure mode. The request key lets the backend recover both generated identities.
 

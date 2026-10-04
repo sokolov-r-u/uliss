@@ -46,7 +46,7 @@ class ChatServiceTest {
         )
 
         assertSame(persistedChat, result)
-        assertEquals("Explain PostgreSQL locks without jargon", insertedTitle)
+        assertEquals("Explain PostgreSQL locks", insertedTitle)
     }
 
     @Test
