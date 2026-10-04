@@ -1,6 +1,6 @@
-package io.uliss.note_service.service.type
+package io.uliss.note_service.dto.internal
 
-import io.uliss.note_service.model.ChatTurnStatus
+import io.uliss.note_service.model.projection.ChatTurnStatus
 
 sealed interface AssistantStreamEvent {
     data class AppendText(val text: String) : AssistantStreamEvent

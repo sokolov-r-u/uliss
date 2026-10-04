@@ -1,4 +1,4 @@
-package io.uliss.note_service.model
+package io.uliss.note_service.model.projection
 
 import java.time.Instant
 import java.util.UUID

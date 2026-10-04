@@ -1,6 +1,6 @@
-package io.uliss.note_service.dto
+package io.uliss.note_service.dto.response
 
-import io.uliss.note_service.service.type.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import java.util.UUID
 
 data class ChatMessagePageResponse(

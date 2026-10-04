@@ -1,6 +1,7 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.repository
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.note_service.model.OutboxEventEntity
 import jakarta.persistence.LockModeType
 import jakarta.persistence.QueryHint
 import org.springframework.data.domain.Pageable
@@ -24,7 +25,7 @@ interface OutboxEventRepository : CrudRepository<OutboxEventEntity, UUID> {
      * @param statuses **PENDING** - never attempted, or due for retry.
      *
      * **PROCESSING** - claimed by a worker whose visibility timeout has expired (e.g. it crashed
-     * before finishing) - see [OutboxService.claim].
+     * before finishing) - see [io.uliss.note_service.outbox.OutboxService.claim].
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))

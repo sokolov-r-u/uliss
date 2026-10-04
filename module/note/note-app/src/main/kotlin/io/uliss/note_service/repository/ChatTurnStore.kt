@@ -1,8 +1,8 @@
 package io.uliss.note_service.repository
 
-import io.uliss.note_service.model.ChatTurn
-import io.uliss.note_service.model.ChatTurnStatus
-import io.uliss.note_service.model.RequestFingerprint
+import io.uliss.note_service.model.projection.ChatTurn
+import io.uliss.note_service.model.projection.ChatTurnStatus
+import io.uliss.note_service.model.projection.RequestFingerprint
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Propagation

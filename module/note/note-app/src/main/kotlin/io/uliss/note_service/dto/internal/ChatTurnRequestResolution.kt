@@ -1,7 +1,7 @@
-package io.uliss.note_service.service.type
+package io.uliss.note_service.dto.internal
 
 import io.uliss.note_service.model.ChatMessageEntity
-import io.uliss.note_service.model.ChatTurn
+import io.uliss.note_service.model.projection.ChatTurn
 
 sealed interface ChatTurnRequestResolution {
     data class StartGeneration(

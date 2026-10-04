@@ -1,5 +1,9 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.outbox.infra
 
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.outbox.NoOutboxHandlerException
+import io.uliss.note_service.outbox.OutboxHandler
+import io.uliss.note_service.outbox.OutboxService
 import org.springframework.stereotype.Component
 
 /**

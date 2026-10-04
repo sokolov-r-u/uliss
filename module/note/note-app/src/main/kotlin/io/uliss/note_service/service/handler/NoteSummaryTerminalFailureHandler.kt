@@ -1,6 +1,10 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.service.handler
 
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.outbox.OutboxEventType
+import io.uliss.note_service.outbox.OutboxTerminalFailureHandler
 import io.uliss.note_service.repository.NoteRepository
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper

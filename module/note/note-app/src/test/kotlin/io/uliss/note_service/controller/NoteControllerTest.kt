@@ -2,8 +2,8 @@ package io.uliss.note_service.controller
 
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
-import io.uliss.note_service.dto.NoteResponse
-import io.uliss.note_service.dto.NoteStatusResponse
+import io.uliss.note_service.dto.response.NoteResponse
+import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService

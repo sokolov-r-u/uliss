@@ -1,4 +1,4 @@
-package io.uliss.note_service.dto
+package io.uliss.note_service.dto.request
 
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.Size

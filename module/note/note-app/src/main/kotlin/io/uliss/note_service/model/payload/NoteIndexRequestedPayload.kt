@@ -1,4 +1,4 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.model.payload
 
 import java.util.UUID
 

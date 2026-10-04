@@ -1,4 +1,4 @@
-package io.uliss.note_service.dto
+package io.uliss.note_service.dto.response
 
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole

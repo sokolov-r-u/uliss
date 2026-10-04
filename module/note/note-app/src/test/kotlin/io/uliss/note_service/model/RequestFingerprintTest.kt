@@ -1,5 +1,6 @@
 package io.uliss.note_service.model
 
+import io.uliss.note_service.model.projection.RequestFingerprint
 import org.junit.jupiter.api.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith

@@ -3,7 +3,7 @@ package io.uliss.note_service.service
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
-import io.uliss.note_service.dto.NoteStatusResponse
+import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.NoteEntity

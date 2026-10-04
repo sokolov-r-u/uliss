@@ -5,11 +5,15 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatSummaryContext
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.handler.NoteSummaryProperties
+import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient

@@ -32,6 +32,32 @@ note-service.
   generation without explicit scope.
 - Persist the initial request key so a retry can recover the backend-generated chat after response loss.
 
+## Package layout
+
+Folders are organized by architectural role, not by domain — `chat` and `note` classes stay mixed
+within each role folder; split a role folder by domain only if it actually becomes hard to navigate,
+never preemptively (a `graph` domain is planned but doesn't exist yet).
+
+- `model/` — JPA `@Entity` + enums only. `model/payload/` — JSON blobs living inside another
+  entity's column (not their own table). `model/projection/` — hand-mapped via raw `JdbcTemplate`
+  (e.g. `ChatTurn`), not Hibernate-managed.
+- `*Properties` (raw `@ConfigurationProperties`) live next to their sole consumer, never in a shared
+  `properties/` folder. `policy/` holds classes that derive a value from properties plus other
+  independent config sources (e.g. a computed lease `Duration`) — properties bind 1:1 from config,
+  policies compute something no config key sets directly.
+- `outbox/` root is the generic engine's contract (`OutboxService`, `OutboxEventType`,
+  `OutboxHandler`/`OutboxTerminalFailureHandler`, `OutboxProperties`); `outbox/infra/` is wiring
+  nothing outside `outbox/` calls directly (`OutboxPoller`, `OutboxEventProcessor`). Handler
+  implementations (e.g. `NoteSummaryRequestedHandler`) are business logic, not engine code — they
+  live in `service/handler/`.
+- `service/` root is real `@Service` orchestrators; `facade/` coordinates several services per
+  controller use case; `handler/` implements an outbox entry-point interface; `output/` is a
+  non-service, non-DTO return shape (e.g. `AssistantReplyStream` wraps a live `Flux`, so it can't be
+  a DTO — a DTO is a materialized value, not a handle to unfinished work).
+- `dto/request/` and `dto/response/` are the HTTP wire boundary — never leak a raw entity into
+  either. `dto/internal/` is for result types that cross service → facade → controller but never
+  HTTP.
+
 ## Verification
 
 - Use `./gradlew :note:test` for controller and service behavior.

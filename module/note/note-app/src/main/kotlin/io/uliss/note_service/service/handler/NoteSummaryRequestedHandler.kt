@@ -1,8 +1,12 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.service.handler
 
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.outbox.OutboxEventType
+import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatSummaryContext

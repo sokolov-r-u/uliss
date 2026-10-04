@@ -1,13 +1,13 @@
 package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteService
-import io.uliss.note_service.service.type.AssistantReplyStream
-import io.uliss.note_service.service.type.ChatMessageCursorPage
+import io.uliss.note_service.service.output.AssistantReplyStream
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID

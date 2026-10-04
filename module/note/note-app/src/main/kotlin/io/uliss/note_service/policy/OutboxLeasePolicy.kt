@@ -1,5 +1,7 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.policy
 
+import io.uliss.note_service.outbox.OutboxEventType
+import io.uliss.note_service.outbox.OutboxProperties
 import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingProperties
 import org.springframework.ai.retry.autoconfigure.SpringAiRetryProperties
 import org.springframework.boot.http.client.HttpClientSettings

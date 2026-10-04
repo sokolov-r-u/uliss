@@ -7,7 +7,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.facade.ChatFacade
-import io.uliss.note_service.service.type.AssistantReplyStream
+import io.uliss.note_service.service.output.AssistantReplyStream
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import reactor.core.publisher.Flux

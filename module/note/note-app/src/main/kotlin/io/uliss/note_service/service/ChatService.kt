@@ -2,13 +2,13 @@ package io.uliss.note_service.service
 
 import io.uliss.database.entity.generateId
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
-import io.uliss.note_service.service.type.ChatMessageCursorPage
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation

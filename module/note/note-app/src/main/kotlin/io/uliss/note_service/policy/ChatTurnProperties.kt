@@ -1,4 +1,4 @@
-package io.uliss.note_service.config
+package io.uliss.note_service.policy
 
 import org.springframework.boot.context.properties.ConfigurationProperties
 

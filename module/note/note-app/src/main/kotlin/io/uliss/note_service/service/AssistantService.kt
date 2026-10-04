@@ -1,13 +1,13 @@
 package io.uliss.note_service.service
 
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
-import io.uliss.note_service.model.ChatTurnStatus
+import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.prompt.ChatPrompts
-import io.uliss.note_service.service.type.AssistantReplyStream
-import io.uliss.note_service.service.type.AssistantStreamEvent
-import io.uliss.note_service.service.type.ChatTurnRequestResolution
+import io.uliss.note_service.service.output.AssistantReplyStream
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message

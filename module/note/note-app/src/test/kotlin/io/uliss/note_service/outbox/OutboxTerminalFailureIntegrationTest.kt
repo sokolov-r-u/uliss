@@ -5,7 +5,10 @@ import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.repository.OutboxEventRepository
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired

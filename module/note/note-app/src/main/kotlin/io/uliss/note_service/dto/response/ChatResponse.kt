@@ -1,4 +1,4 @@
-package io.uliss.note_service.dto
+package io.uliss.note_service.dto.response
 
 import io.uliss.note_service.model.ChatEntity
 import java.time.Instant

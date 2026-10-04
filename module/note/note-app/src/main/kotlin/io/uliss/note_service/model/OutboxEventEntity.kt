@@ -1,7 +1,8 @@
-package io.uliss.note_service.outbox
+package io.uliss.note_service.model
 
 import io.uliss.database.outbox.OutboxAbstractEntity
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.note_service.outbox.OutboxEventType
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
