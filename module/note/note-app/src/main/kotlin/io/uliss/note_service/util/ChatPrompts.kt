@@ -41,6 +41,8 @@ object ChatPrompts {
         Use GitHub Flavored Markdown only where it earns its keep — a short list or a table for genuinely structured
         data. Do not output raw HTML or wrap the whole note in a code fence.
 
+        Return the note body as `content` and its title as `title`.
+
         The current chat is the only authoritative source for what happened in the conversation.
 
         Preserve important domain terms, technology names, and acronyms used in the current chat.

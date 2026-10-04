@@ -108,11 +108,12 @@ class NoteService(
     }
 
     @Transactional
-    fun completeChatSummary(userId: UUID, noteId: UUID, content: String): Boolean {
+    fun completeChatSummary(userId: UUID, noteId: UUID, title: String?, content: String): Boolean {
         require(content.isNotBlank()) { "summary content must not be blank" }
         val note = noteRepository.findByIdAndUserId(noteId, userId) ?: return false
         if (note.status != NoteStatus.GENERATING) return false
 
+        note.title = title
         note.content = content
         note.status = NoteStatus.READY
         noteRepository.save(note)

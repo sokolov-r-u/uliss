@@ -36,6 +36,28 @@ class NoteIndexRequestedHandlerTest {
     }
 
     @Test
+    fun `handle prepends the title to the indexed text`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY, title = "Ownership columns")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
+
+        Mockito.verify(ragService).index(userId, note.id, "Ownership columns\n\nA concise summary")
+    }
+
+    @Test
+    fun `handle indexes only the content when the title is blank`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY, title = "  ")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
+
+        Mockito.verify(ragService).index(userId, note.id, "A concise summary")
+    }
+
+    @Test
     fun `handle ignores a missing note`() {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()

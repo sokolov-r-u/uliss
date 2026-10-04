@@ -24,6 +24,7 @@ class NoteIndexRequestedHandler(
         val note = noteRepository.findByIdAndUserId(payload.noteId, payload.userId) ?: return
         val content = note.content?.takeIf { it.isNotBlank() } ?: return
         if (note.status != NoteStatus.READY) return
-        ragService.index(payload.userId, note.id, content)
+        val text = note.title?.takeIf { it.isNotBlank() }?.let { "$it\n\n$content" } ?: content
+        ragService.index(payload.userId, note.id, text)
     }
 }

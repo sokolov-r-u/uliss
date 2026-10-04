@@ -3,6 +3,7 @@ package io.uliss.note_service.outbox
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
+import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
@@ -17,6 +18,7 @@ import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.converter.BeanOutputConverter
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
@@ -72,7 +74,8 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.content()).thenReturn("  Final summary  ")
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java))
+            .thenReturn(NoteDraft("Ownership columns", "  Final summary  "))
 
         handler.handle(event(payload))
 
@@ -99,7 +102,65 @@ class NoteSummaryRequestedHandlerTest {
         assertTrue(systemPrompt.contains("Use GitHub Flavored Markdown"))
         assertTrue(systemPrompt.contains("Do not output raw HTML"))
         assertTrue(systemPrompt.contains("wrap the whole note in a code fence"))
-        Mockito.verify(noteService).completeChatSummary(payload.userId, payload.noteId, "Final summary")
+        assertTrue(systemPrompt.contains("Return the note body as `content` and its title as `title`"))
+        Mockito.verify(noteService)
+            .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
+    }
+
+    @Test
+    fun `handle normalizes a decorated model title`() {
+        val payload = payload()
+
+        handleWithDraft(payload, NoteDraft("  # \"Ownership   columns\"\n", "Summary"))
+
+        Mockito.verify(noteService)
+            .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Summary")
+    }
+
+    @Test
+    fun `handle derives the title from the content when the model title is blank`() {
+        val payload = payload()
+
+        handleWithDraft(payload, NoteDraft("  ", "\n## Ownership columns\n- keep user_id"))
+
+        Mockito.verify(noteService).completeChatSummary(
+            payload.userId,
+            payload.noteId,
+            "Ownership columns",
+            "## Ownership columns\n- keep user_id",
+        )
+    }
+
+    @Test
+    fun `handle treats a missing structured response as retryable failure`() {
+        val payload = payload()
+
+        assertFailsWith<IllegalStateException> {
+            handleWithDraft(payload, null)
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
+    fun `NoteDraft is readable by the structured output converter`() {
+        val converter = BeanOutputConverter(NoteDraft::class.java)
+
+        val draft = converter.convert("```json\n{\"title\": \"Ownership\", \"content\": \"- keep user_id\"}\n```")
+
+        assertEquals(NoteDraft("Ownership", "- keep user_id"), draft)
+    }
+
+    @Test
+    fun `NoteDraft schema carries the field instructions`() {
+        val schema = BeanOutputConverter(NoteDraft::class.java).jsonSchemaMap
+
+        @Suppress("UNCHECKED_CAST")
+        val properties = schema["properties"] as Map<String, Map<String, Any>>
+        val titleDescription = properties.getValue("title")["description"] as String
+        val contentDescription = properties.getValue("content")["description"] as String
+        assertTrue(titleDescription.contains("at most 50 characters"))
+        assertTrue(contentDescription.contains("do not repeat it here"))
+        assertEquals("A standalone note summarizing the current chat.", schema["description"])
     }
 
     @Test
@@ -129,7 +190,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.content()).thenReturn("Summary")
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary"))
 
         handler.handle(event(payload))
 
@@ -246,8 +307,16 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
-    fun `handle treats a blank model response as retryable failure`() {
+    fun `handle treats blank model content as retryable failure`() {
         val payload = payload()
+
+        assertFailsWith<IllegalStateException> {
+            handleWithDraft(payload, NoteDraft("Title", "   "))
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    private fun handleWithDraft(payload: NoteSummaryRequestedPayload, draft: NoteDraft?) {
         val context = ChatSummaryContext(
             "Architecture",
             listOf(message(payload.chatId, ChatMessageRole.USER, "Summarize this")),
@@ -264,12 +333,9 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.content()).thenReturn("   ")
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(draft)
 
-        assertFailsWith<IllegalStateException> {
-            handler.handle(event(payload))
-        }
-        Mockito.verifyNoInteractions(noteService)
+        handler.handle(event(payload))
     }
 
     private fun payload() = NoteSummaryRequestedPayload(
@@ -321,7 +387,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.content()).thenReturn("Summary")
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary"))
 
         localHandler.handle(event(payload))
 
