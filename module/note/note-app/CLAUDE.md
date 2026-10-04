@@ -1,6 +1,6 @@
 # Note service instructions
 
-Read the repository `AGENTS.md`, this module's `README.md`, and the security-library guidance before editing
+Read the repository `CLAUDE.md`, this module's `README.md`, and the security-library guidance before editing
 note-service.
 
 ## Invariants
@@ -26,10 +26,11 @@ note-service.
   synchronized web tests/changes.
 - Flyway migrations are append-only. Add a new versioned migration for every schema change; never edit an existing
   migration. Preserve the service-owned `note` schema and pgvector compatibility.
-- Message pagination is limited to the existing browser-history contract. Initial chat creation and first-turn
-  reservation are one transaction; derive the title there from the first user message. The frontend must not generate
-  chat IDs or titles, and no provider call may be added for title generation without explicit scope. Persist the initial
-  request key so a retry can recover the backend-generated chat after response loss.
+- Message pagination is limited to the existing browser-history contract.
+- Initial chat creation and first-turn reservation happen in one transaction, deriving the title from the first user
+  message there. The frontend must not generate chat IDs or titles; no provider call may be added for title
+  generation without explicit scope.
+- Persist the initial request key so a retry can recover the backend-generated chat after response loss.
 
 ## Verification
 

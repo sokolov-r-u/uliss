@@ -1,6 +1,6 @@
 # User service instructions
 
-Read the repository `AGENTS.md`, this module's `README.md`, and the security-library guidance before editing
+Read the repository `CLAUDE.md`, this module's `README.md`, and the security-library guidance before editing
 user-service.
 
 ## Invariants

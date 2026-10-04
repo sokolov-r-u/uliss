@@ -1,6 +1,6 @@
 # Security library instructions
 
-Read the repository `AGENTS.md`, this library's `README.md`, and `module/auth/README.md` before changing the OAuth flow.
+Read the repository `CLAUDE.md`, this library's `README.md`, and `module/auth/README.md` before changing the OAuth flow.
 
 ## Invariants
 

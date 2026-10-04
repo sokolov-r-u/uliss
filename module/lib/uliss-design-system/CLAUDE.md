@@ -1,6 +1,6 @@
 # Design-system instructions
 
-Read the repository `AGENTS.md`, this module's `README.md`, and the consuming module guidance before editing the design
+Read the repository `CLAUDE.md`, this module's `README.md`, and the consuming module guidance before editing the design
 system.
 
 ## Invariants

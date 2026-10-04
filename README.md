@@ -74,4 +74,5 @@ PostgreSQL and the optional full-stack Docker Compose profile are defined in `in
 Kubernetes/minikube manifests live under `infra/k8s` and are orchestrated by `skaffold.yaml`. See `docs/DEPLOYMENT.md`
 for the supported commands, routing, image build, and GHCR publishing flow.
 
-Repository automation rules for Codex are in `AGENTS.md`. Deferred engineering work is tracked in `docs/TECH_DEBT.md`.
+Repository automation rules for Claude Code are in `CLAUDE.md`. Deferred engineering work is tracked in
+`docs/TECH_DEBT.md`.

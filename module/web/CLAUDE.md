@@ -1,6 +1,6 @@
 # Web application instructions
 
-Read the repository `AGENTS.md`, this module's `README.md`, and the relevant backend/design-system guidance before
+Read the repository `CLAUDE.md`, this module's `README.md`, and the relevant backend/design-system guidance before
 editing the SPA.
 
 ## Invariants
@@ -37,5 +37,4 @@ editing the SPA.
   affected source and snapshot files. Tell the user which screens changed and what to review; wait for the user's
   explicit approval before changing expected screenshots. After approval, update only the approved failing titles with
   `visual:update -- --grep <title>`, rerun those exact titles with `visual:test -- --grep <title>`, then run the
-  complete
-  visual suite. Never change component geometry solely to match an outdated snapshot.
+  complete visual suite. Never change component geometry solely to match an outdated snapshot.

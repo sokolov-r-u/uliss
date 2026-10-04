@@ -1,6 +1,6 @@
 # Auth module instructions
 
-Read the repository `AGENTS.md` and this module's `README.md` before editing `module/auth`.
+Read the repository `CLAUDE.md` and this module's `README.md` before editing `module/auth`.
 
 ## Invariants
 
