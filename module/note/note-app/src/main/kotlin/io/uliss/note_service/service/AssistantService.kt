@@ -61,7 +61,14 @@ class AssistantService(
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
             { reply -> persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE) },
-            { reply, _ -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
+            { reply, ex ->
+                log.error(
+                    "provider stream failed for chat=${resolution.turn.chatId} turn=${resolution.turn.id}",
+                    "streamNewGeneration",
+                    ex,
+                )
+                persistAssistantResult(resolution, reply, interruptedStatus(reply))
+            },
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
         ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
 
