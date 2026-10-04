@@ -16,9 +16,9 @@ import io.uliss.note_service.model.projection.ChatTurn
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.model.projection.RequestFingerprint
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
-import io.uliss.note_service.prompt.ChatPrompts
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatTurnStore
+import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient

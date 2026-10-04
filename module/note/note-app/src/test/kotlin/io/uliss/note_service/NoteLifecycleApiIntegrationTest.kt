@@ -12,7 +12,6 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.outbox.OutboxEventType
-import io.uliss.note_service.prompt.ChatPrompts
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
@@ -21,6 +20,7 @@ import io.uliss.note_service.repository.OutboxEventRepository
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.facade.ChatFacade
+import io.uliss.note_service.util.ChatPrompts
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test

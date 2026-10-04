@@ -3,6 +3,7 @@ package io.uliss.note_service.service
 import io.uliss.database.entity.generateId
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -14,11 +15,6 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
-
-internal data class ChatSummaryContext(
-    val title: String,
-    val messages: List<ChatMessageEntity>,
-)
 
 @Service
 @Transactional(readOnly = true)
