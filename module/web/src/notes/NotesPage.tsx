@@ -101,9 +101,11 @@ function formatDate(iso?: string): string {
     return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
 }
 
-function contentParts(content: string | null): { title: string; excerpt: string } {
+function contentParts(content: string | null, storedTitle?: string): { title: string; excerpt: string } {
     const lines = content?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? []
     const normalized = lines.join(' ').replace(/\s+/g, ' ').trim()
+    if (storedTitle) return {title: storedTitle, excerpt: normalized}
+    // Notes created before stored titles fall back to their first content line.
     const first = lines[0]?.replace(/\s+/g, ' ').trim() ?? 'Ready note'
     const title = first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first
     const excerpt = normalized.startsWith(first) ? normalized.slice(first.length).trim() : normalized
@@ -112,7 +114,7 @@ function contentParts(content: string | null): { title: string; excerpt: string 
 
 export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
     return notes.map((note, index) => {
-        const content = contentParts(note.content)
+        const content = contentParts(note.content, note.title)
         const title = note.status === 'GENERATING'
             ? 'Generating note…'
             : note.status === 'FAILED' ? 'Summary failed' : content.title

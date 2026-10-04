@@ -37,6 +37,7 @@ export function NoteDetailView({state, onRetry}: { state: DetailState; onRetry?:
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
         {state.status === 'ready' && <article className="note-content">
+            {state.note.title && <h1 className="note-title">{state.note.title}</h1>}
             {state.note.source === 'CHAT_SUMMARY'
                 ? <MarkdownContent content={state.note.content}/>
                 : state.note.content}

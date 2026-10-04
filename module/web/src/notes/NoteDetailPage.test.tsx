@@ -43,6 +43,30 @@ describe('NoteDetailPage', () => {
         expect(mockedGetNote).toHaveBeenCalledTimes(2)
     })
 
+    it('renders the stored title above the content', async () => {
+        mockedGetNote.mockResolvedValue({
+            id: 'note-1',
+            source: 'CHAT_SUMMARY',
+            status: 'READY',
+            title: 'Ownership columns',
+            content: 'Keep user_id on every table',
+        })
+
+        renderPage()
+
+        expect(await screen.findByRole('heading', {name: 'Ownership columns'})).toBeInTheDocument()
+        expect(screen.getByText('Keep user_id on every table')).toBeInTheDocument()
+    })
+
+    it('renders no title heading for a note without a stored title', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'})
+
+        renderPage()
+
+        expect(await screen.findByText('Body')).toBeInTheDocument()
+        expect(screen.queryByRole('heading', {level: 1})).not.toBeInTheDocument()
+    })
+
     it('renders ownership-safe 404 separately from retryable errors', async () => {
         mockedGetNote.mockRejectedValue(new NoteApiError('http', 'note fetch failed (404)', 404))
         renderPage()

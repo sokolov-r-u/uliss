@@ -8,6 +8,7 @@ export interface Note {
     id: string
     source: NoteSource
     status: NoteStatus
+    title?: string
     content: string | null
     createdAt?: string
     updatedAt?: string
@@ -79,6 +80,7 @@ function parseNote(value: unknown): Note {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
         status: parseStatus(value.status),
+        title: optionalString(value.title, 'title'),
         content: value.content,
         createdAt: optionalString(value.createdAt, 'createdAt'),
         updatedAt: optionalString(value.updatedAt, 'updatedAt'),
