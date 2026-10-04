@@ -1,16 +1,16 @@
 package io.uliss.note_service.controller
 
 import io.uliss.exception.common.BadRequestException
-import io.uliss.note_service.dto.ChatMessagePageResponse
-import io.uliss.note_service.dto.ChatResponse
-import io.uliss.note_service.dto.ChatSummaryResponse
-import io.uliss.note_service.dto.SendMessageRequest
-import io.uliss.note_service.dto.toChatSummaryResponse
-import io.uliss.note_service.dto.toResponse
+import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.request.SendMessageRequest
+import io.uliss.note_service.dto.response.ChatMessagePageResponse
+import io.uliss.note_service.dto.response.ChatResponse
+import io.uliss.note_service.dto.response.ChatSummaryResponse
+import io.uliss.note_service.dto.response.toChatSummaryResponse
+import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.facade.ChatFacade
-import io.uliss.note_service.service.type.AssistantReplyStream
-import io.uliss.note_service.service.type.AssistantStreamEvent
+import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus

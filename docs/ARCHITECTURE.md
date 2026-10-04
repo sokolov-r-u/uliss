@@ -2,7 +2,7 @@
 
 Deeper rationale behind build/config mechanisms that only matters when touching those mechanisms
 themselves — not needed for day-to-day feature work. Cross-cutting agent rules are in
-`../AGENTS.md`; read those first.
+`../CLAUDE.md`; read those first.
 
 ## JaCoCo merging (`jacocoRootReport`)
 
@@ -20,7 +20,7 @@ disk from a previous run. Modules without a `test.exec`/`integrationTest.exec` a
 `io/uliss/api/**` (generated protobuf/gRPC) and `**/*ApplicationKt.class`
 (the Kotlin file-class with a top-level `fun main()` — unreachable by any test: `@SpringBootTest`
 boots the context via `SpringApplicationBuilder` directly, without calling `main()`, and actually
-running the application requires explicit permission under the root `AGENTS.md`).
+running the application requires explicit permission under the root `CLAUDE.md`).
 
 ## Convention plugins
 

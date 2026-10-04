@@ -1,6 +1,5 @@
 package io.uliss.note_service.policy
 
-import io.uliss.note_service.config.ChatTurnProperties
 import org.springframework.ai.retry.autoconfigure.SpringAiRetryProperties
 import org.springframework.boot.http.client.HttpClientSettings
 import org.springframework.stereotype.Component

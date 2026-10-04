@@ -172,6 +172,33 @@ Recorded as a future cleanup pass — convert the remaining multi-line `//` comm
 codebase to the KDoc format on a later, dedicated task rather than as a side effect of unrelated
 changes.
 
+## Address the user by display name in chat/summary prompts (`note-service`)
+
+**Status:** not implemented, approach unconfirmed. `ChatPrompts.CHAT_SYSTEM_PROMPT` and
+`NOTE_SUMMARY_SYSTEM_PROMPT` refer to the user generically ("the user"); no display name is threaded
+into either prompt today.
+
+### Observation
+
+The access token already carries an optional `displayName` claim, set by
+`TokenConfig.tokenCustomizer` (`module/auth/.../config/TokenConfig.kt`) from a user-service gRPC
+lookup performed once at token issuance — the same mechanism that supplies the `userId` claim
+note-service already reads via `Jwt.getUserId()` (`module/lib/security/.../JwtExtensions.kt`).
+Extracting a `displayName` the same way would not require a new note→user gRPC dependency.
+
+### Open question
+
+The claim is fixed at login time. If a user changes their display name in user-service, note-service
+would keep seeing the old value until the next login/token refresh. Decide whether that staleness is
+acceptable for chat/summary personalization, or whether personalization instead needs a live
+user-service lookup (which would be the larger, cross-service change). The claim is also optional —
+onboarding may not have set a display name yet — so any prompt text must fall back gracefully.
+
+### Not in scope for the current task
+
+Recorded while narrowing an unrelated summary-prompt-length change (`module/note/note-app/.../util/ChatPrompts.kt`). No
+code changed for this item.
+
 ## AI-generated semantic chat title (`note-service`)
 
 **Status:** optional enhancement, not implemented. The backend initial-turn transaction creates the

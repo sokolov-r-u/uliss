@@ -4,6 +4,9 @@ import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.policy.OutboxLeasePolicy
+import io.uliss.note_service.repository.OutboxEventRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingProperties

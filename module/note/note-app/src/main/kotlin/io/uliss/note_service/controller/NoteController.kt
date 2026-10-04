@@ -1,7 +1,7 @@
 package io.uliss.note_service.controller
 
-import io.uliss.note_service.dto.NoteResponse
-import io.uliss.note_service.dto.NoteStatusResponse
+import io.uliss.note_service.dto.response.NoteResponse
+import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.service.NoteService
 import io.uliss.security.utils.getUserId
 import org.springframework.http.MediaType

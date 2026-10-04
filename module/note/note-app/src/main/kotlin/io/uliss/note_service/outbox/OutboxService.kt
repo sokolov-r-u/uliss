@@ -2,6 +2,9 @@ package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.policy.OutboxLeasePolicy
+import io.uliss.note_service.repository.OutboxEventRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

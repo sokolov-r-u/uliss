@@ -1,16 +1,16 @@
 package io.uliss.note_service
 
 import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
-import io.uliss.note_service.model.ChatTurnStatus
+import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.facade.ChatFacade
-import io.uliss.note_service.service.type.AssistantReplyStream
-import io.uliss.note_service.service.type.ChatTurnRequestResolution
+import io.uliss.note_service.service.output.AssistantReplyStream
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired

@@ -2,7 +2,7 @@ package io.uliss.note_service.repository
 
 import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ChatEntity
-import io.uliss.note_service.model.RequestFingerprint
+import io.uliss.note_service.model.projection.RequestFingerprint
 import jakarta.persistence.EntityManager
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test

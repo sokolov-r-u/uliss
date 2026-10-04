@@ -5,6 +5,8 @@ import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
@@ -14,10 +16,9 @@ import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.service.facade.ChatFacade
-import io.uliss.note_service.service.type.AssistantReplyStream
-import io.uliss.note_service.service.type.AssistantStreamEvent
-import io.uliss.note_service.service.type.ChatMessageCursorPage
+import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
 import org.hamcrest.Matchers
@@ -378,7 +379,7 @@ class ChatControllerTest {
         listOf(
             AssistantStreamEvent.GenerationPending(1500) to "event:pending",
             AssistantStreamEvent.GenerationCompleted to "event:done",
-            AssistantStreamEvent.GenerationFailed(io.uliss.note_service.model.ChatTurnStatus.FAILED) to "event:error",
+            AssistantStreamEvent.GenerationFailed(ChatTurnStatus.FAILED) to "event:error",
         ).forEach { (event, expectedEvent) ->
             val turnId = UUID.randomUUID()
             val idempotencyKey = UUID.randomUUID()
