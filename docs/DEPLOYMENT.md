@@ -10,8 +10,8 @@ An alternative to minikube for everyday local dev — no cluster, no `kubectl`/`
 same images the k8s path builds, orchestrated by plain Docker Compose instead. **The minikube/skaffold
 path below is unchanged and still fully supported** — this is an additional option, not a replacement.
 
-- Add `127.0.0.1 uliss.local` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
-  including `auth.uliss.local` etc., already needed for host-based `bootRun` dev).
+- Add `127.0.0.1 uliss.home` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
+  including `auth.uliss.home` etc., already needed for host-based `bootRun` dev).
 - Build all four images in one command: `./gradlew buildAllImages` — aggregates
   `:auth:jibDockerBuild`/`:user:jibDockerBuild`/`:note:jibDockerBuild` (Jib, local Docker daemon
   only) plus `buildWebImage` (a plain `docker build -t uliss/web:latest -f module/web/Dockerfile .`,
@@ -26,9 +26,9 @@ path below is unchanged and still fully supported** — this is an additional op
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.
 - `auth`/`user`/`note` read `infra/.env` via `env_file`, with two container-only overrides on top:
   `USER_SERVICE_HOST=user` on `auth` (its gRPC client target — `localhost` only makes sense for
-  host-based `bootRun`) and `FRONTEND_URL=http://uliss.local` on `user`/`note` (the OAuth
+  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `user`/`note` (the OAuth
   `redirect-uri` `:security` builds — the compose `web` container serves on `:80`, not the Vite dev
-  port `:3000`). `auth` also gets a Compose network alias `auth.uliss.local`, so
+  port `:3000`). `auth` also gets a Compose network alias `auth.uliss.home`, so
   `AUTH_PUBLIC_URL`/`AUTH_INTERNAL_URL` need no override — the same hostname resolves from both the
   host browser and sibling containers.
 - Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf`
@@ -61,8 +61,8 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   for k8s (`POSTGRES_URL`, `AUTH_PUBLIC_URL`, `AUTH_INTERNAL_URL`, `FRONTEND_URL`) — `stringData`
   wins over `data` on apply. This way local and k8s don't collide without a second env file/overlay
   (an overlay inside `infra/` isn't possible — kustomize flags a cycle; hence the patch instead).
-- **Ingress** (`k8s/ingress.yaml`) — by host, `auth.uliss.local` → `auth:9000`, `user.uliss.local` →
-  `user:8080`, `note.uliss.local` → `note:8081`, and on `uliss.local` **path-routing** (same-origin for
+- **Ingress** (`k8s/ingress.yaml`) — by host, `auth.uliss.home` → `auth:9000`, `user.uliss.home` →
+  `user:8080`, `note.uliss.home` → `note:8081`, and on `uliss.home` **path-routing** (same-origin for
   the SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Each service serves its whole
   path under its own name (see the path-prefix convention in the root `CLAUDE.md`) — one rule per service
   instead of one per resource.

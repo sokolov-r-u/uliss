@@ -4,7 +4,7 @@ metadata:
   name: ingress-uliss-host
 spec:
   rules:
-    - host: "auth.uliss.local"
+    - host: "auth.uliss.home"
       http:
         paths:
           - pathType: Prefix
@@ -14,7 +14,7 @@ spec:
                 name: auth
                 port:
                   number: 9000
-    - host: "user.uliss.local"
+    - host: "user.uliss.home"
       http:
         paths:
           - pathType: Prefix
@@ -24,7 +24,7 @@ spec:
                 name: user
                 port:
                   number: 8080
-    - host: "note.uliss.local"
+    - host: "note.uliss.home"
       http:
         paths:
           - pathType: Prefix
@@ -34,7 +34,7 @@ spec:
                 name: note
                 port:
                   number: 8081
-    - host: "uliss.local"
+    - host: "uliss.home"
       http:
         paths:
           # same-origin: SPA calls relative /user/* -> user-service (oauth2 mediator + profile),

@@ -42,7 +42,7 @@ services:
       # containers, so AUTH_PUBLIC_URL/AUTH_INTERNAL_URL need no override here
       default:
         aliases:
-          - auth.uliss.local
+          - auth.uliss.home
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,7 +56,7 @@ services:
     env_file: .env
     environment:
       # web is served on :80 in full-compose mode, not the Vite dev port :3000
-      FRONTEND_URL: http://uliss.local
+      FRONTEND_URL: http://uliss.home
     ports:
       - "8080:8080"
       - "9090:9090"
@@ -76,7 +76,7 @@ services:
     profiles: [ "full" ]
     env_file: .env
     environment:
-      FRONTEND_URL: http://uliss.local
+      FRONTEND_URL: http://uliss.home
     ports:
       - "8081:8081"
     healthcheck:
