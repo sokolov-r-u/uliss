@@ -44,6 +44,7 @@ flowchart LR
     Client --> NoteController --> NoteService
     ChatFacade --> ChatService --> ChatTables
     ChatFacade --> AssistantService --> ChatTurnService --> ChatTables
+  ChatFacade --> ChatTurnService
     ChatFacade --> NoteService --> NoteTables
     NoteService --> OutboxTable
     AssistantService --> ChatModel
@@ -60,7 +61,8 @@ flowchart LR
 ```
 
 The controllers map authentication and transport data. `ChatFacade` coordinates use cases that
-span chat, assistant, and note services. Repositories and JDBC stores are reached only from the
+span chat, assistant, and note services; services of different domains never call each other. Repositories and JDBC
+stores are reached only from the
 application services or outbox handlers.
 
 ## Endpoint routing
@@ -68,7 +70,10 @@ application services or outbox handlers.
 | Request                                           | Synchronous call path                                                               | Result                                             |
 |---------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------|
 | `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService + AssistantService -> ChatTurnService` | Creates the chat and reserves its first turn       |
-| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService`                                       | Lists the user's chats                             |
+| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Lists the user's chats with note counts            |
+| `GET /note/chats/{chatId}`                        | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Returns one owned chat with its note count         |
+| `PATCH /note/chats/{chatId}`                      | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Renames the chat                                   |
+| `DELETE /note/chats/{chatId}`                     | `ChatController -> ChatFacade -> ChatTurnService + ChatService`                     | Deletes the chat; linked notes survive             |
 | `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                                       | Returns an ownership-filtered cursor page          |
 | `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
@@ -76,6 +81,8 @@ application services or outbox handlers.
 | `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
+| `PATCH /note/notes/{noteId}`                      | `NoteController -> NoteService`                                                     | Renames a `READY` note and queues reindexing       |
+| `DELETE /note/notes/{noteId}`                     | `NoteController -> NoteService`                                                     | Deletes the note; chats survive                    |
 
 ## Paginated chat history
 
@@ -405,6 +412,23 @@ sequenceDiagram
 Missing and foreign note or chat identifiers both appear as `404`, so ownership information is not
 leaked.
 
+## Rename and delete
+
+- Chat rename: `ChatService` loads the owned chat, applies the normalized title, and saves it in one transaction;
+  `ChatFacade` then adds the note count from `NoteService`.
+- Chat delete: `ChatFacade` opens one transaction. `ChatTurnService` locks the owned chat row (`SELECT … FOR UPDATE`)
+  and rejects a `GENERATING` turn with a live lease (`409`); `ChatService` then re-checks ownership and deletes the
+  chat.
+  The lock serializes deletion with turn reservation. FK cascades remove turns, messages, summary requests, and
+  `chat_note` links; notes stay.
+- Note rename: one transaction loads the owned `READY` note, updates its title, and publishes `NOTE_INDEX_REQUESTED`.
+- Note delete: one transaction deletes the owned note; FK cascades remove RAG chunks, `chat_note` links, and summary
+  requests. A pending summary worker then finds no note and completes without writing; a pending index event is a
+  no-op for a missing note.
+- Summary after chat delete: `ChatService.getSummaryContext` throws `NotFoundException`, and the worker calls
+  `NoteSummaryTerminalFailureHandler`, which
+  changes a still-generating note to `FAILED`.
+
 ## Transaction boundary summary
 
 | Use case             | Transactional work                                                | Work outside that transaction                                |
@@ -415,3 +439,6 @@ leaked.
 | Request summary      | Reserve key, create note/link, publish summary event              | Summary generation                                           |
 | Process outbox event | Claim, complete, or record failure each use a short transaction   | Handler, chat model, embedding model                         |
 | Complete summary     | Persist content as `READY`, publish index event                   | Later indexing handler                                       |
+| Delete chat          | Lock chat, reject a live turn, delete chat (FK cascades)          | —                                                            |
+| Rename note          | Update title, publish index event                                 | Later indexing handler                                       |
+| Delete note          | Delete note (FK cascades)                                         | —                                                            |
