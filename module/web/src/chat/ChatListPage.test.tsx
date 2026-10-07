@@ -45,4 +45,20 @@ describe('ChatListPage', () => {
         act(() => finishReload([{id: 'c2', title: 'Books', noteCount: 0}]))
         await waitFor(() => expect(screen.queryByRole('button', {name: 'Actions for Trip'})).not.toBeInTheDocument())
     })
+
+    it('keeps the loaded rows when a background refresh fails', async () => {
+        vi.mocked(listChats)
+            .mockResolvedValueOnce([{id: 'c1', title: 'Trip', noteCount: 0}, {id: 'c2', title: 'Books', noteCount: 0}])
+            .mockRejectedValueOnce(new Error('connection lost'))
+        render(<MemoryRouter><ChatListPage/></MemoryRouter>)
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Trip'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        await waitFor(() => expect(listChats).toHaveBeenCalledTimes(2))
+        await act(async () => undefined)
+        expect(screen.queryByText('connection lost')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Actions for Books'})).toBeInTheDocument()
+    })
 })

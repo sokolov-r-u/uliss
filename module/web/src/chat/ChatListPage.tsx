@@ -42,6 +42,8 @@ export function ChatListPage() {
                 if (!active) return
                 // authFetch already kicked off a login/refresh redirect — nothing to render.
                 if (e instanceof AuthRequiredError) return
+                // A failed background refresh keeps the loaded rows; the next list change retries.
+                if (loadedRef.current) return
                 setState({status: 'error', message: e instanceof Error ? e.message : String(e)})
             })
         return () => {
