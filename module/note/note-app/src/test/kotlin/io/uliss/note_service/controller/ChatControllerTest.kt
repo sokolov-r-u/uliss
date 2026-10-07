@@ -36,7 +36,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import reactor.core.publisher.Flux
 import java.time.Instant
@@ -570,6 +572,147 @@ class ChatControllerTest {
             header("Idempotency-Key", UUID.randomUUID())
         }.andExpect {
             status { isBadRequest() }
+        }
+    }
+
+    @Test
+    fun `getChat returns one owned chat with its note count`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Trip planning")
+        Mockito.`when`(chatFacade.getChat(userId, chat.id)).thenReturn(ChatWithNoteCount(chat, 1))
+
+        mockMvc.get("/note/chats/${chat.id}") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id") { value(chat.id.toString()) }
+            jsonPath("$.noteCount") { value(1) }
+        }
+    }
+
+    @Test
+    fun `getChat maps a missing chat to 404`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatFacade.getChat(userId, chatId)).thenThrow(NotFoundException("chat id=$chatId not found"))
+
+        mockMvc.get("/note/chats/$chatId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNotFound() }
+        }
+    }
+
+    @Test
+    fun `renameChat passes the raw title to the facade and returns the renamed chat`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Renamed")
+        Mockito.`when`(chatFacade.renameChat(userId, chat.id, " Renamed ")).thenReturn(ChatWithNoteCount(chat, 0))
+
+        mockMvc.patch("/note/chats/${chat.id}") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":" Renamed "}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.title") { value("Renamed") }
+            jsonPath("$.noteCount") { value(0) }
+        }
+    }
+
+    @Test
+    fun `renameChat rejects a blank body title with 400`() {
+        mockMvc.patch("/note/chats/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":""}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `renameChat accepts a title of 50 emoji at the 100 UTF-16 char transport bound`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "😀".repeat(50))
+        Mockito.`when`(chatFacade.renameChat(userId, chat.id, chat.title)).thenReturn(ChatWithNoteCount(chat, 0))
+
+        mockMvc.patch("/note/chats/${chat.id}") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"${chat.title}"}"""
+        }.andExpect {
+            status { isOk() }
+        }
+    }
+
+    @Test
+    fun `renameChat rejects a body title over 100 UTF-16 chars before the facade`() {
+        mockMvc.patch("/note/chats/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"${"a".repeat(101)}"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `renameChat maps a service title rule violation to 400`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val title = "a".repeat(51)
+        Mockito.`when`(chatFacade.renameChat(userId, chatId, title))
+            .thenThrow(BadRequestException("title must be 1 to 50 characters"))
+
+        mockMvc.patch("/note/chats/$chatId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"$title"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+    }
+
+    @Test
+    fun `deleteChat returns 204`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+
+        mockMvc.delete("/note/chats/$chatId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNoContent() }
+        }
+        Mockito.verify(chatFacade).deleteChat(userId, chatId)
+    }
+
+    @Test
+    fun `deleteChat maps an active turn to 409`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.doThrow(ChatTurnAlreadyGeneratingException(chatId, UUID.randomUUID()))
+            .`when`(chatFacade).deleteChat(userId, chatId)
+
+        mockMvc.delete("/note/chats/$chatId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isConflict() }
+        }
+    }
+
+    @Test
+    fun `deleteChat maps a missing chat to 404`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.doThrow(NotFoundException("chat id=$chatId not found")).`when`(chatFacade).deleteChat(userId, chatId)
+
+        mockMvc.delete("/note/chats/$chatId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNotFound() }
         }
     }
 }
