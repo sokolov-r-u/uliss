@@ -149,6 +149,9 @@ function DisabledOpenSelectFixture() {
                                                   }]}/></div>
 }
 
+const FIXTURE_NOTE_ACTIONS = {onRenamed: () => undefined, onDeleted: () => undefined}
+const RENAMABLE_NOTES = NOTES.map((note) => ({...note, renamable: true}))
+
 export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario === 'login' || scenario === 'register') return <AuthFixture register={scenario === 'register'}/>
     if (scenario.startsWith('onboarding-')) return <OnboardingFixture
@@ -158,10 +161,9 @@ export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario.startsWith('chats-')) return <ChatsFixture
         kind={scenario.replace('chats-', '') as 'empty' | 'list' | 'conversation' | 'streaming'}/>
     if (scenario === 'notes-empty') return <NotesView notes={[]}/>
-    if (scenario === 'notes-populated') return <NotesView notes={NOTES} onRename={() => undefined}
-                                                          onDelete={() => undefined}/>
-    if (scenario === 'notes-menu') return <NotesView notes={NOTES} initialMenuId="142"
-                                                     onRename={() => undefined} onDelete={() => undefined}/>
+    if (scenario === 'notes-populated') return <NotesView notes={RENAMABLE_NOTES} actions={FIXTURE_NOTE_ACTIONS}/>
+    if (scenario === 'notes-menu') return <NotesView notes={RENAMABLE_NOTES} initialMenuId="142"
+                                                     actions={FIXTURE_NOTE_ACTIONS}/>
     if (scenario === 'notes-detail-ready') return <NoteDetailView state={{
         status: 'ready', note: {
             id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY',

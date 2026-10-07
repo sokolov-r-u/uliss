@@ -29,9 +29,18 @@ describe('notes list presentation', () => {
         expect(models[0]?.excerpt).toBe('Keep user_id on every table')
     })
 
-    it('hides unsupported row actions', () => {
+    it('hides row actions when the view has no action handlers', () => {
         const notes = [{id: '1', ordinal: 1, title: 'A note', excerpt: '', date: 'Sep 11', linkCount: 0}]
         render(<MemoryRouter><NotesView notes={notes}/></MemoryRouter>)
         expect(screen.queryByRole('button', {name: 'Actions for A note'})).not.toBeInTheDocument()
+    })
+
+    it('marks only ready notes as renamable', () => {
+        const models = toNoteViewModels([
+            {id: 'ready', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
+            {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
+            {id: 'failed', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
+        ])
+        expect(models.map((model) => model.renamable)).toEqual([true, false, false])
     })
 })

@@ -41,10 +41,25 @@
 .chat-page-header {
     flex: 0 0 auto;
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 14px;
     padding: 14px 20px;
     border-bottom: 1px solid var(--line);
+}
+
+.chat-page-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-text);
+    font-size: 15px;
+    color: var(--cream);
+}
+
+.chat-page-actions {
+    margin-left: auto;
 }
 
 .chat-back-link {

@@ -245,3 +245,24 @@ Opened 2026-08-31 during the design-system integration refresh
   uncommitted esbuild harness (`_specimen-components.{html,js,src.tsx}`) for a one-off browser
   eyeball only — delete after review. A `guidelines/` or Storybook-like surface is out of scope
   for this program.
+
+## Summarize updates the chat's existing note (`note-service`, `web`)
+
+Every Summarize currently creates a new note. Agreed behaviour (design: "Update"): when a chat already has a note,
+Summarize sends that note, the messages after the previous summary boundary, and RAG context to the model and updates
+the same note. Chat ↔ note stays many-to-many in the model; one chat feeding several notes is deferred until chats can
+search for related notes.
+
+## Design kit copy for chat/note deletion (`uliss-design-system`)
+
+The product deletes a chat without deleting its notes and shows a warning instead of the kit's "Keep / Delete the
+notes too" choice; the note delete dialog has no body. The online design's `DeleteChatDialog` and `DeleteNoteDialog`
+still show the old copy and should be updated to match. `Dialog.prompt.md` still says every body must name what
+survives; the note delete dialog is an agreed exception.
+
+## `TextField` counts UTF-16 units, titles count code points (`uliss-design-system`, `web`)
+
+The server title rule is 1–50 code points, but `TextField`'s counter and native `maxLength` count UTF-16 units. The
+rename dialog therefore lets a user type only 25 emoji and shows e.g. `60 / 50` for an existing emoji-heavy title,
+although Save (which validates code points) stays enabled. Fix by counting code points in `TextField` (and replacing
+native `maxLength` with a code-point guard) when emoji-heavy titles matter.

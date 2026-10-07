@@ -6,6 +6,8 @@ export interface NoteViewModel {
     date: string
     linkCount: number
     unread?: boolean
+    /** False while the note is generating or failed. */
+    renamable?: boolean
 }
 
 export interface SearchChatViewModel {

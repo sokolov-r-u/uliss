@@ -1,9 +1,10 @@
 import type {ReactNode} from 'react'
 import {useEffect, useState} from 'react'
-import {NavLink, useNavigate} from 'react-router-dom'
+import {NavLink, useLocation, useNavigate} from 'react-router-dom'
 import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {useAuth} from '../../auth/AuthContext'
 import {type Chat, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
+import {ItemActions} from '../actions/ItemActions'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -28,6 +29,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 }) {
     const {logout} = useAuth()
     const navigate = useNavigate()
+    const location = useLocation()
     const [chats, setChats] = useState<Chat[]>([])
     const [chatListRevision, setChatListRevision] = useState(0)
 
@@ -85,8 +87,23 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                         </>
                     ) : (
                         <div className="side-nav-chat-list" aria-label="Recent chats">
-                            {chats.map((chat) => <ListRow key={chat.id} title={chat.title} dots={false}
-                                                          onClick={go(`/chats/${chat.id}`)}/>)}
+                            {chats.map((chat) => (
+                                <ItemActions key={chat.id}
+                                             target={{
+                                                 kind: 'chat',
+                                                 id: chat.id,
+                                                 title: chat.title,
+                                                 noteCount: chat.noteCount
+                                             }}
+                                             onDeleted={() => {
+                                                 if (location.pathname === `/chats/${chat.id}`) {
+                                                     navigate('/chats', {replace: true})
+                                                 }
+                                             }}>
+                                    {(openMenu) => <ListRow title={chat.title} onClick={go(`/chats/${chat.id}`)}
+                                                            onMenu={openMenu} menuLabel={`Actions for ${chat.title}`}/>}
+                                </ItemActions>
+                            ))}
                         </div>
                     )}
                 </div>

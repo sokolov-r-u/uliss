@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
-import {ActionChip, Button, Kicker, Notice} from '@uliss/design-system'
+import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
@@ -20,6 +20,7 @@ import {
 } from './streamChatReply'
 import {MessageThread} from './MessageThread'
 import {ChatComposer} from './ChatComposer'
+import {ChatPageHeader} from './ChatPageHeader'
 import type {DisplayMessage} from './Bubble'
 import './chat.css'
 
@@ -560,6 +561,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                 summaryIdempotencyKeyRef.current = null
             }
+            // The chat gained a note even if this page has gone; chat lists show the count.
+            notifyChatListChanged()
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId) return
             setAcceptedNoteId(summary.noteId)
             setSummaryDialog(false)
@@ -602,10 +605,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     return (
         <div className="chat-page">
-            <div className="chat-page-header">
-                <Link to="/chats" className="chat-back-link">‹ chats</Link>
-                <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>
-            </div>
+            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
                            onLoadOlder={() => void loadOlderMessages()}/>
             {acceptedNoteId && <section

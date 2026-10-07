@@ -1,7 +1,8 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {Link, useParams} from 'react-router-dom'
-import {Button, Kicker} from '@uliss/design-system'
+import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
+import {Link, useNavigate, useParams} from 'react-router-dom'
+import {Button, Icon, IconButton, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
+import {ItemActions} from '../ui/actions/ItemActions'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
 import './notes.css'
@@ -20,10 +21,15 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function NoteDetailView({state, onRetry}: { state: DetailState; onRetry?: () => void }) {
+export function NoteDetailView({state, onRetry, actions}: {
+    state: DetailState
+    onRetry?: () => void
+    actions?: ReactNode
+}) {
     return <div className="note-detail">
         <header className="note-detail-header"><Link to="/notes" className="note-back-link">‹ notes</Link>
-            <Kicker size={9} spacing="3px" color="var(--text-faint)">Note</Kicker></header>
+            <Kicker size={9} spacing="3px" color="var(--text-faint)">Note</Kicker>
+            {actions && <span style={{marginLeft: 'auto'}}>{actions}</span>}</header>
         {state.status === 'loading' && <p className="note-detail-state">Loading…</p>}
         {state.status === 'generating' &&
             <div className="note-detail-state" aria-live="polite"><h1>Writing this note…</h1>
@@ -47,6 +53,7 @@ export function NoteDetailView({state, onRetry}: { state: DetailState; onRetry?:
 
 export function NoteDetailPage() {
     const {noteId} = useParams<{ noteId: string }>()
+    const navigate = useNavigate()
     const [state, setState] = useState<DetailState>({status: 'loading'})
     const controllerRef = useRef<AbortController | null>(null)
 
@@ -100,5 +107,19 @@ export function NoteDetailPage() {
         return () => controllerRef.current?.abort()
     }, [load])
 
-    return <NoteDetailView state={state} onRetry={() => void load()}/>
+    const note = 'note' in state ? state.note : null
+    const noteTitle = note?.title ?? 'Untitled note'
+    const actions = note && <ItemActions
+        target={{kind: 'note', id: note.id, title: noteTitle, renamable: note.status === 'READY'}}
+        onRenamed={(title) => setState((current) => 'note' in current
+            ? {...current, note: {...current.note, title}} as DetailState
+            : current)}
+        onDeleted={() => navigate('/notes', {replace: true})}>
+        {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitle}`}
+                                   onClick={(event) => openMenu(event.currentTarget)}>
+            <Icon name="dots" size={17}/>
+        </IconButton>}
+    </ItemActions>
+
+    return <NoteDetailView state={state} onRetry={() => void load()} actions={actions}/>
 }

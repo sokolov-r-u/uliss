@@ -1,30 +1,25 @@
 import {useEffect, useState} from 'react'
-import {Button, Dialog, EmptyState, Icon, Kicker, ListHeader, ListRow, Notice, TextField} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListHeader, ListRow} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
 import type {NoteViewModel} from '../views/models'
-import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
+import {ItemActions} from '../ui/actions/ItemActions'
 import {listNotes, type Note} from './noteApi'
 import './notes.css'
 
 export interface NotesViewProps {
     notes: NoteViewModel[]
     onOpen?: (note: NoteViewModel) => void
-    onRename?: (note: NoteViewModel, title: string) => void
-    onDelete?: (note: NoteViewModel) => void
     onStartChat?: () => void
+    /** Enables Rename · Delete; omitted for fixture-only renders. */
+    actions?: { onRenamed: (id: string, title: string) => void; onDeleted: (id: string) => void }
+    /** Fixture-only: render with this row's menu open. */
     initialMenuId?: string
 }
 
-export function NotesView({notes, onOpen, onRename, onDelete, onStartChat, initialMenuId}: NotesViewProps) {
-    const [menuId, setMenuId] = useState<string | null>(initialMenuId ?? null)
-    const [renaming, setRenaming] = useState<NoteViewModel | null>(null)
-    const [deleting, setDeleting] = useState<NoteViewModel | null>(null)
-    const [title, setTitle] = useState('')
+export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: NotesViewProps) {
     const unread = notes.filter((note) => note.unread).length
     const maxOrdinal = notes.reduce((max, note) => Math.max(max, note.ordinal), 0)
-    const menuNote = notes.find((note) => note.id === menuId)
-    const hasActions = Boolean(onRename || onDelete)
 
     if (notes.length === 0) {
         return <div className="product-view product-empty"><EmptyState title="Nothing written down yet"
@@ -33,63 +28,37 @@ export function NotesView({notes, onOpen, onRename, onDelete, onStartChat, initi
         </div>
     }
 
+    const row = (note: NoteViewModel, openMenu?: (anchor: HTMLElement) => void) =>
+        <ListRow title={`${String(note.ordinal).padStart(3, '0')} · ${note.title}`}
+                 date={note.date} unread={note.unread} dim={note.unread === false}
+                 meta={note.linkCount > 0 ? <><Icon name="star" size={12}/>{note.linkCount}</> : undefined}
+                 onClick={onOpen ? () => onOpen(note) : undefined}
+                 dots={openMenu !== undefined} onMenu={openMenu}
+                 menuLabel={`Actions for ${note.title}`}/>
+
     return (
         <div className="product-view">
             <ListHeader kicker="Notes" total={String(maxOrdinal).padStart(3, '0')}
                         right={unread > 0 ? <Kicker size={9} spacing="2px"
                                                     color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
             <div className="product-list">
-                {notes.map((note) => (
-                    <div key={note.id} className={menuId === note.id ? 'product-row-active' : undefined}>
-                        <ListRow title={`${String(note.ordinal).padStart(3, '0')} · ${note.title}`}
-                                 date={note.date} unread={note.unread} dim={note.unread === false}
-                                 meta={note.linkCount > 0 ? <><Icon name="star"
-                                                                    size={12}/>{note.linkCount}</> : undefined}
-                                 onClick={onOpen ? () => onOpen(note) : undefined}
-                                 dots={hasActions}
-                                 onMenu={hasActions ? () => setMenuId(note.id) : undefined}
-                                 menuLabel={`Actions for ${note.title}`}/>
-                    </div>
-                ))}
+                {notes.map((note) => actions
+                    ? <ItemActions key={note.id}
+                                   target={{
+                                       kind: 'note',
+                                       id: note.id,
+                                       title: note.title,
+                                       renamable: note.renamable ?? false
+                                   }}
+                                   initialOpen={note.id === initialMenuId}
+                                   onRenamed={(title) => actions.onRenamed(note.id, title)}
+                                   onDeleted={() => actions.onDeleted(note.id)}>
+                        {(openMenu, menuOpen) => <div className={menuOpen ? 'product-row-active' : undefined}>
+                            {row(note, openMenu)}
+                        </div>}
+                    </ItemActions>
+                    : <div key={note.id}>{row(note)}</div>)}
             </div>
-            {menuNote && <div className="row-menu-layer">
-                <button className="row-menu-backdrop" type="button" aria-label="Close note actions"
-                        onClick={() => setMenuId(null)}/>
-                <div className="row-menu" role="menu" aria-label={`Actions for ${menuNote.title}`}>
-                    <div className="row-menu-title">{menuNote.title}</div>
-                    {onRename && <button type="button" role="menuitem" onClick={() => {
-                        setTitle(menuNote.title);
-                        setRenaming(menuNote);
-                        setMenuId(null)
-                    }}>Rename
-                    </button>}
-                    {onDelete && <button type="button" role="menuitem" className="danger" onClick={() => {
-                        setDeleting(menuNote);
-                        setMenuId(null)
-                    }}>Delete
-                    </button>}
-                </div>
-            </div>}
-            {renaming && <NoticeOverlay onBackdropClick={() => setRenaming(null)}>
-                <Notice title={`Rename “${renaming.title}”`} primary="Rename" secondary="Cancel"
-                        primaryDisabled={title.trim() === ''} onSecondary={() => setRenaming(null)}
-                        onPrimary={() => {
-                            onRename?.(renaming, title.trim());
-                            setRenaming(null)
-                        }}>
-                    <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)}
-                               maxLength={80} autoFocus/>
-                </Notice>
-            </NoticeOverlay>}
-            {deleting && (
-                <Dialog danger title={`Delete “${deleting.title}”?`}
-                        body="The note goes. The chats it came from stay, and so do its constellations."
-                        confirm="Delete" cancel="Keep" onCancel={() => setDeleting(null)}
-                        onConfirm={() => {
-                            onDelete?.(deleting);
-                            setDeleting(null)
-                        }}/>
-            )}
         </div>
     )
 }
@@ -125,6 +94,7 @@ export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
             excerpt: note.status === 'READY' ? content.excerpt : '',
             date: formatDate(note.createdAt),
             linkCount: 0,
+            renamable: note.status === 'READY',
         }
     })
 }
@@ -160,5 +130,16 @@ export function NotesPage() {
         </div>
     }
     return <NotesView notes={state.notes} onOpen={(note) => navigate(`/notes/${note.id}`)}
-                      onStartChat={() => navigate('/chats')}/>
+                      onStartChat={() => navigate('/chats')}
+                      actions={{
+                          onRenamed: (id, title) => setState((current) => current.status === 'ready'
+                              ? {
+                                  status: 'ready',
+                                  notes: current.notes.map((note) => note.id === id ? {...note, title} : note)
+                              }
+                              : current),
+                          onDeleted: (id) => setState((current) => current.status === 'ready'
+                              ? {status: 'ready', notes: current.notes.filter((note) => note.id !== id)}
+                              : current),
+                      }}/>
 }

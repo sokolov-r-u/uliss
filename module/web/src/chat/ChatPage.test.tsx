@@ -2,7 +2,14 @@ import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
+import {
+    type ChatMessage,
+    type ChatMessagePage,
+    deleteChat,
+    getChat,
+    getMessages,
+    notifyChatListChanged
+} from './chatApi'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {
     cancelChatTurn,
@@ -15,7 +22,16 @@ import {ChatPage} from './ChatPage'
 
 vi.mock('./chatApi', () => ({
     getMessages: vi.fn(),
+    getChat: vi.fn(),
+    renameChat: vi.fn(),
+    deleteChat: vi.fn(),
     notifyChatListChanged: vi.fn(),
+    subscribeToChatListChanges: vi.fn(() => () => undefined),
+    ChatApiError: class ChatApiError extends Error {
+        constructor(message: string, public readonly status: number) {
+            super(message)
+        }
+    },
 }))
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
@@ -56,6 +72,7 @@ function messagePage(
 function renderPage() {
     return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Routes>
         <Route path="/chats/:chatId" element={<ChatPage/>}/>
+        <Route path="/chats" element={<div data-testid="chats-route"/>}/>
     </Routes></MemoryRouter>)
 }
 
@@ -81,6 +98,8 @@ describe('ChatPage summary flow', () => {
         mockedInitialStream.mockReset()
         vi.mocked(cancelChatTurn).mockReset().mockResolvedValue(undefined)
         vi.mocked(notifyChatListChanged).mockClear()
+        vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
+        vi.mocked(deleteChat).mockReset()
         sessionStorage.clear()
         mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
@@ -227,7 +246,27 @@ describe('ChatPage summary flow', () => {
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
-        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        // The chat gained a note, so chat lists refresh their note counts.
+        expect(notifyChatListChanged).toHaveBeenCalled()
+    })
+
+    it('shows the chat title and an actions button in the header', async () => {
+        renderPage()
+
+        expect(await screen.findByText('Trip')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Actions for Trip'})).toBeInTheDocument()
+    })
+
+    it('leaves the chat route after deleting the open chat from its header', async () => {
+        vi.mocked(deleteChat).mockResolvedValue(undefined)
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Trip'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(await screen.findByTestId('chats-route')).toBeInTheDocument()
+        expect(deleteChat).toHaveBeenCalledWith('chat-1')
     })
 
     it.each([

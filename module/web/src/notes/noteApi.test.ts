@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
-import {getNote, listNotes, requestChatSummary, streamNoteStatus,} from './noteApi'
+import {deleteNote, getNote, listNotes, renameNote, requestChatSummary, streamNoteStatus,} from './noteApi'
 
 vi.mock('../auth/apiClient', () => ({
     authFetch: vi.fn(),
@@ -110,5 +110,36 @@ describe('noteApi', () => {
         ]))
         await expect(streamNoteStatus('note-1', {onStatus: () => undefined}))
             .rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('renames a note with a JSON PATCH and validates the response identity', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'n1',
+            source: 'CHAT_SUMMARY',
+            status: 'READY',
+            title: 'New',
+            content: 'Body'
+        }))
+        await expect(renameNote('n1', 'New')).resolves.toMatchObject({title: 'New'})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {
+            method: 'PATCH',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: 'New'}),
+        })
+
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'other',
+            source: 'CHAT_SUMMARY',
+            status: 'READY',
+            content: 'Body'
+        }))
+        await expect(renameNote('n1', 'New')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reports a failed note delete as an http error with its status', async () => {
+        mockedFetch.mockResolvedValue(new Response(null, {status: 404}))
+
+        await expect(deleteNote('n1')).rejects.toMatchObject({kind: 'http', status: 404})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {method: 'DELETE'})
     })
 })

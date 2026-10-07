@@ -1,9 +1,10 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, ListHeader, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, ListHeader, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {type Chat, listChats} from './chatApi'
+import {ItemActions} from '../ui/actions/ItemActions'
+import {type Chat, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
 
 type ListState =
@@ -22,13 +23,20 @@ function formatDate(iso?: string): string {
 export function ChatListPage() {
     const navigate = useNavigate()
     const [state, setState] = useState<ListState>({status: 'loading'})
+    const [revision, setRevision] = useState(0)
+    const loadedRef = useRef(false)
+
+    useEffect(() => subscribeToChatListChanges(() => setRevision((value) => value + 1)), [])
 
     useEffect(() => {
         let active = true
-        setState({status: 'loading'})
+        // A refresh after rename/delete keeps the current rows instead of flashing "Loading…".
+        if (!loadedRef.current) setState({status: 'loading'})
         listChats()
             .then((chats) => {
-                if (active) setState({status: 'ready', chats})
+                if (!active) return
+                loadedRef.current = true
+                setState({status: 'ready', chats})
             })
             .catch((e: unknown) => {
                 if (!active) return
@@ -39,7 +47,7 @@ export function ChatListPage() {
         return () => {
             active = false
         }
-    }, [])
+    }, [revision])
 
     function onNewChat() {
         navigate('/chats/new')
@@ -73,13 +81,21 @@ export function ChatListPage() {
                 {state.status === 'ready' && state.chats.length > 0 && (
                     <div className="chat-list">
                         {state.chats.map((chat) => (
-                            <ListRow
-                                key={chat.id}
-                                title={chat.title}
-                                date={formatDate(chat.updatedAt ?? chat.createdAt)}
-                                dots={false}
-                                onClick={() => navigate(`/chats/${chat.id}`)}
-                            />
+                            <ItemActions key={chat.id}
+                                         target={{
+                                             kind: 'chat',
+                                             id: chat.id,
+                                             title: chat.title,
+                                             noteCount: chat.noteCount
+                                         }}>
+                                {(openMenu) => <ListRow
+                                    title={chat.title}
+                                    date={formatDate(chat.updatedAt ?? chat.createdAt)}
+                                    meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
+                                    onClick={() => navigate(`/chats/${chat.id}`)}
+                                    onMenu={openMenu}
+                                    menuLabel={`Actions for ${chat.title}`}/>}
+                            </ItemActions>
                         ))}
                     </div>
                 )}

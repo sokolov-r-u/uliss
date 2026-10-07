@@ -158,6 +158,23 @@ export async function getNote(noteId: string, signal?: AbortSignal): Promise<Not
     return note
 }
 
+export async function renameNote(noteId: string, title: string): Promise<Note> {
+    const response = await fetchNotes(`/note/notes/${noteId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title}),
+    })
+    await requireOk(response, 'note rename')
+    const note = parseNote(await responseJson(response))
+    if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
+    return note
+}
+
+export async function deleteNote(noteId: string): Promise<void> {
+    const response = await fetchNotes(`/note/notes/${noteId}`, {method: 'DELETE'})
+    await requireOk(response, 'note delete')
+}
+
 export async function streamNoteStatus(
     noteId: string,
     options: { signal?: AbortSignal; onStatus: (event: NoteStatusEvent) => void },
