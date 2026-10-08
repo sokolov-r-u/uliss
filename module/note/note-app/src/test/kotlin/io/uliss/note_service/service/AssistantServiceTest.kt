@@ -25,6 +25,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.openai.OpenAiChatOptions
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
 import java.time.Duration
@@ -42,7 +43,11 @@ class AssistantServiceTest {
 
     private val chatClient = Mockito.mock(ChatClient::class.java)
     private val chatTurnService = Mockito.mock(ChatTurnService::class.java)
-    private val assistantService = AssistantService(chatClient, chatTurnService)
+    private val assistantService = AssistantService(
+        chatClient,
+        chatTurnService,
+        AssistantProperties(reasoningEffort = "low", verbosity = "low"),
+    )
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
 
     private fun history(chatId: UUID, turnId: UUID) = listOf(
@@ -66,6 +71,7 @@ class AssistantServiceTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
     }
 
     @Test
@@ -105,6 +111,11 @@ class AssistantServiceTest {
         Mockito.verify(requestSpec).messages(captor.captureValue())
         assertEquals("hi", (captor.value[0] as UserMessage).text)
         assertEquals("hello", (captor.value[1] as AssistantMessage).text)
+        val options = (Mockito.mockingDetails(requestSpec).invocations
+            .single { it.method.name == "options" }
+            .arguments[0] as OpenAiChatOptions.Builder).build()
+        assertEquals("low", options.reasoningEffort)
+        assertEquals("low", options.verbosity)
     }
 
     @Test

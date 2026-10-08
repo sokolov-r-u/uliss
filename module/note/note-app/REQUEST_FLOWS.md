@@ -38,7 +38,7 @@ flowchart LR
         RagChunks[(rag_chunks)]
     end
 
-    ChatModel[ChatClient / DeepSeek]
+  ChatModel[ChatClient / OpenAI]
     EmbeddingModel[EmbeddingModel / OpenAI]
     Client --> ChatController --> ChatFacade
     Client --> NoteController --> NoteService

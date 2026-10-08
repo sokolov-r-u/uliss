@@ -38,10 +38,10 @@ path below is unchanged and still fully supported** — this is an additional op
 
 ## Note-service AI credentials and background work
 
-Chat replies and final summaries require `DEEPSEEK_API_KEY`; retrieval and indexing embeddings
-require `OPENAI_API_KEY`. The complete summary pipeline therefore needs both keys in `infra/.env`;
-copy the full key set from `infra/env.example.properties`. `DEEPSEEK_MODEL` and
-`OPENAI_EMBEDDING_MODEL` are optional overrides. Compose supplies this file through `env_file`, and
+Chat replies, final summaries, and retrieval/indexing embeddings all use `OPENAI_API_KEY`; copy the
+full key set from `infra/env.example.properties` into `infra/.env`. `OPENAI_CHAT_MODEL` and
+`OPENAI_EMBEDDING_MODEL` are optional overrides. `DEEPSEEK_API_KEY` and `DEEPSEEK_MODEL` are needed
+only if chat is switched back to DeepSeek. Compose supplies this file through `env_file`, and
 Kubernetes supplies the same values from the generated `uliss-secret` through `envFrom`.
 
 The note-service context and health endpoint can start without valid provider credentials, but

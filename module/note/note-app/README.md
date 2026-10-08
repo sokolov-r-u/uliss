@@ -9,13 +9,17 @@ states, and asynchronous summary/indexing diagrams.
 
 ## AI providers and configuration
 
-Chat and summarization use the provider-neutral Spring AI `ChatClient`, backed by DeepSeek. RAG uses
-Spring AI's `EmbeddingModel` with OpenAI `text-embedding-3-small` at 1536 dimensions. Required
-credentials are `DEEPSEEK_API_KEY` and `OPENAI_API_KEY`; `DEEPSEEK_MODEL` and
+Chat and summarization use the provider-neutral Spring AI `ChatClient`, backed by OpenAI
+`gpt-5.6-luna`. RAG uses Spring AI's `EmbeddingModel` with OpenAI `text-embedding-3-small` at 1536
+dimensions. The required credential is `OPENAI_API_KEY`; `OPENAI_CHAT_MODEL` and
 `OPENAI_EMBEDDING_MODEL` override the defaults.
 
-`spring.ai.model.chat=deepseek` and `spring.ai.model.embedding=openai` select the two providers
-explicitly. The shared optimistic-lock retry bean remains named `optimisticLockRetryTemplate` to
+`spring.ai.model.chat=openai` and `spring.ai.model.embedding=openai` select the providers explicitly.
+Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity` per call (`note.assistant.*` and
+`note.summary.*`). DeepSeek stays configured but inactive; switching back to
+`spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
+options from `AssistantService` and `NoteSummaryRequestedHandler`. The shared optimistic-lock
+retry bean remains named `optimisticLockRetryTemplate` to
 avoid colliding with Spring AI retry auto-configuration.
 
 ## Chat and summary APIs

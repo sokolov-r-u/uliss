@@ -27,6 +27,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.Message
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -137,6 +138,7 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Final", " answer"))
         Mockito.doAnswer { invocation ->
@@ -198,6 +200,7 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Answer"))
 
@@ -234,6 +237,7 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("First answer"))
 

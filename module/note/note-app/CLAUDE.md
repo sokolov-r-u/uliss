@@ -16,6 +16,8 @@ note-service.
 - Preserve the SSE contract (`append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
   `WebMvcPathPrefixConfig`.
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
+  Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService` and
+  `NoteSummaryRequestedHandler`, with values from `note.assistant` / `note.summary` properties.
 - The shared optimistic-lock retry bean is `optimisticLockRetryTemplate`; do not introduce a conflicting generic
   `retryTemplate` bean.
 

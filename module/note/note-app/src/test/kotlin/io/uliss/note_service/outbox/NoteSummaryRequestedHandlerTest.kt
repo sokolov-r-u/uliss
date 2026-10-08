@@ -21,6 +21,7 @@ import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.openai.OpenAiChatOptions
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
@@ -40,6 +41,8 @@ class NoteSummaryRequestedHandlerTest {
         retrievalQueryMaxChars = 400,
         retrievalTopK = 3,
         retrievalMinSimilarity = 0.75,
+        reasoningEffort = "medium",
+        verbosity = "low",
     )
     private val handler = NoteSummaryRequestedHandler(
         objectMapper,
@@ -77,6 +80,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java))
             .thenReturn(NoteDraft("Ownership columns", "  Final summary  ", null))
@@ -102,6 +106,11 @@ class NoteSummaryRequestedHandlerTest {
             .single { it.method.name == "system" }
             .arguments[0] as String
         assertEquals(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, systemPrompt)
+        val options = (Mockito.mockingDetails(requestSpec).invocations
+            .single { it.method.name == "options" }
+            .arguments[0] as OpenAiChatOptions.Builder).build()
+        assertEquals("medium", options.reasoningEffort)
+        assertEquals("low", options.verbosity)
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
     }
@@ -180,6 +189,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
 
@@ -323,6 +333,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(draft)
 
@@ -391,6 +402,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(localChatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
 

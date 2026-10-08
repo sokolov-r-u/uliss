@@ -68,8 +68,8 @@ summary and `NOTE_INDEX_REQUESTED` atomically. Terminal retry exhaustion stores 
 outbox state and `NoteStatus.FAILED` atomically.
 
 The current chat remains the authoritative summary input. OpenAI embeddings retrieve related prior
-notes as untrusted secondary context for terminology and continuity; DeepSeek produces the final
-summary. The captured `throughMessageId` makes the input stable even if the user continues the chat
+notes as untrusted secondary context for terminology and continuity; the configured chat model
+produces the final summary. The captured `throughMessageId` makes the input stable even if the user continues the chat
 after requesting a summary.
 
 RAG persistence is domain-owned rather than Spring AI `VectorStore` storage. `note.rag_chunks`
