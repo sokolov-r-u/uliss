@@ -26,7 +26,10 @@ import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
@@ -140,7 +143,8 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Final", " answer"))
+        Mockito.`when`(streamResponseSpec.chatResponse())
+            .thenReturn(Flux.just("Final", " answer").map { ChatResponse(listOf(Generation(AssistantMessage(it)))) })
         Mockito.doAnswer { invocation ->
             assertEquals(userId, invocation.getArgument(0))
             assertEquals(chat.id, invocation.getArgument(1))
@@ -202,7 +206,8 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Answer"))
+        Mockito.`when`(streamResponseSpec.chatResponse())
+            .thenReturn(Flux.just("Answer").map { ChatResponse(listOf(Generation(AssistantMessage(it)))) })
 
         fun send() = mockMvc.post("/note/chats/${chat.id}/messages") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
@@ -239,7 +244,8 @@ class NoteLifecycleApiIntegrationTest {
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("First answer"))
+        Mockito.`when`(streamResponseSpec.chatResponse())
+            .thenReturn(Flux.just("First answer").map { ChatResponse(listOf(Generation(AssistantMessage(it)))) })
 
         fun send() = mockMvc.post("/note/chats") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })

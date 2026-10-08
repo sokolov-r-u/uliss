@@ -16,7 +16,8 @@ dimensions. The required credential is `OPENAI_API_KEY`; `OPENAI_CHAT_MODEL` and
 
 `spring.ai.model.chat=openai` and `spring.ai.model.embedding=openai` select the providers explicitly.
 Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity` per call (`note.assistant.*` and
-`note.summary.*`). DeepSeek stays configured but inactive; switching back to
+`note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
+history prefix. DeepSeek stays configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
 options from `AssistantService` and `NoteSummaryRequestedHandler`. The shared optimistic-lock
 retry bean remains named `optimisticLockRetryTemplate` to

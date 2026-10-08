@@ -25,6 +25,10 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.metadata.ChatResponseMetadata
+import org.springframework.ai.chat.metadata.DefaultUsage
+import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.openai.OpenAiChatOptions
 import reactor.core.publisher.Flux
 import reactor.test.StepVerifier
@@ -67,6 +71,17 @@ class AssistantServiceTest {
         retryAfterMs = if (status == ChatTurnStatus.GENERATING) 60_000 else 0,
     )
 
+    private fun replies(vararg texts: String): Flux<ChatResponse> =
+        Flux.fromArray(texts).map { ChatResponse(listOf(Generation(AssistantMessage(it)))) }
+
+    /** The final stream chunk carries only usage, without generated text. */
+    private fun usageChunk(promptTokens: Int, cachedTokens: Long) = ChatResponse(
+        emptyList(),
+        ChatResponseMetadata.builder()
+            .usage(DefaultUsage(promptTokens, 10, promptTokens + 10, null, cachedTokens, null))
+            .build(),
+    )
+
     private fun mockRequestChain() {
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
@@ -88,7 +103,13 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history(chatId, turnId)))
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("Hel", "lo"))
+        Mockito.`when`(streamResponseSpec.chatResponse())
+            .thenReturn(
+                Flux.concat(
+                    replies("Hel", "lo"),
+                    Flux.just(usageChunk(promptTokens = 2_000, cachedTokens = 1_536))
+                )
+            )
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Hello", ChatTurnStatus.COMPLETE)
         ).thenAnswer {
@@ -116,6 +137,7 @@ class AssistantServiceTest {
             .arguments[0] as OpenAiChatOptions.Builder).build()
         assertEquals("low", options.reasoningEffort)
         assertEquals("low", options.verbosity)
+        assertEquals(chatId.toString(), options.promptCacheKey)
     }
 
     @Test
@@ -131,8 +153,8 @@ class AssistantServiceTest {
         mockRequestChain()
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi")).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content())
-            .thenReturn(Flux.concat(Flux.just("Hi"), Flux.error(RuntimeException("boom"))))
+        Mockito.`when`(streamResponseSpec.chatResponse())
+            .thenReturn(Flux.concat(replies("Hi"), Flux.error(RuntimeException("boom"))))
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Hi", ChatTurnStatus.PARTIAL)
         ).thenReturn(true)
@@ -156,7 +178,7 @@ class AssistantServiceTest {
         mockRequestChain()
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi")).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.error(RuntimeException("boom")))
+        Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(Flux.error(RuntimeException("boom")))
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
         ).thenReturn(true)
@@ -236,7 +258,7 @@ class AssistantServiceTest {
         mockRequestChain()
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi")).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
-        Mockito.`when`(streamResponseSpec.content()).thenReturn(Flux.just("obsolete"))
+        Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(replies("obsolete"))
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "obsolete", ChatTurnStatus.COMPLETE)
         ).thenReturn(false)

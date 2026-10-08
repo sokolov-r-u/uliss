@@ -12,6 +12,7 @@ import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.UserMessage
+import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Service
@@ -66,7 +67,7 @@ class AssistantService(
         Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
-                streamProviderTokens(resolution.history)
+                streamProviderTokens(resolution.turn.chatId, resolution.history)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
@@ -82,7 +83,7 @@ class AssistantService(
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
         ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
 
-    private fun streamProviderTokens(history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
+    private fun streamProviderTokens(chatId: UUID, history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
         chatClient.prompt()
             .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
             .messages(toAiMessages(history))
@@ -90,9 +91,24 @@ class AssistantService(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)
                     .verbosity(properties.verbosity)
+                    // Routes every turn of a chat to the same prompt cache; the prefix is the growing history.
+                    .promptCacheKey(chatId.toString())
             )
             .stream()
-            .content()
+            .chatResponse()
+            .doOnNext { logUsage(chatId, it) }
+            .handle { response, sink -> response.result?.output?.text?.takeIf { it.isNotEmpty() }?.let(sink::next) }
+    }
+
+    /** Only the final stream chunk carries usage; earlier chunks report zero prompt tokens. */
+    private fun logUsage(chatId: UUID, response: ChatResponse) {
+        val usage = response.metadata.usage
+        if (usage.promptTokens <= 0) return
+        log.info(
+            "streamProviderTokens",
+            "chat=$chatId usage prompt=${usage.promptTokens} cached=${usage.cacheReadInputTokens ?: 0} " +
+                    "completion=${usage.completionTokens}",
+        )
     }
 
     private fun persistAssistantResult(
