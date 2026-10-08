@@ -20,7 +20,6 @@ import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
-import org.springframework.ai.converter.BeanOutputConverter
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
@@ -79,7 +78,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
         Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java))
-            .thenReturn(NoteDraft("Ownership columns", "  Final summary  "))
+            .thenReturn(NoteDraft("Ownership columns", "  Final summary  ", null))
 
         handler.handle(event(payload))
 
@@ -103,10 +102,11 @@ class NoteSummaryRequestedHandlerTest {
             .arguments[0] as String
         assertTrue(systemPrompt.contains("Preserve important domain terms, technology names, and acronyms"))
         assertTrue(systemPrompt.contains("Do not invent synonyms, acronym expansions, or terminology"))
-        assertTrue(systemPrompt.contains("Use GitHub Flavored Markdown"))
+        assertTrue(systemPrompt.contains("Only the user's perspective matters"))
+        assertTrue(systemPrompt.contains("keep just the part the user engaged with"))
+        assertTrue(systemPrompt.contains("read as one coherent note"))
+        assertTrue(systemPrompt.contains("Use GitHub Flavored Markdown in the main and secondary thoughts"))
         assertTrue(systemPrompt.contains("Do not output raw HTML"))
-        assertTrue(systemPrompt.contains("wrap the whole note in a code fence"))
-        assertTrue(systemPrompt.contains("Return the note body as `content` and its title as `title`"))
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
     }
@@ -115,17 +115,31 @@ class NoteSummaryRequestedHandlerTest {
     fun `handle normalizes a decorated model title`() {
         val payload = payload()
 
-        handleWithDraft(payload, NoteDraft("  # \"Ownership   columns\"\n", "Summary"))
+        handleWithDraft(payload, NoteDraft("  # \"Ownership   columns\"\n", "Summary", null))
 
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Summary")
     }
 
     @Test
+    fun `handle stores the note content assembled from the draft`() {
+        val payload = payload()
+
+        handleWithDraft(payload, NoteDraft("Night city", "Main thought.", listOf("Secondary thought.")))
+
+        Mockito.verify(noteService).completeChatSummary(
+            payload.userId,
+            payload.noteId,
+            "Night city",
+            "Main thought.\n\n- Secondary thought.",
+        )
+    }
+
+    @Test
     fun `handle derives the title from the content when the model title is blank`() {
         val payload = payload()
 
-        handleWithDraft(payload, NoteDraft("  ", "\n## Ownership columns\n- keep user_id"))
+        handleWithDraft(payload, NoteDraft("  ", "\n## Ownership columns\n- keep user_id", emptyList()))
 
         Mockito.verify(noteService).completeChatSummary(
             payload.userId,
@@ -143,28 +157,6 @@ class NoteSummaryRequestedHandlerTest {
             handleWithDraft(payload, null)
         }
         Mockito.verifyNoInteractions(noteService)
-    }
-
-    @Test
-    fun `NoteDraft is readable by the structured output converter`() {
-        val converter = BeanOutputConverter(NoteDraft::class.java)
-
-        val draft = converter.convert("```json\n{\"title\": \"Ownership\", \"content\": \"- keep user_id\"}\n```")
-
-        assertEquals(NoteDraft("Ownership", "- keep user_id"), draft)
-    }
-
-    @Test
-    fun `NoteDraft schema carries the field instructions`() {
-        val schema = BeanOutputConverter(NoteDraft::class.java).jsonSchemaMap
-
-        @Suppress("UNCHECKED_CAST")
-        val properties = schema["properties"] as Map<String, Map<String, Any>>
-        val titleDescription = properties.getValue("title")["description"] as String
-        val contentDescription = properties.getValue("content")["description"] as String
-        assertTrue(titleDescription.contains("at most 50 characters"))
-        assertTrue(contentDescription.contains("do not repeat it here"))
-        assertEquals("A standalone note summarizing the current chat.", schema["description"])
     }
 
     @Test
@@ -194,7 +186,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary"))
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
 
         handler.handle(event(payload))
 
@@ -311,11 +303,11 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
-    fun `handle treats blank model content as retryable failure`() {
+    fun `handle treats a blank main thought as retryable failure`() {
         val payload = payload()
 
         assertFailsWith<IllegalStateException> {
-            handleWithDraft(payload, NoteDraft("Title", "   "))
+            handleWithDraft(payload, NoteDraft("Title", "   ", listOf("Orphan secondary thought")))
         }
         Mockito.verifyNoInteractions(noteService)
     }
@@ -405,7 +397,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary"))
+        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
 
         localHandler.handle(event(payload))
 

@@ -260,6 +260,16 @@ notes too" choice; the note delete dialog has no body. The online design's `Dele
 still show the old copy and should be updated to match. `Dialog.prompt.md` still says every body must name what
 survives; the note delete dialog is an agreed exception.
 
+## Persist note thoughts as structured data (`note-service`)
+
+**Status:** to think about; no decision. The `CHAT_SUMMARY` model output is structured (`NoteDraft`: main thought plus
+up to three secondary thoughts), but the service assembles it into Markdown and stores only `note.content`.
+
+Storing the thoughts separately was deferred because nothing reads them yet (the frontend and RAG indexing use
+`content`), the prompt format is still being tuned, and the right shape is unclear: likely a separate thought entity
+with links rather than columns on `note`. A manual note would simply be its main thought. Revisit together with the
+planned `graph` domain.
+
 ## `TextField` counts UTF-16 units, titles count code points (`uliss-design-system`, `web`)
 
 The server title rule is 1–50 code points, but `TextField`'s counter and native `maxLength` count UTF-16 units. The

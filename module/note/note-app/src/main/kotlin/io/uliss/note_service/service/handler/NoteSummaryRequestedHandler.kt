@@ -74,9 +74,8 @@ class NoteSummaryRequestedHandler(
             .user(ChatPrompts.noteSummaryUserPrompt(context, relatedChunks))
             .call()
             .entity(NoteDraft::class.java)
-        val content = draft?.content?.trim().orEmpty()
-        check(content.isNotBlank()) { "summary model returned blank content" }
-        val title = TitleNormalizer.normalizeNoteTitle(draft?.title, content)
+        val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
+        val title = TitleNormalizer.normalizeNoteTitle(draft.title, content)
         noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
     }
 

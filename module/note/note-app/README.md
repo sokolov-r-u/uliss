@@ -66,10 +66,12 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
 current chat is authoritative; related notes are delimited as untrusted secondary context. One
-non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title` and
-Markdown `content`; field rules live in the `NoteDraft` JSON schema descriptions. Missing or blank
-`content` fails the attempt; a blank or missing title falls back to the first non-blank content
-line, normalized by `TitleNormalizer` (50 code points). Success atomically stores both fields,
+non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
+Markdown `mainThought`, and up to three `secondaryThoughts`; field rules live in the `NoteDraft` JSON
+schema descriptions. The worker joins them into Markdown `content` (main thought, then a bulleted
+list; extra secondary thoughts are dropped). A missing or blank main thought fails the attempt; a
+blank or missing title falls back to the first non-blank content line, normalized by
+`TitleNormalizer` (50 code points). Success atomically stores both fields,
 changes the note to `READY`, and publishes `NOTE_INDEX_REQUESTED`. The final configured failure changes a
 still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.

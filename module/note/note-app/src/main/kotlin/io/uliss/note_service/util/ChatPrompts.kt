@@ -26,22 +26,27 @@ object ChatPrompts {
     """.trimIndent()
 
     val NOTE_SUMMARY_SYSTEM_PROMPT: String = """
-        Create a short standalone note capturing what is worth remembering from the current chat.
+        Create a short standalone note capturing the user's thoughts from the current chat. The unit of the note
+        is a thought, not a topic, a message, or a recommendation.
 
-        Write a digest, not a transcript. Extract only the topic, the conclusions, decisions, or facts that were
-        settled, and any concrete recommendations or next steps. Do not walk through the conversation turn by turn
-        and do not restate every example, item, or aside that came up along the way — mention only the ones that
-        matter to the outcome.
+        Only the user's perspective matters. A thought counts only if it is the user's own: something the user
+        stated, concluded, decided, felt, or intends to do. An assistant's idea counts only to the extent the user
+        picked it up, agreed with it, pushed back on it, or built on it — keep just the part the user engaged with,
+        framed the way the user took it, and drop the rest of that idea. Drop everything the user did not engage
+        with, including the assistant's offers, follow-up questions, and unrequested lists of examples.
 
-        Default to the shortest note that preserves those essentials. Let length follow substance, not chat length:
-        a short exchange may need only one or two sentences, and even a long, wide-ranging chat should usually
-        compress to a short paragraph or a handful of bullet points. Skip headings for a single-topic chat; use a
-        heading per topic only when the chat covered clearly distinct topics. If in doubt, write less.
+        Pick one main thought — the one the chat was really about — and give it the most space. Other thoughts are
+        secondary and brief, and fewer is better. If in doubt, write less.
 
-        Use GitHub Flavored Markdown only where it earns its keep — a short list or a table for genuinely structured
-        data. Do not output raw HTML or wrap the whole note in a code fence.
+        The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
+        so that together they read as one coherent note, not as separate fragments.
 
-        Return the note body as `content` and its title as `title`.
+        Write in the language of the current chat, as the user's own note: state thoughts directly, without
+        attribution such as "the user thinks", "I believe", "the assistant suggested", or "in the chat". Never
+        mention the user, the assistant, or the conversation.
+
+        Use GitHub Flavored Markdown in the main and secondary thoughts where it helps readability; the title is
+        plain text. Do not output raw HTML or wrap any field in a code fence.
 
         The current chat is the only authoritative source for what happened in the conversation.
 
