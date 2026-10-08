@@ -30,6 +30,28 @@ class NoteDraftTest {
     }
 
     @Test
+    fun `toNoteContent drops list markers the model added to secondary thoughts`() {
+        val draft = NoteDraft(
+            "Title",
+            "Main.",
+            listOf("- Dash.", "* Star.", "+ Plus.", "1. Numbered.", "2) Paren.", "-", "**Bold** stays."),
+        )
+
+        assertEquals("Main.\n\n- Dash.\n- Star.\n- Plus.", draft.toNoteContent())
+        assertEquals(
+            "Main.\n\n- Numbered.\n- Paren.\n- **Bold** stays.",
+            NoteDraft("Title", "Main.", draft.secondaryThoughts.orEmpty().drop(3)).toNoteContent(),
+        )
+    }
+
+    @Test
+    fun `toNoteContent keeps each secondary thought on one line`() {
+        val draft = NoteDraft("Title", "Main.", listOf("First line.\n\nSecond line.", "A\r\n  B"))
+
+        assertEquals("Main.\n\n- First line. Second line.\n- A B", draft.toNoteContent())
+    }
+
+    @Test
     fun `toNoteContent returns only the main thought without secondary thoughts`() {
         assertEquals("Main.", NoteDraft("Title", " Main. ", null).toNoteContent())
         assertEquals("Main.", NoteDraft("Title", "Main.", listOf(" ", "")).toNoteContent())

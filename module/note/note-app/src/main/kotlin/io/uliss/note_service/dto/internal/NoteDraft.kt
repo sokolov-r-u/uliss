@@ -38,7 +38,7 @@ data class NoteDraft(
         val main = mainThought?.trim().orEmpty()
         check(main.isNotBlank()) { "summary model returned a blank main thought" }
         val bullets = secondaryThoughts.orEmpty()
-            .map { it.trim() }
+            .map { it.replace(LINE_BREAKS, " ").trim().replace(LIST_MARKER, "") }
             .filter { it.isNotEmpty() }
             .take(MAX_SECONDARY_THOUGHTS)
         if (bullets.isEmpty()) return main
@@ -47,5 +47,9 @@ data class NoteDraft(
 
     private companion object {
         const val MAX_SECONDARY_THOUGHTS = 3
+
+        // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
+        val LINE_BREAKS = Regex("\\s*\\R\\s*")
+        val LIST_MARKER = Regex("^(?:[-*+]|\\d+[.)])(?:\\s+|$)")
     }
 }
