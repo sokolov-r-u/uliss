@@ -25,6 +25,7 @@ import org.springframework.ai.openai.OpenAiChatOptions
 import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
+import java.util.function.Consumer
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
@@ -74,7 +75,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
             .thenReturn(context)
         Mockito.`when`(
-            ragService.search(anyValue<UUID>(), anyValue<String>(), Mockito.anyInt(), Mockito.anyDouble())
+            ragService.search(anyValue(), anyValue(), Mockito.anyInt(), Mockito.anyDouble())
         )
             .thenReturn(related)
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
@@ -82,7 +83,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java))
+        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue()))
             .thenReturn(NoteDraft("Ownership columns", "  Final summary  ", null))
 
         handler.handle(event(payload))
@@ -111,6 +112,13 @@ class NoteSummaryRequestedHandlerTest {
             .arguments[0] as OpenAiChatOptions.Builder).build()
         assertEquals("medium", options.reasoningEffort)
         assertEquals("low", options.verbosity)
+        @Suppress("UNCHECKED_CAST")
+        val entityParams = Mockito.mockingDetails(callResponseSpec).invocations
+            .single { it.method.name == "entity" }
+            .arguments[1] as Consumer<ChatClient.EntityParamSpec>
+        val entityParamSpec = Mockito.mock(ChatClient.EntityParamSpec::class.java)
+        entityParams.accept(entityParamSpec)
+        Mockito.verify(entityParamSpec).useProviderStructuredOutput()
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
     }
@@ -191,7 +199,8 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
+        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue()))
+            .thenReturn(NoteDraft("Title", "Summary", null))
 
         handler.handle(event(payload))
 
@@ -327,7 +336,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
             .thenReturn(context)
         Mockito.`when`(
-            ragService.search(anyValue<UUID>(), anyValue<String>(), Mockito.anyInt(), Mockito.anyDouble())
+            ragService.search(anyValue(), anyValue(), Mockito.anyInt(), Mockito.anyDouble())
         )
             .thenReturn(emptyList())
         Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
@@ -335,7 +344,7 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(draft)
+        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue())).thenReturn(draft)
 
         handler.handle(event(payload))
     }
@@ -397,14 +406,15 @@ class NoteSummaryRequestedHandlerTest {
             localChatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId)
         ).thenReturn(context)
         Mockito.`when`(
-            localRagService.search(anyValue<UUID>(), anyValue<String>(), Mockito.anyInt(), Mockito.anyDouble())
+            localRagService.search(anyValue(), anyValue(), Mockito.anyInt(), Mockito.anyDouble())
         ).thenReturn(emptyList())
         Mockito.`when`(localChatClient.prompt()).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(NoteDraft::class.java)).thenReturn(NoteDraft("Title", "Summary", null))
+        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue()))
+            .thenReturn(NoteDraft("Title", "Summary", null))
 
         localHandler.handle(event(payload))
 

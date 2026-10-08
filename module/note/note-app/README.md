@@ -72,7 +72,9 @@ query, embeds it, and performs exact cosine search only within the requesting us
 current chat is authoritative; related notes are delimited as untrusted secondary context. One
 non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
 Markdown `mainThought`, and up to three `secondaryThoughts`; field rules live in the `NoteDraft` JSON
-schema descriptions. The worker joins them into Markdown `content` (main thought, then a bulleted
+schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,
+OpenAI strict mode), so every field is marked required and nullable in the schema. The worker joins them into Markdown
+`content` (main thought, then a bulleted
 list; extra secondary thoughts are dropped). A missing or blank main thought fails the attempt; a
 blank or missing title falls back to the first non-blank content line, normalized by
 `TitleNormalizer` (50 code points). Success atomically stores both fields,

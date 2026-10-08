@@ -54,6 +54,16 @@ class NoteDraftTest {
     }
 
     @Test
+    fun `NoteDraft schema satisfies OpenAI strict structured outputs`() {
+        val schema = BeanOutputConverter(NoteDraft::class.java).jsonSchemaMap
+
+        @Suppress("UNCHECKED_CAST")
+        val properties = schema["properties"] as Map<String, Any>
+        assertEquals(properties.keys, (schema["required"] as List<*>).toSet())
+        assertEquals(false, schema["additionalProperties"])
+    }
+
+    @Test
     fun `NoteDraft schema exposes only the model fields with their instructions`() {
         val schema = BeanOutputConverter(NoteDraft::class.java).jsonSchemaMap
 

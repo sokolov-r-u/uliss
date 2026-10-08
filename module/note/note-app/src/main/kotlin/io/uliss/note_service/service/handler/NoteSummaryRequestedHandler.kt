@@ -82,7 +82,7 @@ class NoteSummaryRequestedHandler(
                     .verbosity(properties.verbosity)
             )
             .call()
-            .entity(NoteDraft::class.java)
+            .entity(NoteDraft::class.java) { it.useProviderStructuredOutput() }
         val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
         val title = TitleNormalizer.normalizeNoteTitle(draft.title, content)
         noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
