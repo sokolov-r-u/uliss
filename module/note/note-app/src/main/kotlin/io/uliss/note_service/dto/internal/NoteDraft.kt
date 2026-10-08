@@ -16,8 +16,8 @@ data class NoteDraft(
     val title: String?,
     @field:JsonPropertyDescription(
         "The main thought: one or more paragraphs, as many as the thought needs, " +
-                "including the reasoning that makes it hold. The title is displayed separately: do not repeat it " +
-                "here and do not use headings."
+                "with the user's own reasoning if they gave any. The title is displayed separately: do not repeat " +
+                "it here and do not use headings."
     )
     val mainThought: String?,
     @field:JsonPropertyDescription(

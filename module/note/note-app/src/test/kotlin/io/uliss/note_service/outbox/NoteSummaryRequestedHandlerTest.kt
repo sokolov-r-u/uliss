@@ -17,6 +17,7 @@ import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
 import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
+import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
@@ -100,13 +101,7 @@ class NoteSummaryRequestedHandlerTest {
         val systemPrompt = Mockito.mockingDetails(requestSpec).invocations
             .single { it.method.name == "system" }
             .arguments[0] as String
-        assertTrue(systemPrompt.contains("Preserve important domain terms, technology names, and acronyms"))
-        assertTrue(systemPrompt.contains("Do not invent synonyms, acronym expansions, or terminology"))
-        assertTrue(systemPrompt.contains("Only the user's perspective matters"))
-        assertTrue(systemPrompt.contains("keep just the part the user engaged with"))
-        assertTrue(systemPrompt.contains("read as one coherent note"))
-        assertTrue(systemPrompt.contains("Use GitHub Flavored Markdown in the main and secondary thoughts"))
-        assertTrue(systemPrompt.contains("Do not output raw HTML"))
+        assertEquals(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, systemPrompt)
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
     }
