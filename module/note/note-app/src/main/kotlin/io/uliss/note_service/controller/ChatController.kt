@@ -2,6 +2,7 @@ package io.uliss.note_service.controller
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.SendMessageRequest
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
@@ -19,7 +20,9 @@ import org.springframework.http.ResponseEntity
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -40,6 +43,23 @@ class ChatController(
     @GetMapping
     fun getChats(@AuthenticationPrincipal jwt: Jwt): List<ChatResponse> =
         chatFacade.getChats(jwt.getUserId()).map { it.toResponse() }
+
+    @GetMapping("/{chatId}")
+    fun getChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID): ChatResponse =
+        chatFacade.getChat(jwt.getUserId(), chatId).toResponse()
+
+    @PatchMapping("/{chatId}")
+    fun renameChat(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable chatId: UUID,
+        @Valid @RequestBody request: RenameRequest,
+    ): ChatResponse = chatFacade.renameChat(jwt.getUserId(), chatId, request.title).toResponse()
+
+    @DeleteMapping("/{chatId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun deleteChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID) {
+        chatFacade.deleteChat(jwt.getUserId(), chatId)
+    }
 
     @GetMapping("/{chatId}/messages")
     fun getMessages(

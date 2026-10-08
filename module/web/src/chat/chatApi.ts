@@ -11,6 +11,8 @@ export type ChatMessageStatus = 'COMPLETE' | 'PARTIAL' | 'FAILED' | 'CANCELED'
 export type Chat = {
     id: string
     title: string
+    /** Notes Uliss wrote from this chat; deleting the chat keeps them. */
+    noteCount: number
     createdAt?: string
     updatedAt?: string
 }
@@ -53,6 +55,35 @@ export async function listChats(): Promise<Chat[]> {
     const res = await authFetch('/note/chats')
     if (!res.ok) throw new Error(`chat list fetch failed (${res.status})`)
     return (await res.json()) as Chat[]
+}
+
+/** A failed chat request; `status` lets callers word 404/409 for the user. */
+export class ChatApiError extends Error {
+    constructor(message: string, public readonly status: number) {
+        super(message)
+        this.name = 'ChatApiError'
+    }
+}
+
+export async function getChat(chatId: string, signal?: AbortSignal): Promise<Chat> {
+    const res = await authFetch(`/note/chats/${chatId}`, {signal})
+    if (!res.ok) throw new ChatApiError(`chat fetch failed (${res.status})`, res.status)
+    return (await res.json()) as Chat
+}
+
+export async function renameChat(chatId: string, title: string): Promise<Chat> {
+    const res = await authFetch(`/note/chats/${chatId}`, {
+        method: 'PATCH',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title}),
+    })
+    if (!res.ok) throw new ChatApiError(`chat rename failed (${res.status})`, res.status)
+    return (await res.json()) as Chat
+}
+
+export async function deleteChat(chatId: string): Promise<void> {
+    const res = await authFetch(`/note/chats/${chatId}`, {method: 'DELETE'})
+    if (!res.ok) throw new ChatApiError(`chat delete failed (${res.status})`, res.status)
 }
 
 export async function getMessages(

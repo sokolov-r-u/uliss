@@ -4,6 +4,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
+import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService
@@ -20,7 +21,9 @@ import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.patch
 import reactor.core.publisher.Flux
 import java.time.Instant
 import java.util.UUID
@@ -126,6 +129,76 @@ class NoteControllerTest {
             .thenThrow(NotFoundException("note id=$noteId not found"))
 
         mockMvc.get("/note/notes/$noteId/status/stream") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNotFound() }
+        }
+    }
+
+    @Test
+    fun `renameNote returns the renamed note`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteService.renameNote(userId, noteId, "New"))
+            .thenReturn(NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "body", null, null))
+
+        mockMvc.patch("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.title") { value("New") }
+        }
+    }
+
+    @Test
+    fun `renameNote rejects a blank body title with 400`() {
+        mockMvc.patch("/note/notes/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"  "}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
+    fun `renameNote maps a note that is not ready to 409`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteService.renameNote(userId, noteId, "New")).thenThrow(NoteNotReadyException(noteId))
+
+        mockMvc.patch("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New"}"""
+        }.andExpect {
+            status { isConflict() }
+        }
+    }
+
+    @Test
+    fun `deleteNote returns 204`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+
+        mockMvc.delete("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isNoContent() }
+        }
+        Mockito.verify(noteService).deleteNote(userId, noteId)
+    }
+
+    @Test
+    fun `deleteNote maps a missing note to 404`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.doThrow(NotFoundException("note id=$noteId not found")).`when`(noteService).deleteNote(userId, noteId)
+
+        mockMvc.delete("/note/notes/$noteId") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isNotFound() }

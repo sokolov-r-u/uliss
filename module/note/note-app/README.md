@@ -25,6 +25,13 @@ streamed replies, turn cancellation, and summary requests under `/note/chats`. S
 `done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
+`GET /note/chats` and `GET /note/chats/{chatId}` return `ChatResponse` with `noteCount`, the number of linked notes (one
+grouped count query per list). `PATCH /note/chats/{chatId}` with `{"title"}` renames the chat: the title is
+trimmed, inner whitespace runs collapse to one space, and 1–50 code points are required, otherwise `400` (no
+truncation). `DELETE /note/chats/{chatId}` returns `204`, or `409` while a turn is generating under a live lease; an
+expired lease does not block. Deletion cascades to turns, messages, summary requests, and note links; linked notes are
+never deleted.
+
 `GET /note/chats/{chatId}/messages` uses backward keyset pagination over UUID v7 message IDs. The
 latest page uses `limit=50` by default; callers may request 1 through 100 messages and pass the
 exclusive `before=<messageId>` cursor returned by the previous response. The response contains
@@ -66,6 +73,8 @@ line, normalized by `TitleNormalizer` (50 code points). Success atomically store
 changes the note to `READY`, and publishes `NOTE_INDEX_REQUESTED`. The final configured failure changes a
 still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.
+If the chat was deleted after the request, the worker fails the note at once through the same terminal-failure
+handler instead of spending retries.
 
 ## Note API and status delivery
 
@@ -73,6 +82,10 @@ the same transaction that terminally fails the outbox event.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
   status changes, and closes on `READY` or `FAILED`.
+- `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
+  `409`) and queues reindexing, because the indexed text includes the title.
+- `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
+  summary request; chats remain.
 
 Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, and
 `updatedAt`. Notes created before stored titles keep a null `title`.

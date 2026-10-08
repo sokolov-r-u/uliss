@@ -12,5 +12,7 @@ One line per note or chat. Dense index, not a feed.
 - `unread` shows the dot; `dim` greys everything already read. Both together are how a fresh row stands out — no badges,
   no bold.
 - Rows sit directly on the ground inside an 18px gutter, separated by nothing but their own height.
-- `onClick` owns the main native button. `onMenu` owns a separate 44px menu button with `menuLabel`; the two actions
-  must never be nested. Omit `onClick` for a non-interactive fixture row and omit `dots` when no menu exists.
+- `onClick` owns the main native button. `onMenu(anchor)` owns a separate 44px menu button with `menuLabel` and also
+  fires after a 480 ms touch long-press on the row (moving more than 8px cancels; the click that ends a long-press is
+  swallowed). The two actions must never be nested. Omit `onClick` for a non-interactive fixture row and set
+  `dots={false}` when no menu exists.

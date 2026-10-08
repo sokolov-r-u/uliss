@@ -1,5 +1,6 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.response.NoteResponse
@@ -7,6 +8,7 @@ import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.dto.response.toStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
+import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -19,6 +21,7 @@ import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
+import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
@@ -44,6 +47,12 @@ class NoteService(
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse =
         getOwnedNote(userId, noteId).toResponse()
+
+    /** Linked note counts keyed by chat id; chats without notes are absent. Callers pass owned chat ids only. */
+    fun getNoteCounts(chatIds: Collection<UUID>): Map<UUID, Int> {
+        if (chatIds.isEmpty()) return emptyMap()
+        return chatNoteRepository.countNotesByChatIds(chatIds).associate { it.chatId to it.noteCount.toInt() }
+    }
 
     fun streamNoteStatus(userId: UUID, noteId: UUID): Flux<NoteStatusResponse> {
         val initialStatus = getOwnedNote(userId, noteId).toStatusResponse()
@@ -133,6 +142,26 @@ class NoteService(
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
         return note
+    }
+
+    /** Renames a READY note and reindexes it, because the indexed text includes the title. */
+    @Transactional
+    fun renameNote(userId: UUID, noteId: UUID, rawTitle: String): NoteResponse {
+        val title = TitleNormalizer.normalizeUserTitle(rawTitle)
+            ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
+        val note = getOwnedNote(userId, noteId)
+        if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
+        note.title = title
+        noteRepository.save(note)
+        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
+        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        return note.toResponse()
+    }
+
+    /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */
+    @Transactional
+    fun deleteNote(userId: UUID, noteId: UUID) {
+        noteRepository.delete(getOwnedNote(userId, noteId))
     }
 
     private fun NoteStatus.isTerminal(): Boolean = this == NoteStatus.READY || this == NoteStatus.FAILED

@@ -1,5 +1,6 @@
 package io.uliss.note_service.service
 
+import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.model.ChatEntity
@@ -109,6 +110,57 @@ class ChatServiceTest {
         val result = chatService.getChats(userId)
 
         assertSame(chat, result.single())
+    }
+
+    @Test
+    fun `renameChat stores the normalized title`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Old")
+        Mockito.`when`(chatRepository.findByIdAndUserId(chat.id, userId)).thenReturn(chat)
+        Mockito.`when`(chatRepository.save(chat)).thenReturn(chat)
+
+        val result = chatService.renameChat(userId, chat.id, "  New   title ")
+
+        assertEquals("New title", result.title)
+        Mockito.verify(chatRepository).save(chat)
+    }
+
+    @Test
+    fun `renameChat rejects an invalid title before loading the chat`() {
+        assertFailsWith<BadRequestException> {
+            chatService.renameChat(UUID.randomUUID(), UUID.randomUUID(), "   ")
+        }
+        Mockito.verifyNoInteractions(chatRepository)
+    }
+
+    @Test
+    fun `renameChat hides a missing or foreign chat behind not found`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { chatService.renameChat(userId, chatId, "Title") }
+    }
+
+    @Test
+    fun `deleteChat deletes an owned chat`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Trip planning")
+        Mockito.`when`(chatRepository.findByIdAndUserId(chat.id, userId)).thenReturn(chat)
+
+        chatService.deleteChat(userId, chat.id)
+
+        Mockito.verify(chatRepository).delete(chat)
+    }
+
+    @Test
+    fun `deleteChat hides a missing or foreign chat behind not found`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { chatService.deleteChat(userId, chatId) }
+        Mockito.verify(chatRepository, Mockito.never()).delete(anyValue())
     }
 
     @Test

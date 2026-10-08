@@ -1,6 +1,7 @@
 package io.uliss.note_service.service
 
 import io.uliss.database.entity.generateId
+import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatSummaryContext
@@ -38,6 +39,24 @@ class ChatService(
 
     fun getChats(userId: UUID): List<ChatEntity> =
         chatRepository.findByUserIdOrderByCreatedAtDesc(userId)
+
+    @Transactional
+    fun renameChat(userId: UUID, chatId: UUID, rawTitle: String): ChatEntity {
+        val title = TitleNormalizer.normalizeUserTitle(rawTitle)
+            ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
+        val chat = requireOwnedChat(userId, chatId)
+        chat.title = title
+        return chatRepository.save(chat)
+    }
+
+    /**
+     * FK cascades remove the chat's turns, messages, summary requests and note links; linked notes
+     * survive. Runs inside the caller's transaction, which must already hold the chat row lock.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun deleteChat(userId: UUID, chatId: UUID) {
+        chatRepository.delete(requireOwnedChat(userId, chatId))
+    }
 
     fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
         requireOwnedChat(userId, chatId)

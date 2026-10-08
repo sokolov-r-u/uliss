@@ -97,4 +97,21 @@ class TitleNormalizerTest {
     fun `normalizeNoteTitle returns null when neither title nor content yields text`() {
         assertNull(TitleNormalizer.normalizeNoteTitle(" ", "##\n  "))
     }
+
+    @Test
+    fun `normalizeUserTitle trims and collapses inner whitespace`() {
+        assertEquals("Trip to Lisbon", TitleNormalizer.normalizeUserTitle("  Trip \t to\nLisbon  "))
+    }
+
+    @Test
+    fun `normalizeUserTitle rejects blank input`() {
+        assertNull(TitleNormalizer.normalizeUserTitle(" \n\t "))
+    }
+
+    @Test
+    fun `normalizeUserTitle accepts exactly 50 code points and rejects 51 without truncating`() {
+        val fifty = emoji.repeat(50)
+        assertEquals(fifty, TitleNormalizer.normalizeUserTitle(fifty))
+        assertNull(TitleNormalizer.normalizeUserTitle(fifty + "a"))
+    }
 }

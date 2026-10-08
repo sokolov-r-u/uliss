@@ -1,10 +1,13 @@
-import type {ReactNode} from 'react'
+import {type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
 // No cards, no thumbnails, no two-line previews, no relative time — the list is
 // a dense table of contents, and the density is the point. `dim` greys read
 // rows so unread ones surface without a badge.
+
+const LONG_PRESS_MS = 480
+const LONG_PRESS_TOLERANCE = 8
 
 export interface ListRowProps {
     title: string
@@ -17,7 +20,8 @@ export interface ListRowProps {
     dim?: boolean
     dots?: boolean
     onClick?: () => void
-    onMenu?: () => void
+    /** Opens the row menu with its anchor: the dots button, or the row after a touch long-press. */
+    onMenu?: (anchor: HTMLElement) => void
     menuLabel?: string
 }
 
@@ -32,6 +36,46 @@ export function ListRow({
                             onMenu,
                             menuLabel
                         }: ListRowProps) {
+    const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
+    const longPressedRef = useRef(false)
+    const cancelPress = () => {
+        if (pressRef.current) window.clearTimeout(pressRef.current.timer)
+        pressRef.current = null
+    }
+    useEffect(() => cancelPress, [])
+    const pressHandlers = onMenu ? {
+        onPointerDown: (event: PointerEvent<HTMLDivElement>) => {
+            if (event.pointerType !== 'touch') return
+            longPressedRef.current = false
+            cancelPress()
+            const row = event.currentTarget
+            pressRef.current = {
+                x: event.clientX,
+                y: event.clientY,
+                timer: window.setTimeout(() => {
+                    pressRef.current = null
+                    longPressedRef.current = true
+                    onMenu(row)
+                }, LONG_PRESS_MS),
+            }
+        },
+        onPointerMove: (event: PointerEvent<HTMLDivElement>) => {
+            const press = pressRef.current
+            if (press && Math.hypot(event.clientX - press.x, event.clientY - press.y) > LONG_PRESS_TOLERANCE) {
+                cancelPress()
+            }
+        },
+        onPointerUp: cancelPress,
+        onPointerCancel: cancelPress,
+        onPointerLeave: cancelPress,
+        // The click that ends a long-press must not also open the row.
+        onClickCapture: (event: MouseEvent<HTMLDivElement>) => {
+            if (!longPressedRef.current) return
+            longPressedRef.current = false
+            event.preventDefault()
+            event.stopPropagation()
+        },
+    } : {}
     const content = (
         <>
             <span style={{width: 5, height: 5, flex: '0 0 5px', background: unread ? 'var(--accent)' : 'transparent'}}/>
@@ -68,10 +112,12 @@ export function ListRow({
     )
     return (
         <div
+            {...pressHandlers}
             style={{
                 display: 'flex',
                 alignItems: 'center',
                 minHeight: 34,
+                ...(onMenu ? {userSelect: 'none', WebkitTouchCallout: 'none'} : {}),
             }}
         >
             {onClick ? (
@@ -106,7 +152,8 @@ export function ListRow({
                     type="button"
                     aria-label={menuLabel ?? `Actions for ${title}`}
                     title={menuLabel ?? 'Rename · Delete'}
-                    onClick={onMenu}
+                    onClick={(event) => onMenu?.(event.currentTarget)}
+                    onPointerDown={(event) => event.stopPropagation()}
                     style={{
                         flex: '0 0 44px',
                         width: 44,

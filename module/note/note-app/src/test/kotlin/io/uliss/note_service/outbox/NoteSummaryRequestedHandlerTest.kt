@@ -1,6 +1,7 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteDraft
@@ -15,6 +16,7 @@ import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
+import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
@@ -33,6 +35,7 @@ class NoteSummaryRequestedHandlerTest {
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteService::class.java)
+    private val terminalFailureHandler = Mockito.mock(NoteSummaryTerminalFailureHandler::class.java)
     private val properties = NoteSummaryProperties(
         retrievalQueryMaxChars = 400,
         retrievalTopK = 3,
@@ -44,6 +47,7 @@ class NoteSummaryRequestedHandlerTest {
         chatService,
         ragService,
         noteService,
+        terminalFailureHandler,
         properties,
     )
 
@@ -338,6 +342,19 @@ class NoteSummaryRequestedHandlerTest {
         handler.handle(event(payload))
     }
 
+    @Test
+    fun `handle fails the note without calling the model when the chat was deleted`() {
+        val payload = payload()
+        val event = event(payload)
+        Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
+            .thenThrow(NotFoundException("chat id=${payload.chatId} not found"))
+
+        handler.handle(event)
+
+        Mockito.verify(terminalFailureHandler).handleTerminalFailure(event)
+        Mockito.verifyNoInteractions(chatClient, ragService, noteService)
+    }
+
     private fun payload() = NoteSummaryRequestedPayload(
         noteId = UUID.randomUUID(),
         userId = UUID.randomUUID(),
@@ -371,6 +388,7 @@ class NoteSummaryRequestedHandlerTest {
             localChatService,
             localRagService,
             localNoteService,
+            terminalFailureHandler,
             NoteSummaryProperties(
                 retrievalQueryMaxChars = maxChars,
                 retrievalTopK = 3,
