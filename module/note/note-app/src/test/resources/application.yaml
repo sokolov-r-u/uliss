@@ -26,12 +26,14 @@ spring:
     retry:
       max-attempts: 2
     model:
-      chat: deepseek
+      chat: openai
       embedding: openai
     deepseek:
       api-key: test
     openai:
       api-key: test
+      chat:
+        model: gpt-5.6-luna
       embedding:
         model: text-embedding-3-small
         dimensions: 1536

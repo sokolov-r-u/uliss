@@ -5,7 +5,7 @@ enum class ChatMessageStatus {
     COMPLETE,
 
     /**
-     * The stream was interrupted (network/DeepSeek error, client disconnect) but some content
+     * The stream was interrupted (network/provider error, client disconnect) but some content
      * had already been buffered and shown to the user - saved as-is so replayed history matches it.
      */
     PARTIAL,

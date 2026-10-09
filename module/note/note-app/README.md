@@ -9,13 +9,18 @@ states, and asynchronous summary/indexing diagrams.
 
 ## AI providers and configuration
 
-Chat and summarization use the provider-neutral Spring AI `ChatClient`, backed by DeepSeek. RAG uses
-Spring AI's `EmbeddingModel` with OpenAI `text-embedding-3-small` at 1536 dimensions. Required
-credentials are `DEEPSEEK_API_KEY` and `OPENAI_API_KEY`; `DEEPSEEK_MODEL` and
+Chat and summarization use the provider-neutral Spring AI `ChatClient`, backed by OpenAI
+`gpt-5.6-luna`. RAG uses Spring AI's `EmbeddingModel` with OpenAI `text-embedding-3-small` at 1536
+dimensions. The required credential is `OPENAI_API_KEY`; `OPENAI_CHAT_MODEL` and
 `OPENAI_EMBEDDING_MODEL` override the defaults.
 
-`spring.ai.model.chat=deepseek` and `spring.ai.model.embedding=openai` select the two providers
-explicitly. The shared optimistic-lock retry bean remains named `optimisticLockRetryTemplate` to
+`spring.ai.model.chat=openai` and `spring.ai.model.embedding=openai` select the providers explicitly.
+Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity` per call (`note.assistant.*` and
+`note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
+history prefix. DeepSeek stays configured but inactive; switching back to
+`spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
+options from `AssistantService` and `NoteSummaryRequestedHandler`. The shared optimistic-lock
+retry bean remains named `optimisticLockRetryTemplate` to
 avoid colliding with Spring AI retry auto-configuration.
 
 ## Chat and summary APIs
@@ -66,10 +71,14 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
 current chat is authoritative; related notes are delimited as untrusted secondary context. One
-non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title` and
-Markdown `content`; field rules live in the `NoteDraft` JSON schema descriptions. Missing or blank
-`content` fails the attempt; a blank or missing title falls back to the first non-blank content
-line, normalized by `TitleNormalizer` (50 code points). Success atomically stores both fields,
+non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
+Markdown `mainThought`, and up to three `secondaryThoughts`; field rules live in the `NoteDraft` JSON
+schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,
+OpenAI strict mode), so every field is marked required and nullable in the schema. The worker joins them into Markdown
+`content` (main thought, then a bulleted
+list; extra secondary thoughts are dropped). A missing or blank main thought fails the attempt; a
+blank or missing title falls back to the first non-blank content line, normalized by
+`TitleNormalizer` (50 code points). Success atomically stores both fields,
 changes the note to `READY`, and publishes `NOTE_INDEX_REQUESTED`. The final configured failure changes a
 still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.

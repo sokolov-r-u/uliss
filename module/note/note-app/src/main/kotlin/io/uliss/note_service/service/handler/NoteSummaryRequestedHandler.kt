@@ -20,6 +20,7 @@ import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Min
 import org.springframework.ai.chat.client.ChatClient
+import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Component
 import org.springframework.validation.annotation.Validated
@@ -36,6 +37,9 @@ data class NoteSummaryProperties(
     @field:DecimalMin("0.0")
     @field:DecimalMax("1.0")
     val retrievalMinSimilarity: Double = 0.70,
+    /** OpenAI per-call options for the summary call; passed to the provider as-is. */
+    val reasoningEffort: String = "medium",
+    val verbosity: String = "low",
 )
 
 @Component
@@ -72,11 +76,15 @@ class NoteSummaryRequestedHandler(
         val draft: NoteDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
             .user(ChatPrompts.noteSummaryUserPrompt(context, relatedChunks))
+            .options(
+                OpenAiChatOptions.builder()
+                    .reasoningEffort(properties.reasoningEffort)
+                    .verbosity(properties.verbosity)
+            )
             .call()
-            .entity(NoteDraft::class.java)
-        val content = draft?.content?.trim().orEmpty()
-        check(content.isNotBlank()) { "summary model returned blank content" }
-        val title = TitleNormalizer.normalizeNoteTitle(draft?.title, content)
+            .entity(NoteDraft::class.java) { it.useProviderStructuredOutput() }
+        val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
+        val title = TitleNormalizer.normalizeNoteTitle(draft.title, content)
         noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
     }
 

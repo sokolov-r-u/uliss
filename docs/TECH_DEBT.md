@@ -260,9 +260,87 @@ notes too" choice; the note delete dialog has no body. The online design's `Dele
 still show the old copy and should be updated to match. `Dialog.prompt.md` still says every body must name what
 survives; the note delete dialog is an agreed exception.
 
+## Persist note thoughts as structured data (`note-service`)
+
+**Status:** to think about; no decision. The `CHAT_SUMMARY` model output is structured (`NoteDraft`: main thought plus
+up to three secondary thoughts), but the service assembles it into Markdown and stores only `note.content`.
+
+Storing the thoughts separately was deferred because nothing reads them yet (the frontend and RAG indexing use
+`content`), the prompt format is still being tuned, and the right shape is unclear: likely a separate thought entity
+with links rather than columns on `note`. A manual note would simply be its main thought. Revisit together with the
+planned `graph` domain.
+
 ## `TextField` counts UTF-16 units, titles count code points (`uliss-design-system`, `web`)
 
 The server title rule is 1–50 code points, but `TextField`'s counter and native `maxLength` count UTF-16 units. The
 rename dialog therefore lets a user type only 25 emoji and shows e.g. `60 / 50` for an existing emoji-heavy title,
 although Save (which validates code points) stays enabled. Fix by counting code points in `TextField` (and replacing
 native `maxLength` with a code-point guard) when emoji-heavy titles matter.
+
+## Limited web search in chat (`note-service`)
+
+**Status:** deferred, waiting on Spring AI. The chat model states unverified specifics as fact (e.g. invented details of
+how an album sounds); a limited web search for checkable facts (releases, books, authorship) would let it verify
+instead.
+
+Spring AI 2.0's `OpenAiChatModel` uses Chat Completions, which has no built-in web search; OpenAI's built-in
+`web_search`
+tool (~$10 per 1,000 calls, no extra key) exists only in the Responses API. Options:
+
+- **Preferred once available:** Spring AI support for the OpenAI Responses API or a built-in web search option (as
+  `AnthropicWebSearchTool` already exists for Anthropic). Check on each Spring AI upgrade.
+- **Fallback:** a provider-neutral `@Tool` backed by Tavily or Brave Search (~$0.005–0.008 per search, about 1,000
+  free searches a month); needs a separate API key.
+- **Rejected for now:** calling the Responses API directly through the OpenAI SDK, which would bypass `ChatClient`
+  and the per-call options, prompt caching, and usage logging built on it.
+
+Whichever path: search only for checkable facts the model is unsure of, not while the user thinks aloud; at most 1–2
+searches per turn; pass only the top few short snippets; treat results as untrusted data, like related notes.
+Estimated cost is about $0.01 per search including extra `gpt-5.6-luna` tokens; results are not persisted in chat
+history, so they do not raise the cost of later turns.
+
+## Squash Flyway migrations before the first production release (`auth`, `user`, `note`)
+
+**Status:** deferred until just before the first production deploy. Until then, keep adding small incremental
+migrations; after that deploy, squashing is forbidden and migrations are strictly append-only.
+
+The history has accumulated noise that a fresh production database does not need (state as of 2026-10-08; regroup
+against the schema current at squash time):
+
+- Every service has a `V1` that only runs `CREATE SCHEMA IF NOT EXISTS`. It is a no-op: with `spring.flyway.schemas`
+  set, Flyway creates the schema itself before `V1` to host `flyway_schema_history`.
+- `note`: `ALTER TABLE` column additions (`notes.source` in V4, `notes.title` in V7, `chat.idempotency_key` in V6),
+  a single-index migration (V5), and a legacy data fixup (`UPDATE note.chat` title truncation in V7) that is
+  meaningless on an empty database. Comments are stale: `chat_note` is called an unused scaffold although
+  `NoteService` uses it, and `chat_message` mentions historical rows with `turn_id = NULL`.
+- `auth`/`user`: tables split one per file, `create table if not exists` in versioned migrations (hides schema
+  drift), mixed keyword case, a missing trailing `;` in auth V4.
+
+Target grouping (15 files → 7), one migration per domain area, ordered by foreign-key dependencies:
+
+- `auth`: `V1__ddl_create_auth_tables` (`users`, `signing_keys`); `V2__ddl_create_spring_authorization_server_tables`
+  (kept separate for diffing against the upstream Spring schema on upgrades).
+- `note`: `V1__ddl_create_note_tables` (`vector` extension, `notes`); `V2__ddl_create_chat_tables` (`chat`,
+  `chat_turn`, `chat_message` with all indexes, `chat_note`); `V3__ddl_create_summary_rag_outbox_tables`.
+- `user`: `V1__ddl_create_profile_tables` (`users`, `messages`, `user_message`); `V2__dml_seed_onboarding_messages`.
+
+Procedure:
+
+1. Squash on a branch where no one else changes the schema.
+2. Reference snapshot: apply the current migrations to a throwaway database on the same image
+   (`pgvector/pgvector:0.8.2-pg18`) and run `pg_dump --schema-only --no-owner --no-privileges -n <schema>
+   -T '*.flyway_schema_history'` for `auth`, `profile`, and `note`.
+3. Rewrite by hand, not from a dump: fold every `ALTER` into its `CREATE TABLE`, drop data fixups, keep seed DML in a
+   separate `dml_` file, refresh comments, restart numbering at `V1`. Keep folded columns at the end of `CREATE` and
+   give constraints explicit names so the diff stays clean.
+4. Apply the new migrations to a fresh database, dump the same way, and `diff`. The result must be empty or contain
+   only consciously accepted differences.
+5. Run `:auth:integrationTest`, `:user:integrationTest`, `:note:integrationTest`.
+6. Reset every database that has the old history applied (local `infra/volumes/postgres/data`, minikube, any
+   staging): Flyway validation fails on checksum mismatch otherwise.
+7. Change the migration rule in `module/auth/CLAUDE.md`, `module/note/note-app/CLAUDE.md`, and
+   `module/user/user-app/CLAUDE.md` to "append-only after the first production deploy".
+
+Schema improvements noticed along the way stay out of the squash so the diff can prove equivalence. Make them
+separately: `(chat_id, created_at, id)` for the `ORDER BY created_at, id` chat-message queries, and CHECK constraints
+for `profile.user_message.status` and `profile.users.gender`.

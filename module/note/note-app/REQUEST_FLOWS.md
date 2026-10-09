@@ -38,7 +38,7 @@ flowchart LR
         RagChunks[(rag_chunks)]
     end
 
-    ChatModel[ChatClient / DeepSeek]
+  ChatModel[ChatClient / OpenAI]
     EmbeddingModel[EmbeddingModel / OpenAI]
     Client --> ChatController --> ChatFacade
     Client --> NoteController --> NoteService
@@ -344,8 +344,8 @@ sequenceDiagram
     EM -->> R: query vector
     R ->> DB: ownership-filtered cosine search
     SH ->> AI: entity(NoteDraft)(current chat, related notes)
-    AI -->> SH: NoteDraft(title, content)
-    SH ->> SH: require content, normalize title
+  AI -->> SH: NoteDraft(title, mainThought, secondaryThoughts)
+  SH ->> SH: require main thought, join into content, normalize title
     SH ->> NS: completeChatSummary(userId, noteId, title, content)
 
     rect rgb(235, 245, 255)
