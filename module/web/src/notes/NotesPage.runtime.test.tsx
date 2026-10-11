@@ -32,8 +32,8 @@ describe('NotesPage runtime states', () => {
             {id: 'old', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
         ])
         renderPage()
-        const generating = await screen.findByRole('button', {name: /· Generating note/})
-        expect(screen.getByRole('button', {name: /· Summary failed/})).toBeInTheDocument()
+        const generating = await screen.findByRole('button', {name: 'Generating note…'})
+        expect(screen.getByRole('button', {name: 'Summary failed'})).toBeInTheDocument()
         await userEvent.click(generating)
         expect(await screen.findByText('Opened note')).toBeInTheDocument()
     })
@@ -62,12 +62,12 @@ describe('NotesPage runtime states', () => {
         await userEvent.clear(field)
         await userEvent.type(field, 'Better idea')
         await userEvent.click(screen.getByRole('button', {name: 'Save'}))
-        expect(await screen.findByRole('button', {name: /· Better idea/})).toBeInTheDocument()
+        expect(await screen.findByRole('button', {name: 'Better idea'})).toBeInTheDocument()
 
         await userEvent.click(screen.getByRole('button', {name: 'Actions for Other'}))
         await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
         await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
-        await waitFor(() => expect(screen.queryByRole('button', {name: /· Other/})).not.toBeInTheDocument())
+        await waitFor(() => expect(screen.queryByRole('button', {name: 'Other'})).not.toBeInTheDocument())
         expect(mockedListNotes).toHaveBeenCalledTimes(1)
     })
 

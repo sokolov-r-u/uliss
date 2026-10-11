@@ -61,4 +61,14 @@ describe('ChatListPage', () => {
         expect(screen.queryByText('connection lost')).not.toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Actions for Books'})).toBeInTheDocument()
     })
+
+    it('groups chats under month headings', async () => {
+        vi.mocked(listChats).mockResolvedValue([
+            {id: 'c1', title: 'Trip', noteCount: 0, createdAt: '2026-06-22T09:00:00Z'},
+        ])
+        render(<MemoryRouter><ChatListPage/></MemoryRouter>)
+
+        const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
+        expect(await screen.findByText(june)).toBeInTheDocument()
+    })
 })

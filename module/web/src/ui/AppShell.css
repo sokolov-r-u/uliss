@@ -614,6 +614,15 @@
     padding: 0 var(--gutter) 32px;
 }
 
+.list-month {
+    display: none;
+    padding: 14px 0 10px;
+}
+
+.list-group + .list-group .list-month {
+    padding-top: 22px;
+}
+
 .product-row-active {
     margin-inline: -8px;
     padding-inline: 8px;
@@ -1050,6 +1059,18 @@
     .screen-head-title {
         font-size: 16px;
         font-weight: var(--w-emphasis);
+    }
+
+    .list-month {
+        display: block;
+    }
+
+    .product-list {
+        --list-row-title-size: 17px;
+        --list-row-title-weight: var(--w-ui);
+        --list-row-height: 52px;
+        --list-row-rule: var(--line);
+        padding-top: 6px;
     }
 
     .side-nav {

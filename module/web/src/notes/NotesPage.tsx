@@ -4,6 +4,7 @@ import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
 import type {NoteViewModel} from '../views/models'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {listNotes, type Note} from './noteApi'
 import './notes.css'
@@ -20,7 +21,6 @@ export interface NotesViewProps {
 
 export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: NotesViewProps) {
     const unread = notes.filter((note) => note.unread).length
-    const maxOrdinal = notes.reduce((max, note) => Math.max(max, note.ordinal), 0)
 
     if (notes.length === 0) {
         return <div className="product-view"><ScreenHeader kicker="Notes" count={0}/>
@@ -32,8 +32,8 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
         </div>
     }
 
-    const row = (note: NoteViewModel, openMenu?: (anchor: HTMLElement) => void) =>
-        <ListRow title={`${String(note.ordinal).padStart(3, '0')} · ${note.title}`}
+    const row = (note: NoteViewModel, first: boolean, openMenu?: (anchor: HTMLElement) => void) =>
+        <ListRow title={note.title} first={first}
                  date={note.date} unread={note.unread} dim={note.unread === false}
                  meta={note.linkCount > 0 ? <><Icon name="star" size={12}/>{note.linkCount}</> : undefined}
                  onClick={onOpen ? () => onOpen(note) : undefined}
@@ -42,11 +42,15 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
 
     return (
         <div className="product-view">
-            <ScreenHeader kicker="Notes" count={String(maxOrdinal).padStart(3, '0')}
+            <ScreenHeader kicker="Notes" count={notes.length}
                           right={unread > 0 ? <Kicker size={9} spacing="2px"
                                                       color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
             <div className="product-body"><div className="product-list">
-                {notes.map((note) => actions
+                {groupByMonth(notes, (note) => note.createdAt).map((group, groupIndex) => <div
+                    key={`${group.label}-${groupIndex}`} className="list-group">
+                    {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
+                                                                        color="var(--text-faint)">{group.label}</Kicker></div>}
+                {group.items.map((note, index) => actions
                     ? <ItemActions key={note.id}
                                    target={{
                                        kind: 'note',
@@ -58,10 +62,11 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
                                    onRenamed={(title) => actions.onRenamed(note.id, title)}
                                    onDeleted={() => actions.onDeleted(note.id)}>
                         {(openMenu, menuOpen) => <div className={menuOpen ? 'product-row-active' : undefined}>
-                            {row(note, openMenu)}
+                            {row(note, index === 0, openMenu)}
                         </div>}
                     </ItemActions>
-                    : <div key={note.id}>{row(note)}</div>)}
+                    : <div key={note.id}>{row(note, index === 0)}</div>)}
+                </div>)}
             </div></div>
         </div>
     )
@@ -99,6 +104,7 @@ export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
             date: formatDate(note.createdAt),
             linkCount: 0,
             renamable: note.status === 'READY',
+            createdAt: note.createdAt,
         }
     })
 }

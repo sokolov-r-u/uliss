@@ -1,9 +1,10 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
 import {useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
@@ -83,7 +84,11 @@ export function ChatListPage() {
 
                 {state.status === 'ready' && state.chats.length > 0 && (
                     <div className="product-list">
-                        {state.chats.map((chat) => (
+                        {groupByMonth(state.chats, (chat) => chat.updatedAt ?? chat.createdAt).map((group, groupIndex) => <div
+                            key={`${group.label}-${groupIndex}`} className="list-group">
+                            {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
+                                                                                color="var(--text-faint)">{group.label}</Kicker></div>}
+                        {group.items.map((chat, index) => (
                             <ItemActions key={chat.id}
                                          target={{
                                              kind: 'chat',
@@ -93,6 +98,7 @@ export function ChatListPage() {
                                          }}>
                                 {(openMenu) => <ListRow
                                     title={chat.title}
+                                    first={index === 0}
                                     date={formatDate(chat.updatedAt ?? chat.createdAt)}
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
@@ -100,6 +106,7 @@ export function ChatListPage() {
                                     menuLabel={`Actions for ${chat.title}`}/>}
                             </ItemActions>
                         ))}
+                        </div>)}
                     </div>
                 )}
             </div>

@@ -8,6 +8,8 @@ export interface NoteViewModel {
     unread?: boolean
     /** False while the note is generating or failed. */
     renamable?: boolean
+    /** Raw ISO creation time — drives the month headings of wide lists. */
+    createdAt?: string
 }
 
 export interface SearchChatViewModel {
