@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Wordmark, Kicker } from '@uliss/design-system'
 
-/** Brand shell: meander-free minimal frame with the Wordmark header and a centred panel. */
+/** Brand shell: minimal frame with the Wordmark header and a centred panel. */
 export function Shell({
   kicker,
   children,

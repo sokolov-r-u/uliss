@@ -1,7 +1,7 @@
 The 48px field. Focus is loud on purpose — it marks the one thing being asked.
 
 ```jsx
-<TextField label="Name" greek="ὄνομα" placeholder="How should Uliss call you?"
+<TextField label="Name" placeholder="How should Uliss call you?"
   value={name} onChange={(event) => setName(event.target.value)} maxLength={24} />
 ```
 

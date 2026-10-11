@@ -54,7 +54,6 @@ function OnboardingFixture({step}: { step: 'name' | 'profile' | 'busy' }) {
     const [name, setName] = useState(step === 'busy' ? 'Wayfarer' : '')
     return <div className="visual-backdrop"><Notice blocking variant={step === 'name' ? 'framed' : 'plaque'}
                                                     progress={{current: step === 'name' ? 1 : 2, total: 2}}
-                                                    greek={step === 'name' ? 'ὄνομα · your name' : 'βίος · about you'}
                                                     title={step === 'name' ? 'What should Uliss call you?' : 'A little about you'}
                                                     primary={step === 'profile' ? 'Save' : 'Continue'}
                                                     busy={step === 'busy'}

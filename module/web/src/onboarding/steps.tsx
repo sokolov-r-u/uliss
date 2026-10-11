@@ -57,7 +57,6 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
         <Notice
             blocking={blocking}
             progress={progress}
-            greek="ὄνομα · your name"
             title="What should Uliss call you?"
             primary="Continue"
             primaryDisabled={trimmed.length === 0}
@@ -73,9 +72,9 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
 
 // ── step 2: profile — gender + date of birth (optional / skippable) ──
 const GENDERS: SelectOption<Gender>[] = [
-    {value: 'FEMALE', label: 'Female', greek: 'ἡ'},
-    {value: 'MALE', label: 'Male', greek: 'ὁ'},
-    {value: 'OTHER', label: 'Other', greek: '—'},
+    {value: 'FEMALE', label: 'Female'},
+    {value: 'MALE', label: 'Male'},
+    {value: 'OTHER', label: 'Other'},
 ]
 
 export function ProfileStep({progress, blocking, onDone}: StepProps) {
@@ -95,7 +94,6 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
         <Notice
             blocking={blocking}
             progress={progress}
-            greek="βίος · about you"
             title="A little about you"
             body="Gender and date of birth help Uliss shape its answers to you. Skip them and nothing breaks."
             primary="Save"
@@ -114,8 +112,8 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
             }
         >
             <div style={{display: 'flex', flexDirection: 'column', gap: 15}}>
-                <NoticeSelect label="Sex" greek="γένος" options={GENDERS} value={gender} onChange={setGender}/>
-                <NoticeDate label="Date of birth" greek="γενέθλια" value={null} onChange={setDate} maxDate={maxDate}/>
+                <NoticeSelect label="Gender" options={GENDERS} value={gender} onChange={setGender}/>
+                <NoticeDate label="Date of birth" value={null} onChange={setDate} maxDate={maxDate}/>
             </div>
             {dateError && <ErrorLine>{dateError}</ErrorLine>}
             {error && <ErrorLine>{error}</ErrorLine>}

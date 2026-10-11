@@ -1,17 +1,14 @@
 import {type KeyboardEvent, useEffect, useId, useRef, useState} from 'react'
-import {Greek} from '../brand/Greek'
 import {Icon} from '../icons/Icon'
 import {LabelRow} from '../layout/LabelRow'
 
 export interface SelectOption<T extends string = string> {
     value: T
     label: string
-    greek?: string
 }
 
 export interface SelectProps<T extends string = string> {
     label?: string
-    greek?: string
     value: T | null
     placeholder?: string
     options: SelectOption<T>[]
@@ -26,7 +23,6 @@ export interface SelectProps<T extends string = string> {
 /** Controlled, keyboard-operable single-select listbox with an optional controlled open state. */
 export function Select<T extends string = string>({
                                                       label,
-                                                      greek,
                                                       value,
                                                       placeholder = 'Select…',
                                                       options,
@@ -105,7 +101,7 @@ export function Select<T extends string = string>({
 
     return (
         <div style={{position: 'relative'}}>
-            {label && <LabelRow label={label} greek={greek}/>}
+            {label && <LabelRow label={label}/>}
             {name && <input type="hidden" name={name} value={value ?? ''}/>}
             <button
                 ref={triggerRef}
@@ -198,7 +194,6 @@ export function Select<T extends string = string>({
                                 }}
                             >
                                 <span style={{flex: 1}}>{option.label}</span>
-                                {option.greek && <Greek size={13}>{option.greek}</Greek>}
                                 {selected && <span style={{color: 'var(--accent-2)', display: 'flex'}}><Icon name="tick"
                                                                                                              size={13}/></span>}
                             </div>
