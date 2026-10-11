@@ -7,10 +7,63 @@
     background: var(--bg);
 }
 
-/* ── Mobile screen top bar ───────────────────────────────────── */
-.app-top-bar {
+/* ── Screen header (kit TopBar on the phone, WideHead / ContentHeader wide) ── */
+.screen-head {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 46px;
+    padding: 1px 18px 1px 11px;
     border-bottom: 1px solid var(--line);
+}
+
+.screen-head-menu {
+    display: flex;
+    flex: 0 0 auto;
+}
+
+.screen-head-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+}
+
+.screen-head-label {
+    align-items: baseline;
+    gap: 9px;
+}
+
+.screen-head-count {
+    font-family: var(--font-display);
+    font-size: 12.5px;
+    font-weight: var(--w-strong);
+    color: var(--cream);
+    line-height: 1;
+}
+
+.screen-head-detail .screen-head-main {
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
+}
+
+.screen-head-title {
+    margin: 0;
+    font-family: var(--font-text);
+    font-size: 14.5px;
+    font-weight: var(--w-ui);
+    color: var(--cream);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.screen-head-right {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 /* ── Drawer / rail ───────────────────────────────────────────── */
@@ -188,28 +241,6 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-}
-
-.screen-header {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    padding: 22px 30px 18px;
-    border-bottom: 1px solid var(--line);
-}
-
-.screen-header-label {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-}
-
-.screen-header-count {
-    font-family: var(--font-text);
-    font-size: 12px;
-    color: var(--text-faint);
 }
 
 .screen-body {
@@ -453,14 +484,6 @@
 }
 
 /* ── Search field header (search/SearchPage.tsx) ─────────────── */
-.search-header {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    padding: 18px 30px;
-    border-bottom: 1px solid var(--line);
-}
-
 .search-field {
     display: flex;
     align-items: center;
@@ -515,6 +538,14 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
+}
+
+.product-body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
 }
 
 .product-empty {
@@ -634,6 +665,9 @@
 }
 
 .constellation-layout {
+    flex: 1;
+    min-height: 0;
+    display: flex;
     flex-direction: row;
     overflow: hidden;
 }
@@ -733,6 +767,12 @@
     cursor: pointer;
 }
 
+.sky-stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+}
+
 .sky-empty-view,
 .sky-view {
     max-width: none;
@@ -811,6 +851,8 @@
 }
 
 .updates-view {
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
     padding: 14px clamp(18px, 4vw, 34px) 32px;
 }
@@ -936,9 +978,27 @@
         flex-direction: row;
     }
 
-    .app-top-bar,
-    .nav-backdrop {
+    .nav-backdrop,
+    .screen-head-menu {
         display: none;
+    }
+
+    .screen-head {
+        gap: 16px;
+        padding: 22px 30px 18px;
+    }
+
+    .screen-head-label {
+        gap: 12px;
+    }
+
+    .screen-head-detail {
+        padding: 16px 20px;
+    }
+
+    .screen-head-title {
+        font-size: 16px;
+        font-weight: var(--w-emphasis);
     }
 
     .side-nav {

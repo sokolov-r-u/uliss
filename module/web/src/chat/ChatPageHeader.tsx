@@ -1,10 +1,17 @@
 import {useEffect, useState} from 'react'
-import {Link, useNavigate} from 'react-router-dom'
-import {Icon, IconButton, Kicker} from '@uliss/design-system'
+import {useNavigate} from 'react-router-dom'
+import {Icon, IconButton} from '@uliss/design-system'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, getChat, subscribeToChatListChanges} from './chatApi'
 
-/** Back link, persisted chat title, and the chat's Rename · Delete menu. */
+/** 'No notes yet' · '1 note' · '3 notes' — the chat's meta line. */
+export function chatNotesMeta(noteCount: number): string {
+    if (noteCount <= 0) return 'No notes yet'
+    return noteCount === 1 ? '1 note' : `${noteCount} notes`
+}
+
+/** Persisted chat title as the page heading, its note count, and the chat's Rename · Delete menu. */
 export function ChatPageHeader({chatId, generationActive}: { chatId?: string; generationActive: boolean }) {
     const navigate = useNavigate()
     const [loadedChat, setLoadedChat] = useState<Chat | null>(null)
@@ -21,23 +28,20 @@ export function ChatPageHeader({chatId, generationActive}: { chatId?: string; ge
         return () => controller.abort()
     }, [chatId, revision])
 
+    if (!chat) return chatId ? <ScreenHeader kicker="Conversation"/> : <ScreenHeader title="New chat"/>
+
     return (
-        <div className="chat-page-header">
-            <Link to="/chats" className="chat-back-link">‹ chats</Link>
-            {chat
-                ? <span className="chat-page-title">{chat.title}</span>
-                : <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>}
-            {chat && <span className="chat-page-actions">
-                <ItemActions target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
-                             deleteDisabled={generationActive}
-                             onRenamed={(title) => setLoadedChat({...chat, title})}
-                             onDeleted={() => navigate('/chats', {replace: true})}>
-                    {(openMenu) => <IconButton s={44} title={`Actions for ${chat.title}`}
-                                               onClick={(event) => openMenu(event.currentTarget)}>
-                        <Icon name="dots" size={17}/>
-                    </IconButton>}
-                </ItemActions>
-            </span>}
-        </div>
+        <ScreenHeader
+            title={chat.title}
+            meta={chatNotesMeta(chat.noteCount)}
+            right={<ItemActions target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
+                                deleteDisabled={generationActive}
+                                onRenamed={(title) => setLoadedChat({...chat, title})}
+                                onDeleted={() => navigate('/chats', {replace: true})}>
+                {(openMenu) => <IconButton s={44} title={`Actions for ${chat.title}`}
+                                           onClick={(event) => openMenu(event.currentTarget)}>
+                    <Icon name="dots" size={17}/>
+                </IconButton>}
+            </ItemActions>}/>
     )
 }

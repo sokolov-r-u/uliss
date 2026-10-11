@@ -1,9 +1,10 @@
 import {useEffect, useState} from 'react'
-import {Button, EmptyState, Icon, Kicker, ListHeader, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
 import type {NoteViewModel} from '../views/models'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {ScreenHeader} from '../ui/ScreenHeader'
 import {listNotes, type Note} from './noteApi'
 import './notes.css'
 
@@ -22,9 +23,12 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
     const maxOrdinal = notes.reduce((max, note) => Math.max(max, note.ordinal), 0)
 
     if (notes.length === 0) {
-        return <div className="product-view product-empty"><EmptyState title="Nothing written down yet"
-                                                                       body="Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never have to."
-                                                                       action="Start a chat" onAction={onStartChat}/>
+        return <div className="product-view"><ScreenHeader kicker="Notes" count={0}/>
+            <div className="product-body"><div className="product-empty">
+                <EmptyState title="Nothing written down yet"
+                            body="Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never have to."
+                            action="Start a chat" onAction={onStartChat}/>
+            </div></div>
         </div>
     }
 
@@ -38,10 +42,10 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
 
     return (
         <div className="product-view">
-            <ListHeader kicker="Notes" total={String(maxOrdinal).padStart(3, '0')}
-                        right={unread > 0 ? <Kicker size={9} spacing="2px"
-                                                    color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
-            <div className="product-list">
+            <ScreenHeader kicker="Notes" count={String(maxOrdinal).padStart(3, '0')}
+                          right={unread > 0 ? <Kicker size={9} spacing="2px"
+                                                      color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
+            <div className="product-body"><div className="product-list">
                 {notes.map((note) => actions
                     ? <ItemActions key={note.id}
                                    target={{
@@ -58,7 +62,7 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
                         </div>}
                     </ItemActions>
                     : <div key={note.id}>{row(note)}</div>)}
-            </div>
+            </div></div>
         </div>
     )
 }
@@ -119,10 +123,10 @@ export function NotesPage() {
     }, [revision])
 
     if (state.status === 'loading') {
-        return <div className="product-view"><ListHeader kicker="Notes"/><p className="notes-state">Loading…</p></div>
+        return <div className="product-view"><ScreenHeader kicker="Notes"/><p className="notes-state">Loading…</p></div>
     }
     if (state.status === 'error') {
-        return <div className="product-view"><ListHeader kicker="Notes"/>
+        return <div className="product-view"><ScreenHeader kicker="Notes"/>
             <div className="notes-state notes-state-error">
                 <p>{state.message}</p><Button size="sm" variant="quiet"
                                               onClick={() => setRevision((value) => value + 1)}>Retry</Button>

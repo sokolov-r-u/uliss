@@ -1,9 +1,10 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
 import {useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, ListHeader, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
 
@@ -56,10 +57,10 @@ export function ChatListPage() {
     }
 
     return (
-        <div className="chat-list-screen">
-            <ListHeader
+        <div className="product-view">
+            <ScreenHeader
                 kicker="Chats"
-                total={state.status === 'ready' ? state.chats.length : undefined}
+                count={state.status === 'ready' ? state.chats.length : undefined}
                 right={
                     <Button variant="quiet" onClick={onNewChat}>
                         New chat
@@ -67,21 +68,21 @@ export function ChatListPage() {
                 }
             />
 
-            <div className="chat-list-body">
+            <div className="product-body">
                 {state.status === 'loading' && <p className="chat-state">Loading…</p>}
                 {state.status === 'error' && <p className="chat-state chat-state-error">{state.message}</p>}
 
-                {state.status === 'ready' && state.chats.length === 0 && (
+                {state.status === 'ready' && state.chats.length === 0 && <div className="product-empty">
                     <EmptyState
                         title="No chats yet"
                         body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
                         action="Start a chat"
                         onAction={onNewChat}
                     />
-                )}
+                </div>}
 
                 {state.status === 'ready' && state.chats.length > 0 && (
-                    <div className="chat-list">
+                    <div className="product-list">
                         {state.chats.map((chat) => (
                             <ItemActions key={chat.id}
                                          target={{

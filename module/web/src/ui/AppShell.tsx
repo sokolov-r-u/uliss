@@ -1,34 +1,21 @@
 import {useEffect, useRef, useState} from 'react'
-import {Outlet, useLocation, useNavigate} from 'react-router-dom'
-import {Icon, IconButton, TopBar} from '@uliss/design-system'
+import {Outlet, useLocation} from 'react-router-dom'
 import {OnboardingDriver} from '../onboarding/OnboardingDriver'
 import {SideNav} from './nav/SideNav'
+import {ShellNavContext} from './ScreenHeader'
 import './AppShell.css'
 
 /**
- * Authenticated app layout: mobile hamburger + drawer / desktop nav rail, wrapping the active
- * route (`Outlet`). `OnboardingDriver` mounts here (once per session) rather than per-page, so it
- * keeps running as the blocking overlay across navigation between the five destinations.
+ * Authenticated app layout: mobile drawer / desktop nav rail, wrapping the active route (`Outlet`). Each
+ * screen's `ScreenHeader` carries the mobile menu button and opens the drawer through `ShellNavContext`.
+ * `OnboardingDriver` mounts here (once per session) rather than per-page, so it keeps running as the blocking
+ * overlay across navigation between the five destinations.
  */
 export function AppShell() {
     const [navOpen, setNavOpen] = useState(false)
     const [navCollapsed, setNavCollapsed] = useState(false)
     const location = useLocation()
-    const navigate = useNavigate()
     const restoreFocusRef = useRef<HTMLElement | null>(null)
-
-    const segment = location.pathname.split('/').filter(Boolean)
-    const labels: Record<string, string> = {
-        chats: 'Chats', notes: 'Notes', search: 'Search', constellations: 'Constellations',
-        sky: 'Sky', updates: 'Updates', settings: 'Settings', appearance: 'Appearance',
-        account: 'Account', language: 'Language',
-    }
-    const detailRoute = segment.length > 1 && (segment[0] === 'chats' || segment[0] === 'notes')
-    const labelKey = detailRoute ? segment[0] : (segment.at(-1) ?? 'chats')
-    const label = labels[labelKey] ?? 'Chats'
-    const title = segment[0] === 'chats' && segment.length > 1
-        ? 'Conversation'
-        : segment[0] === 'notes' && segment.length > 1 ? 'Note' : undefined
 
     const openNav = () => {
         restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -59,19 +46,10 @@ export function AppShell() {
 
     return (
         <div className="app-shell">
-            <header className="app-top-bar">
-                <TopBar
-                    onMenu={openNav}
-                    label={label}
-                    title={title}
-                    right={<IconButton s={44} title="Search" onClick={() => navigate('/search')}><Icon name="search"
-                                                                                                       size={16}/></IconButton>}
-                />
-            </header>
             <SideNav open={navOpen} collapsed={navCollapsed} onClose={closeNav}
                      onToggleCollapsed={() => setNavCollapsed((value) => !value)}/>
             <main className="app-main">
-                <Outlet/>
+                <ShellNavContext.Provider value={openNav}><Outlet/></ShellNavContext.Provider>
             </main>
             <OnboardingDriver/>
         </div>

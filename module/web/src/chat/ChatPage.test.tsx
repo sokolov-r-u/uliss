@@ -1,6 +1,6 @@
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
+import {Link, MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     type ChatMessage,
@@ -70,7 +70,7 @@ function messagePage(
 }
 
 function renderPage() {
-    return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Routes>
+    return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Link to="/chats">Leave chat</Link><Routes>
         <Route path="/chats/:chatId" element={<ChatPage/>}/>
         <Route path="/chats" element={<div data-testid="chats-route"/>}/>
     </Routes></MemoryRouter>)
@@ -622,7 +622,7 @@ describe('ChatPage summary flow', () => {
         fireEvent.scroll(thread)
         fireEvent.scroll(thread)
         await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledTimes(2))
-        await userEvent.click(screen.getByRole('link', {name: '‹ chats'}))
+        await userEvent.click(screen.getByRole('link', {name: 'Leave chat'}))
 
         expect(olderSignal?.aborted).toBe(true)
     })

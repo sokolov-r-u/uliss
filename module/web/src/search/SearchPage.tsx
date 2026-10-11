@@ -2,6 +2,7 @@ import {useState} from 'react'
 import {EmptyState, Icon, Kicker} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import type {SearchViewModel} from '../views/models'
+import {ScreenHeader} from '../ui/ScreenHeader'
 
 export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat, onSearchChats}: {
     query: string
@@ -13,7 +14,7 @@ export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat,
 }) {
     const q = query.trim()
     return <div className="product-view search-view">
-        <header className="search-header"><label className="search-field">
+        <ScreenHeader><label className="search-field">
             <span className="search-field-icon"><Icon name="search" size={14}/></span>
             <input className="search-input" type="search" autoFocus placeholder="Search your notes and chats"
                    value={query} onChange={(event) => onQueryChange(event.target.value)}/>
@@ -21,7 +22,7 @@ export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat,
                                                                                                                spacing="2px"
                                                                                                                color="var(--text-faint)">Clear</Kicker>
             </button>}
-        </label></header>
+        </label></ScreenHeader>
         {!q || model.notes.length + model.chats.length === 0 ? <div className="product-empty">
             <EmptyState title={q ? `No notes match “${q}”` : 'Search your notes and chats'}
                         body={q ? 'Uliss searches note titles and text. Try a shorter word, or look through your chats instead.' : 'Type a word or two. Uliss looks through note titles, note text, and your conversations.'}

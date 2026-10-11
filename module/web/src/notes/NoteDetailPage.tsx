@@ -1,9 +1,10 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
-import {Link, useNavigate, useParams} from 'react-router-dom'
-import {Button, Icon, IconButton, Kicker} from '@uliss/design-system'
+import {useNavigate, useParams} from 'react-router-dom'
+import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {MarkdownContent} from '../ui/MarkdownContent'
+import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
 import './notes.css'
 
@@ -26,10 +27,11 @@ export function NoteDetailView({state, onRetry, actions}: {
     onRetry?: () => void
     actions?: ReactNode
 }) {
+    // The note title is the page heading; every other state names itself in the body.
+    const title = state.status === 'ready' ? state.note.title || undefined : undefined
     return <div className="note-detail">
-        <header className="note-detail-header"><Link to="/notes" className="note-back-link">‹ notes</Link>
-            <Kicker size={9} spacing="3px" color="var(--text-faint)">Note</Kicker>
-            {actions && <span style={{marginLeft: 'auto'}}>{actions}</span>}</header>
+        {title ? <ScreenHeader title={title} right={actions}/> : <ScreenHeader kicker="Note" right={actions}/>}
+        <div className="note-detail-body">
         {state.status === 'loading' && <p className="note-detail-state">Loading…</p>}
         {state.status === 'generating' &&
             <div className="note-detail-state" aria-live="polite"><h1>Writing this note…</h1>
@@ -43,11 +45,11 @@ export function NoteDetailView({state, onRetry, actions}: {
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
         {state.status === 'ready' && <article className="note-content">
-            {state.note.title && <h1 className="note-title">{state.note.title}</h1>}
             {state.note.source === 'CHAT_SUMMARY'
                 ? <MarkdownContent content={state.note.content}/>
                 : state.note.content}
         </article>}
+        </div>
     </div>
 }
 

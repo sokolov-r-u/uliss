@@ -26,4 +26,13 @@ describe('ChatPageHeader', () => {
         expect(screen.queryByText('Trip')).not.toBeInTheDocument()
         expect(screen.queryByRole('button', {name: 'Actions for Trip'})).not.toBeInTheDocument()
     })
+
+    it('titles the chat in the header with its note count and no back link', async () => {
+        vi.mocked(getChat).mockResolvedValueOnce({id: 'a', title: 'Trip', noteCount: 2})
+        render(<MemoryRouter><ChatPageHeader chatId="a" generationActive={false}/></MemoryRouter>)
+
+        expect(await screen.findByRole('heading', {level: 1, name: 'Trip'})).toBeInTheDocument()
+        expect(screen.getByText('2 notes')).toBeInTheDocument()
+        expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    })
 })
