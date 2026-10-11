@@ -14,6 +14,9 @@ export const GROUNDS: Ground[] = ['obsidian', 'void']
 export const ACCENTS: Accent[] = ['ochre', 'terracotta', 'patina', 'bone']
 export const READS: Read[] = ['compact', 'regular', 'large', 'larger']
 
+/** Fired on `window` after `writeTheme`, so open screens (the Settings rows) can re-read the theme. */
+export const THEME_EVENT = 'uliss:theme'
+
 export const DEFAULT_THEME: Theme = {ground: 'obsidian', accent: 'ochre', read: 'regular'}
 
 const KEY = 'uliss.appearance'
@@ -51,4 +54,5 @@ export function writeTheme(theme: Theme): void {
         // private mode / storage disabled — the choice just won't survive a reload
     }
     applyTheme(theme)
+    window.dispatchEvent(new Event(THEME_EVENT))
 }

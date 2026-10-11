@@ -61,11 +61,13 @@ export function App() {
           <Route path="constellations" element={<ConstellationsPage/>}/>
           <Route path="sky" element={<SkyPage/>}/>
           <Route path="updates" element={<UpdatesPage/>}/>
-          <Route path="settings" element={<SettingsPage/>}/>
-          <Route path="settings/appearance" element={<AppearanceSettings/>}/>
-          <Route path="settings/sky" element={<SkySettings/>}/>
-          <Route path="settings/account" element={<AccountSettings/>}/>
-          <Route path="settings/language" element={<LanguageSettings/>}/>
+          <Route path="settings" element={<SettingsPage/>}>
+              <Route index element={<AppearanceSettings/>}/>
+              <Route path="appearance" element={<AppearanceSettings/>}/>
+              <Route path="sky" element={<SkySettings/>}/>
+              <Route path="account" element={<AccountSettings/>}/>
+              <Route path="language" element={<LanguageSettings/>}/>
+          </Route>
           <Route path="*" element={<Navigate to="/chats" replace/>}/>
       </Route>
     </Routes>
