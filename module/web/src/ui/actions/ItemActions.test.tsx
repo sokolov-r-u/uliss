@@ -40,7 +40,7 @@ describe('ItemActions', () => {
     })
 
     it('words the chat delete warning by note count', () => {
-        expect(deleteChatBody(0)).toBeUndefined()
+        expect(deleteChatBody(0)).toBe('No notes were written from it. The conversation does not come back.')
         expect(deleteChatBody(1)).toBe('Uliss wrote a note from this chat. It will stay — delete it from Notes if you no longer need it.')
         expect(deleteChatBody(3)).toBe('Uliss wrote 3 notes from this chat. They will stay — delete them from Notes if you no longer need them.')
     })

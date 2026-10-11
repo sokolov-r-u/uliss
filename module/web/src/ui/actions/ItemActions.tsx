@@ -1,9 +1,8 @@
 import {type ReactNode, useCallback, useLayoutEffect, useRef, useState} from 'react'
-import {Dialog, ItemMenu, type ItemMenuAction, Notice, TextField} from '@uliss/design-system'
+import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
 import {deleteNote, NoteApiError, renameNote} from '../../notes/noteApi'
-import {NoticeOverlay} from '../notice/NoticeOverlay'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -29,8 +28,8 @@ function normalizeTitle(raw: string): string | null {
     return length > 0 && length <= TITLE_LIMIT ? title : null
 }
 
-export function deleteChatBody(noteCount: number): string | undefined {
-    if (noteCount <= 0) return undefined
+export function deleteChatBody(noteCount: number): string {
+    if (noteCount <= 0) return 'No notes were written from it. The conversation does not come back.'
     if (noteCount === 1) {
         return 'Uliss wrote a note from this chat. It will stay — delete it from Notes if you no longer need it.'
     }
@@ -159,19 +158,18 @@ export function ItemActions({
             {children(openMenu, anchor !== null)}
             {anchor && <ItemMenu anchor={anchor} label={`Actions for ${target.title}`} title={target.title}
                                  actions={actions} onClose={closeMenu}/>}
-            {dialog === 'rename' && <NoticeOverlay blocking={pending} onBackdropClick={closeDialog}>
-                <Notice title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
-                        body={error ?? undefined}
-                        primary={pending ? 'Saving…' : 'Save'} secondary="Cancel" busy={pending}
-                        primaryDisabled={pending || normalizeTitle(draft) === null}
-                        onPrimary={() => void submitRename()} onSecondary={closeDialog}>
-                    <TextField label="Title" value={draft} maxLength={TITLE_LIMIT} autoFocus
-                               onChange={(event) => setDraft(event.target.value)}
-                               onKeyDown={(event) => {
-                                   if (event.key === 'Enter') void submitRename()
-                               }}/>
-                </Notice>
-            </NoticeOverlay>}
+            {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
+                                            body={error ?? undefined}
+                                            confirm={pending ? 'Saving…' : 'Save'} cancel="Cancel" busy={pending}
+                                            confirmDisabled={pending || normalizeTitle(draft) === null}
+                                            onConfirm={() => void submitRename()} onCancel={closeDialog}
+                                            width={320}>
+                <TextField label="Title" value={draft} maxLength={TITLE_LIMIT} autoFocus
+                           onChange={(event) => setDraft(event.target.value)}
+                           onKeyDown={(event) => {
+                               if (event.key === 'Enter') void submitRename()
+                           }}/>
+            </Dialog>}
             {dialog === 'delete' && <Dialog danger title={`Delete “${target.title}”?`}
                                             body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
                                             confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"

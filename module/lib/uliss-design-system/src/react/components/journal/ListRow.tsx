@@ -1,4 +1,4 @@
-import {type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef} from 'react'
+import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
@@ -8,6 +8,15 @@ import {Icon} from '../icons/Icon'
 
 const LONG_PRESS_MS = 480
 const LONG_PRESS_TOLERANCE = 8
+
+// Wide rows (tablet/desktop lists): larger title, taller row, hairline between rows. A consumer can switch to them
+// at a CSS breakpoint by setting these custom properties on the list; `size="wide"` pins them on the row.
+const WIDE_VARS = {
+    '--list-row-title-size': '17px',
+    '--list-row-title-weight': 'var(--w-ui)',
+    '--list-row-height': '52px',
+    '--list-row-rule': 'var(--line)',
+} as CSSProperties
 
 export interface ListRowProps {
     title: string
@@ -23,6 +32,10 @@ export interface ListRowProps {
     /** Opens the row menu with its anchor: the dots button, or the row after a touch long-press. */
     onMenu?: (anchor: HTMLElement) => void
     menuLabel?: string
+    /** `wide` pins the tablet/desktop row; `compact` (default) follows the `--list-row-*` properties. */
+    size?: 'compact' | 'wide'
+    /** The first row of a list draws no rule above itself. */
+    first?: boolean
 }
 
 export function ListRow({
@@ -34,7 +47,9 @@ export function ListRow({
                             dots = true,
                             onClick,
                             onMenu,
-                            menuLabel
+                            menuLabel,
+                            size = 'compact',
+                            first = false,
                         }: ListRowProps) {
     const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
     const longPressedRef = useRef(false)
@@ -83,8 +98,8 @@ export function ListRow({
                 flex: 1,
                 minWidth: 0,
                 fontFamily: 'var(--font-text)',
-                fontSize: 14,
-                fontWeight: 'var(--w-body)',
+                fontSize: 'var(--list-row-title-size, 14px)',
+                fontWeight: 'var(--list-row-title-weight, var(--w-body))',
                 color: dim ? 'var(--cream-dim)' : 'var(--cream)',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -114,9 +129,11 @@ export function ListRow({
         <div
             {...pressHandlers}
             style={{
+                ...(size === 'wide' ? WIDE_VARS : {}),
                 display: 'flex',
                 alignItems: 'center',
                 minHeight: 34,
+                borderTop: first ? 'none' : '1px solid var(--list-row-rule, transparent)',
                 ...(onMenu ? {userSelect: 'none', WebkitTouchCallout: 'none'} : {}),
             }}
         >
@@ -124,7 +141,7 @@ export function ListRow({
                 <button type="button" onClick={onClick} style={{
                     flex: 1,
                     minWidth: 0,
-                    minHeight: 44,
+                    minHeight: 'var(--list-row-height, 44px)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
@@ -140,7 +157,7 @@ export function ListRow({
                 <div style={{
                     flex: 1,
                     minWidth: 0,
-                    minHeight: 44,
+                    minHeight: 'var(--list-row-height, 44px)',
                     display: 'flex',
                     alignItems: 'center',
                     gap: 10,
