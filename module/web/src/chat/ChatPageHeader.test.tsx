@@ -1,4 +1,5 @@
 import {render, screen} from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {getChat} from './chatApi'
@@ -34,5 +35,18 @@ describe('ChatPageHeader', () => {
         expect(await screen.findByRole('heading', {level: 1, name: 'Trip'})).toBeInTheDocument()
         expect(screen.getByText('2 notes')).toBeInTheDocument()
         expect(screen.queryByRole('link')).not.toBeInTheDocument()
+    })
+
+    it('hands the loaded chat to the page and toggles the details panel', async () => {
+        vi.mocked(getChat).mockResolvedValueOnce({id: 'a', title: 'Trip', noteCount: 2})
+        const onChat = vi.fn()
+        const onTogglePanel = vi.fn()
+        render(<MemoryRouter><ChatPageHeader chatId="a" generationActive={false} onChat={onChat}
+                                             onTogglePanel={onTogglePanel}/></MemoryRouter>)
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Chat details'}))
+
+        expect(onTogglePanel).toHaveBeenCalledOnce()
+        expect(onChat).toHaveBeenLastCalledWith({id: 'a', title: 'Trip', noteCount: 2})
     })
 })

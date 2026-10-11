@@ -278,6 +278,106 @@
     display: none;
 }
 
+/* ── Detail screen + right context panel ─────────────────────── */
+.detail-layout {
+    height: 100%;
+    min-height: 0;
+    display: flex;
+}
+
+.detail-layout > .chat-page,
+.detail-layout > .note-detail {
+    flex: 1;
+    min-width: 0;
+}
+
+.context-backdrop {
+    appearance: none;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+    padding: 0;
+    border: 0;
+    background: var(--scrim);
+}
+
+.context-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
+    width: 90%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg-deep);
+    border-left: 1px solid var(--line-strong);
+    box-shadow: var(--shadow-modal);
+}
+
+.context-panel-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 12px 10px 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.context-panel-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.context-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+}
+
+.context-section-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.context-section-count,
+.context-fact-value {
+    font-family: var(--font-text);
+    font-size: 11px;
+    color: var(--cream-dim);
+}
+
+.context-text {
+    margin: 0;
+    font-family: var(--font-text);
+    font-size: 12px;
+    line-height: 1.5;
+    font-weight: var(--w-body);
+    color: var(--text-faint);
+    text-wrap: pretty;
+}
+
+.context-fact {
+    margin: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 9px;
+}
+
+.context-fact-label {
+    font-family: var(--font-text);
+    font-size: 8.5px;
+    letter-spacing: 2.2px;
+    text-transform: uppercase;
+    color: var(--text-faint);
+}
+
 /* ── Main column ─────────────────────────────────────────────── */
 .app-main {
     flex: 1;
@@ -1059,6 +1159,18 @@
     .screen-head-title {
         font-size: 16px;
         font-weight: var(--w-emphasis);
+    }
+
+    .context-backdrop {
+        display: none;
+    }
+
+    .context-panel {
+        position: static;
+        flex: 0 0 300px;
+        width: 300px;
+        max-width: none;
+        box-shadow: none;
     }
 
     .list-month {

@@ -142,4 +142,19 @@ describe('NoteDetailPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Better idea'})).toBeInTheDocument()
     })
+
+    it('opens the note details panel from the header', async () => {
+        mockedGetNote.mockResolvedValue({
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body',
+            createdAt: '2026-06-22T09:00:00Z', updatedAt: '2026-06-23T09:00:00Z',
+        })
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Note details'}))
+
+        const panel = screen.getByRole('complementary', {name: 'This note'})
+        expect(panel).toHaveTextContent('Summary of a chat')
+        expect(panel).toHaveTextContent('Written')
+        expect(panel).toHaveTextContent('Updated')
+    })
 })

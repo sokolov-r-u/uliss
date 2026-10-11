@@ -1,11 +1,13 @@
-import {useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
+import {ContextPanel, formatPanelDate, PanelFact, PanelSection} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
+import {ScreenHeader} from '../ui/ScreenHeader'
+import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {
     findPersistedReply,
     reconcileUntilTerminal,
@@ -113,6 +115,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [hasMore, setHasMore] = useState(false)
     const [isLoadingOlder, setIsLoadingOlder] = useState(false)
     const [draft, setDraft] = useState('')
+    const [panelOpen, setPanelOpen] = useState(false)
+    const [chatMeta, setChatMeta] = useState<Chat | null>(null)
+    const closePanel = useCallback(() => setPanelOpen(false), [])
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
@@ -587,25 +592,24 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
-            <div className="chat-page-header"><Link to="/chats"
-                                                    className="chat-back-link">‹ chats</Link></div>
-            <p
-                className="chat-state">Loading…</p></div>
+            <ScreenHeader kicker="Conversation"/>
+            <p className="chat-state">Loading…</p></div>
     }
 
     if (pagePhase === 'error') {
         return <div className="chat-page">
-            <div className="chat-page-header"><Link to="/chats"
-                                                    className="chat-back-link">‹ chats</Link></div>
-            <p
-                className="chat-state chat-state-error">{loadError}</p></div>
+            <ScreenHeader kicker="Conversation"/>
+            <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 
     const canSummarize = generationPhase === 'idle' && persistedMessages.length > 0 && !summaryPending
 
     return (
+        <div className="detail-layout">
         <div className="chat-page">
-            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}/>
+            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}
+                            panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((value) => !value)}
+                            onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
                            onLoadOlder={() => void loadOlderMessages()}/>
             {acceptedNoteId && <section
@@ -650,6 +654,17 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     onPrimary={() => void confirmSummary()}
                     onSecondary={() => setSummaryDialog(false)}/>
             </NoticeOverlay>}
+        </div>
+            {chatMeta && <ContextPanel label="This chat" open={panelOpen} onClose={closePanel}>
+                <PanelSection label="Notes from this chat" count={chatMeta.noteCount}>
+                    <p className="context-text">Uliss writes a note when the conversation has something worth keeping.
+                        Deleting the chat keeps its notes.</p>
+                </PanelSection>
+                <PanelSection label="Dates">
+                    <PanelFact label="Started" value={formatPanelDate(chatMeta.createdAt) || '—'}/>
+                    <PanelFact label="Updated" value={formatPanelDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
+                </PanelSection>
+            </ContextPanel>}
         </div>
     )
 }
