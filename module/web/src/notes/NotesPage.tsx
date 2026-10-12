@@ -6,7 +6,7 @@ import type {NoteViewModel} from '../views/models'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
-import {listNotes, type Note} from './noteApi'
+import {listNotes, type Note, subscribeToNotesChanges} from './noteApi'
 import './notes.css'
 
 export interface NotesViewProps {
@@ -116,9 +116,12 @@ export function NotesPage() {
     >({status: 'loading'})
     const [revision, setRevision] = useState(0)
 
+    useEffect(() => subscribeToNotesChanges(() => setRevision((value) => value + 1)), [])
+
     useEffect(() => {
         const controller = new AbortController()
-        setState({status: 'loading'})
+        // A refresh after a change elsewhere keeps the rows instead of flashing "Loading…".
+        setState((current) => current.status === 'ready' ? current : {status: 'loading'})
         listNotes(controller.signal)
             .then((notes) => setState({status: 'ready', notes: toNoteViewModels(notes)}))
             .catch((error: unknown) => {

@@ -1,4 +1,5 @@
-import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState} from 'react'
+import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
@@ -9,6 +10,8 @@ import {Icon} from '../icons/Icon'
 const LONG_PRESS_MS = 480
 const LONG_PRESS_TOLERANCE = 8
 const FULL_TITLE_DELAY_MS = 350
+const FULL_TITLE_GAP = 4
+const VIEWPORT_EDGE = 8
 
 // Wide rows (tablet/desktop lists): larger title, taller row, hairline between rows. A consumer can switch to them
 // at a CSS breakpoint by setting these custom properties on the list; `size="wide"` pins them on the row.
@@ -55,13 +58,33 @@ export function ListRow({
     const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
     // A truncated title shows whole in a panel under the row after a short hover.
     const titleRef = useRef<HTMLSpanElement>(null)
+    const rowRef = useRef<HTMLDivElement>(null)
+    const tipRef = useRef<HTMLDivElement>(null)
     const hoverTimerRef = useRef<number | null>(null)
     const [fullTitle, setFullTitle] = useState(false)
+    const [tipPosition, setTipPosition] = useState<{ top: number; left: number; width: number } | null>(null)
     const hideFullTitle = () => {
         if (hoverTimerRef.current != null) window.clearTimeout(hoverTimerRef.current)
         hoverTimerRef.current = null
         setFullTitle(false)
+        setTipPosition(null)
     }
+    // Under the row when it fits in the viewport, otherwise above it; portalled so no scroll box clips it.
+    useLayoutEffect(() => {
+        if (!fullTitle || !rowRef.current) return
+        const rect = rowRef.current.getBoundingClientRect()
+        const height = tipRef.current?.offsetHeight ?? 0
+        const below = rect.bottom - FULL_TITLE_GAP
+        const top = below + height > window.innerHeight - VIEWPORT_EDGE
+            ? Math.max(VIEWPORT_EDGE, rect.top - FULL_TITLE_GAP - height)
+            : below
+        setTipPosition({top, left: rect.left + 8, width: Math.max(0, rect.width - 8)})
+    }, [fullTitle])
+    useEffect(() => {
+        if (!fullTitle) return
+        window.addEventListener('scroll', hideFullTitle, true)
+        return () => window.removeEventListener('scroll', hideFullTitle, true)
+    }, [fullTitle])
     const hoverHandlers = {
         onMouseEnter: () => {
             hideFullTitle()
@@ -150,6 +173,7 @@ export function ListRow({
     )
     return (
         <div
+            ref={rowRef}
             {...pressHandlers}
             style={{
                 ...(size === 'wide' ? WIDE_VARS : {}),
@@ -212,13 +236,14 @@ export function ListRow({
           <Icon name="dots" size={16}/>
                 </button>
             )}
-            {fullTitle && (
-                <div role="tooltip" style={{
-                    position: 'absolute',
-                    top: 'calc(100% - 4px)',
-                    left: 8,
-                    right: 0,
-                    zIndex: 20,
+            {fullTitle && createPortal(
+                <div ref={tipRef} role="tooltip" style={{
+                    position: 'fixed',
+                    top: tipPosition?.top ?? 0,
+                    left: tipPosition?.left ?? 0,
+                    width: tipPosition?.width,
+                    visibility: tipPosition ? 'visible' : 'hidden',
+                    zIndex: 1040,
                     padding: '9px 12px',
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--line-strong)',
@@ -230,7 +255,8 @@ export function ListRow({
                     whiteSpace: 'normal',
                     overflowWrap: 'anywhere',
                     pointerEvents: 'none',
-                }}>{title}</div>
+                }}>{title}</div>,
+                document.body,
             )}
         </div>
     )

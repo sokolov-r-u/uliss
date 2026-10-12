@@ -271,6 +271,14 @@ The same API unlocks the link sections of the right context panel (item 17): "No
 "Written from" on a note. The panel ships frontend-only first (dates, note count, source); add `chatId` (or chat ids)
 to `NoteResponse` and `GET /chats/{id}/notes`, then fill both sections and the delete dialog list.
 
+## Chat `updated_at` follows the user's activity (`note-service`)
+
+Agreed 2026-10-12 (`docs/tasks/2026-10-11-prot-alignment.md`). Chat lists in `web` sort and group by last activity
+(`updatedAt ?? createdAt`), but `note.chat.updated_at` only moves on a chat-row change (rename): new messages do not
+touch it, so an active chat keeps its creation date. Bump `chat.updated_at` when a **user** message is accepted (one
+write per turn; the assistant reply does not touch it), and order `GET /chats` by `updated_at DESC` (index
+`(user_id, updated_at)`). `web` already sorts client-side, so no frontend change is needed.
+
 ## Manual note creation (`note-service`, `web`)
 
 Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 9). The design's Notes screen has a "New note"

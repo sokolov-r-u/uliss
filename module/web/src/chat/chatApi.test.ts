@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch} from '../auth/apiClient'
-import {deleteChat, getChat, getMessages, renameChat} from './chatApi'
+import {deleteChat, getChat, getMessages, listChats, renameChat} from './chatApi'
 
 vi.mock('../auth/apiClient', () => ({authFetch: vi.fn()}))
 
@@ -66,5 +66,15 @@ describe('chatApi', () => {
 
         await expect(deleteChat('c1')).rejects.toMatchObject({status: 409})
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats/c1', {method: 'DELETE'})
+    })
+
+    it('orders chats by last activity (updatedAt, else createdAt), newest first', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'a', title: 'A', noteCount: 0, createdAt: '2026-06-20T09:00:00Z'},
+            {id: 'b', title: 'B', noteCount: 0, createdAt: '2026-05-30T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
+            {id: 'c', title: 'C', noteCount: 0, createdAt: '2026-05-10T09:00:00Z'},
+        ]))
+
+        expect((await listChats()).map((chat) => chat.id)).toEqual(['b', 'a', 'c'])
     })
 })

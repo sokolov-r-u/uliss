@@ -6,7 +6,7 @@ import {ItemActions} from '../ui/actions/ItemActions'
 import {ContextPanel, formatPanelDate, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
-import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
+import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
 import './notes.css'
 
 type ReadyNote = Note & { content: string }
@@ -101,6 +101,8 @@ export function NoteDetailPage() {
                     if (event.status === 'FAILED') setState({status: 'failed', note: {...note, status: 'FAILED'}})
                 },
             })
+            // The note finished (title and content now exist, or it failed): note lists re-read it.
+            if (terminal) notifyNotesChanged()
             if (terminal === 'READY') {
                 const ready = await getNote(noteId, controller.signal)
                 if (ready.status !== 'READY' || ready.content == null) {

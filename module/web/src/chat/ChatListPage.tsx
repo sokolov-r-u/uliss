@@ -6,7 +6,7 @@ import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
-import {type Chat, listChats, subscribeToChatListChanges} from './chatApi'
+import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
 
 type ListState =
@@ -84,7 +84,7 @@ export function ChatListPage() {
 
                 {state.status === 'ready' && state.chats.length > 0 && (
                     <div className="product-list">
-                        {groupByMonth(state.chats, (chat) => chat.updatedAt ?? chat.createdAt).map((group, groupIndex) => <div
+                        {groupByMonth(state.chats, chatActivity).map((group, groupIndex) => <div
                             key={`${group.label}-${groupIndex}`} className="list-group">
                             {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
                                                                                 color="var(--text-faint)">{group.label}</Kicker></div>}
@@ -99,7 +99,7 @@ export function ChatListPage() {
                                 {(openMenu) => <ListRow
                                     title={chat.title}
                                     first={index === 0}
-                                    date={formatDate(chat.updatedAt ?? chat.createdAt)}
+                                    date={formatDate(chatActivity(chat))}
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
                                     onMenu={openMenu}

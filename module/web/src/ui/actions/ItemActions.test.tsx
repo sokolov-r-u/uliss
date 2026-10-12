@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, NoteApiError} from '../../notes/noteApi'
+import {deleteNote, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
 
 vi.mock('../../chat/chatApi', async (importOriginal) => {
@@ -174,5 +174,20 @@ describe('ItemActions', () => {
         await openMenu('Trip')
 
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toBeDisabled()
+    })
+
+    it('tells note lists, not chat lists, about a renamed note', async () => {
+        const notes = vi.fn()
+        const stopNotes = subscribeToNotesChanges(notes)
+        vi.mocked(renameNote).mockResolvedValue({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better', content: 'x'})
+        renderRow(note)
+
+        await openMenu('Idea')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Rename'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+
+        await waitFor(() => expect(notes).toHaveBeenCalledOnce())
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        stopNotes()
     })
 })

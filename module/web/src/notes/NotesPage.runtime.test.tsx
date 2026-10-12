@@ -2,7 +2,8 @@ import {render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {deleteNote, listNotes, renameNote} from './noteApi'
+import {act} from '@testing-library/react'
+import {deleteNote, listNotes, notifyNotesChanged, renameNote} from './noteApi'
 import {NotesPage} from './NotesPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
@@ -47,10 +48,19 @@ describe('NotesPage runtime states', () => {
     })
 
     it('renames a ready note in place and removes a deleted one', async () => {
-        mockedListNotes.mockResolvedValue([
-            {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'},
-            {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
-        ])
+        // The list re-reads the server after each change; the mock answers with the server state at that point.
+        mockedListNotes
+            .mockResolvedValueOnce([
+                {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'},
+                {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
+            ])
+            .mockResolvedValueOnce([
+                {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
+                {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
+            ])
+            .mockResolvedValue([
+                {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
+            ])
         vi.mocked(renameNote).mockResolvedValue(
             {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'})
         vi.mocked(deleteNote).mockResolvedValue(undefined)
@@ -68,7 +78,7 @@ describe('NotesPage runtime states', () => {
         await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
         await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
         await waitFor(() => expect(screen.queryByRole('button', {name: 'Other'})).not.toBeInTheDocument())
-        expect(mockedListNotes).toHaveBeenCalledTimes(1)
+        await waitFor(() => expect(mockedListNotes).toHaveBeenCalledTimes(3))
     })
 
     it('offers only Delete for a note that is still generating', async () => {
@@ -80,4 +90,17 @@ describe('NotesPage runtime states', () => {
         expect(screen.queryByRole('menuitem', {name: 'Rename'})).not.toBeInTheDocument()
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toBeInTheDocument()
     })
+
+    it('reloads when notes change elsewhere (e.g. the side panel)', async () => {
+        mockedListNotes
+            .mockResolvedValueOnce([{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Old', content: 'x'}])
+            .mockResolvedValueOnce([{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: 'x'}])
+        renderPage()
+        await screen.findByRole('button', {name: 'Old'})
+
+        act(() => notifyNotesChanged())
+
+        expect(await screen.findByRole('button', {name: 'New'})).toBeInTheDocument()
+    })
 })
+

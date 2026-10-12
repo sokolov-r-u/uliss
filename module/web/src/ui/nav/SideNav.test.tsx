@@ -1,9 +1,9 @@
-import {render, screen} from '@testing-library/react'
+import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {deleteChat, listChats} from '../../chat/chatApi'
-import {listNotes} from '../../notes/noteApi'
+import {deleteChat, listChats, notifyChatListChanged} from '../../chat/chatApi'
+import {listNotes, notifyNotesChanged} from '../../notes/noteApi'
 import {SideNav} from './SideNav'
 
 vi.mock('../../auth/AuthContext', () => ({useAuth: () => ({logout: vi.fn()})}))
@@ -104,4 +104,19 @@ describe('SideNav', () => {
         expect(handle).toHaveAttribute('aria-valuenow', '280')
         expect(localStorage.getItem('uliss.sidenav.width')).toBe('280')
     })
+
+    it('refetches only the list whose data changed', async () => {
+        renderNav('/chats/c1')
+        await screen.findByRole('button', {name: 'Trip'})
+        await waitFor(() => expect(listNotes).toHaveBeenCalledTimes(1))
+
+        act(() => notifyChatListChanged())
+        await waitFor(() => expect(listChats).toHaveBeenCalledTimes(2))
+        expect(listNotes).toHaveBeenCalledTimes(1)
+
+        act(() => notifyNotesChanged())
+        await waitFor(() => expect(listNotes).toHaveBeenCalledTimes(2))
+        expect(listChats).toHaveBeenCalledTimes(2)
+    })
 })
+

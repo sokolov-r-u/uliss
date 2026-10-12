@@ -1,4 +1,4 @@
-import {type CSSProperties, type ReactNode, useCallback, useEffect, useState} from 'react'
+import {type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {Icon, IconButton, Kicker} from '@uliss/design-system'
 import {useResizableWidth} from './useResizableWidth'
 
@@ -38,12 +38,19 @@ export function ContextPanel({label, open, onClose, children}: {
         storageKey: 'uliss.context-panel.width', min: 260, max: 480, initial: 300, edge: 'left', label: 'Resize panel',
     })
 
+    const panelRef = useRef<HTMLElement>(null)
+    const backdropRef = useRef<HTMLButtonElement>(null)
+
     useEffect(() => {
         if (!open) return
         const onKeyDown = (event: KeyboardEvent) => {
             // A dialog or menu on top owns Escape.
             if (event.key !== 'Escape' || document.querySelector('[role="dialog"], [role="menu"]')) return
-            onClose()
+            // The phone drawer (scrim shown) always closes; the wide rail only when focus is inside it, so Escape in
+            // the composer or elsewhere leaves it open.
+            const backdrop = backdropRef.current
+            const drawer = backdrop != null && getComputedStyle(backdrop).display !== 'none'
+            if (drawer || panelRef.current?.contains(document.activeElement)) onClose()
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
@@ -52,8 +59,9 @@ export function ContextPanel({label, open, onClose, children}: {
     if (!open) return null
     return (
         <>
-            <button type="button" className="context-backdrop" tabIndex={-1} aria-hidden="true" onClick={onClose}/>
-            <aside className="context-panel" aria-label={label}
+            <button ref={backdropRef} type="button" className="context-backdrop" tabIndex={-1} aria-hidden="true"
+                    onClick={onClose}/>
+            <aside ref={panelRef} className="context-panel" aria-label={label}
                    style={{'--context-panel-width': `${width}px`} as CSSProperties}>
                 <div className="context-panel-resize" {...handleProps}/>
                 <header className="context-panel-head">

@@ -39,4 +39,22 @@ describe('ContextPanel', () => {
         expect(handle).toHaveAttribute('aria-valuenow', '316')
         expect(localStorage.getItem('uliss.context-panel.width')).toBe('316')
     })
+
+    it('leaves the wide rail open on Escape pressed outside it', async () => {
+        const onClose = vi.fn()
+        render(<><input aria-label="Composer"/>
+            <ContextPanel label="This chat" open onClose={onClose}><p>Body</p></ContextPanel></>)
+        // From 768px the scrim is hidden by CSS: the panel is a rail, not a drawer.
+        const backdrop = document.querySelector<HTMLElement>('.context-backdrop')
+        if (backdrop) backdrop.style.display = 'none'
+
+        screen.getByRole('textbox', {name: 'Composer'}).focus()
+        await userEvent.keyboard('{Escape}')
+        expect(onClose).not.toHaveBeenCalled()
+
+        screen.getByRole('button', {name: 'Close panel'}).focus()
+        await userEvent.keyboard('{Escape}')
+        expect(onClose).toHaveBeenCalledOnce()
+    })
 })
+

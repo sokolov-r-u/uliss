@@ -45,6 +45,7 @@ vi.mock('./streamChatReply', () => ({
 }))
 vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
+    notifyNotesChanged: vi.fn(),
     NoteApiError: class NoteApiError extends Error {
         constructor(
             public readonly kind: string,

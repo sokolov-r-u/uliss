@@ -194,4 +194,24 @@ describe('ListRow full title', () => {
 
         expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
     })
+
+    it('opens the full title above the row when there is no room below', () => {
+        vi.useFakeTimers()
+        overflowTitles(true)
+        vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(80)
+        const title = 'A very long chat title near the bottom edge of the window'
+        render(<ListRow title={title} onClick={vi.fn()} onMenu={vi.fn()}/>)
+        const button = screen.getByRole('button', {name: title})
+        const row = button.parentElement as HTMLElement
+        row.getBoundingClientRect = () => ({
+            top: window.innerHeight - 50, bottom: window.innerHeight - 6, left: 20, right: 300, width: 280, height: 44,
+            x: 20, y: window.innerHeight - 50, toJSON: () => ({}),
+        })
+
+        fireEvent.mouseEnter(button)
+        act(() => vi.advanceTimersByTime(400))
+
+        expect(screen.getByRole('tooltip')).toHaveStyle({top: `${window.innerHeight - 50 - 4 - 80}px`})
+    })
 })
+

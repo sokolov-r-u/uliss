@@ -2,7 +2,7 @@ import {type ReactNode, useCallback, useLayoutEffect, useRef, useState} from 're
 import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, NoteApiError, renameNote} from '../../notes/noteApi'
+import {deleteNote, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -101,6 +101,7 @@ export function ItemActions({
                 ? (await renameChat(target.id, title)).title
                 : (await renameNote(target.id, title)).title ?? title
             if (target.kind === 'chat') notifyChatListChanged()
+            else notifyNotesChanged()
             finish()
             setDialog(null)
             onRenamed?.(saved)
@@ -123,8 +124,9 @@ export function ItemActions({
                 return
             }
         }
-        // Either delete changes chat note counts.
+        // Either delete changes chat lists (membership or note counts); only a note delete changes note lists.
         notifyChatListChanged()
+        if (target.kind === 'note') notifyNotesChanged()
         finish()
         setDialog(null)
         onDeleted?.()

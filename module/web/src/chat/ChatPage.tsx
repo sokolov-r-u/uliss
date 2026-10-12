@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {NoteApiError, requestChatSummary} from '../notes/noteApi'
+import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, formatPanelDate, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
@@ -565,8 +565,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                 summaryIdempotencyKeyRef.current = null
             }
-            // The chat gained a note even if this page has gone; chat lists show the count.
+            // The chat gained a note even if this page has gone; chat lists show the count, note lists the note.
             notifyChatListChanged()
+            notifyNotesChanged()
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId) return
             setAcceptedNoteId(summary.noteId)
             setSummaryDialog(false)

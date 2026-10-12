@@ -2,8 +2,8 @@ import type {CSSProperties, ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
 import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
-import {type Chat, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
-import {listNotes, type Note} from '../../notes/noteApi'
+import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
+import {listNotes, type Note, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
 import {ItemActions} from '../actions/ItemActions'
 import {useResizableWidth} from '../useResizableWidth'
@@ -40,26 +40,36 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const location = useLocation()
     const [chats, setChats] = useState<Chat[]>([])
     const [notes, setNotes] = useState<Note[]>([])
-    const [revision, setRevision] = useState(0)
+    const [chatsRevision, setChatsRevision] = useState(0)
+    const [notesRevision, setNotesRevision] = useState(0)
     const [tab, setTab] = useState<ListTab>('chats')
     const {width, handleProps: resizeHandle} = useResizableWidth({
         storageKey: 'uliss.sidenav.width', min: 220, max: 420, initial: 264, edge: 'right', label: 'Resize sidebar',
     })
 
-    useEffect(() => subscribeToChatListChanges(() => setRevision((value) => value + 1)), [])
+    useEffect(() => subscribeToChatListChanges(() => setChatsRevision((value) => value + 1)), [])
+    useEffect(() => subscribeToNotesChanges(() => setNotesRevision((value) => value + 1)), [])
 
+    // Each list refetches only on its own event: a chat turn does not reload the notes.
     useEffect(() => {
         let active = true
         listChats().then((items) => {
             if (active) setChats(items)
         }).catch(() => undefined)
+        return () => {
+            active = false
+        }
+    }, [chatsRevision])
+
+    useEffect(() => {
+        let active = true
         listNotes().then((items) => {
             if (active) setNotes(items)
         }).catch(() => undefined)
         return () => {
             active = false
         }
-    }, [revision])
+    }, [notesRevision])
 
     const go = (to: string) => () => {
         onClose()
@@ -68,7 +78,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 
     const empty = chats.length === 0 && notes.length === 0
     const noteViews = toNoteViewModels(notes)
-    const chatGroups = groupByRecency(chats, (chat) => chat.updatedAt ?? chat.createdAt)
+    const chatGroups = groupByRecency(chats, chatActivity)
     const noteGroups = groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})),
         ({note}) => note.createdAt)
 
