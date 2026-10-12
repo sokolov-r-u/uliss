@@ -107,12 +107,12 @@ describe('ItemActions', () => {
         expect(deleteNote).toHaveBeenCalledTimes(1)
     })
 
-    it('names the item at the top of its menu', async () => {
+    it('keeps the menu to its actions without repeating the item title', async () => {
         renderRow(note)
 
         await openMenu('Idea')
 
-        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^Idea/)
+        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^RenameDelete$/)
     })
 
     it('offers only Delete for a note that is not ready', async () => {

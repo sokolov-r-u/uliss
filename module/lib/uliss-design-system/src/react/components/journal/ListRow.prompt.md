@@ -19,3 +19,5 @@ One line per note or chat. Dense index, not a feed.
 - Wide rows for tablet/desktop lists: 17px title at `--w-ui`, 52px row, a `--line` hairline between rows (pass `first`
   on the first row). `size="wide"` pins them; to switch at a CSS breakpoint, set `--list-row-title-size`,
   `--list-row-title-weight`, `--list-row-height` and `--list-row-rule` on the list container instead.
+- A title cut by the ellipsis shows whole, wrapped over as many lines as it needs, in a panel under the row after a
+  350 ms hover (pointer only; touch gets the title on the opened screen).

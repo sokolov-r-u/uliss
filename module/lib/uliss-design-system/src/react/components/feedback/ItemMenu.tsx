@@ -18,8 +18,6 @@ export interface ItemMenuProps {
     actions: ItemMenuAction[]
     /** Accessible name of the menu. */
     label: string
-    /** Optional object title above the actions. */
-    title?: string
     onClose: () => void
 }
 
@@ -27,7 +25,7 @@ const WIDTH = 196
 const GAP = 4
 const EDGE = 8
 
-export function ItemMenu({anchor, actions, label, title, onClose}: ItemMenuProps) {
+export function ItemMenu({anchor, actions, label, onClose}: ItemMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null)
     const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
     // Latest onClose without re-running the focus effect: a re-render must not move focus.
@@ -88,11 +86,6 @@ export function ItemMenu({anchor, actions, label, title, onClose}: ItemMenuProps
                 border: '1px solid var(--line-strong)',
                 boxShadow: 'var(--shadow-modal)',
             }}>
-                {title && <div style={{
-                    padding: '11px 16px 10px', borderBottom: '1px solid var(--line)',
-                    fontFamily: 'var(--font-text)', fontSize: 13, color: 'var(--cream-dim)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>{title}</div>}
                 {actions.map((action) => (
                     <button key={action.label} type="button" role="menuitem" disabled={action.disabled}
                             onClick={action.onSelect} style={{

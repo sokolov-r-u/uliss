@@ -1,4 +1,4 @@
-import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef} from 'react'
+import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useRef, useState} from 'react'
 import {Icon} from '../icons/Icon'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
@@ -8,6 +8,7 @@ import {Icon} from '../icons/Icon'
 
 const LONG_PRESS_MS = 480
 const LONG_PRESS_TOLERANCE = 8
+const FULL_TITLE_DELAY_MS = 350
 
 // Wide rows (tablet/desktop lists): larger title, taller row, hairline between rows. A consumer can switch to them
 // at a CSS breakpoint by setting these custom properties on the list; `size="wide"` pins them on the row.
@@ -52,6 +53,28 @@ export function ListRow({
                             first = false,
                         }: ListRowProps) {
     const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
+    // A truncated title shows whole in a panel under the row after a short hover.
+    const titleRef = useRef<HTMLSpanElement>(null)
+    const hoverTimerRef = useRef<number | null>(null)
+    const [fullTitle, setFullTitle] = useState(false)
+    const hideFullTitle = () => {
+        if (hoverTimerRef.current != null) window.clearTimeout(hoverTimerRef.current)
+        hoverTimerRef.current = null
+        setFullTitle(false)
+    }
+    const hoverHandlers = {
+        onMouseEnter: () => {
+            hideFullTitle()
+            hoverTimerRef.current = window.setTimeout(() => {
+                const el = titleRef.current
+                if (el && el.scrollWidth > el.clientWidth) setFullTitle(true)
+            }, FULL_TITLE_DELAY_MS)
+        },
+        onMouseLeave: hideFullTitle,
+    }
+    useEffect(() => () => {
+        if (hoverTimerRef.current != null) window.clearTimeout(hoverTimerRef.current)
+    }, [])
     const longPressedRef = useRef(false)
     const cancelPress = () => {
         if (pressRef.current) window.clearTimeout(pressRef.current.timer)
@@ -94,7 +117,7 @@ export function ListRow({
     const content = (
         <>
             <span style={{width: 5, height: 5, flex: '0 0 5px', background: unread ? 'var(--accent)' : 'transparent'}}/>
-            <span style={{
+            <span ref={titleRef} style={{
                 flex: 1,
                 minWidth: 0,
                 fontFamily: 'var(--font-text)',
@@ -130,6 +153,7 @@ export function ListRow({
             {...pressHandlers}
             style={{
                 ...(size === 'wide' ? WIDE_VARS : {}),
+                position: 'relative',
                 display: 'flex',
                 alignItems: 'center',
                 minHeight: 34,
@@ -138,7 +162,7 @@ export function ListRow({
             }}
         >
             {onClick ? (
-                <button type="button" onClick={onClick} style={{
+                <button type="button" onClick={onClick} {...hoverHandlers} style={{
                     flex: 1,
                     minWidth: 0,
                     minHeight: 'var(--list-row-height, 44px)',
@@ -187,6 +211,26 @@ export function ListRow({
                 >
           <Icon name="dots" size={16}/>
                 </button>
+            )}
+            {fullTitle && (
+                <div role="tooltip" style={{
+                    position: 'absolute',
+                    top: 'calc(100% - 4px)',
+                    left: 8,
+                    right: 0,
+                    zIndex: 20,
+                    padding: '9px 12px',
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--line-strong)',
+                    boxShadow: 'var(--shadow-modal)',
+                    fontFamily: 'var(--font-text)',
+                    fontSize: 13,
+                    lineHeight: 1.4,
+                    color: 'var(--cream)',
+                    whiteSpace: 'normal',
+                    overflowWrap: 'anywhere',
+                    pointerEvents: 'none',
+                }}>{title}</div>
             )}
         </div>
     )

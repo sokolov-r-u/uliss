@@ -250,6 +250,8 @@
 
 .side-nav-foot {
     flex: 0 0 auto;
+    /* Pinned to the bottom even when the body is hidden (compact / collapsed rail). */
+    margin-top: auto;
     display: flex;
     align-items: center;
     gap: 11px;

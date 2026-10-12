@@ -156,7 +156,7 @@ export function ItemActions({
     return (
         <div ref={hostRef} style={{minWidth: 0}}>
             {children(openMenu, anchor !== null)}
-            {anchor && <ItemMenu anchor={anchor} label={`Actions for ${target.title}`} title={target.title}
+            {anchor && <ItemMenu anchor={anchor} label={`Actions for ${target.title}`}
                                  actions={actions} onClose={closeMenu}/>}
             {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
                                             body={error ?? undefined}

@@ -8,6 +8,8 @@ breakpoint — no bottom sheet.
 
 - Two items in this order: Rename, Delete. Delete is `danger` (terracotta text, divider above).
 - Each item opens a dialog; nothing irreversible happens from the menu itself.
+- No title row: a truncated title says less than the row it came from. The row shows the full title on hover
+  (see `ListRow`).
 - 196px wide, 48px items; flips upward when the space below is short; stays inside an 8px viewport edge.
 - `role="menu"`; focuses the first enabled item, ArrowUp/ArrowDown move, Escape and backdrop close, and focus returns
   to the anchor.
