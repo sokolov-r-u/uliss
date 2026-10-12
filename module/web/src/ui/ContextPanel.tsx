@@ -1,5 +1,6 @@
-import {type ReactNode, useEffect} from 'react'
+import {type CSSProperties, type ReactNode, useEffect} from 'react'
 import {Icon, IconButton, Kicker} from '@uliss/design-system'
+import {useResizableWidth} from './useResizableWidth'
 
 /** Absolute date with the year — 'Jun 22, 2026'. Empty when unknown. */
 export function formatPanelDate(iso?: string): string {
@@ -11,7 +12,7 @@ export function formatPanelDate(iso?: string): string {
 
 /**
  * The right-hand panel of an open chat or note (kit "This note" / "Notes from this chat"): a rail beside the content
- * from 768px, a right drawer over it on the phone. Only shows what the backend provides; link lists wait for the
+ * from 768px (drag its left edge to resize, 260–480px), a right drawer over it on the phone. Only shows what the backend provides; link lists wait for the
  * note-service API (see TECH_DEBT).
  */
 export function ContextPanel({label, open, onClose, children}: {
@@ -20,6 +21,10 @@ export function ContextPanel({label, open, onClose, children}: {
     onClose: () => void
     children: ReactNode
 }) {
+    const {width, handleProps} = useResizableWidth({
+        storageKey: 'uliss.context-panel.width', min: 260, max: 480, initial: 300, edge: 'left', label: 'Resize panel',
+    })
+
     useEffect(() => {
         if (!open) return
         const onKeyDown = (event: KeyboardEvent) => {
@@ -35,7 +40,9 @@ export function ContextPanel({label, open, onClose, children}: {
     return (
         <>
             <button type="button" className="context-backdrop" tabIndex={-1} aria-hidden="true" onClick={onClose}/>
-            <aside className="context-panel" aria-label={label}>
+            <aside className="context-panel" aria-label={label}
+                   style={{'--context-panel-width': `${width}px`} as CSSProperties}>
+                <div className="context-panel-resize" {...handleProps}/>
                 <header className="context-panel-head">
                     <Kicker size={9.5} spacing="2.5px" color="var(--text-faint)">{label}</Kicker>
                     <IconButton s={30} title="Close panel" onClick={onClose}><Icon name="close" size={14}/></IconButton>

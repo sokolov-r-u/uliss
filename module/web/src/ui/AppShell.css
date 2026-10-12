@@ -316,6 +316,10 @@
     box-shadow: var(--shadow-modal);
 }
 
+.context-panel-resize {
+    display: none;
+}
+
 .context-panel-head {
     flex: 0 0 auto;
     display: flex;
@@ -1231,11 +1235,29 @@
     }
 
     .context-panel {
-        position: static;
-        flex: 0 0 300px;
-        width: 300px;
+        position: relative;
+        flex: 0 0 var(--context-panel-width, 300px);
+        width: var(--context-panel-width, 300px);
         max-width: none;
         box-shadow: none;
+    }
+
+    .context-panel-resize {
+        display: block;
+        position: absolute;
+        top: 0;
+        bottom: 0;
+        left: -3px;
+        z-index: 5;
+        width: 6px;
+        cursor: col-resize;
+        touch-action: none;
+    }
+
+    .context-panel-resize:hover,
+    .context-panel-resize:focus-visible {
+        outline: none;
+        background: var(--line-strong);
     }
 
     .list-month {

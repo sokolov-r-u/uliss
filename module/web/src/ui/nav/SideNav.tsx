@@ -1,11 +1,12 @@
-import type {CSSProperties, KeyboardEvent, PointerEvent, ReactNode} from 'react'
-import {useEffect, useRef, useState} from 'react'
+import type {CSSProperties, ReactNode} from 'react'
+import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
 import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {type Chat, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {listNotes, type Note} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
 import {ItemActions} from '../actions/ItemActions'
+import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
@@ -16,31 +17,6 @@ const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
     {to: '/sky', label: 'Sky', icon: <Icon name="star" size={16}/>},
     {to: '/updates', label: 'Updates', icon: <Icon name="pulse" size={17}/>},
 ]
-
-const WIDTH_KEY = 'uliss.sidenav.width'
-const WIDTH_MIN = 220
-const WIDTH_MAX = 420
-const WIDTH_DEFAULT = 264
-const WIDTH_STEP = 16
-
-const clampWidth = (value: number) => Math.min(WIDTH_MAX, Math.max(WIDTH_MIN, Math.round(value)))
-
-function readWidth(): number {
-    try {
-        const stored = Number(localStorage.getItem(WIDTH_KEY))
-        return Number.isFinite(stored) && stored > 0 ? clampWidth(stored) : WIDTH_DEFAULT
-    } catch {
-        return WIDTH_DEFAULT
-    }
-}
-
-function saveWidth(value: number) {
-    try {
-        localStorage.setItem(WIDTH_KEY, String(value))
-    } catch {
-        // Private mode or blocked storage: the width just resets next visit.
-    }
-}
 
 function noteCountLabel(count: number): string {
     if (count === 0) return 'No notes yet'
@@ -66,8 +42,9 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const [notes, setNotes] = useState<Note[]>([])
     const [revision, setRevision] = useState(0)
     const [tab, setTab] = useState<ListTab>('chats')
-    const [width, setWidth] = useState(readWidth)
-    const dragRef = useRef<{ x: number; width: number } | null>(null)
+    const {width, handleProps: resizeHandle} = useResizableWidth({
+        storageKey: 'uliss.sidenav.width', min: 220, max: 420, initial: 264, edge: 'right', label: 'Resize sidebar',
+    })
 
     useEffect(() => subscribeToChatListChanges(() => setRevision((value) => value + 1)), [])
 
@@ -87,37 +64,6 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const go = (to: string) => () => {
         onClose()
         navigate(to)
-    }
-
-    const resizeTo = (value: number) => {
-        const next = clampWidth(value)
-        setWidth(next)
-        saveWidth(next)
-    }
-
-    const onResizeKey = (event: KeyboardEvent<HTMLDivElement>) => {
-        if (event.key === 'ArrowRight' || event.key === 'ArrowLeft') {
-            event.preventDefault()
-            resizeTo(width + (event.key === 'ArrowRight' ? WIDTH_STEP : -WIDTH_STEP))
-        } else if (event.key === 'Home' || event.key === 'End') {
-            event.preventDefault()
-            resizeTo(event.key === 'Home' ? WIDTH_MIN : WIDTH_MAX)
-        }
-    }
-
-    const onResizeStart = (event: PointerEvent<HTMLDivElement>) => {
-        event.preventDefault()
-        event.currentTarget.setPointerCapture?.(event.pointerId)
-        dragRef.current = {x: event.clientX, width}
-    }
-    const onResizeMove = (event: PointerEvent<HTMLDivElement>) => {
-        const drag = dragRef.current
-        if (drag) setWidth(clampWidth(drag.width + event.clientX - drag.x))
-    }
-    const onResizeEnd = () => {
-        if (!dragRef.current) return
-        dragRef.current = null
-        saveWidth(width)
     }
 
     const empty = chats.length === 0 && notes.length === 0
@@ -232,11 +178,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                                                                         size={15}/></IconButton>
                 </div>
 
-                <div className="side-nav-resize" role="separator" aria-orientation="vertical"
-                     aria-label="Resize sidebar" aria-valuemin={WIDTH_MIN} aria-valuemax={WIDTH_MAX}
-                     aria-valuenow={width} tabIndex={0} onKeyDown={onResizeKey}
-                     onPointerDown={onResizeStart} onPointerMove={onResizeMove}
-                     onPointerUp={onResizeEnd} onPointerCancel={onResizeEnd}/>
+                <div className="side-nav-resize" {...resizeHandle}/>
             </aside>
         </>
     )
