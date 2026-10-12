@@ -3,7 +3,7 @@ import {useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {ContextPanel, formatPanelDate, PanelFact, PanelSection, PanelToggle} from '../ui/ContextPanel'
+import {ContextPanel, formatPanelDate, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
@@ -30,11 +30,10 @@ export function NoteDetailView({state, onRetry, actions}: {
 }) {
     // The note title is the page heading; every other state names itself in the body.
     const title = state.status === 'ready' ? state.note.title || undefined : undefined
-    const [panelOpen, setPanelOpen] = useState(false)
-    const closePanel = useCallback(() => setPanelOpen(false), [])
+    const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const note = 'note' in state ? state.note : null
     const right = <>{note && <PanelToggle label="Note details" open={panelOpen}
-                                          onToggle={() => setPanelOpen((value) => !value)}/>}{actions}</>
+                                          onToggle={togglePanel}/>}{actions}</>
     return <div className="detail-layout"><div className="note-detail">
         {title ? <ScreenHeader title={title} right={right}/> : <ScreenHeader kicker="Note" right={right}/>}
         <div className="note-detail-body">

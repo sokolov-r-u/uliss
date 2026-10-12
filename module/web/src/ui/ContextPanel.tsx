@@ -1,6 +1,19 @@
-import {type CSSProperties, type ReactNode, useEffect} from 'react'
+import {type CSSProperties, type ReactNode, useCallback, useEffect, useState} from 'react'
 import {Icon, IconButton, Kicker} from '@uliss/design-system'
 import {useResizableWidth} from './useResizableWidth'
+
+/**
+ * Open/closed state of the details panel. It starts open from the 768px breakpoint, where it is a rail beside the
+ * content, and closed on the phone, where it would cover it — a JS media check because CSS cannot pick the initial
+ * state of the toggle.
+ */
+export function usePanelOpen(): [boolean, () => void, () => void] {
+    const [open, setOpen] = useState(() => typeof window.matchMedia === 'function'
+        && window.matchMedia('(min-width: 768px)').matches)
+    const toggle = useCallback(() => setOpen((value) => !value), [])
+    const close = useCallback(() => setOpen(false), [])
+    return [open, toggle, close]
+}
 
 /** Absolute date with the year — 'Jun 22, 2026'. Empty when unknown. */
 export function formatPanelDate(iso?: string): string {

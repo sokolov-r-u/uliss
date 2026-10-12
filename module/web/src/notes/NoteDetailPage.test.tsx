@@ -157,4 +157,14 @@ describe('NoteDetailPage', () => {
         expect(panel).toHaveTextContent('Written')
         expect(panel).toHaveTextContent('Updated')
     })
+
+    it('opens the details panel by default from the tablet breakpoint up', async () => {
+        vi.stubGlobal('matchMedia', (query: string) => ({matches: query === '(min-width: 768px)'}))
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderPage()
+
+        expect(await screen.findByRole('complementary', {name: 'This note'})).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Note details'})).toHaveAttribute('aria-pressed', 'true')
+        vi.unstubAllGlobals()
+    })
 })

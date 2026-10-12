@@ -1,10 +1,10 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
-import {ContextPanel, formatPanelDate, PanelFact, PanelSection} from '../ui/ContextPanel'
+import {ContextPanel, formatPanelDate, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
@@ -115,9 +115,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [hasMore, setHasMore] = useState(false)
     const [isLoadingOlder, setIsLoadingOlder] = useState(false)
     const [draft, setDraft] = useState('')
-    const [panelOpen, setPanelOpen] = useState(false)
+    const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const [chatMeta, setChatMeta] = useState<Chat | null>(null)
-    const closePanel = useCallback(() => setPanelOpen(false), [])
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
@@ -608,7 +607,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         <div className="detail-layout">
         <div className="chat-page">
             <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}
-                            panelOpen={panelOpen} onTogglePanel={() => setPanelOpen((value) => !value)}
+                            panelOpen={panelOpen} onTogglePanel={togglePanel}
                             onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
                            onLoadOlder={() => void loadOlderMessages()}/>
