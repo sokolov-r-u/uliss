@@ -17,11 +17,12 @@ test('runtime does not import visual fixtures', () => {
     expect(sources.filter(({text}) => /from\s+['"][^'"]*(?:visual|fixtures)/.test(text)).map(({path}) => path)).toEqual([])
 })
 
-// Recency group headings in the side panel (Today / Yesterday …) are the kit's section labels, not row dates.
-const RELATIVE_DATE_HEADINGS = /ui\/nav\/recency\.ts$/
+// Product copy only: tests are not shown to users, and the side panel's recency group headings
+// (Today / Yesterday …) are the kit's section labels, not row dates.
+const NOT_PRODUCT_COPY = /(?:\.test\.tsx?|ui\/nav\/recency\.ts)$/
 
 test('product copy has no emoji or relative dates', () => {
-    const violations = sources.filter(({path, text}) => !RELATIVE_DATE_HEADINGS.test(path)
+    const violations = sources.filter(({path, text}) => !NOT_PRODUCT_COPY.test(path)
         && (/\p{Extended_Pictographic}/u.test(text) || /["'`](?:Yesterday|Today|Tomorrow|[^"'`]*\bago\b|[^"'`]*last night)/i.test(text)))
     expect(violations.map(({path}) => path)).toEqual([])
 })
