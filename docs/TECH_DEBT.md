@@ -287,8 +287,9 @@ diagnosed; suspects, most likely first:
 1. **Concurrent refresh with rotation.** `reuseRefreshTokens(false)` rotates the refresh token on every use, but
    `authFetch` (`web/src/auth/apiClient.ts`) has no single-flight refresh. When the 15-minute access token expires,
    parallel requests (e.g. the side panel loads chats and notes at once) each refresh with the same token; the first
-   rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login. Fix:
-   share one in-flight refresh promise; add a unit test with two concurrent expired calls.
+   rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login.
+   **Fixed 2026-10-12:** one in-flight refresh shared by all calls, and a call that hits 401 after another call
+   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). If sign-outs continue, check suspect 2.
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.

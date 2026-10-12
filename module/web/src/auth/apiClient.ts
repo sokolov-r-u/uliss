@@ -32,7 +32,11 @@ function needsAuth(res: Response): boolean {
   return res.status === 401 || res.type === 'opaqueredirect'
 }
 
-async function refreshOrLogin(refreshToken: string | null): Promise<Tokens> {
+// One refresh at a time: refresh tokens rotate on every use, so a second refresh with the same token would fail
+// with invalid_grant and send the user to sign-in.
+let refreshing: Promise<Tokens> | null = null
+
+async function refreshWith(refreshToken: string | null): Promise<Tokens> {
   if (refreshToken) {
     try {
       return await refreshTokens(refreshToken)
@@ -45,6 +49,18 @@ async function refreshOrLogin(refreshToken: string | null): Promise<Tokens> {
   throw new AuthRequiredError()
 }
 
+/** Fresh tokens for a call that holds `used`: reuse ones another call already stored, else join or start a refresh. */
+async function refreshOrLogin(used: Tokens): Promise<Tokens> {
+  const stored = getTokens()
+  if (stored && stored.accessToken !== used.accessToken && !isExpired(stored)) return stored
+  if (!refreshing) {
+    refreshing = refreshWith(stored?.refreshToken ?? used.refreshToken).finally(() => {
+      refreshing = null
+    })
+  }
+  return refreshing
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   let tokens = getTokens()
   if (!tokens) {
@@ -52,12 +68,12 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     throw new AuthRequiredError()
   }
   if (isExpired(tokens)) {
-    tokens = await refreshOrLogin(tokens.refreshToken)
+    tokens = await refreshOrLogin(tokens)
   }
 
   let res = await fetch(path, withAuth(init, tokens.accessToken))
   if (needsAuth(res)) {
-    tokens = await refreshOrLogin(tokens.refreshToken)
+    tokens = await refreshOrLogin(tokens)
     res = await fetch(path, withAuth(init, tokens.accessToken))
     if (needsAuth(res)) {
       clearTokens()
