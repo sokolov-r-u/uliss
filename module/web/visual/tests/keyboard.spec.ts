@@ -1,7 +1,8 @@
 import {expect, test} from '@playwright/test'
+import {openRoute} from './routes'
 
 test('disabled onboarding primary cannot activate and native field accepts input', async ({page}) => {
-    await page.goto('/visual/index.html?scenario=onboarding-name')
+    await openRoute(page, '/chats', 'onboarding=name')
     const input = page.getByRole('textbox', {name: 'Display name'})
     const primary = page.getByRole('button', {name: 'Continue'})
     await expect(primary).toBeDisabled()
@@ -51,7 +52,7 @@ test('dialog traps focus, closes on Escape and skips disabled controls', async (
 })
 
 test('radio controls expose checked and disabled state', async ({page}) => {
-    await page.goto('/visual/index.html?scenario=settings-sky')
+    await openRoute(page, '/settings/sky')
     const labels = page.getByRole('radiogroup', {name: 'Labels'})
     await expect(labels.getByRole('radio')).toHaveCount(3)
     await expect(labels.getByRole('radio', {name: 'Auto'})).toBeChecked()
@@ -70,11 +71,11 @@ test('active chat generation replaces Send with keyboard-operable Stop', async (
 })
 
 test('note terminal and retry states expose truthful controls', async ({page}) => {
-    await page.goto('/visual/index.html?scenario=notes-detail-failed')
+    await openRoute(page, '/notes/failed')
     await expect(page.getByRole('heading', {name: 'Summary failed'})).toBeVisible()
-    await expect(page.getByRole('link', {name: '‹ notes'})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'Note details'})).toBeVisible()
 
-    await page.goto('/visual/index.html?scenario=notes-detail-error')
+    await openRoute(page, '/notes/error')
     const retry = page.getByRole('button', {name: 'Retry'})
     await retry.focus()
     await expect(retry).toBeFocused()
