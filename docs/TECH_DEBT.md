@@ -279,6 +279,22 @@ touch it, so an active chat keeps its creation date. Bump `chat.updated_at` when
 write per turn; the assistant reply does not touch it), and order `GET /chats` by `updated_at DESC` (index
 `(user_id, updated_at)`). `web` already sorts client-side, so no frontend change is needed.
 
+## Session drops: refresh token expires or is not used (`auth`, `web`)
+
+Reported 2026-10-12: the user is sent back to sign-in much sooner than the 30-day refresh lifetime. Not yet
+diagnosed; suspects, most likely first:
+
+1. **Concurrent refresh with rotation.** `reuseRefreshTokens(false)` rotates the refresh token on every use, but
+   `authFetch` (`web/src/auth/apiClient.ts`) has no single-flight refresh. When the 15-minute access token expires,
+   parallel requests (e.g. the side panel loads chats and notes at once) each refresh with the same token; the first
+   rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login. Fix:
+   share one in-flight refresh promise; add a unit test with two concurrent expired calls.
+2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
+   exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
+   defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
+3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
+   signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
+
 ## Manual note creation (`note-service`, `web`)
 
 Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 9). The design's Notes screen has a "New note"
