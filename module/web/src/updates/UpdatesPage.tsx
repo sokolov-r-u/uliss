@@ -22,7 +22,7 @@ export function UpdatesView({updates, decisions, onDecide, onUndo}: {
         setDecisionIndex((index) => index + 1)
     }
 
-    const header = <ScreenHeader title="Updates" meta="What Uliss did, and what it asks"/>
+    const header = <ScreenHeader kicker="Updates"/>
     if (updates.length === 0 && decisions.length === 0) return <div className="product-view">{header}
         <div className="product-body"><div className="product-empty"><EmptyState
         title="Nothing to report yet"
