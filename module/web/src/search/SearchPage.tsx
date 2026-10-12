@@ -23,6 +23,7 @@ export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat,
                                                                                                                color="var(--text-faint)">Clear</Kicker>
             </button>}
         </label></ScreenHeader>
+        <div className="product-body">
         {!q || model.notes.length + model.chats.length === 0 ? <div className="product-empty">
             <EmptyState title={q ? `No notes match “${q}”` : 'Search your notes and chats'}
                         body={q ? 'Uliss searches note titles and text. Try a shorter word, or look through your chats instead.' : 'Type a word or two. Uliss looks through note titles, note text, and your conversations.'}
@@ -45,6 +46,7 @@ export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat,
                                                                                            size={12}/><span>{chat.title}</span><small>{chat.date}</small>
             </button>)}
         </div>}
+        </div>
     </div>
 }
 

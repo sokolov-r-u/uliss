@@ -1,7 +1,9 @@
 /* Authenticated shell: drawer <768px, compact rail 768–1023px, full sidebar >=1024px. */
 
+/* Pinned to the viewport: only a screen's body scrolls, so every ScreenHeader stays on top. */
 .app-shell {
-    min-height: 100%;
+    height: 100%;
+    overflow: hidden;
     display: flex;
     flex-direction: column;
     background: var(--bg);
@@ -387,6 +389,7 @@
     flex: 1;
     min-width: 0;
     min-height: 0;
+    overflow: hidden;
 }
 
 /* ── Screen frame (ui/Screen.tsx — notes / sky / constellations / updates;
@@ -805,7 +808,7 @@
 }
 
 .search-view {
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .search-results {
@@ -1320,7 +1323,6 @@
 
     .app-main {
         flex: 1;
-        overflow-y: auto;
     }
 }
 
