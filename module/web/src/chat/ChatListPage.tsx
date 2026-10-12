@@ -63,7 +63,7 @@ export function ChatListPage() {
                 kicker="Chats"
                 count={state.status === 'ready' ? state.chats.length : undefined}
                 right={
-                    <Button variant="quiet" onClick={onNewChat}>
+                    <Button variant="quiet" size="sm" onClick={onNewChat}>
                         New chat
                     </Button>
                 }

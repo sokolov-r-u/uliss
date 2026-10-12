@@ -1214,9 +1214,11 @@
         display: none;
     }
 
+    /* One header height on every screen, whatever sits on the right. */
     .screen-head {
         gap: 16px;
-        padding: 22px 30px 18px;
+        height: 64px;
+        padding: 0 30px;
     }
 
     .screen-head-label {
@@ -1224,7 +1226,7 @@
     }
 
     .screen-head-detail {
-        padding: 16px 20px;
+        padding: 0 20px;
     }
 
     .screen-head-title {
