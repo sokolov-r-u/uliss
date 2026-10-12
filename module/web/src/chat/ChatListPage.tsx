@@ -8,19 +8,12 @@ import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
+import {formatShortDate} from '../ui/format'
 
 type ListState =
     | { status: 'loading' }
     | { status: 'error'; message: string }
     | { status: 'ready'; chats: Chat[] }
-
-/** Absolute and short — 'Jun 22'. The DS list never shows relative time. */
-function formatDate(iso?: string): string {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
-}
 
 export function ChatListPage() {
     const navigate = useNavigate()
@@ -99,7 +92,7 @@ export function ChatListPage() {
                                 {(openMenu) => <ListRow
                                     title={chat.title}
                                     first={index === 0}
-                                    date={formatDate(chatActivity(chat))}
+                                    date={formatShortDate(chatActivity(chat))}
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
                                     onMenu={openMenu}

@@ -15,14 +15,6 @@ export function usePanelOpen(): [boolean, () => void, () => void] {
     return [open, toggle, close]
 }
 
-/** Absolute date with the year — 'Jun 22, 2026'. Empty when unknown. */
-export function formatPanelDate(iso?: string): string {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric', year: 'numeric'})
-}
-
 /**
  * The right-hand panel of an open chat or note (kit "This note" / "Notes from this chat"): a rail beside the content
  * from 768px (drag its left edge to resize, 260–480px), a right drawer over it on the phone. Only shows what the backend provides; link lists wait for the

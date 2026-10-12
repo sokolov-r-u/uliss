@@ -8,6 +8,7 @@ import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {listNotes, type Note, subscribeToNotesChanges} from './noteApi'
 import './notes.css'
+import {formatShortDate} from '../ui/format'
 
 export interface NotesViewProps {
     notes: NoteViewModel[]
@@ -72,13 +73,6 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
     )
 }
 
-function formatDate(iso?: string): string {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
-}
-
 function contentParts(content: string | null, storedTitle?: string): { title: string; excerpt: string } {
     const lines = content?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? []
     const normalized = lines.join(' ').replace(/\s+/g, ' ').trim()
@@ -101,7 +95,7 @@ export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
             ordinal: notes.length - index,
             title,
             excerpt: note.status === 'READY' ? content.excerpt : '',
-            date: formatDate(note.createdAt),
+            date: formatShortDate(note.createdAt),
             linkCount: 0,
             renamable: note.status === 'READY',
             createdAt: note.createdAt,

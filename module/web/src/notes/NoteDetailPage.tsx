@@ -3,11 +3,12 @@ import {useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {ContextPanel, formatPanelDate, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
+import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
 import './notes.css'
+import {formatFullDate} from '../ui/format'
 
 type ReadyNote = Note & { content: string }
 
@@ -61,8 +62,8 @@ export function NoteDetailView({state, onRetry, actions}: {
                 <p className="context-text">{note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>
             </PanelSection>
             <PanelSection label="Dates">
-                <PanelFact label="Written" value={formatPanelDate(note.createdAt) || '—'}/>
-                <PanelFact label="Updated" value={formatPanelDate(note.updatedAt ?? note.createdAt) || '—'}/>
+                <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
+                <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt) || '—'}/>
             </PanelSection>
         </ContextPanel>}
     </div>

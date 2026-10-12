@@ -1,3 +1,5 @@
+import {formatMonth, parseDate} from '../format'
+
 export interface RecencyGroup<T> {
     label: string
     items: T[]
@@ -10,8 +12,8 @@ function startOfDay(date: Date): number {
 }
 
 function bucketOf(iso: string | undefined, now: Date): number {
-    const date = iso ? new Date(iso) : null
-    if (!date || Number.isNaN(date.getTime())) return 4
+    const date = parseDate(iso)
+    if (!date) return 4
     const days = Math.round((startOfDay(now) - startOfDay(date)) / 86_400_000)
     if (days <= 0) return 0
     if (days === 1) return 1
@@ -31,11 +33,7 @@ export function groupByRecency<T>(items: T[], dateOf: (item: T) => string | unde
 export function groupByMonth<T>(items: T[], dateOf: (item: T) => string | undefined): RecencyGroup<T>[] {
     const groups: RecencyGroup<T>[] = []
     for (const item of items) {
-        const iso = dateOf(item)
-        const date = iso ? new Date(iso) : null
-        const label = date && !Number.isNaN(date.getTime())
-            ? date.toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
-            : ''
+        const label = formatMonth(dateOf(item))
         const last = groups.at(-1)
         if (last && last.label === label) last.items.push(item)
         else groups.push({label, items: [item]})

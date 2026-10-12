@@ -137,7 +137,8 @@ describe('ChatPage summary flow', () => {
         expect(mockedGetMessages).toHaveBeenCalledWith(
             'chat-new',
             expect.objectContaining({signal: expect.anything()}),
-        )
+        )        // The new chat (with its title) joins the chat lists once; finishing the turn does not refetch them again.
+        expect(notifyChatListChanged).toHaveBeenCalledOnce()
     })
 
     it('retries initial creation with the same key when the chat id header was lost', async () => {
@@ -382,7 +383,8 @@ describe('ChatPage summary flow', () => {
         expect(await screen.findByText('Partial reply')).toBeInTheDocument()
         await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
         expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
-        expect(notifyChatListChanged).toHaveBeenCalledOnce()
+        // A turn in an existing chat changes nothing the chat lists show.
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
         expect(cancelChatTurn).not.toHaveBeenCalled()
     })
 

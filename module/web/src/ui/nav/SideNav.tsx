@@ -8,6 +8,7 @@ import {toNoteViewModels} from '../../notes/NotesPage'
 import {ItemActions} from '../actions/ItemActions'
 import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
+import {noteCountLabel} from '../format'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -17,11 +18,6 @@ const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
     {to: '/sky', label: 'Sky', icon: <Icon name="star" size={16}/>},
     {to: '/updates', label: 'Updates', icon: <Icon name="pulse" size={17}/>},
 ]
-
-function noteCountLabel(count: number): string {
-    if (count === 0) return 'No notes yet'
-    return count === 1 ? '1 note' : `${count} notes`
-}
 
 type ListTab = 'chats' | 'notes'
 

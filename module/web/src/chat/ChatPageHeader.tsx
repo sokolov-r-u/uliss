@@ -5,12 +5,7 @@ import {ItemActions} from '../ui/actions/ItemActions'
 import {PanelToggle} from '../ui/ContextPanel'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, getChat, subscribeToChatListChanges} from './chatApi'
-
-/** 'No notes yet' · '1 note' · '3 notes' — the chat's meta line. */
-export function chatNotesMeta(noteCount: number): string {
-    if (noteCount <= 0) return 'No notes yet'
-    return noteCount === 1 ? '1 note' : `${noteCount} notes`
-}
+import {noteCountLabel} from '../ui/format'
 
 /** Persisted chat title as the page heading, its note count, and the chat's Rename · Delete menu. */
 export function ChatPageHeader({chatId, generationActive, panelOpen = false, onTogglePanel, onChat}: {
@@ -43,7 +38,7 @@ export function ChatPageHeader({chatId, generationActive, panelOpen = false, onT
     return (
         <ScreenHeader
             title={chat.title}
-            meta={chatNotesMeta(chat.noteCount)}
+            meta={noteCountLabel(chat.noteCount)}
             right={<>{onTogglePanel && <PanelToggle label="Chat details" open={panelOpen} onToggle={onTogglePanel}/>}
                 <ItemActions target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
                                 deleteDisabled={generationActive}

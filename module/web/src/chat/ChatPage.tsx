@@ -4,7 +4,7 @@ import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
-import {ContextPanel, formatPanelDate, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
+import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
@@ -25,6 +25,7 @@ import {ChatComposer} from './ChatComposer'
 import {ChatPageHeader} from './ChatPageHeader'
 import type {DisplayMessage} from './Bubble'
 import './chat.css'
+import {formatFullDate} from '../ui/format'
 
 type PagePhase = 'loading' | 'error' | 'ready'
 type GenerationPhase = 'idle' | 'streaming' | 'settling' | 'reconciliation-required'
@@ -170,7 +171,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         updateGenerationPhase('idle')
         setStreamNotice(null)
         reconciliationTargetRef.current = null
-        notifyChatListChanged()
     }
 
     function requireReconciliation() {
@@ -422,6 +422,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await streamInitialAssistantReply(request.content, request.idempotencyKey, {
                     ...callbacks,
                     onChatId: (createdChatId) => {
+                        // The server created and named the chat from this first message: chat lists gain it now,
+                        // once, even if the user has already left. Later turns change nothing those lists show.
+                        notifyChatListChanged()
                         if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                             || pendingChatRequestRef.current !== request) return
                         resolvedChatId = createdChatId
@@ -661,8 +664,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         Deleting the chat keeps its notes.</p>
                 </PanelSection>
                 <PanelSection label="Dates">
-                    <PanelFact label="Started" value={formatPanelDate(chatMeta.createdAt) || '—'}/>
-                    <PanelFact label="Updated" value={formatPanelDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
+                    <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt) || '—'}/>
+                    <PanelFact label="Updated" value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
                 </PanelSection>
             </ContextPanel>}
         </div>
