@@ -1,0 +1,115 @@
+{
+  "projectId": "de48cea4-ba3e-40fe-a6e1-f1af598aac3a",
+  "shape": "package",
+  "pkg": "@uliss/design-system",
+  "globalName": "UlissDS",
+  "buildCmd": ".design-sync/build-dist.sh",
+  "cssEntry": "css/uliss.css",
+  "docsDir": "component-docs",
+  "componentSrcMap": {
+    "OptionList": "src/react/components/forms/OptionCard.tsx"
+  },
+  "docsMap": {
+    "OptionList": "component-docs/OptionCard.md"
+  },
+  "overrides": {
+    "Dialog": {
+      "cardMode": "single",
+      "primaryStory": "Summarize",
+      "viewport": "420x420"
+    },
+    "ItemMenu": {
+      "cardMode": "single",
+      "primaryStory": "RenameDelete",
+      "viewport": "400x320"
+    },
+    "ActionChip": {
+      "cardMode": "column"
+    },
+    "Button": {
+      "cardMode": "column"
+    },
+    "Greek": {
+      "cardMode": "column"
+    },
+    "PostBadge": {
+      "cardMode": "column"
+    },
+    "StarField": {
+      "cardMode": "column"
+    },
+    "Wordmark": {
+      "cardMode": "column"
+    },
+    "Bubble": {
+      "cardMode": "column"
+    },
+    "ChatDock": {
+      "cardMode": "column"
+    },
+    "PendingLinks": {
+      "cardMode": "column"
+    },
+    "ConstellationChip": {
+      "cardMode": "column"
+    },
+    "OptionCard": {
+      "cardMode": "column"
+    },
+    "Select": {
+      "cardMode": "column"
+    },
+    "StepControl": {
+      "cardMode": "column"
+    },
+    "Swatch": {
+      "cardMode": "column"
+    },
+    "Icon": {
+      "cardMode": "column"
+    },
+    "EmptyState": {
+      "cardMode": "column"
+    },
+    "ListHeader": {
+      "cardMode": "column"
+    },
+    "ListRow": {
+      "cardMode": "column"
+    },
+    "TopBar": {
+      "cardMode": "column"
+    },
+    "SettingsRow": {
+      "cardMode": "column"
+    },
+    "IconButton": {
+      "cardMode": "column"
+    },
+    "LabelRow": {
+      "cardMode": "column"
+    },
+    "MicButton": {
+      "cardMode": "column"
+    },
+    "NavRow": {
+      "cardMode": "column"
+    },
+    "Notice": {
+      "cardMode": "column"
+    },
+    "OptionList": {
+      "cardMode": "column"
+    },
+    "PhoneScreen": {
+      "cardMode": "column"
+    },
+    "TagDot": {
+      "cardMode": "column"
+    },
+    "TextField": {
+      "cardMode": "column"
+    }
+  },
+  "readmeHeader": ".design-sync/conventions.md"
+}

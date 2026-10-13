@@ -20,8 +20,13 @@ editing the SPA.
 
 - Reuse `@uliss/design-system` components and tokens. Read the component's adjacent `.prompt.md` before use or
   modification.
-- Treat external Claude Design references as historical provenance unless an accessible reference is supplied. Do not
-  assume `DesignSync` exists.
+- The Claude Design project pinned in `.design-sync/config.json` mirrors the design system and is downstream of code.
+  Screens designed there are proposals: build them from the real kit components, and add a missing component to the
+  design system (with its `.prompt.md` and sync preview) before using it here.
+- The original Claude Design project "Uliss Design System" (`f1d69f89-fcda-4e49-a0b2-d6ed9e9235d6`) holds the `PROT *`
+  prototypes and screen templates for features not yet built. When implementing such a feature, read its PROT file
+  (read-only, `DesignSync get_file`) as the design spec; ask the user when it conflicts with the current kit.
+- Web-only changes (screens, routing, layout glue) do not require a design sync; see the design-system `CLAUDE.md`.
 - Keep the authenticated application full-bleed and responsive; mockup artboards are not runtime layout constraints.
 - Preserve a CSS-driven desktop/mobile breakpoint. Do not add JavaScript `matchMedia` logic without a functional need.
 - UI source uses 4-space indentation after formatting. Re-read a file if an external formatter changes it during
