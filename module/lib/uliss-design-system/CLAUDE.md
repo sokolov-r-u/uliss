@@ -21,8 +21,22 @@ system.
 - Keep component source and prompt documentation adjacent and update both when public behavior changes.
 - Prefer shared tokens over one-off values. Preserve the intentionally square default geometry and explicitly documented
   circular exceptions.
-- External Claude Design files are historical provenance unless they are attached or exposed through a verified tool. Do
-  not claim pixel parity against an unavailable source.
+- The Claude Design project pinned in `.design-sync/config.json` is a generated mirror of this package, never a source
+  of truth. Older external Claude Design files are historical provenance; do not claim pixel parity against them.
+
+## Claude Design sync
+
+- `/design-sync` publishes this package (bundle, tokens, fonts, `.d.ts`, `.prompt.md`, preview cards) to Claude
+  Design. Upload only when the user asks for a sync in that request.
+- Re-sync after a merged change to the public surface: components, props, exports, tokens, fonts, or `.prompt.md`
+  files. Web-only changes, tests, and internal refactors with no visible or API change do not need a sync.
+- `.prompt.md` files ship verbatim to the design agent. Keep their examples compiling against the current props.
+- Keep `.design-sync/previews/<Name>.tsx` in step with the API in the same change: add one for a new component,
+  delete it for a removed one, and update stories when props or variants change.
+- `.design-sync/preview-kit/Ground.tsx` and `.design-sync/conventions.md` mirror the body and focus rules of
+  `module/web/src/app.css`; update them together.
+- Read `.design-sync/NOTES.md` before a sync: run the converter scripts as bare commands from the repository root
+  (sandbox exclusion) and run `.design-sync/build-dist.sh` first.
 
 ## Verification
 
