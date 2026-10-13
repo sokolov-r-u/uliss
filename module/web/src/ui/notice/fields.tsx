@@ -33,20 +33,18 @@ export function NoticeField({
 // ── dropdown (kind="profile" — gender) ───────────────────────────
 export function NoticeSelect<T extends string>({
                                                    label,
-                                                   greek,
                                                    placeholder = 'Select…',
                                                    options,
                                                    value,
                                                    onChange,
                                                }: {
     label: string
-    greek?: string
     placeholder?: string
     options: SelectOption<T>[]
     value: T | null
     onChange: (v: T) => void
 }) {
-    return <Select label={label} greek={greek} placeholder={placeholder} options={options}
+    return <Select label={label} placeholder={placeholder} options={options}
                    value={value} onChange={onChange}/>
 }
 
@@ -209,13 +207,11 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
 
 export function NoticeDate({
                                label,
-                               greek,
                                value,
                                onChange,
                                maxDate,
                            }: {
     label: string
-    greek?: string
     value: string | null
     onChange: (v: DateFieldValue) => void
     /** ISO `YYYY-MM-DD` of the latest selectable day; only constrains the calendar. */
@@ -249,7 +245,7 @@ export function NoticeDate({
 
     return (
         <div>
-            <LabelRow label={label} greek={greek}/>
+            <LabelRow label={label}/>
             <div
                 style={{
                     height: 48,

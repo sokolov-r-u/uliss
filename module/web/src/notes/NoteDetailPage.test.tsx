@@ -142,4 +142,29 @@ describe('NoteDetailPage', () => {
 
         expect(await screen.findByRole('heading', {name: 'Better idea'})).toBeInTheDocument()
     })
+
+    it('opens the note details panel from the header', async () => {
+        mockedGetNote.mockResolvedValue({
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body',
+            createdAt: '2026-06-22T09:00:00Z', updatedAt: '2026-06-23T09:00:00Z',
+        })
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Note details'}))
+
+        const panel = screen.getByRole('complementary', {name: 'This note'})
+        expect(panel).toHaveTextContent('Summary of a chat')
+        expect(panel).toHaveTextContent('Written')
+        expect(panel).toHaveTextContent('Updated')
+    })
+
+    it('opens the details panel by default from the tablet breakpoint up', async () => {
+        vi.stubGlobal('matchMedia', (query: string) => ({matches: query === '(min-width: 768px)'}))
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderPage()
+
+        expect(await screen.findByRole('complementary', {name: 'This note'})).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Note details'})).toHaveAttribute('aria-pressed', 'true')
+        vi.unstubAllGlobals()
+    })
 })

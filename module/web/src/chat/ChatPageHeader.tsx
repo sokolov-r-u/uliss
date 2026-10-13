@@ -1,11 +1,21 @@
 import {useEffect, useState} from 'react'
-import {Link, useNavigate} from 'react-router-dom'
-import {Icon, IconButton, Kicker} from '@uliss/design-system'
+import {useNavigate} from 'react-router-dom'
+import {Icon, IconButton} from '@uliss/design-system'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {PanelToggle} from '../ui/ContextPanel'
+import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, getChat, subscribeToChatListChanges} from './chatApi'
+import {noteCountLabel} from '../ui/format'
 
-/** Back link, persisted chat title, and the chat's Rename · Delete menu. */
-export function ChatPageHeader({chatId, generationActive}: { chatId?: string; generationActive: boolean }) {
+/** Persisted chat title as the page heading, its note count, and the chat's Rename · Delete menu. */
+export function ChatPageHeader({chatId, generationActive, panelOpen = false, onTogglePanel, onChat}: {
+    chatId?: string
+    generationActive: boolean
+    panelOpen?: boolean
+    onTogglePanel?: () => void
+    /** The loaded chat (or null while none is loaded) — feeds the details panel without a second request. */
+    onChat?: (chat: Chat | null) => void
+}) {
     const navigate = useNavigate()
     const [loadedChat, setLoadedChat] = useState<Chat | null>(null)
     const [revision, setRevision] = useState(0)
@@ -21,23 +31,23 @@ export function ChatPageHeader({chatId, generationActive}: { chatId?: string; ge
         return () => controller.abort()
     }, [chatId, revision])
 
+    useEffect(() => onChat?.(chat), [chat, onChat])
+
+    if (!chat) return chatId ? <ScreenHeader kicker="Conversation"/> : <ScreenHeader title="New chat"/>
+
     return (
-        <div className="chat-page-header">
-            <Link to="/chats" className="chat-back-link">‹ chats</Link>
-            {chat
-                ? <span className="chat-page-title">{chat.title}</span>
-                : <Kicker size={9} spacing="3px" color="var(--text-faint)">Conversation</Kicker>}
-            {chat && <span className="chat-page-actions">
+        <ScreenHeader
+            title={chat.title}
+            meta={noteCountLabel(chat.noteCount)}
+            right={<>{onTogglePanel && <PanelToggle label="Chat details" open={panelOpen} onToggle={onTogglePanel}/>}
                 <ItemActions target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
-                             deleteDisabled={generationActive}
-                             onRenamed={(title) => setLoadedChat({...chat, title})}
-                             onDeleted={() => navigate('/chats', {replace: true})}>
-                    {(openMenu) => <IconButton s={44} title={`Actions for ${chat.title}`}
-                                               onClick={(event) => openMenu(event.currentTarget)}>
-                        <Icon name="dots" size={17}/>
-                    </IconButton>}
-                </ItemActions>
-            </span>}
-        </div>
+                                deleteDisabled={generationActive}
+                                onRenamed={(title) => setLoadedChat({...chat, title})}
+                                onDeleted={() => navigate('/chats', {replace: true})}>
+                {(openMenu) => <IconButton s={44} title={`Actions for ${chat.title}`}
+                                           onClick={(event) => openMenu(event.currentTarget)}>
+                    <Icon name="dots" size={17}/>
+                </IconButton>}
+            </ItemActions></>}/>
     )
 }

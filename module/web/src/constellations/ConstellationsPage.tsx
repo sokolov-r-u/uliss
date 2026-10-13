@@ -2,6 +2,7 @@ import {useMemo, useState} from 'react'
 import {Dialog, EmptyState, Icon, IconButton, Kicker, ListRow, TagDot} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import type {ConstellationTreeNode} from '../views/models'
+import {ScreenHeader} from '../ui/ScreenHeader'
 
 function flatten(nodes: ConstellationTreeNode[]): ConstellationTreeNode[] {
     return nodes.flatMap((node) => [node, ...flatten(node.children ?? [])])
@@ -51,17 +52,17 @@ export function ConstellationsView({nodes, onStartChat, onOpenNote, onDelete}: {
     const selected = all.find((node) => node.id === selectedId) ?? null
     const deleting = all.find((node) => node.id === deleteId) ?? null
 
-    if (nodes.length === 0) return <div className="product-view product-empty"><EmptyState title="No constellations yet"
+    if (nodes.length === 0) return <div className="product-view"><ScreenHeader kicker="Constellations" count={0}/>
+        <div className="product-body"><div className="product-empty"><EmptyState title="No constellations yet"
                                                                                            body="As notes accumulate, Uliss gathers related ones into named branches you can rename and prune. Talk to it a while first."
                                                                                            action="Start a chat"
                                                                                            onAction={onStartChat}/>
+        </div></div>
     </div>
 
-    return <div className="product-view constellation-layout">
+    return <div className="product-view"><ScreenHeader kicker="Constellations" count={all.length}/>
+        <div className="constellation-layout">
         <section className="constellation-tree-panel">
-            <div className="product-section-head"><Kicker size={9} spacing="3px"
-                                                          color="var(--accent)">Constellations</Kicker><span>{all.length}</span>
-            </div>
             <div role="tree" aria-label="Constellations"><Tree nodes={nodes} depth={0} selectedId={selectedId}
                                                                open={open}
                                                                onToggle={(id) => setOpen((current) => {
@@ -100,7 +101,7 @@ export function ConstellationsView({nodes, onStartChat, onOpenNote, onDelete}: {
                         setSelectedId(null)
                     }}/>
         )}
-    </div>
+    </div></div>
 }
 
 /** Production adapter: no constellation endpoint exists, so the typed view receives no nodes. */

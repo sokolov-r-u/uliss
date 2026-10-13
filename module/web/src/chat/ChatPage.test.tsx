@@ -1,6 +1,6 @@
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
+import {Link, MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     type ChatMessage,
@@ -45,6 +45,7 @@ vi.mock('./streamChatReply', () => ({
 }))
 vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
+    notifyNotesChanged: vi.fn(),
     NoteApiError: class NoteApiError extends Error {
         constructor(
             public readonly kind: string,
@@ -70,7 +71,7 @@ function messagePage(
 }
 
 function renderPage() {
-    return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Routes>
+    return render(<MemoryRouter initialEntries={['/chats/chat-1']}><Link to="/chats">Leave chat</Link><Routes>
         <Route path="/chats/:chatId" element={<ChatPage/>}/>
         <Route path="/chats" element={<div data-testid="chats-route"/>}/>
     </Routes></MemoryRouter>)
@@ -136,7 +137,8 @@ describe('ChatPage summary flow', () => {
         expect(mockedGetMessages).toHaveBeenCalledWith(
             'chat-new',
             expect.objectContaining({signal: expect.anything()}),
-        )
+        )        // The new chat (with its title) joins the chat lists once; finishing the turn does not refetch them again.
+        expect(notifyChatListChanged).toHaveBeenCalledOnce()
     })
 
     it('retries initial creation with the same key when the chat id header was lost', async () => {
@@ -381,7 +383,8 @@ describe('ChatPage summary flow', () => {
         expect(await screen.findByText('Partial reply')).toBeInTheDocument()
         await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
         expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
-        expect(notifyChatListChanged).toHaveBeenCalledOnce()
+        // A turn in an existing chat changes nothing the chat lists show.
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
         expect(cancelChatTurn).not.toHaveBeenCalled()
     })
 
@@ -622,7 +625,7 @@ describe('ChatPage summary flow', () => {
         fireEvent.scroll(thread)
         fireEvent.scroll(thread)
         await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledTimes(2))
-        await userEvent.click(screen.getByRole('link', {name: '‹ chats'}))
+        await userEvent.click(screen.getByRole('link', {name: 'Leave chat'}))
 
         expect(olderSignal?.aborted).toBe(true)
     })

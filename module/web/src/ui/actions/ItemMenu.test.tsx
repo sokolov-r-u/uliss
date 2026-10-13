@@ -27,12 +27,10 @@ describe('ItemMenu', () => {
         {label: 'Delete', onSelect: remove, danger: true, disabled: deleteDisabled},
     ]
 
-    it('renders a labelled menu with the object title and focuses the first item', () => {
-        render(<ItemMenu anchor={anchorAt({})} label="Actions for Trip" title="Trip" actions={actions()}
-                         onClose={vi.fn()}/>)
+    it('renders a labelled menu of actions only and focuses the first item', () => {
+        render(<ItemMenu anchor={anchorAt({})} label="Actions for Trip" actions={actions()} onClose={vi.fn()}/>)
 
-        expect(screen.getByRole('menu', {name: 'Actions for Trip'})).toBeInTheDocument()
-        expect(screen.getByText('Trip')).toBeInTheDocument()
+        expect(screen.getByRole('menu', {name: 'Actions for Trip'})).toHaveTextContent(/^RenameDelete$/)
         expect(screen.getByRole('menuitem', {name: 'Rename'})).toHaveFocus()
     })
 
@@ -165,3 +163,55 @@ describe('ListRow menu', () => {
         expect(onClick).toHaveBeenCalledTimes(1)
     })
 })
+
+describe('ListRow full title', () => {
+    function overflowTitles(overflowing: boolean) {
+        vi.spyOn(HTMLElement.prototype, 'scrollWidth', 'get').mockReturnValue(overflowing ? 300 : 100)
+        vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(100)
+    }
+
+    it('shows the whole title in a panel after hovering a truncated row', () => {
+        vi.useFakeTimers()
+        overflowTitles(true)
+        const title = 'A very long chat title that does not fit into the side panel row'
+        render(<ListRow title={title} onClick={vi.fn()} onMenu={vi.fn()}/>)
+
+        fireEvent.mouseEnter(screen.getByRole('button', {name: title}))
+        act(() => vi.advanceTimersByTime(400))
+
+        expect(screen.getByRole('tooltip')).toHaveTextContent(title)
+        fireEvent.mouseLeave(screen.getByRole('button', {name: title}))
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+
+    it('shows nothing extra when the title fits', () => {
+        vi.useFakeTimers()
+        overflowTitles(false)
+        render(<ListRow title="Trip" onClick={vi.fn()} onMenu={vi.fn()}/>)
+
+        fireEvent.mouseEnter(screen.getByRole('button', {name: 'Trip'}))
+        act(() => vi.advanceTimersByTime(400))
+
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument()
+    })
+
+    it('opens the full title above the row when there is no room below', () => {
+        vi.useFakeTimers()
+        overflowTitles(true)
+        vi.spyOn(HTMLElement.prototype, 'offsetHeight', 'get').mockReturnValue(80)
+        const title = 'A very long chat title near the bottom edge of the window'
+        render(<ListRow title={title} onClick={vi.fn()} onMenu={vi.fn()}/>)
+        const button = screen.getByRole('button', {name: title})
+        const row = button.parentElement as HTMLElement
+        row.getBoundingClientRect = () => ({
+            top: window.innerHeight - 50, bottom: window.innerHeight - 6, left: 20, right: 300, width: 280, height: 44,
+            x: 20, y: window.innerHeight - 50, toJSON: () => ({}),
+        })
+
+        fireEvent.mouseEnter(button)
+        act(() => vi.advanceTimersByTime(400))
+
+        expect(screen.getByRole('tooltip')).toHaveStyle({top: `${window.innerHeight - 50 - 4 - 80}px`})
+    })
+})
+

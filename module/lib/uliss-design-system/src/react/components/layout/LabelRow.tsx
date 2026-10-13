@@ -1,11 +1,10 @@
 import type {ReactNode} from 'react'
 import {Kicker} from '../brand/Kicker'
-import {Greek} from '../brand/Greek'
 
 // The one label row in the product. Two shapes of the same thing:
 //   rule    — kicker, then a hairline eating the remaining width (section
 //             dividers in settings and side panels)
-//   default — kicker left, gloss or live value right, on a shared baseline
+//   default — kicker left, live value right, on a shared baseline
 //             (the label above every field)
 // Merged from FieldLabel (forms) + SectionLabel (layout), which differed only
 // in what sat to the right of the kicker.
@@ -14,9 +13,7 @@ export interface LabelRowProps {
     /** The label text. `children` works too, for the divider form. */
     label?: string
     children?: ReactNode
-    /** Decorative gloss — onboarding surfaces only. Ignored when `rule`. */
-    greek?: string
-    /** Overrides `greek`: a counter, a unit, a "Clear". Ignored when `rule`. */
+    /** A counter, a unit, a "Clear". Ignored when `rule`. */
     right?: ReactNode
     /** Divider form — hairline to the right edge instead of a right slot. */
     rule?: boolean
@@ -24,7 +21,7 @@ export interface LabelRowProps {
     spacing?: string
 }
 
-export function LabelRow({label, children, greek, right, rule = false, spacing}: LabelRowProps) {
+export function LabelRow({label, children, right, rule = false, spacing}: LabelRowProps) {
     const text = label != null ? label : children
     return (
         <div
@@ -42,11 +39,7 @@ export function LabelRow({label, children, greek, right, rule = false, spacing}:
             </Kicker>
             {rule ? (
                 <span style={{flex: 1, height: 1, background: 'var(--line)'}}/>
-            ) : right != null ? (
-                right
-            ) : greek ? (
-                <Greek size={12}>{greek}</Greek>
-            ) : null}
+            ) : right ?? null}
         </div>
     )
 }

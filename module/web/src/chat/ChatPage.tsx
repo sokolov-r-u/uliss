@@ -2,10 +2,12 @@ import {useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {NoteApiError, requestChatSummary} from '../notes/noteApi'
+import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
+import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
+import {ScreenHeader} from '../ui/ScreenHeader'
+import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {
     findPersistedReply,
     reconcileUntilTerminal,
@@ -23,6 +25,7 @@ import {ChatComposer} from './ChatComposer'
 import {ChatPageHeader} from './ChatPageHeader'
 import type {DisplayMessage} from './Bubble'
 import './chat.css'
+import {formatFullDate} from '../ui/format'
 
 type PagePhase = 'loading' | 'error' | 'ready'
 type GenerationPhase = 'idle' | 'streaming' | 'settling' | 'reconciliation-required'
@@ -113,6 +116,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [hasMore, setHasMore] = useState(false)
     const [isLoadingOlder, setIsLoadingOlder] = useState(false)
     const [draft, setDraft] = useState('')
+    const [panelOpen, togglePanel, closePanel] = usePanelOpen()
+    const [chatMeta, setChatMeta] = useState<Chat | null>(null)
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
@@ -166,7 +171,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         updateGenerationPhase('idle')
         setStreamNotice(null)
         reconciliationTargetRef.current = null
-        notifyChatListChanged()
     }
 
     function requireReconciliation() {
@@ -418,6 +422,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await streamInitialAssistantReply(request.content, request.idempotencyKey, {
                     ...callbacks,
                     onChatId: (createdChatId) => {
+                        // The server created and named the chat from this first message: chat lists gain it now,
+                        // once, even if the user has already left. Later turns change nothing those lists show.
+                        notifyChatListChanged()
                         if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                             || pendingChatRequestRef.current !== request) return
                         resolvedChatId = createdChatId
@@ -561,8 +568,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                 summaryIdempotencyKeyRef.current = null
             }
-            // The chat gained a note even if this page has gone; chat lists show the count.
+            // The chat gained a note even if this page has gone; chat lists show the count, note lists the note.
             notifyChatListChanged()
+            notifyNotesChanged()
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId) return
             setAcceptedNoteId(summary.noteId)
             setSummaryDialog(false)
@@ -587,25 +595,24 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
-            <div className="chat-page-header"><Link to="/chats"
-                                                    className="chat-back-link">‹ chats</Link></div>
-            <p
-                className="chat-state">Loading…</p></div>
+            <ScreenHeader kicker="Conversation"/>
+            <p className="chat-state">Loading…</p></div>
     }
 
     if (pagePhase === 'error') {
         return <div className="chat-page">
-            <div className="chat-page-header"><Link to="/chats"
-                                                    className="chat-back-link">‹ chats</Link></div>
-            <p
-                className="chat-state chat-state-error">{loadError}</p></div>
+            <ScreenHeader kicker="Conversation"/>
+            <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 
     const canSummarize = generationPhase === 'idle' && persistedMessages.length > 0 && !summaryPending
 
     return (
+        <div className="detail-layout">
         <div className="chat-page">
-            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}/>
+            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}
+                            panelOpen={panelOpen} onTogglePanel={togglePanel}
+                            onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
                            onLoadOlder={() => void loadOlderMessages()}/>
             {acceptedNoteId && <section
@@ -650,6 +657,17 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     onPrimary={() => void confirmSummary()}
                     onSecondary={() => setSummaryDialog(false)}/>
             </NoticeOverlay>}
+        </div>
+            {chatMeta && <ContextPanel label="This chat" open={panelOpen} onClose={closePanel}>
+                <PanelSection label="Notes from this chat" count={chatMeta.noteCount}>
+                    <p className="context-text">Uliss writes a note when the conversation has something worth keeping.
+                        Deleting the chat keeps its notes.</p>
+                </PanelSection>
+                <PanelSection label="Dates">
+                    <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt) || '—'}/>
+                    <PanelFact label="Updated" value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
+                </PanelSection>
+            </ContextPanel>}
         </div>
     )
 }

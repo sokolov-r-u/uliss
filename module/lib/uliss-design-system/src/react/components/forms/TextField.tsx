@@ -8,7 +8,6 @@ import {LabelRow} from '../layout/LabelRow'
 
 export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'maxLength'> {
     label?: string
-    greek?: string
     placeholder?: string
     value: string
     onChange: ChangeEventHandler<HTMLInputElement>
@@ -20,7 +19,6 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
 
 export function TextField({
                               label,
-                              greek,
                               placeholder,
                               value,
                               onChange,
@@ -49,7 +47,7 @@ export function TextField({
     )
     return (
         <div>
-            {label && <LabelRow label={label} greek={greek} right={counter}/>}
+            {label && <LabelRow label={label} right={counter}/>}
             <div
                 style={{
                     height: 48,

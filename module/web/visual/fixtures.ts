@@ -1,72 +1,40 @@
-import type {
-    ConstellationTreeNode,
-    NoteViewModel,
-    SearchViewModel,
-    SkyGraphModel,
-    UpdateDecisionViewModel,
-    UpdateViewModel
-} from '../src/views/models'
+import type {Chat, ChatMessage} from '../src/chat/chatApi'
+import type {Note} from '../src/notes/noteApi'
+import type {SkyGraphModel} from '../src/views/models'
 
-export const NOTES: NoteViewModel[] = [
-    {
-        id: '142',
-        ordinal: 142,
-        title: 'The empty room',
-        excerpt: 'Constraints make me more creative, not less. A recurring thread.',
-        date: 'Jun 22',
-        linkCount: 4,
-        unread: true
-    },
-    {
-        id: '141',
-        ordinal: 141,
-        title: 'A grammar for mornings',
-        excerpt: 'If the first hour is ritual, the day has a spine to hang on.',
-        date: 'Jun 21',
-        linkCount: 2,
-        unread: true
-    },
-    {
-        id: '139',
-        ordinal: 139,
-        title: 'Notes on forgetting',
-        excerpt: 'I trust the graph to remember so I am free to lose the thread.',
-        date: 'Jun 18',
-        linkCount: 6,
-        unread: false
-    },
-    {
-        id: '137',
-        ordinal: 137,
-        title: 'Why I resisted it',
-        excerpt: 'Every ritual I kept started as something I mocked.',
-        date: 'Jun 15',
-        linkCount: 1,
-        unread: false
-    },
+// Fixed clock in the specs: 2026-06-24 12:00 UTC. Dates below land in Today / Yesterday / This week / June / May.
+const at = (day: string) => `2026-${day}T09:00:00Z`
+
+export const CHATS: Chat[] = [
+    {id: 'c1', title: 'Constraints and the small room', noteCount: 2, createdAt: at('06-20'), updatedAt: at('06-24')},
+    {id: 'c2', title: 'Morning ritual, second attempt', noteCount: 1, createdAt: at('06-23')},
+    {id: 'c3', title: 'What I keep forgetting about the long walk home after the late shift', noteCount: 3,
+        createdAt: at('06-18')},
+    {id: 'c4', title: 'A walk without the phone', noteCount: 0, createdAt: at('06-02')},
+    {id: 'c5', title: 'Why the graph feels honest', noteCount: 2, createdAt: at('05-21')},
 ]
 
-export const SEARCH: SearchViewModel = {
-    totalNotes: 142,
-    notes: NOTES.slice(0, 3),
-    chats: [
-        {id: 'chat-1', title: 'Morning ritual, second attempt', date: 'Jun 21', noteCount: 1},
-        {id: 'chat-2', title: 'On discipline and rest', date: 'Jun 08', noteCount: 2},
+export const CHAT_MESSAGES: Record<string, ChatMessage[]> = {
+    c1: [
+        {id: 'm1', role: 'USER', status: 'COMPLETE', content: 'I keep circling back to the idea that constraints make me more creative, not less.'},
+        {id: 'm2', role: 'ASSISTANT', status: 'COMPLETE', content: 'A recurring thread in your notes. Link it under **Creative constraint**?'},
+        {id: 'm3', role: 'USER', status: 'COMPLETE', content: 'Yes. And remind me why I resisted it before.'},
+        {id: 'm4', role: 'ASSISTANT', status: 'COMPLETE', content: 'You worried that a smaller box means a smaller self. Your later notes disagree:\n\n- the first hour as ritual\n- one small room, one task'},
     ],
 }
 
-export const CONSTELLATIONS: ConstellationTreeNode[] = [
-    {
-        id: 'creative', label: 'Creative constraint', count: 34, hue: 36, children: [
-            {id: 'writing', label: 'Writing', count: 19, hue: 36, lightness: 0.52, notes: NOTES.slice(0, 2)},
-            {
-                id: 'music', label: 'Music', count: 15, hue: 36, lightness: 0.72, children: [
-                    {id: 'jazz', label: 'Jazz', count: 11, hue: 36, lightness: 0.82, notes: NOTES.slice(1, 4)},
-                ]
-            },
-        ]
-    },
-    {id: 'attention', label: 'Attention', count: 22, hue: 156, notes: NOTES.slice(2)},
+export const NOTES: Note[] = [
+    {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'The empty room', createdAt: at('06-24'),
+        updatedAt: at('06-24'),
+        content: '## Constraints as a frame\n\nConstraints make me more creative, not less. A smaller room is not a smaller self.\n\n- The first hour is ritual\n- One room, one task'},
+    {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'A grammar for mornings', createdAt: at('06-23'),
+        content: 'If the first hour is ritual, the day has a spine to hang on.'},
+    {id: 'n3', source: 'CHAT_SUMMARY', status: 'READY',
+        title: 'Notes on forgetting, and why I trust the graph to remember the long thread for me', createdAt: at('06-12'),
+        content: 'I trust the graph to remember so I am free to lose the thread.'},
+    {id: 'n4', source: 'CHAT_SUMMARY', status: 'READY', title: 'Why I resisted it', createdAt: at('05-15'),
+        content: 'Old fear: a smaller box means a smaller self. Untrue, mostly.'},
+    {id: 'failed', source: 'CHAT_SUMMARY', status: 'FAILED', content: null, createdAt: at('05-02')},
 ]
 
 export const SKY: SkyGraphModel = {
@@ -94,44 +62,3 @@ export const SKY: SkyGraphModel = {
         {from: 'n141', to: 'attention', secondary: true},
     ],
 }
-
-export const UPDATES: UpdateViewModel[] = [
-    {
-        id: 'u1',
-        category: 'link',
-        title: 'Creative constraint',
-        detail: 'Linked four notes into a new constellation.',
-        date: 'Jun 22 · 09:12',
-        undoable: true
-    },
-    {
-        id: 'u2',
-        category: 'note',
-        title: 'Evening check-in',
-        detail: 'Summarized the conversation into a note.',
-        date: 'Jun 22 · 08:40'
-    },
-    {
-        id: 'u3',
-        category: 'pattern',
-        title: 'Rest returns',
-        detail: 'Noticed “rest” recurring in six notes.',
-        date: 'Jun 22 · 08:05',
-        pending: true
-    },
-]
-
-export const DECISIONS: UpdateDecisionViewModel[] = [
-    {
-        id: 'd1',
-        title: 'Music has grown to 34 notes. Split out Jazz?',
-        detail: 'Eleven notes discuss jazz and nothing else.',
-        confirmLabel: 'Split'
-    },
-    {
-        id: 'd2',
-        title: 'Merge Morning pages into Writing?',
-        detail: 'The branch has not received a new note since Mar 18.',
-        confirmLabel: 'Merge'
-    },
-]

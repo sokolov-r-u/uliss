@@ -3,7 +3,7 @@
  * and walks them one card at a time over a blocking backdrop, until the queue is exhausted —
  * then it renders nothing and the app behind (Home) is usable. Mount once in the authed area.
  */
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useState} from 'react'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {fetchPending, type OnboardingMessage} from './onboardingApi'
 import {DisplayNameStep, ProfileStep} from './steps'
@@ -15,13 +15,10 @@ type State =
 
 export function OnboardingDriver() {
     const [state, setState] = useState<State>({status: 'idle'})
-    const loaded = useRef(false)
 
     useEffect(() => {
-        // Guard against StrictMode's double-invoke; the fetch only needs to run once per mount.
-        if (loaded.current) return
-        loaded.current = true
-
+        // Every run fetches and a cleaned-up run ignores its answer. A "fetched once" guard combined with this flag
+        // dropped the only answer under StrictMode's double effect run in development (the GET is idempotent).
         let active = true
         fetchPending()
             .then((messages) => {

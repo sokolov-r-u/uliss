@@ -1,4 +1,4 @@
-import {useEffect, useId, useRef} from 'react'
+import {type ReactNode, useEffect, useId, useRef} from 'react'
 import {Button} from '../actions/Button'
 
 // The confirmation. Says what will happen and what survives, then offers a way
@@ -10,23 +10,32 @@ export interface DialogProps {
     title: string
     /** What will happen and what survives. */
     body?: string
+    /** One field the confirmation asks through — a `TextField` for Rename. Sits between body and actions. */
+    children?: ReactNode
     confirm?: string
     cancel?: string
     /** Terracotta confirm label — deletions only. */
     danger?: boolean
     onConfirm?: () => void
     onCancel?: () => void
+    /** Greys the confirm action, e.g. a blank title. */
+    confirmDisabled?: boolean
+    /** Exposes `aria-busy` while the confirmed action runs. */
+    busy?: boolean
     width?: number
 }
 
 export function Dialog({
                            title,
                            body,
+                           children,
                            confirm = 'Confirm',
                            cancel = 'Not now',
                            danger = false,
                            onConfirm,
                            onCancel,
+                           confirmDisabled = false,
+                           busy = false,
                            width = 280,
                        }: DialogProps) {
     const titleId = useId()
@@ -90,6 +99,7 @@ export function Dialog({
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby={titleId}
+                aria-busy={busy || undefined}
                 style={{
                     position: 'relative',
                     width: '100%',
@@ -129,6 +139,7 @@ export function Dialog({
             {body}
           </span>
                 )}
+                {children}
                 <div style={{display: 'flex', justifyContent: 'flex-end', gap: 18, marginTop: 4}}>
                     <Button variant="ghost" onClick={onCancel}>
                         {cancel}
@@ -136,6 +147,7 @@ export function Dialog({
                     <Button
                         variant="ghost"
                         onClick={onConfirm}
+                        disabled={confirmDisabled}
                         style={{
                             color: danger ? 'var(--terracotta)' : 'var(--accent-2)',
                             fontWeight: 'var(--w-emphasis)'

@@ -43,4 +43,20 @@ describe('notes list presentation', () => {
         ])
         expect(models.map((model) => model.renamable)).toEqual([true, false, false])
     })
+
+    it('lists titles without ordinals, counts the notes and groups them by month', () => {
+        const notes = [
+            {id: 'a', ordinal: 142, title: 'The empty room', excerpt: '', date: 'Jun 22', linkCount: 0,
+                createdAt: '2026-06-22T09:00:00Z'},
+            {id: 'b', ordinal: 141, title: 'A grammar for mornings', excerpt: '', date: 'May 21', linkCount: 0,
+                createdAt: '2026-05-21T09:00:00Z'},
+        ]
+        render(<MemoryRouter><NotesView notes={notes}/></MemoryRouter>)
+
+        expect(screen.getByText('The empty room')).toBeInTheDocument()
+        expect(screen.queryByText(/142/)).not.toBeInTheDocument()
+        expect(screen.getByText('2')).toBeInTheDocument()
+        const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
+        expect(screen.getByText(june)).toBeInTheDocument()
+    })
 })

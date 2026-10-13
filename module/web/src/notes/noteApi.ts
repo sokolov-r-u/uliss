@@ -128,6 +128,19 @@ async function responseJson(response: Response): Promise<unknown> {
     }
 }
 
+const notesListeners = new Set<() => void>()
+
+/** Subscribe note-list views (Notes screen, side panel) to note mutations made by this client. */
+export function subscribeToNotesChanges(listener: () => void): () => void {
+    notesListeners.add(listener)
+    return () => notesListeners.delete(listener)
+}
+
+/** Re-fetch note-list views after a note is created, finished, renamed, or deleted. */
+export function notifyNotesChanged() {
+    notesListeners.forEach((listener) => listener())
+}
+
 export async function requestChatSummary(chatId: string, idempotencyKey: string): Promise<ChatSummaryResponse> {
     const response = await fetchNotes(`/note/chats/${chatId}/summarize`, {
         method: 'POST',

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, NoteApiError} from '../../notes/noteApi'
+import {deleteNote, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
 
 vi.mock('../../chat/chatApi', async (importOriginal) => {
@@ -40,7 +40,7 @@ describe('ItemActions', () => {
     })
 
     it('words the chat delete warning by note count', () => {
-        expect(deleteChatBody(0)).toBeUndefined()
+        expect(deleteChatBody(0)).toBe('No notes were written from it. The conversation does not come back.')
         expect(deleteChatBody(1)).toBe('Uliss wrote a note from this chat. It will stay — delete it from Notes if you no longer need it.')
         expect(deleteChatBody(3)).toBe('Uliss wrote 3 notes from this chat. They will stay — delete them from Notes if you no longer need them.')
     })
@@ -107,12 +107,12 @@ describe('ItemActions', () => {
         expect(deleteNote).toHaveBeenCalledTimes(1)
     })
 
-    it('names the item at the top of its menu', async () => {
+    it('keeps the menu to its actions without repeating the item title', async () => {
         renderRow(note)
 
         await openMenu('Idea')
 
-        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^Idea/)
+        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^RenameDelete$/)
     })
 
     it('offers only Delete for a note that is not ready', async () => {
@@ -174,5 +174,20 @@ describe('ItemActions', () => {
         await openMenu('Trip')
 
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toBeDisabled()
+    })
+
+    it('tells note lists, not chat lists, about a renamed note', async () => {
+        const notes = vi.fn()
+        const stopNotes = subscribeToNotesChanges(notes)
+        vi.mocked(renameNote).mockResolvedValue({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better', content: 'x'})
+        renderRow(note)
+
+        await openMenu('Idea')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Rename'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+
+        await waitFor(() => expect(notes).toHaveBeenCalledOnce())
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        stopNotes()
     })
 })

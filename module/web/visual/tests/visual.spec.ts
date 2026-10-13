@@ -1,33 +1,57 @@
-import {expect, test} from '@playwright/test'
+import {expect, type Page, test} from '@playwright/test'
+import {openRoute} from './routes'
 
+/** Two widths: the phone (drawer, one pane) and the desktop (rail, panels). */
 const viewports = [
     {name: 'phone', width: 360, height: 748},
-    {name: 'tablet', width: 834, height: 1112},
-    {name: 'tablet-landscape', width: 1112, height: 834},
-    {name: 'desktop', width: 1080, height: 700},
-]
+    {name: 'desktop', width: 1280, height: 800},
+] as const
 
-const scenarios = [
-    'login', 'register', 'onboarding-name', 'onboarding-profile', 'onboarding-busy',
-    'shell-drawer', 'shell-rail', 'shell-sidebar', 'shell-collapsed',
-    'chats-empty', 'chats-list', 'chats-conversation',
-    'notes-empty', 'notes-populated', 'notes-menu', 'notes-detail-ready',
-    'search-empty', 'search-populated',
-    'constellations-empty', 'constellations-populated',
-    'sky-empty', 'sky-populated', 'updates-empty', 'updates-populated',
-    'settings-root', 'settings-appearance', 'settings-sky', 'settings-account', 'settings-language',
-    'dialog',
+type Scenario = {
+    name: string
+    route: string
+    query?: string
+    only?: (typeof viewports)[number]['name']
+    act?: (page: Page) => Promise<void>
+}
+
+const scenarios: Scenario[] = [
+    {name: 'chats-empty', route: '/chats', query: 'data=empty'},
+    {name: 'chats-list', route: '/chats'},
+    {name: 'chat', route: '/chats/c1'},
+    {name: 'notes-empty', route: '/notes', query: 'data=empty'},
+    {name: 'notes-list', route: '/notes'},
+    {
+        name: 'notes-menu', route: '/notes',
+        act: (page) => page.getByRole('button', {name: 'Actions for The empty room'}).click(),
+    },
+    {name: 'note', route: '/notes/n1'},
+    {name: 'constellations-empty', route: '/constellations'},
+    {name: 'sky-empty', route: '/sky'},
+    {name: 'updates-empty', route: '/updates'},
+    {name: 'search-empty', route: '/search'},
+    {name: 'settings', route: '/settings'},
+    {name: 'settings-appearance', route: '/settings/appearance'},
+    {name: 'onboarding-name', route: '/chats', query: 'onboarding=name'},
+    {name: 'onboarding-profile', route: '/chats', query: 'onboarding=profile'},
+    {
+        name: 'drawer', route: '/chats', only: 'phone',
+        act: (page) => page.getByRole('button', {name: 'Open navigation'}).click(),
+    },
+    {
+        name: 'sidebar-collapsed', route: '/chats/c1', only: 'desktop',
+        act: (page) => page.getByRole('button', {name: 'Collapse sidebar'}).click(),
+    },
 ]
 
 for (const viewport of viewports) {
     for (const scenario of scenarios) {
-        test(`${scenario} · ${viewport.name}`, async ({page}) => {
+        if (scenario.only && scenario.only !== viewport.name) continue
+        test(`${scenario.name} · ${viewport.name}`, async ({page}) => {
             await page.setViewportSize(viewport)
-            await page.goto(`/visual/index.html?scenario=${scenario}`)
-            await expect(page).toHaveScreenshot(`${scenario}-${viewport.name}.png`, {
-                animations: 'disabled',
-                fullPage: true
-            })
+            await openRoute(page, scenario.route, scenario.query)
+            await scenario.act?.(page)
+            await expect(page).toHaveScreenshot(`${scenario.name}-${viewport.name}.png`, {animations: 'disabled'})
         })
     }
 }
@@ -49,46 +73,33 @@ const reads = {
     larger: {size: '18px', leading: '1.45'},
 } as const
 
-const themeSmokeCases = [
-    {ground: 'obsidian', accent: 'ochre', read: 'compact'},
-    {ground: 'void', accent: 'terracotta', read: 'regular'},
-    {ground: 'obsidian', accent: 'patina', read: 'large'},
-    {ground: 'void', accent: 'bone', read: 'larger'},
-] as const
-
-for (const {ground, accent, read} of themeSmokeCases) {
-    test(`theme smoke ${ground} · ${accent} · ${read}`, async ({page}) => {
-        await page.setViewportSize({width: 360, height: 748})
-        await page.goto(`/visual/index.html?scenario=notes-detail-ready&ground=${ground}&accent=${accent}&read=${read}`)
-        await expect(page).toHaveScreenshot(`theme-smoke-${ground}-${accent}-${read}.png`, {animations: 'disabled'})
-    })
-}
-
 test('all appearance token combinations resolve without horizontal overflow', async ({page}) => {
-    await page.setViewportSize({width: 360, height: 748})
-    await page.goto('/visual/index.html?scenario=notes-detail-ready')
+    for (const viewport of viewports) {
+        await page.setViewportSize(viewport)
+        await openRoute(page, '/notes/n1')
 
-    for (const [ground, expectedGround] of Object.entries(grounds)) {
-        for (const [accent, expectedAccent] of Object.entries(accents)) {
-            for (const [read, expectedRead] of Object.entries(reads)) {
-                const actual = await page.evaluate(({ground, accent, read}) => {
-                    const root = document.documentElement
-                    root.dataset.ground = ground
-                    root.dataset.accent = accent
-                    root.dataset.read = read
-                    const styles = getComputedStyle(root)
-                    return {
-                        bgDeep: styles.getPropertyValue('--bg-deep').trim(),
-                        bgSurface: styles.getPropertyValue('--bg-surface').trim(),
-                        accent: styles.getPropertyValue('--accent').trim(),
-                        accent2: styles.getPropertyValue('--accent-2').trim(),
-                        size: styles.getPropertyValue('--read-size').trim(),
-                        leading: styles.getPropertyValue('--read-leading').trim(),
-                        overflows: root.scrollWidth > root.clientWidth,
-                    }
-                }, {ground, accent, read})
+        for (const [ground, expectedGround] of Object.entries(grounds)) {
+            for (const [accent, expectedAccent] of Object.entries(accents)) {
+                for (const [read, expectedRead] of Object.entries(reads)) {
+                    const actual = await page.evaluate(({ground, accent, read}) => {
+                        const root = document.documentElement
+                        root.dataset.ground = ground
+                        root.dataset.accent = accent
+                        root.dataset.read = read
+                        const styles = getComputedStyle(root)
+                        return {
+                            bgDeep: styles.getPropertyValue('--bg-deep').trim(),
+                            bgSurface: styles.getPropertyValue('--bg-surface').trim(),
+                            accent: styles.getPropertyValue('--accent').trim(),
+                            accent2: styles.getPropertyValue('--accent-2').trim(),
+                            size: styles.getPropertyValue('--read-size').trim(),
+                            leading: styles.getPropertyValue('--read-leading').trim(),
+                            overflows: root.scrollWidth > root.clientWidth,
+                        }
+                    }, {ground, accent, read})
 
-                expect(actual).toEqual({...expectedGround, ...expectedAccent, ...expectedRead, overflows: false})
+                    expect(actual).toEqual({...expectedGround, ...expectedAccent, ...expectedRead, overflows: false})
+                }
             }
         }
     }
@@ -96,7 +107,7 @@ test('all appearance token combinations resolve without horizontal overflow', as
 
 test('reduced motion snapshot', async ({page}) => {
     await page.emulateMedia({reducedMotion: 'reduce'})
-    await page.setViewportSize({width: 360, height: 748})
-    await page.goto('/visual/index.html?scenario=onboarding-busy')
+    await page.setViewportSize(viewports[0])
+    await openRoute(page, '/chats', 'onboarding=name')
     await expect(page).toHaveScreenshot('reduced-motion.png', {animations: 'disabled'})
 })

@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {OptionCard, StepControl, Swatch} from '@uliss/design-system'
+import {Icon, Kicker, OptionCard, StepControl, Swatch} from '@uliss/design-system'
 import {SectionLabel, SettingsShell} from './SettingsShell'
 import {
     type Accent,
@@ -110,6 +110,14 @@ export function AppearanceSettings() {
             >
                 A recurring thread in your notes — constraints make you more creative, not less.
                 Link it under “Creative constraint”?
+            </div>
+
+            <SectionLabel>Preview</SectionLabel>
+            <div className="settings-preview" aria-label="Preview">
+                <span className="settings-preview-kicker"><Icon name="star" size={13}/>
+                    <Kicker size={9} spacing="3px" color="var(--text-faint)">Note 142</Kicker></span>
+                <span className="settings-preview-text">Constraints make me more creative, not less.</span>
+                <span className="settings-preview-action">Open note</span>
             </div>
 
             <p className="settings-foot-note">Applies everywhere except sign in · remembered on this device</p>

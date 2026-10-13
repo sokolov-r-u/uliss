@@ -260,6 +260,49 @@ notes too" choice; the note delete dialog has no body. The online design's `Dele
 still show the old copy and should be updated to match. `Dialog.prompt.md` still says every body must name what
 survives; the note delete dialog is an agreed exception.
 
+Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 2): the chat delete dialog lists the notes written
+from the chat as buttons. A button opens the note; the note screen then shows a Back button that returns to the URL
+carrying the open dialog (e.g. `/chats?delete=<id>`). Notes are never deleted with the chat — the list lets the user
+remove what they no longer need by hand. Blocked by `note-service`: no API returns the notes of a chat (`NoteResponse`
+has no `chatId`, no `GET /chats/{id}/notes`), although the link is stored. Update the design now; implement in `web`
+once the endpoint exists.
+
+The same API unlocks the link sections of the right context panel (item 17): "Notes from this chat" on a chat and
+"Written from" on a note. The panel ships frontend-only first (dates, note count, source); add `chatId` (or chat ids)
+to `NoteResponse` and `GET /chats/{id}/notes`, then fill both sections and the delete dialog list.
+
+## Chat `updated_at` follows the user's activity (`note-service`)
+
+Agreed 2026-10-12 (`docs/tasks/2026-10-11-prot-alignment.md`). Chat lists in `web` sort and group by last activity
+(`updatedAt ?? createdAt`), but `note.chat.updated_at` only moves on a chat-row change (rename): new messages do not
+touch it, so an active chat keeps its creation date. Bump `chat.updated_at` when a **user** message is accepted (one
+write per turn; the assistant reply does not touch it), and order `GET /chats` by `updated_at DESC` (index
+`(user_id, updated_at)`). `web` already sorts client-side, so no frontend change is needed.
+
+## Session drops: refresh token expires or is not used (`auth`, `web`)
+
+Reported 2026-10-12: the user is sent back to sign-in much sooner than the 30-day refresh lifetime. Not yet
+diagnosed; suspects, most likely first:
+
+1. **Concurrent refresh with rotation.** `reuseRefreshTokens(false)` rotates the refresh token on every use, but
+   `authFetch` (`web/src/auth/apiClient.ts`) has no single-flight refresh. When the 15-minute access token expires,
+   parallel requests (e.g. the side panel loads chats and notes at once) each refresh with the same token; the first
+   rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login.
+   **Fixed 2026-10-12:** one in-flight refresh shared by all calls, and a call that hits 401 after another call
+   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). If sign-outs continue, check suspect 2.
+2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
+   exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
+   defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
+3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
+   signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
+
+## Manual note creation (`note-service`, `web`)
+
+Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 9). The design's Notes screen has a "New note"
+action (header button on desktop/tablet, top-bar button on the phone). Notes are currently created only by chat
+summarization (`source = CHAT_SUMMARY`; the schema already distinguishes manual notes), and there is no create
+endpoint. Add `POST /notes` in `note-service`, then the "New note" action and an editor surface in `web`.
+
 ## Persist note thoughts as structured data (`note-service`)
 
 **Status:** to think about; no decision. The `CHAT_SUMMARY` model output is structured (`NoteDraft`: main thought plus

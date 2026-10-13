@@ -8,7 +8,6 @@ export * from './components/icons/Icon'
 export * from './components/brand/Wordmark'
 export * from './components/brand/Kicker'
 export * from './components/brand/PostBadge'
-export * from './components/brand/Greek'
 export * from './components/brand/StarMark'
 export * from './components/brand/StarField'
 

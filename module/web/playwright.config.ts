@@ -8,6 +8,9 @@ export default defineConfig({
     use: {
         baseURL: 'http://127.0.0.1:4173',
         colorScheme: 'dark',
+        // Dates render through toLocaleDateString: pin locale and zone so screenshots do not drift.
+        locale: 'en-US',
+        timezoneId: 'UTC',
         screenshot: 'only-on-failure',
         trace: 'retain-on-failure',
     },

@@ -1,6 +1,5 @@
 import {type CSSProperties, type ReactNode, useId} from 'react'
 import {StarMark} from '../brand/StarMark'
-import {Greek} from '../brand/Greek'
 import {Button} from '../actions/Button'
 import {IconButton} from '../actions/IconButton'
 import {Icon} from '../icons/Icon'
@@ -29,8 +28,6 @@ export interface NoticeProps {
     variant?: 'plaque' | 'framed' | 'minimal'
     /** No close, no secondary — the step must be finished. */
     blocking?: boolean
-    /** Decorative gloss above the title. */
-    greek?: ReactNode
     title: ReactNode
     body?: ReactNode
     /** The control this notice is asking through — TextField, OptionList, Select. */
@@ -53,7 +50,6 @@ export interface NoticeProps {
 export function Notice({
                            variant = 'plaque',
                            blocking = false,
-                           greek,
                            title,
                            body,
                            children,
@@ -129,11 +125,6 @@ export function Notice({
                     {variant !== 'framed' && (
                         <div style={{marginBottom: 14}}>
                             <StarMark size={20}/>
-                        </div>
-                    )}
-                    {greek && (
-                        <div style={{marginBottom: 6}}>
-                            <Greek size={13}>{greek}</Greek>
                         </div>
                     )}
                     <div

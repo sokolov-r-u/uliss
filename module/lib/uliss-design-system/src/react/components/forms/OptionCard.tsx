@@ -1,6 +1,5 @@
 import type {ReactNode} from 'react'
 import {Icon} from '../icons/Icon'
-import {Greek} from '../brand/Greek'
 
 // The one pick-from-a-set row. Two markers, the same selection language:
 //   tick (default) — settings options: ground presets, sky modes. Transparent
@@ -16,8 +15,6 @@ export interface OptionCardProps {
     label: string
     /** One short line — 'Neutral black grounds'. */
     note?: string
-    /** Decorative gloss, right-aligned. Onboarding surfaces only. */
-    greek?: string
     /** 46×46 preview content — colour bands, a mini diagram. `tick` only. */
     preview?: ReactNode
     /** Fallback preview slot — `preview` wins when both are given. */
@@ -32,7 +29,6 @@ export interface OptionCardProps {
 export function OptionCard({
                                label,
                                note,
-                               greek,
                                preview,
                                children,
                                marker = 'tick',
@@ -125,7 +121,6 @@ export function OptionCard({
           </span>
                 )}
       </span>
-            {greek && <Greek size={13}>{greek}</Greek>}
             {!dot &&
                 (on ? (
                     <span style={{color: 'var(--accent-2)', display: 'flex'}}>

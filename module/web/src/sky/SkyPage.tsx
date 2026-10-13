@@ -1,6 +1,7 @@
 import {useMemo, useRef, useState} from 'react'
 import {EmptyState, Icon, IconButton, Kicker, Select, StepControl} from '@uliss/design-system'
 import type {SkyGraphModel, SkyGraphNode} from '../views/models'
+import {ScreenHeader} from '../ui/ScreenHeader'
 
 const SEEDS = [{left: '34%', top: '33%', r: 4, on: true}, {left: '63%', top: '24%', r: 3, on: false}]
 
@@ -15,7 +16,9 @@ export function SkyView({model, disabled = false}: { model: SkyGraphModel | null
     const selected = selectedId ? byId.get(selectedId) ?? null : null
     const constellations = model?.nodes.filter((node) => node.kind === 'constellation') ?? []
 
-    if (!model || model.nodes.length < 3) return <div className="product-view product-empty sky-empty-view">
+    if (!model || model.nodes.length < 3) return <div className="product-view sky-empty-view">
+        <ScreenHeader kicker="Sky"/>
+        <div className="product-body sky-stage"><div className="product-empty">
         {SEEDS.map((seed, index) => <span key={index} className="sky-seed" style={{
             left: seed.left,
             top: seed.top,
@@ -26,12 +29,15 @@ export function SkyView({model, disabled = false}: { model: SkyGraphModel | null
         }}/>)}
         <EmptyState title="Two stars are not a sky"
                     body="Uliss draws the map once you have three notes. Start a few chats, then press Summarize — it turns them into notes right away."/>
+        </div></div>
     </div>
 
     const visible = (node: SkyGraphNode) => !filter || node.id === filter || node.kind === 'you' || model.edges.some((edge) => (edge.from === filter && edge.to === node.id) || (edge.to === filter && edge.from === node.id))
     const zoom = (delta: number) => setScale((value) => Math.min(2.5, Math.max(0.6, value + delta)))
 
     return <div className="product-view sky-view">
+        <ScreenHeader kicker="Sky"/>
+        <div className="sky-stage">
         <div className="sky-toolbar">
             <Select aria-label="Filter by constellation" value={filter} onChange={setFilter} disabled={disabled}
                     placeholder="All constellations"
@@ -104,7 +110,7 @@ export function SkyView({model, disabled = false}: { model: SkyGraphModel | null
                 <h2>{selected.label}</h2><p>This panel presents graph context only. Runtime actions remain unavailable
                 until graph data has a backend contract.</p></aside>}
         </div>
-    </div>
+    </div></div>
 }
 
 /** Production adapter: graph data has no backend contract, so the renderer receives no model. */

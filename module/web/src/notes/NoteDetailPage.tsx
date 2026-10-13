@@ -1,11 +1,14 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
-import {Link, useNavigate, useParams} from 'react-router-dom'
-import {Button, Icon, IconButton, Kicker} from '@uliss/design-system'
+import {useNavigate, useParams} from 'react-router-dom'
+import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
+import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
-import {getNote, type Note, NoteApiError, streamNoteStatus} from './noteApi'
+import {ScreenHeader} from '../ui/ScreenHeader'
+import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
 import './notes.css'
+import {formatFullDate} from '../ui/format'
 
 type ReadyNote = Note & { content: string }
 
@@ -26,10 +29,15 @@ export function NoteDetailView({state, onRetry, actions}: {
     onRetry?: () => void
     actions?: ReactNode
 }) {
-    return <div className="note-detail">
-        <header className="note-detail-header"><Link to="/notes" className="note-back-link">‹ notes</Link>
-            <Kicker size={9} spacing="3px" color="var(--text-faint)">Note</Kicker>
-            {actions && <span style={{marginLeft: 'auto'}}>{actions}</span>}</header>
+    // The note title is the page heading; every other state names itself in the body.
+    const title = state.status === 'ready' ? state.note.title || undefined : undefined
+    const [panelOpen, togglePanel, closePanel] = usePanelOpen()
+    const note = 'note' in state ? state.note : null
+    const right = <>{note && <PanelToggle label="Note details" open={panelOpen}
+                                          onToggle={togglePanel}/>}{actions}</>
+    return <div className="detail-layout"><div className="note-detail">
+        {title ? <ScreenHeader title={title} right={right}/> : <ScreenHeader kicker="Note" right={right}/>}
+        <div className="note-detail-body">
         {state.status === 'loading' && <p className="note-detail-state">Loading…</p>}
         {state.status === 'generating' &&
             <div className="note-detail-state" aria-live="polite"><h1>Writing this note…</h1>
@@ -43,11 +51,21 @@ export function NoteDetailView({state, onRetry, actions}: {
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
         {state.status === 'ready' && <article className="note-content">
-            {state.note.title && <h1 className="note-title">{state.note.title}</h1>}
             {state.note.source === 'CHAT_SUMMARY'
                 ? <MarkdownContent content={state.note.content}/>
                 : state.note.content}
         </article>}
+        </div>
+    </div>
+        {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
+            <PanelSection label="Written from">
+                <p className="context-text">{note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>
+            </PanelSection>
+            <PanelSection label="Dates">
+                <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
+                <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt) || '—'}/>
+            </PanelSection>
+        </ContextPanel>}
     </div>
 }
 
@@ -84,6 +102,8 @@ export function NoteDetailPage() {
                     if (event.status === 'FAILED') setState({status: 'failed', note: {...note, status: 'FAILED'}})
                 },
             })
+            // The note finished (title and content now exist, or it failed): note lists re-read it.
+            if (terminal) notifyNotesChanged()
             if (terminal === 'READY') {
                 const ready = await getNote(noteId, controller.signal)
                 if (ready.status !== 'READY' || ready.content == null) {

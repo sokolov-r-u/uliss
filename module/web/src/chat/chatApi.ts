@@ -46,7 +46,7 @@ export function subscribeToChatListChanges(listener: () => void): () => void {
     return () => chatListListeners.delete(listener)
 }
 
-/** Re-fetch chat-list views after a mutation that can change membership, title, or order. */
+/** Re-fetch chat-list views after a mutation that can change membership, title, note count, or order. */
 export function notifyChatListChanged() {
     chatListListeners.forEach((listener) => listener())
 }
@@ -54,7 +54,21 @@ export function notifyChatListChanged() {
 export async function listChats(): Promise<Chat[]> {
     const res = await authFetch('/note/chats')
     if (!res.ok) throw new Error(`chat list fetch failed (${res.status})`)
-    return (await res.json()) as Chat[]
+    return sortByActivity((await res.json()) as Chat[])
+}
+
+/** Last activity of a chat: `updatedAt`, else `createdAt` — what chat lists sort and group by. */
+export function chatActivity(chat: Chat): string | undefined {
+    return chat.updatedAt ?? chat.createdAt
+}
+
+// The server orders by creation; lists show and group by last activity, newest first.
+function sortByActivity(chats: Chat[]): Chat[] {
+    const time = (chat: Chat) => {
+        const value = Date.parse(chatActivity(chat) ?? '')
+        return Number.isNaN(value) ? 0 : value
+    }
+    return [...chats].sort((a, b) => time(b) - time(a))
 }
 
 /** A failed chat request; `status` lets callers word 404/409 for the user. */

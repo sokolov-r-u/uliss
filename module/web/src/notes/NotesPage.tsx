@@ -1,11 +1,14 @@
 import {useEffect, useState} from 'react'
-import {Button, EmptyState, Icon, Kicker, ListHeader, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
 import type {NoteViewModel} from '../views/models'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {listNotes, type Note} from './noteApi'
+import {groupByMonth} from '../ui/nav/recency'
+import {ScreenHeader} from '../ui/ScreenHeader'
+import {listNotes, type Note, subscribeToNotesChanges} from './noteApi'
 import './notes.css'
+import {formatShortDate} from '../ui/format'
 
 export interface NotesViewProps {
     notes: NoteViewModel[]
@@ -19,17 +22,19 @@ export interface NotesViewProps {
 
 export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: NotesViewProps) {
     const unread = notes.filter((note) => note.unread).length
-    const maxOrdinal = notes.reduce((max, note) => Math.max(max, note.ordinal), 0)
 
     if (notes.length === 0) {
-        return <div className="product-view product-empty"><EmptyState title="Nothing written down yet"
-                                                                       body="Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never have to."
-                                                                       action="Start a chat" onAction={onStartChat}/>
+        return <div className="product-view"><ScreenHeader kicker="Notes" count={0}/>
+            <div className="product-body"><div className="product-empty">
+                <EmptyState title="Nothing written down yet"
+                            body="Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never have to."
+                            action="Start a chat" onAction={onStartChat}/>
+            </div></div>
         </div>
     }
 
-    const row = (note: NoteViewModel, openMenu?: (anchor: HTMLElement) => void) =>
-        <ListRow title={`${String(note.ordinal).padStart(3, '0')} · ${note.title}`}
+    const row = (note: NoteViewModel, first: boolean, openMenu?: (anchor: HTMLElement) => void) =>
+        <ListRow title={note.title} first={first}
                  date={note.date} unread={note.unread} dim={note.unread === false}
                  meta={note.linkCount > 0 ? <><Icon name="star" size={12}/>{note.linkCount}</> : undefined}
                  onClick={onOpen ? () => onOpen(note) : undefined}
@@ -38,11 +43,15 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
 
     return (
         <div className="product-view">
-            <ListHeader kicker="Notes" total={String(maxOrdinal).padStart(3, '0')}
-                        right={unread > 0 ? <Kicker size={9} spacing="2px"
-                                                    color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
-            <div className="product-list">
-                {notes.map((note) => actions
+            <ScreenHeader kicker="Notes" count={notes.length}
+                          right={unread > 0 ? <Kicker size={9} spacing="2px"
+                                                      color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
+            <div className="product-body"><div className="product-list">
+                {groupByMonth(notes, (note) => note.createdAt).map((group, groupIndex) => <div
+                    key={`${group.label}-${groupIndex}`} className="list-group">
+                    {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
+                                                                        color="var(--text-faint)">{group.label}</Kicker></div>}
+                {group.items.map((note, index) => actions
                     ? <ItemActions key={note.id}
                                    target={{
                                        kind: 'note',
@@ -54,20 +63,14 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
                                    onRenamed={(title) => actions.onRenamed(note.id, title)}
                                    onDeleted={() => actions.onDeleted(note.id)}>
                         {(openMenu, menuOpen) => <div className={menuOpen ? 'product-row-active' : undefined}>
-                            {row(note, openMenu)}
+                            {row(note, index === 0, openMenu)}
                         </div>}
                     </ItemActions>
-                    : <div key={note.id}>{row(note)}</div>)}
-            </div>
+                    : <div key={note.id}>{row(note, index === 0)}</div>)}
+                </div>)}
+            </div></div>
         </div>
     )
-}
-
-function formatDate(iso?: string): string {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
 }
 
 function contentParts(content: string | null, storedTitle?: string): { title: string; excerpt: string } {
@@ -92,9 +95,10 @@ export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
             ordinal: notes.length - index,
             title,
             excerpt: note.status === 'READY' ? content.excerpt : '',
-            date: formatDate(note.createdAt),
+            date: formatShortDate(note.createdAt),
             linkCount: 0,
             renamable: note.status === 'READY',
+            createdAt: note.createdAt,
         }
     })
 }
@@ -106,9 +110,12 @@ export function NotesPage() {
     >({status: 'loading'})
     const [revision, setRevision] = useState(0)
 
+    useEffect(() => subscribeToNotesChanges(() => setRevision((value) => value + 1)), [])
+
     useEffect(() => {
         const controller = new AbortController()
-        setState({status: 'loading'})
+        // A refresh after a change elsewhere keeps the rows instead of flashing "Loading…".
+        setState((current) => current.status === 'ready' ? current : {status: 'loading'})
         listNotes(controller.signal)
             .then((notes) => setState({status: 'ready', notes: toNoteViewModels(notes)}))
             .catch((error: unknown) => {
@@ -119,10 +126,10 @@ export function NotesPage() {
     }, [revision])
 
     if (state.status === 'loading') {
-        return <div className="product-view"><ListHeader kicker="Notes"/><p className="notes-state">Loading…</p></div>
+        return <div className="product-view"><ScreenHeader kicker="Notes"/><p className="notes-state">Loading…</p></div>
     }
     if (state.status === 'error') {
-        return <div className="product-view"><ListHeader kicker="Notes"/>
+        return <div className="product-view"><ScreenHeader kicker="Notes"/>
             <div className="notes-state notes-state-error">
                 <p>{state.message}</p><Button size="sm" variant="quiet"
                                               onClick={() => setRevision((value) => value + 1)}>Retry</Button>

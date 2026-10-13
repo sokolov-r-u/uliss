@@ -1,24 +1,19 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
 import {useEffect, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, ListHeader, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {type Chat, listChats, subscribeToChatListChanges} from './chatApi'
+import {groupByMonth} from '../ui/nav/recency'
+import {ScreenHeader} from '../ui/ScreenHeader'
+import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from './chatApi'
 import './chat.css'
+import {formatShortDate} from '../ui/format'
 
 type ListState =
     | { status: 'loading' }
     | { status: 'error'; message: string }
     | { status: 'ready'; chats: Chat[] }
-
-/** Absolute and short — 'Jun 22'. The DS list never shows relative time. */
-function formatDate(iso?: string): string {
-    if (!iso) return ''
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    return date.toLocaleDateString(undefined, {month: 'short', day: 'numeric'})
-}
 
 export function ChatListPage() {
     const navigate = useNavigate()
@@ -56,33 +51,37 @@ export function ChatListPage() {
     }
 
     return (
-        <div className="chat-list-screen">
-            <ListHeader
+        <div className="product-view">
+            <ScreenHeader
                 kicker="Chats"
-                total={state.status === 'ready' ? state.chats.length : undefined}
+                count={state.status === 'ready' ? state.chats.length : undefined}
                 right={
-                    <Button variant="quiet" onClick={onNewChat}>
+                    <Button variant="quiet" size="sm" onClick={onNewChat}>
                         New chat
                     </Button>
                 }
             />
 
-            <div className="chat-list-body">
+            <div className="product-body">
                 {state.status === 'loading' && <p className="chat-state">Loading…</p>}
                 {state.status === 'error' && <p className="chat-state chat-state-error">{state.message}</p>}
 
-                {state.status === 'ready' && state.chats.length === 0 && (
+                {state.status === 'ready' && state.chats.length === 0 && <div className="product-empty">
                     <EmptyState
                         title="No chats yet"
                         body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
                         action="Start a chat"
                         onAction={onNewChat}
                     />
-                )}
+                </div>}
 
                 {state.status === 'ready' && state.chats.length > 0 && (
-                    <div className="chat-list">
-                        {state.chats.map((chat) => (
+                    <div className="product-list">
+                        {groupByMonth(state.chats, chatActivity).map((group, groupIndex) => <div
+                            key={`${group.label}-${groupIndex}`} className="list-group">
+                            {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
+                                                                                color="var(--text-faint)">{group.label}</Kicker></div>}
+                        {group.items.map((chat, index) => (
                             <ItemActions key={chat.id}
                                          target={{
                                              kind: 'chat',
@@ -92,13 +91,15 @@ export function ChatListPage() {
                                          }}>
                                 {(openMenu) => <ListRow
                                     title={chat.title}
-                                    date={formatDate(chat.updatedAt ?? chat.createdAt)}
+                                    first={index === 0}
+                                    date={formatShortDate(chatActivity(chat))}
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
                                     onMenu={openMenu}
                                     menuLabel={`Actions for ${chat.title}`}/>}
                             </ItemActions>
                         ))}
+                        </div>)}
                     </div>
                 )}
             </div>

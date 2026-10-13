@@ -34,6 +34,9 @@ export function SettingsRow({
                 gap: 12,
                 padding: '15px 12px 15px 13px',
                 borderTop: first ? 'none' : '1px solid var(--line)',
+                // Only the top hairline and the active edge: clear the native button's right/bottom border.
+                borderRight: 0,
+                borderBottom: 0,
                 background: active ? 'var(--bg-surface)' : 'transparent',
                 borderLeft: active ? '2px solid var(--accent)' : '2px solid transparent',
                 width: '100%',
