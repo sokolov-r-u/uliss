@@ -28,3 +28,14 @@ export const FixtureRow = () => (
         <ListRow title="Trip to the coast" date="Jul 3" dots={false}/>
     </Ground>
 )
+
+export const WideList = () => (
+    <Ground width={560} pad={24}>
+        <ListRow size="wide" first title="The empty room" date="Jun 22" unread onClick={() => undefined}
+                 meta={<><Icon name="star" size={12}/>4</>}/>
+        <ListRow size="wide" title="Notes on forgetting" date="Jun 18" dim onClick={() => undefined}
+                 meta={<><Icon name="star" size={12}/>6</>}/>
+        <ListRow size="wide" title="Letter I never sent to my brother about the summer house" date="Jun 9" dim
+                 onClick={() => undefined} meta={<><Icon name="star" size={12}/>2</>}/>
+    </Ground>
+)

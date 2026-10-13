@@ -3,8 +3,8 @@ import {useState} from 'react'
 import {Ground} from '../preview-kit/Ground'
 
 const SEX = [
-    {value: 'woman', label: 'Woman', greek: 'γυνή'},
-    {value: 'man', label: 'Man', greek: 'ἀνήρ'},
+    {value: 'woman', label: 'Woman'},
+    {value: 'man', label: 'Man'},
     {value: 'unsaid', label: 'Prefer not to say'},
 ]
 
@@ -12,7 +12,7 @@ export const Closed = () => {
     const [value, setValue] = useState<string | null>('woman')
     return (
         <Ground width={340}>
-            <Select label="Sex" greek="γένος" value={value} onChange={setValue} options={SEX}/>
+            <Select label="Gender" value={value} onChange={setValue} options={SEX}/>
         </Ground>
     )
 }
@@ -21,7 +21,7 @@ export const Open = () => {
     const [value, setValue] = useState<string | null>('woman')
     return (
         <Ground width={340} style={{minHeight: 260}}>
-            <Select label="Sex" greek="γένος" value={value} onChange={setValue} options={SEX} open
+            <Select label="Gender" value={value} onChange={setValue} options={SEX} open
                     onOpenChange={() => undefined}/>
         </Ground>
     )
@@ -31,7 +31,7 @@ export const Placeholder = () => {
     const [value, setValue] = useState<string | null>(null)
     return (
         <Ground width={340}>
-            <Select label="Constellation" greek="ἄστρον" placeholder="All constellations" value={value}
+            <Select label="Constellation" placeholder="All constellations" value={value}
                     onChange={setValue}
                     options={[{value: 'travel', label: 'Travel'}, {value: 'reading', label: 'Reading'}]}/>
         </Ground>

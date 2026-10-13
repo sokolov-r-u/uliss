@@ -6,7 +6,7 @@ export const Empty = () => {
     const [name, setName] = useState('')
     return (
         <Ground width={320}>
-            <TextField label="Name" greek="ὄνομα" placeholder="How should Uliss call you?" value={name}
+            <TextField label="Name" placeholder="How should Uliss call you?" value={name}
                        onChange={(e) => setName(e.target.value)} maxLength={24}/>
         </Ground>
     )
@@ -16,7 +16,7 @@ export const FocusedWithCounter = () => {
     const [name, setName] = useState('Penelope')
     return (
         <Ground width={320}>
-            <TextField label="Name" greek="ὄνομα" value={name} focused
+            <TextField label="Name" value={name} focused
                        onChange={(e) => setName(e.target.value)} maxLength={24}/>
         </Ground>
     )
@@ -33,6 +33,6 @@ export const NearLimit = () => {
 
 export const Disabled = () => (
     <Ground width={320}>
-        <TextField label="Name" greek="ὄνομα" value="Penelope" onChange={() => undefined} disabled/>
+        <TextField label="Name" value="Penelope" onChange={() => undefined} disabled/>
     </Ground>
 )

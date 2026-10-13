@@ -39,10 +39,10 @@ export const DotMarker = () => (
     </Ground>
 )
 
-export const WithGreekAndDisabled = () => (
+export const Disabled = () => (
     <Ground width={340}>
         <div role="radiogroup" aria-label="Language" style={{display: 'grid', gap: 8}}>
-            <OptionCard marker="dot" label="English" greek="γλῶσσα" on/>
+            <OptionCard marker="dot" label="English" on/>
             <OptionCard marker="dot" label="Ελληνικά" note="Coming later" disabled/>
         </div>
     </Ground>

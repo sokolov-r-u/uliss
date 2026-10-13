@@ -3,7 +3,7 @@ import {Ground} from '../preview-kit/Ground'
 
 export const AboveField = () => (
     <Ground width={320}>
-        <LabelRow label="Name" greek="ὄνομα"/>
+        <LabelRow label="Name"/>
     </Ground>
 )
 

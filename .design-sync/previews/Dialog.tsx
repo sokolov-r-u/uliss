@@ -1,4 +1,5 @@
-import {Dialog, Icon, ListRow} from '@uliss/design-system'
+import {Dialog, Icon, ListRow, TextField} from '@uliss/design-system'
+import {useState} from 'react'
 import {Ground} from '../preview-kit/Ground'
 
 // Dialog renders a fixed full-viewport overlay; the rows behind it stand in for the live screen.
@@ -22,8 +23,30 @@ export const Summarize = () => (
 export const DeleteNote = () => (
     <>
         <Behind/>
-        <Dialog danger title="Delete “The empty room”?"
-                body="The note goes. The chats it came from stay, and so do its constellations."
-                confirm="Delete" cancel="Keep" onConfirm={() => undefined} onCancel={() => undefined}/>
+        <Dialog danger title="Delete “The empty room”?" confirm="Delete" cancel="Cancel"
+                onConfirm={() => undefined} onCancel={() => undefined}/>
     </>
 )
+
+export const DeleteChat = () => (
+    <>
+        <Behind/>
+        <Dialog danger title="Delete “Planning the autumn walk”?"
+                body="Uliss wrote 2 notes from this chat. They will stay — delete them from Notes if you no longer need them."
+                confirm="Delete" cancel="Cancel" onConfirm={() => undefined} onCancel={() => undefined}/>
+    </>
+)
+
+export const RenameNote = () => {
+    const [title, setTitle] = useState('The empty room')
+    return (
+        <>
+            <Behind/>
+            <Dialog title="Rename note" confirm="Save" cancel="Cancel" confirmDisabled={!title.trim()}
+                    onConfirm={() => undefined} onCancel={() => undefined}>
+                <TextField label="Title" value={title} onChange={(event) => setTitle(event.target.value)}
+                           maxLength={50}/>
+            </Dialog>
+        </>
+    )
+}
