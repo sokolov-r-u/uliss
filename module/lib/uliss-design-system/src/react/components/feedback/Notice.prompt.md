@@ -3,7 +3,8 @@ The modal card. Every blocking or dismissible thing Uliss says.
 ```jsx
 <Notice blocking variant="framed" progress={{ current: 1, total: 3 }}
   title="What should Uliss call you?" primary="Continue" skip="Later" onSkip={...}>
-  <TextField label="Name" placeholder="Wayfarer" value="Wayf" max={24} />
+  <TextField label="Name" placeholder="Wayfarer" value={name}
+    onChange={(event) => setName(event.target.value)} maxLength={24} />
 </Notice>
 
 <Notice variant="minimal" title="Uliss reorganised four notes last night"

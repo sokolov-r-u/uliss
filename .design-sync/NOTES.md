@@ -29,10 +29,6 @@
 
 - None at the end of the 2026-10-13 sync.
 
-## Repo doc drift found during sync (not fixed here)
-
-- `Notice.prompt.md` example passes `max={24}` to `TextField`; the real prop is `maxLength`.
-
 ## Re-sync risks
 
 - `build-dist.sh` concatenates token CSS in `src/styles.css` import order; a new token file or a changed `@import`
