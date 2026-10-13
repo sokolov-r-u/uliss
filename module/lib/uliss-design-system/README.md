@@ -52,9 +52,9 @@ Motion is limited to tokenized colour changes, pending/twinkle states, notice en
 the mobile navigation drawer may enter horizontally using `--dur-drawer` and `--ease-drawer`. Other slide, bounce, and
 skeleton motion remains unsupported, and reduced-motion disables nonessential animation and transitions.
 
-The visual system originated in an external Claude Design project. That reference is historical provenance, not an
-available build input or guaranteed tool. Committed source, tokens, and `.prompt.md` files are authoritative unless an
-accessible external reference is supplied.
+The visual system originated in the Claude Design project "Uliss Design System", which still holds the `PROT *`
+prototypes for features not yet built. For existing components, committed source, tokens, and `.prompt.md` files are
+authoritative; the "Uliss DS (code)" project is generated from them by `/design-sync`.
 
 ## Verification
 
