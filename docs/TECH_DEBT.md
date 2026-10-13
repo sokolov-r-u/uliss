@@ -248,10 +248,27 @@ Opened 2026-08-31 during the design-system integration refresh
 
 ## Summarize updates the chat's existing note (`note-service`, `web`)
 
-Every Summarize currently creates a new note. Agreed behaviour (design: "Update"): when a chat already has a note,
-Summarize sends that note, the messages after the previous summary boundary, and RAG context to the model and updates
-the same note. Chat ↔ note stays many-to-many in the model; one chat feeding several notes is deferred until chats can
-search for related notes.
+**Status:** designed 2026-10-08 in `docs/features/2026-10-08-summary-update-design.md`; implementation in progress.
+The update appends a dated addendum to the chat's latest READY note; RAG retrieval embeds only the new messages and
+excludes that note.
+
+Deferred follow-ups agreed during that design:
+
+- **Create a new note on a new topic.** A third Summarize choice next to "Update note": send the messages after the
+  boundary plus the current note and ask for a note on the main topic discussed after it. Dropped from the MVP because
+  a new chat is the natural path for a new topic and the model cannot reliably avoid near-duplicates. The schema
+  allows it later as one more outbox event type and prompt.
+- **Notify the user about the outcome of an asynchronous update.** `summary_request.status` records `NOTHING_NEW` and
+  `FAILED`, but the chat shows only "Updating the note in the background". Deliver the outcome through the planned
+  user notification list.
+- **Retention cleanup for `note.summary_request`.** The table only serves idempotency and the in-flight guard; the
+  durable boundary lives in `chat_note.summarized_through_message_id`. Delete terminal rows (`APPLIED`, `NOTHING_NEW`,
+  `FAILED`) older than the idempotency window; never delete `PENDING` rows.
+- **Summary markers in the chat timeline.** Show "Summarized into «note» · date" dividers in the message thread. Render
+  them from summary data, not as a new `chat_message` role: a marker written on completion sorts after messages sent
+  during generation, so it cannot serve as the boundary. Today only the latest boundary is known to the client.
+  Once markers exist and are positioned by `through_message_id`, they can replace the `summary` field of the latest
+  message page.
 
 ## Design kit copy for chat/note deletion (`uliss-design-system`)
 
