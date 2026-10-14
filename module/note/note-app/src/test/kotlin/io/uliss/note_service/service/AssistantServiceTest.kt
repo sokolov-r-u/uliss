@@ -245,6 +245,39 @@ class AssistantServiceTest {
         Mockito.verifyNoInteractions(chatClient)
     }
 
+    @Test
+    fun `empty failed and canceled replies are not sent to the provider`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val history = listOf(
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "first", ChatMessageStatus.COMPLETE),
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.FAILED),
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "second", ChatMessageStatus.COMPLETE),
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.CANCELED),
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "third", ChatMessageStatus.COMPLETE),
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "half", ChatMessageStatus.PARTIAL),
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE, turnId),
+        )
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        mockRequestChain()
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi")).thenReturn(
+            ChatTurnRequestResolution.StartGeneration(turn(userId, chatId, turnId, ChatTurnStatus.GENERATING), history)
+        )
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(replies("ok"))
+        Mockito.`when`(chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "ok", ChatTurnStatus.COMPLETE))
+            .thenReturn(true)
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+            .expectNext(AssistantStreamEvent.AppendText("ok"), AssistantStreamEvent.GenerationCompleted)
+            .verifyComplete()
+
+        val captor = captorFor<List<Message>>(List::class.java)
+        Mockito.verify(requestSpec).messages(captor.captureValue())
+        assertEquals(listOf("first", "second", "third", "half", "hi"), captor.value.map { it.text })
+    }
+
     private fun staleFinalization(userId: UUID, chatId: UUID, turnId: UUID) {
         val start = ChatTurnRequestResolution.StartGeneration(
             turn(userId, chatId, turnId, ChatTurnStatus.GENERATING),

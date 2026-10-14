@@ -174,10 +174,13 @@ class AssistantService(
         ChatTurnStatus.GENERATING -> error("a generating turn cannot be a terminal replay")
     }
 
-    private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history.map {
-        when (it.role) {
-            ChatMessageRole.USER -> UserMessage(it.content)
-            ChatMessageRole.ASSISTANT -> AssistantMessage(it.content)
+    /** Empty FAILED/CANCELED replies carry nothing for the model and would only grow the prompt. */
+    private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history
+        .filterNot { it.role == ChatMessageRole.ASSISTANT && it.content.isEmpty() }
+        .map {
+            when (it.role) {
+                ChatMessageRole.USER -> UserMessage(it.content)
+                ChatMessageRole.ASSISTANT -> AssistantMessage(it.content)
+            }
         }
-    }
 }
