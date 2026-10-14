@@ -46,39 +46,45 @@ class LoggingAspectTest {
 
     private fun messages() = appender.list.map { it.formattedMessage }
 
+    private fun keyValues(index: Int) =
+        appender.list[index].keyValuePairs.orEmpty().associate { it.key to it.value.toString() }
+
     @Test
     fun `logs call and result with argument names`() {
         service.echo("hello")
 
-        assertContains(messages()[0], "SampleService.echo")
-        assertContains(messages()[0], "text=hello")
-        assertContains(messages()[1], "return value='hello'")
+        assertEquals(listOf("call", "finish"), messages())
+        assertEquals(mapOf("method" to "echo", "args" to "text=hello"), keyValues(0))
+        assertEquals(mapOf("method" to "echo", "result" to "hello"), keyValues(1))
     }
 
     @Test
     fun `masks secret arguments by parameter name`() {
         service.refresh("secret-refresh", "web")
 
-        assertFalse(messages().any { "secret-refresh" in it }, messages().toString())
-        assertContains(messages()[0], "refreshToken=***")
-        assertContains(messages()[0], "clientId=web")
+        val args = keyValues(0).getValue("args")
+        assertFalse("secret-refresh" in args, args)
+        assertContains(args, "refreshToken=***")
+        assertContains(args, "clientId=web")
     }
 
     @Test
     fun `truncates long values`() {
         service.echo("x".repeat(2_000))
 
-        assertTrue(messages().all { it.length < 1_000 }, messages().map { it.length }.toString())
-        assertContains(messages()[0], "(2000 chars)")
+        val args = keyValues(0).getValue("args")
+        val result = keyValues(1).getValue("result")
+        assertTrue(args.length < 1_000 && result.length < 1_000, "${args.length}, ${result.length}")
+        assertContains(args, "(2000 chars)")
     }
 
     @Test
     fun `logs an exception once at debug without a stack trace and rethrows it`() {
         assertThrows<IllegalStateException> { service.fail() }
 
-        val exit = appender.list.single { "exit" in it.formattedMessage }
+        val exit = appender.list.single { it.formattedMessage == "exit" }
         assertEquals(Level.DEBUG, exit.level)
-        assertContains(exit.formattedMessage, "IllegalStateException")
+        assertEquals(mapOf("method" to "fail", "exception" to "IllegalStateException"), keyValues(1))
         assertNull(exit.throwableProxy)
         assertFalse(appender.list.any { it.level == Level.ERROR })
     }

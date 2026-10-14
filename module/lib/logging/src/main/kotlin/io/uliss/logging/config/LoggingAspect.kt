@@ -32,15 +32,16 @@ class LoggingAspect {
         val logger = LoggerFactory.getLogger(signature.declaringType)
         if (!logger.isDebugEnabled) return proceedingJoinPoint.proceed()
 
-        val method = "${signature.declaringType.simpleName}.${signature.name}"
-        logger.debug("call method='{}' with args='{}'", method, renderArgs(proceedingJoinPoint))
+        // The class is the logger name; method, args and result are separate fields in structured output.
+        val method = signature.name
+        logger.atDebug().addKeyValue("method", method).addKeyValue("args", renderArgs(proceedingJoinPoint)).log("call")
         val result = try {
             proceedingJoinPoint.proceed()
         } catch (ex: Throwable) {
-            logger.debug("exit method='{}' with exception='{}'", method, ex.javaClass.simpleName)
+            logger.atDebug().addKeyValue("method", method).addKeyValue("exception", ex.javaClass.simpleName).log("exit")
             throw ex
         }
-        logger.debug("finish method='{}' return value='{}'", method, renderResult(result))
+        logger.atDebug().addKeyValue("method", method).addKeyValue("result", renderResult(result)).log("finish")
         return result
     }
 

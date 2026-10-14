@@ -4,37 +4,41 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import kotlin.reflect.KClass
 
-class AppLogger(private val logger: Logger, private val clazz: KClass<*>) {
+/**
+ * Logs the calling method as a `method` key value, a separate field in structured (JSON) output; the class is
+ * already the logger name. `message` is an SLF4J template filled from `args`.
+ */
+class AppLogger(private val logger: Logger) {
 
     fun debug(method: String, message: () -> String) {
         if (logger.isDebugEnabled) {
-            logger.debug("method='{}.{}' message='${message()}'", clazz, method)
+            logger.atDebug().addKeyValue(METHOD, method).log(message())
         }
     }
 
     fun info(message: String, method: String, vararg args: Any?) {
-        logger.info("method='{}.{}' message='$message'", clazz, method, *args)
+        logger.atInfo().addKeyValue(METHOD, method).log(message, *args)
     }
 
     fun warn(message: String, method: String, vararg args: Any?) {
-        logger.warn("method='{}.{}' message='$message'", clazz, method, *args)
+        logger.atWarn().addKeyValue(METHOD, method).log(message, *args)
     }
 
     fun warn(message: String, method: String, ex: Throwable) {
-        logger.warn("method='$clazz.$method' message='$message'", ex)
+        logger.atWarn().addKeyValue(METHOD, method).setCause(ex).log(message)
     }
 
     fun error(message: String, method: String, vararg args: Any?) {
-        logger.error("method='{}.{}' message='$message'", clazz, method, *args)
+        logger.atError().addKeyValue(METHOD, method).log(message, *args)
     }
 
     fun error(message: String, method: String, ex: Throwable) {
-        logger.error("method='$clazz.$method' message='$message'", ex)
+        logger.atError().addKeyValue(METHOD, method).setCause(ex).log(message)
     }
 
     companion object {
-        fun of(clazz: KClass<*>) = AppLogger(LoggerFactory.getLogger(clazz.java), clazz)
+        private const val METHOD = "method"
+
+        fun of(clazz: KClass<*>) = AppLogger(LoggerFactory.getLogger(clazz.java))
     }
 }
-
-
