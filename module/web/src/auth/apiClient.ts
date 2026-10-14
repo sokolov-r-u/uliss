@@ -1,17 +1,25 @@
 /**
- * `authFetch` — the single entry point for calling the current service's protected API.
- * Attaches `Authorization: Bearer`, refreshes proactively (by expiry) and reactively (on 401 /
- * auth-redirect), and hands off to login when refresh is impossible. Paths are relative
- * (Vite proxy in dev / same-origin gateway in prod).
+ * `getAccessToken` is the only owner of the session: it returns the stored access token or refreshes it,
+ * with at most one refresh in flight. `authFetch` — the single entry point for calling the current
+ * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
+ * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
 import {clearTokens, getTokens, isExpired, type Tokens} from './tokenStore'
-import {login, refreshTokens} from './authApi'
+import {login, RefreshRejectedError, refreshTokens} from './authApi'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
 export class AuthRequiredError extends Error {
   constructor() {
     super('authentication required')
     this.name = 'AuthRequiredError'
+  }
+}
+
+/** The session could not be refreshed right now (network or server failure); the tokens are kept. */
+export class SessionRefreshError extends Error {
+  constructor(cause: unknown) {
+    super('Could not refresh the session. Check the connection and try again.', {cause})
+    this.name = 'SessionRefreshError'
   }
 }
 
@@ -36,50 +44,47 @@ function needsAuth(res: Response): boolean {
 // with invalid_grant and send the user to sign-in.
 let refreshing: Promise<Tokens> | null = null
 
-async function refreshWith(refreshToken: string | null): Promise<Tokens> {
-  if (refreshToken) {
-    try {
-      return await refreshTokens(refreshToken)
-    } catch {
-      // fall through to login
-    }
-  }
+function signInAgain(): never {
   clearTokens()
   login()
   throw new AuthRequiredError()
 }
 
-/** Fresh tokens for a call that holds `used`: reuse ones another call already stored, else join or start a refresh. */
-async function refreshOrLogin(used: Tokens): Promise<Tokens> {
-  const stored = getTokens()
-  if (stored && stored.accessToken !== used.accessToken && !isExpired(stored)) return stored
-  if (!refreshing) {
-    refreshing = refreshWith(stored?.refreshToken ?? used.refreshToken).finally(() => {
-      refreshing = null
-    })
+async function runRefresh(refreshToken: string | null): Promise<Tokens> {
+  if (!refreshToken) signInAgain()
+  try {
+    return await refreshTokens(refreshToken)
+  } catch (error) {
+    if (error instanceof RefreshRejectedError) signInAgain()
+    throw new SessionRefreshError(error)
   }
+}
+
+function refreshOnce(refreshToken: string | null): Promise<Tokens> {
+  refreshing ??= runRefresh(refreshToken).finally(() => {
+    refreshing = null
+  })
   return refreshing
 }
 
-export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
-  let tokens = getTokens()
-  if (!tokens) {
-    login()
-    throw new AuthRequiredError()
-  }
-  if (isExpired(tokens)) {
-    tokens = await refreshOrLogin(tokens)
-  }
+/**
+ * A valid access token for any caller: the stored one, or a refreshed one when it has expired or the
+ * server rejected `rejected`. Concurrent callers share a single refresh.
+ */
+export async function getAccessToken(rejected?: string): Promise<string> {
+  if (refreshing) return (await refreshing).accessToken
+  const tokens = getTokens()
+  if (!tokens) signInAgain()
+  if (tokens.accessToken !== rejected && !isExpired(tokens)) return tokens.accessToken
+  return (await refreshOnce(tokens.refreshToken)).accessToken
+}
 
-  let res = await fetch(path, withAuth(init, tokens.accessToken))
-  if (needsAuth(res)) {
-    tokens = await refreshOrLogin(tokens)
-    res = await fetch(path, withAuth(init, tokens.accessToken))
-    if (needsAuth(res)) {
-      clearTokens()
-      login()
-      throw new AuthRequiredError()
-    }
-  }
-  return res
+export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  const accessToken = await getAccessToken()
+  const res = await fetch(path, withAuth(init, accessToken))
+  if (!needsAuth(res)) return res
+
+  const retried = await fetch(path, withAuth(init, await getAccessToken(accessToken)))
+  if (needsAuth(retried)) signInAgain()
+  return retried
 }

@@ -12,6 +12,10 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService
+import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
+import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import org.springframework.test.context.bean.override.mockito.MockitoBean
@@ -35,6 +39,12 @@ class OAuth2ErrorContractTests {
 
     @Autowired
     lateinit var mockMvc: MockMvc
+
+    @Autowired
+    lateinit var jdbcTemplate: JdbcTemplate
+
+    @Autowired
+    lateinit var registeredClientRepository: RegisteredClientRepository
 
     @MockitoBean
     lateinit var userServiceBlockingStub: UserServiceGrpc.UserServiceBlockingStub
@@ -318,6 +328,27 @@ class OAuth2ErrorContractTests {
             status { isBadRequest() }
             jsonPath("$.error") { value("invalid_grant") }
         }
+    }
+
+    @Test
+    fun `issued authorization is persisted and readable by a fresh service instance`() {
+        val code = obtainAuthorizationCode(VERIFIER)
+        val json = mockMvc.post("/oauth2/token") {
+            param("grant_type", "authorization_code")
+            param("code", code)
+            param("redirect_uri", REDIRECT_URI)
+            param("code_verifier", VERIFIER)
+            with(httpBasic(WEB_CLIENT, WEB_SECRET))
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+        val refreshToken = readOrNull(json, "$.refresh_token")
+        assertNotNull(refreshToken)
+
+        // a new instance over the same database stands in for an auth restart or another replica
+        val restarted = JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository)
+        val authorization = restarted.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN)
+
+        assertNotNull(authorization, "refresh token must survive an authorization server restart")
+        assertEquals("alice@example.com", authorization.principalName)
     }
 
     @Test

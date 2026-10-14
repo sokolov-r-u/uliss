@@ -10,6 +10,9 @@ handles the application UI, including the custom `/login` and `/register` pages,
 handling, and actuator health. Form pages eagerly load the CSRF token so the session exists before a large response
 commits.
 
+Authorizations (codes, access and refresh tokens) and consents are stored in the `oauth2_authorization*` JDBC tables
+(`AuthServerConfig`), so sessions survive restarts and work across replicas.
+
 Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It

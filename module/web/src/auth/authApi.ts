@@ -59,6 +59,15 @@ export async function exchangeCode(code: string): Promise<Tokens> {
   return readTokens(res, 'token exchange')
 }
 
+/** The service refused the refresh token itself (expired, revoked, or already rotated): the session is over. */
+export class RefreshRejectedError extends Error {
+    constructor(public readonly status: number) {
+        super(`token refresh rejected (${status})`)
+        this.name = 'RefreshRejectedError'
+    }
+}
+
+/** Rotates the tokens. Throws `RefreshRejectedError` on 400/401; network and server failures stay plain errors. */
 export async function refreshTokens(refreshToken: string): Promise<Tokens> {
   const res = await fetch('/user/oauth2/refresh', {
     method: 'POST',
@@ -66,6 +75,7 @@ export async function refreshTokens(refreshToken: string): Promise<Tokens> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   })
+    if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
   return readTokens(res, 'token refresh')
 }
 

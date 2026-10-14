@@ -301,12 +301,20 @@ write per turn; the assistant reply does not touch it), and order `GET /chats` b
 Reported 2026-10-12: the user is sent back to sign-in much sooner than the 30-day refresh lifetime. Not yet
 diagnosed; suspects, most likely first:
 
+0. **In-memory authorization store** (explains drops after an auth restart only, not the 15-minute drops of a
+   running app). `auth` had no `OAuth2AuthorizationService` bean, so Spring used
+   `InMemoryOAuth2AuthorizationService`: every auth restart or deploy invalidated all refresh tokens. **Fixed
+   2026-10-14:** JDBC authorization and consent services in `AuthServerConfig`.
+
 1. **Concurrent refresh with rotation.** `reuseRefreshTokens(false)` rotates the refresh token on every use, but
    `authFetch` (`web/src/auth/apiClient.ts`) has no single-flight refresh. When the 15-minute access token expires,
    parallel requests (e.g. the side panel loads chats and notes at once) each refresh with the same token; the first
    rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login.
    **Fixed 2026-10-12:** one in-flight refresh shared by all calls, and a call that hits 401 after another call
-   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). If sign-outs continue, check suspect 2.
+   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). 2026-10-14: `getAccessToken()` is the single
+   owner of the session, and only a 400/401 refresh rejection signs the user out; network/5xx failures keep the
+   tokens. Duplicated tabs still share one copied refresh token (needs shared storage plus Web Locks). If
+   sign-outs continue, check suspect 2.
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
