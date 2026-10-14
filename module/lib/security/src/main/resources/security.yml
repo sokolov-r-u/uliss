@@ -4,6 +4,8 @@ spring:
       resourceserver:
         jwt:
           jwk-set-uri: ${AUTH_INTERNAL_URL}/oauth2/jwks
+          # validates "iss" only; keys still come from jwk-set-uri, no discovery request
+          issuer-uri: ${AUTH_PUBLIC_URL}
 
 security:
   oauth2:

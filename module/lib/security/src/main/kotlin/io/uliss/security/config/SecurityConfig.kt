@@ -1,5 +1,6 @@
 package io.uliss.security.config
 
+import io.uliss.security.utils.USER_ID_CLAIM
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
@@ -7,11 +8,17 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.http.SessionCreationPolicy
+import org.springframework.security.oauth2.core.OAuth2Error
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes
+import org.springframework.security.oauth2.core.OAuth2TokenValidator
+import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult
+import org.springframework.security.oauth2.jwt.Jwt
 import org.springframework.security.web.AuthenticationEntryPoint
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
+import java.util.UUID
 
 @EnableWebSecurity
 @Configuration
@@ -40,6 +47,19 @@ class SecurityConfig {
             .oauth2ResourceServer { it.jwt { } }
             .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint()) }
             .build()
+
+    /** Boot adds every validator bean to the JWT decoder: tokens without a UUID `userId` (e.g. m2m) are rejected. */
+    @Bean
+    fun userIdClaimValidator(): OAuth2TokenValidator<Jwt> = OAuth2TokenValidator { jwt ->
+        val userId = jwt.getClaimAsString(USER_ID_CLAIM)
+        if (userId != null && runCatching { UUID.fromString(userId) }.isSuccess) {
+            OAuth2TokenValidatorResult.success()
+        } else {
+            OAuth2TokenValidatorResult.failure(
+                OAuth2Error(OAuth2ErrorCodes.INVALID_TOKEN, "token has no valid $USER_ID_CLAIM claim", null)
+            )
+        }
+    }
 
     @Bean
     fun corsConfigurationSource(props: CorsProperties): CorsConfigurationSource {

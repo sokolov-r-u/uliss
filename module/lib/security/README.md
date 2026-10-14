@@ -5,7 +5,9 @@ and a stateless OAuth mediator for user-service, note-service, and future JVM se
 
 ## Resource server
 
-The library validates JWTs against the authorization server's JWKS endpoint. It permits mediator routes in both
+The library validates JWTs against the authorization server's JWKS endpoint, requires `iss` to equal
+`AUTH_PUBLIC_URL`, and rejects tokens without a UUID `userId` claim with 401 (`userIdClaimValidator`), so m2m tokens
+cannot call user endpoints. It permits mediator routes in both
 unprefixed library tests and one-segment-prefixed consuming applications, permits `/actuator/health`, configures CORS,
 and requires authentication elsewhere.
 
@@ -37,8 +39,8 @@ The public and internal addresses are intentionally separate:
 - `AUTH_INTERNAL_URL` must be reachable by services and is used for token exchange, refresh, revocation, and JWKS
   retrieval.
 
-They can be identical in a host/Compose environment and differ behind Kubernetes ingress. The resource server currently
-uses the JWKS location without issuer validation.
+They can be identical in a host/Compose environment and differ behind Kubernetes ingress. Keys come from the internal
+JWKS location; `issuer-uri` (the public URL) is used only to validate `iss`, without a discovery request.
 
 ## SPA token strategy
 
