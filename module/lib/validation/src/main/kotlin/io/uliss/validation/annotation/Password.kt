@@ -2,6 +2,7 @@ package io.uliss.validation.annotation
 
 import io.uliss.exception.utils.ErrorCode.PASSWORD_FORMAT_ERROR
 import io.uliss.validation.util.PASSWORD_PATTERN
+import io.uliss.validation.validator.PasswordMaxBytesValidator
 import jakarta.validation.Constraint
 import jakarta.validation.Payload
 import jakarta.validation.constraints.Pattern
@@ -10,7 +11,7 @@ import kotlin.reflect.KClass
 @MustBeDocumented
 @Target(AnnotationTarget.FIELD, AnnotationTarget.VALUE_PARAMETER)
 @Retention(AnnotationRetention.RUNTIME)
-@Constraint(validatedBy = [])
+@Constraint(validatedBy = [PasswordMaxBytesValidator::class])
 @Pattern(regexp = PASSWORD_PATTERN, message = PASSWORD_FORMAT_ERROR)
 annotation class Password(
     val message: String = PASSWORD_FORMAT_ERROR,

@@ -412,3 +412,51 @@ Procedure:
 Schema improvements noticed along the way stay out of the squash so the diff can prove equivalence. Make them
 separately: `(chat_id, created_at, id)` for the `ORDER BY created_at, id` chat-message queries, and CHECK constraints
 for `profile.user_message.status` and `profile.users.gender`.
+
+## Daily LLM quotas for users without a subscription (`note-service`, `user`, `auth`, `web`)
+
+**Status:** agreed direction 2026-10-14, not implemented. Any registered user can call the chat and summary endpoints
+without limit, and every call is paid to OpenAI.
+
+- Enforce in note-service, the only caller of the provider. Start with daily counts of new chat turns and summary
+  requests; a token budget (usage is already logged in `AssistantService.logUsage`) can follow, since long chats cost
+  more per turn.
+- Table `note.usage_daily (user_id, day, chat_turns, summaries)`, day in UTC. Increment with a single conditional
+  upsert (`... SET chat_turns = chat_turns + 1 WHERE chat_turns < :limit RETURNING`) inside the turn-reservation
+  transaction (`ChatTurnService.resolveTurnRequest`), so concurrent tabs cannot exceed the limit and idempotent
+  replays, which create no new turn, spend nothing.
+- The plan lives in user-service and reaches note-service as a `plan` access-token claim added by
+  `TokenConfig.tokenCustomizer` (like `displayName`); a change applies at the next refresh. Limits per plan are
+  note-service configuration.
+- Over the limit: `429 Too Many Requests`, code `QUOTA_EXCEEDED`, `Retry-After` until the next UTC midnight; `web`
+  shows the remaining allowance and a clear message.
+- Long-running task (schema, token contract, 3+ modules): create a `docs/tasks/` file first.
+
+## Rate limiting and brute-force protection (`infra`, `auth`)
+
+**Status:** not implemented. Login and registration accept unlimited attempts. Production runs on Docker Compose,
+not Kubernetes, so Ingress annotations do not apply.
+
+- In Compose, `auth` is published directly on `:9000`; only `/user` and `/note` pass through the `web` nginx. Put an
+  edge reverse proxy in front of every published service (extend the `web` nginx with an `auth` server block, or a
+  dedicated edge container that also terminates TLS) and stop publishing service ports to the host.
+- Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
+  `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
+  Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
+- Later, per-account protection in `auth`: count failures from `AuthenticationFailureBadCredentialsEvent` per email
+  and lock sign-in temporarily after N failures, which also covers attempts spread over many IPs.
+
+## Email verification at registration (`auth`, `infra`)
+
+**Status:** planned, not implemented. Users are created as `PENDING_VERIFICATION`, but nothing verifies the address
+and `UserEntity.toUserDetails` blocks only `DISABLED`, so unverified users sign in.
+
+- Send mail over SMTP with `spring-boot-starter-mail`; the provider is configuration only (`spring.mail.*`).
+- Development and tests: a Mailpit container in `infra/docker-compose.yml` (SMTP plus a web inbox), no provider,
+  domain, or limits.
+- Real users: a transactional provider on a free tier (Amazon SES, Mailgun, Resend, Brevo, SendGrid); compare
+  current free limits before launch. Self-hosting an MTA was rejected: cloud and residential IPs often block outbound
+  port 25 or are on block lists, a new IP has no reputation, and SPF/DKIM/DMARC/PTR plus queue and bounce handling
+  must be maintained. Either way the own domain needs SPF and DKIM records.
+- Flow: registration stores a random verification token (hash only, 24-hour TTL) and mails a `/verify?token=...`
+  link; opening it sets `ACTIVE`; sign-in is refused until then; resending the link is rate-limited.

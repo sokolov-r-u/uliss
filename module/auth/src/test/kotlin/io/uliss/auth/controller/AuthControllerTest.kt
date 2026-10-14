@@ -1,6 +1,8 @@
 package io.uliss.auth.controller
 
 import io.uliss.auth.config.TestContainersConfiguration
+import org.hamcrest.Matchers.containsString
+import org.hamcrest.Matchers.not
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -66,6 +68,21 @@ class AuthControllerTest {
     }
 
     @Test
+    fun `register with a password longer than BCrypt accepts returns to register form`() {
+        mockMvc.post("/register") {
+            with(csrf())
+            param("email", "long-password@example.com")
+            param("password", "Aa1!" + "я".repeat(40))
+        }
+            .andExpect {
+                status { isOk() }
+                model { attributeHasFieldErrors("registerForm", "password") }
+                view { name("register") }
+                content { string(containsString("at most 72 Latin characters")) }
+            }
+    }
+
+    @Test
     fun `register with invalid email and password returns to register form`() {
         mockMvc.post("/register") {
             with(csrf())
@@ -74,7 +91,13 @@ class AuthControllerTest {
         }
             .andExpect {
                 status { isOk() }
-                content { contentType("text/html;charset=UTF-8") }
+                content {
+                    contentType("text/html;charset=UTF-8")
+                    string(containsString("Enter a valid email address."))
+                    string(containsString("at least 10 characters"))
+                    string(not(containsString("EMAIL_FORMAT_ERROR")))
+                    string(not(containsString("PASSWORD_FORMAT_ERROR")))
+                }
                 model {
                     attributeHasFieldErrors("registerForm", "email", "password")
 
