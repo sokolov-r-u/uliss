@@ -61,8 +61,14 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun handleException(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ResponseEntity<Any>? {
         val response = getExceptionResponse(ex, httpStatus, request)
+        // the only place an HTTP request failure is logged; 5xx keeps the single stack trace
         if (httpStatus.is5xxServerError) {
             log.error("server error on ${response.path}", "handleException", ex)
+        } else {
+            log.warn(
+                "client error ${httpStatus.value()} ${response.code} on ${response.path}: ${ex.message}",
+                "handleException",
+            )
         }
         return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
     }

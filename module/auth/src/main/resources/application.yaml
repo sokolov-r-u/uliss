@@ -44,3 +44,8 @@ grpc:
   user-service:
     host: ${USER_SERVICE_HOST}
     port: ${USER_GRPC_PORT}
+
+# pre-production: LoggingAspect traces io.uliss calls at DEBUG; set LOG_LEVEL_ULISS=info before production
+logging:
+  level:
+    io.uliss: ${LOG_LEVEL_ULISS:info}
