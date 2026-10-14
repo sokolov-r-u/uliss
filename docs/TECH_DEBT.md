@@ -377,7 +377,8 @@ against the schema current at squash time):
 
 - Every service has a `V1` that only runs `CREATE SCHEMA IF NOT EXISTS`. It is a no-op: with `spring.flyway.schemas`
   set, Flyway creates the schema itself before `V1` to host `flyway_schema_history`.
-- `note`: `ALTER TABLE` column additions (`notes.source` in V4, `notes.title` in V7, `chat.idempotency_key` in V6),
+- `note`: `ALTER TABLE` column additions (`notes.source` in V4, `notes.title` in V7, `chat.idempotency_key` in V6,
+  `outbox_event.lease_id` in V8),
   a single-index migration (V5), and a legacy data fixup (`UPDATE note.chat` title truncation in V7) that is
   meaningless on an empty database. Comments are stale: `chat_note` is called an unused scaffold although
   `NoteService` uses it, and `chat_message` mentions historical rows with `turn_id = NULL`.
@@ -460,3 +461,15 @@ and `UserEntity.toUserDetails` blocks only `DISABLED`, so unverified users sign 
   must be maintained. Either way the own domain needs SPF and DKIM records.
 - Flow: registration stores a random verification token (hash only, 24-hour TTL) and mails a `/verify?token=...`
   link; opening it sets `ACTIVE`; sign-in is refused until then; resending the link is rate-limited.
+
+## Chat-turn lease is derived from settings the OpenAI client ignores (`note-service`)
+
+`ChatTurnExecutionPolicy` computes the chat-turn lease from `spring.http.clients` (connect + read timeout) and
+`spring.ai.retry.max-attempts`. Since Spring AI 2.0 the OpenAI chat model runs on the `openai-java` SDK, which uses
+`spring.ai.openai[.chat].timeout` / `max-retries` (and its own backoff) and no `RetryTemplate`; those Spring settings
+only matter for the inactive DeepSeek provider. The lease is currently long enough by coincidence and silently stops
+following real timeouts when either side changes. `OutboxLeasePolicy` was moved to the SDK settings on 2026-10-14.
+
+Rebase the chat-turn lease on the same resolved OpenAI settings, sharing the budget calculation with
+`OutboxLeasePolicy`. First verify how the SDK request timeout applies to a streamed response: it may cap the whole
+stream, not a single read.
