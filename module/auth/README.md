@@ -11,7 +11,8 @@ handling, and actuator health. Form pages eagerly load the CSRF token so the ses
 commits.
 
 Authorizations (codes, access and refresh tokens) and consents are stored in the `oauth2_authorization*` JDBC tables
-(`AuthServerConfig`), so sessions survive restarts and work across replicas.
+(`AuthServerConfig`), so sessions survive restarts and work across replicas. `AuthorizationCleanupService` deletes
+authorizations whose every code and token has expired, daily by `AUTH_AUTHORIZATION_CLEANUP_CRON` (default 03:00).
 
 Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
 
