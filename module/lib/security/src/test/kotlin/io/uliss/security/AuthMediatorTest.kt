@@ -2,7 +2,9 @@ package io.uliss.security
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.exactly
+import com.github.tomakehurst.wiremock.client.WireMock.notContaining
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
@@ -182,6 +184,50 @@ class AuthMediatorTest {
             jsonPath("$.access_token") { value("access-abc") }
             jsonPath("$.refresh_token") { value("refresh-xyz") }
         }
+    }
+
+    @Test
+    fun `refresh sends the token as one encoded form value`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(200, TOKEN_JSON))
+        )
+
+        mockMvc.post("/oauth2/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"tok&scope=admin"}"""
+        }.andExpect {
+            status { isOk() }
+        }
+
+        wireMock.verify(
+            exactly(1),
+            postRequestedFor(urlPathEqualTo("/oauth2/token"))
+                .withFormParam("refresh_token", equalTo("tok&scope=admin"))
+                .withRequestBody(notContaining("&scope="))
+        )
+    }
+
+    @Test
+    fun `callback sends the cookie verifier as one encoded form value`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(200, TOKEN_JSON))
+        )
+
+        mockMvc.post("/oauth2/callback") {
+            param("code", "auth-code")
+            cookie(Cookie(CODE_VERIFIER, "verifier&client_id=other"))
+        }.andExpect {
+            status { isOk() }
+        }
+
+        wireMock.verify(
+            exactly(1),
+            postRequestedFor(urlPathEqualTo("/oauth2/token"))
+                .withFormParam("code_verifier", equalTo("verifier&client_id=other"))
+                .withRequestBody(notContaining("&client_id="))
+        )
     }
 
     @Test

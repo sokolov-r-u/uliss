@@ -13,6 +13,8 @@ import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.resilience.annotation.Retryable
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.stereotype.Service
+import org.springframework.util.LinkedMultiValueMap
+import org.springframework.util.MultiValueMap
 import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
@@ -23,7 +25,6 @@ import utils.generateCodeChallenge
 import utils.generateCodeVerifier
 import utils.setCookie
 import java.net.URI
-import java.net.URLEncoder
 import java.time.Duration
 
 @Service
@@ -71,10 +72,12 @@ class AuthService(
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
                 .body(
-                    "grant_type=authorization_code" +
-                            "&code=${URLEncoder.encode(code, Charsets.UTF_8)}" +
-                            "&redirect_uri=${securityProperties.redirectUri}" +
-                            "&code_verifier=$codeVerifier"
+                    form(
+                        "grant_type" to "authorization_code",
+                        "code" to code,
+                        "redirect_uri" to securityProperties.redirectUri,
+                        "code_verifier" to codeVerifier,
+                    )
                 )
                 .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
@@ -97,10 +100,7 @@ class AuthService(
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
-                .body(
-                    "grant_type=refresh_token" +
-                            "&refresh_token=$refreshToken"
-                )
+                .body(form("grant_type" to "refresh_token", "refresh_token" to refreshToken))
                 .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
             log.warn("auth service reject refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
@@ -124,10 +124,7 @@ class AuthService(
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/revoke") }
                 .contentType(MediaType.APPLICATION_FORM_URLENCODED)
                 .headers { it.setBasicAuth(clientId, clientSecret) }
-                .body(
-                    "token=${URLEncoder.encode(refreshToken, Charsets.UTF_8.name())}" +
-                            "&token_type_hint=refresh_token"
-                )
+                .body(form("token" to refreshToken, "token_type_hint" to "refresh_token"))
                 .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
 //            token is already invalid. Ignore exception
@@ -139,6 +136,10 @@ class AuthService(
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
+
+/** Form body encoded by the converter, so user-supplied values cannot add parameters. */
+private fun form(vararg params: Pair<String, String>): MultiValueMap<String, String> =
+    LinkedMultiValueMap<String, String>().apply { params.forEach { (name, value) -> add(name, value) } }
 
 private val OAUTH2_ERROR = Regex(""""error"\s*:\s*"([^"]+)"""")
 
