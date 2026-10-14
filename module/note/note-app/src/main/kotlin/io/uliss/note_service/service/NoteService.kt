@@ -66,6 +66,8 @@ class NoteService(
             .startWith(initialStatus)
             .distinctUntilChanged { status -> status.status }
             .takeUntil { status -> status.status.isTerminal() }
+            // A note stuck in GENERATING must not hold the connection and its DB polling forever.
+            .take(STATUS_STREAM_TIMEOUT)
     }
 
     /**
@@ -172,5 +174,6 @@ class NoteService(
 
     private companion object {
         val STATUS_POLL_INTERVAL: Duration = Duration.ofSeconds(1)
+        val STATUS_STREAM_TIMEOUT: Duration = Duration.ofMinutes(10)
     }
 }

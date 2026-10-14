@@ -106,6 +106,18 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `streamNoteStatus gives up on a note stuck in GENERATING`() {
+        val userId = UUID.randomUUID()
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId)).thenReturn(generating)
+
+        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, generating.id) }
+            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null))
+            .thenAwait(Duration.ofMinutes(10))
+            .verifyComplete()
+    }
+
+    @Test
     fun `createChatSummary saves a CHAT_SUMMARY note, links it to the chat, and publishes an indexing event`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

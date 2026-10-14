@@ -94,7 +94,8 @@ handler instead of spending retries.
 - `GET /note/notes` returns the authenticated user's notes newest first.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
-  status changes, and closes on `READY` or `FAILED`.
+  status changes, and closes on `READY` or `FAILED`. A `:keepalive` comment every 15 s keeps proxies from cutting
+  a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and

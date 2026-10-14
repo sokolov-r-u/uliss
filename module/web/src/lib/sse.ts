@@ -7,11 +7,14 @@
  */
 export type SseEvent = { event: string; data: string }
 
-function parseRecord(record: string): SseEvent {
+/** Returns `null` for a comment-only record (a server heartbeat), which carries no event. */
+function parseRecord(record: string): SseEvent | null {
     let event = 'message'
     const dataLines: string[] = []
+    let hasField = false
     for (const line of record.split('\n')) {
         if (line === '' || line.startsWith(':')) continue
+        hasField = true
         const colon = line.indexOf(':')
         const field = colon === -1 ? line : line.slice(0, colon)
         let value = colon === -1 ? '' : line.slice(colon + 1)
@@ -19,7 +22,7 @@ function parseRecord(record: string): SseEvent {
         if (field === 'event') event = value
         else if (field === 'data') dataLines.push(value)
     }
-    return {event, data: dataLines.join('\n')}
+    return hasField ? {event, data: dataLines.join('\n')} : null
 }
 
 export async function* parseSseStream(
@@ -45,12 +48,14 @@ export async function* parseSseStream(
             while ((sep = buffer.indexOf('\n\n')) !== -1) {
                 const record = buffer.slice(0, sep)
                 buffer = buffer.slice(sep + 2)
-                if (record.trim() !== '') yield parseRecord(record)
+                const event = parseRecord(record)
+                if (event) yield event
             }
         }
         // Flush any trailing partial multi-byte sequence, then process a final unterminated record.
         buffer += decoder.decode().replace(/\r\n/g, '\n')
-        if (buffer.trim() !== '') yield parseRecord(buffer)
+        const last = parseRecord(buffer)
+        if (last) yield last
     } finally {
         signal?.removeEventListener('abort', onAbort)
     }

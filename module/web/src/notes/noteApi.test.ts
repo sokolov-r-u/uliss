@@ -104,6 +104,20 @@ describe('noteApi', () => {
             .rejects.toMatchObject({kind: 'protocol'})
     })
 
+    it('ignores heartbeat comments between status events', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            ':keepalive\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"GENERATING"}\n\n',
+            ':keepalive\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"READY"}\n\n',
+        ]))
+        const statuses: string[] = []
+
+        await expect(streamNoteStatus('note-1', {onStatus: (event) => statuses.push(event.status)}))
+            .resolves.toBe('READY')
+        expect(statuses).toEqual(['GENERATING', 'READY'])
+    })
+
     it('rejects a status event for another note', async () => {
         mockedFetch.mockResolvedValue(sseResponse([
             'event: status\ndata: {"noteId":"other","status":"READY"}\n\n',
