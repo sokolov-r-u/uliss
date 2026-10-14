@@ -173,7 +173,7 @@ sequenceDiagram
         loop Provider text chunks
             AI -->> A: text chunk
             A -->> HC: AppendText
-            HC -->> C: event: append
+            HC -->> C: event: append, data: {"text": chunk}
         end
 
         rect rgb(235, 245, 255)

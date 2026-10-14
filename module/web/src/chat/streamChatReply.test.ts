@@ -50,6 +50,37 @@ describe('streamAssistantReply', () => {
         })
     })
 
+    it('keeps leading spaces and line breaks of JSON append text', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            'event:append\ndata:{"text":"Hello"}\n\n',
+            'event:append\ndata:{"text":" world\\n  code"}\n\nevent:done\ndata:\n\n',
+        ]))
+        const receivedText: string[] = []
+
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {
+            onAppendText: (text) => receivedText.push(text),
+            onTurnId: vi.fn(),
+        })).resolves.toBe('done')
+
+        expect(receivedText).toEqual(['Hello', ' world\n  code'])
+    })
+
+    it('parses a JSON append event that the network split into several chunks', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            'event:append\ndata:{"te',
+            'xt":" split"}\n',
+            '\nevent:done\ndata:\n\n',
+        ]))
+        const receivedText: string[] = []
+
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {
+            onAppendText: (text) => receivedText.push(text),
+            onTurnId: vi.fn(),
+        })).resolves.toBe('done')
+
+        expect(receivedText).toEqual([' split'])
+    })
+
     it('captures the turn identity before text and returns pending explicitly', async () => {
         mockedFetch.mockResolvedValue(sseResponse(['event: pending\ndata: 1500\n\n']))
         const onTurnId = vi.fn()

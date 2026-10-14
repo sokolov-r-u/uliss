@@ -27,7 +27,9 @@ avoid colliding with Spring AI retry auto-configuration.
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
 streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
-`done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
+`done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw `data:`
+lines; the others carry plain text (retry delay, terminal status, empty). `ChatService` performs chat lookups using both
+chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
 `GET /note/chats` and `GET /note/chats/{chatId}` return `ChatResponse` with `noteCount`, the number of linked notes (one

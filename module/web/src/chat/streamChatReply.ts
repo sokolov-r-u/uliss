@@ -39,6 +39,23 @@ export async function streamInitialAssistantReply(
     return streamReply('/note/chats', content, idempotencyKey, opts)
 }
 
+/**
+ * `append` data is `{"text": "..."}`: SSE strips one leading space from every `data:` line, which would glue
+ * words together. Plain text is still accepted while a not-yet-updated note-service is rolled out.
+ */
+function appendText(data: string): string {
+    if (!data.startsWith('{')) return data
+    try {
+        const value: unknown = JSON.parse(data)
+        if (typeof value === 'object' && value !== null && typeof (value as { text?: unknown }).text === 'string') {
+            return (value as { text: string }).text
+        }
+    } catch {
+        // not JSON: a plain-text chunk that happens to start with '{'
+    }
+    return data
+}
+
 async function streamReply(
     path: string,
     content: string,
@@ -75,7 +92,7 @@ async function streamReply(
     if (!res.body) return 'error'
 
     for await (const evt of parseSseStream(res.body, opts.signal)) {
-        if (evt.event === 'append') opts.onAppendText(evt.data)
+        if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
         else if (evt.event === 'done') return 'done'
         else if (evt.event === 'error') return 'error'
         else if (evt.event === 'pending') return 'pending'
