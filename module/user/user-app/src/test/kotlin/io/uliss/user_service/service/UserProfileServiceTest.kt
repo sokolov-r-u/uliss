@@ -11,10 +11,8 @@ import io.uliss.user_service.onboarding.OnboardingCommand
 import io.uliss.user_service.repository.UserRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
-import org.mockito.invocation.InvocationOnMock
 import java.util.Optional
 import java.util.UUID
-import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertSame
 
@@ -46,18 +44,29 @@ class UserProfileServiceTest {
     @Test
     fun `getOrCreate creates and seeds a new profile when none exists`() {
         val authId = UUID.randomUUID()
-        Mockito.`when`(userRepository.findByAuthId(authId)).thenReturn(null)
-        // save() returns the exact same entity instance it received - matches JpaRepository/CrudRepository semantics.
-        Mockito.`when`(userRepository.save(anyValue())).thenAnswer { invocation: InvocationOnMock ->
-            invocation.getArgument<UserEntity>(0)
-        }
+        val created = UserEntity(authId = authId, displayName = null)
+        Mockito.`when`(userRepository.findByAuthId(authId)).thenReturn(null, created)
+        Mockito.`when`(userRepository.insertIfAbsent(anyValue(), anyValue())).thenReturn(1)
         val service = UserProfileService(userRepository, messageService, emptyList())
 
         val result = service.getOrCreate(authId)
 
-        assertEquals(authId, result.authId)
-        assertEquals(null, result.displayName)
-        Mockito.verify(messageService).seedOnboarding(result.id)
+        assertSame(created, result)
+        Mockito.verify(messageService).seedOnboarding(created.id)
+    }
+
+    @Test
+    fun `getOrCreate does not seed when a concurrent call inserted the profile`() {
+        val authId = UUID.randomUUID()
+        val concurrent = UserEntity(authId = authId, displayName = null)
+        Mockito.`when`(userRepository.findByAuthId(authId)).thenReturn(null, concurrent)
+        Mockito.`when`(userRepository.insertIfAbsent(anyValue(), anyValue())).thenReturn(0)
+        val service = UserProfileService(userRepository, messageService, emptyList())
+
+        val result = service.getOrCreate(authId)
+
+        assertSame(concurrent, result)
+        Mockito.verify(messageService, Mockito.never()).seedOnboarding(anyValue())
     }
 
     @Test
