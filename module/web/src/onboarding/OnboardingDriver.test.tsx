@@ -1,7 +1,7 @@
 import {StrictMode} from 'react'
-import {render, screen} from '@testing-library/react'
+import {act, render, screen, waitFor} from '@testing-library/react'
 import {describe, expect, it, vi} from 'vitest'
-import {fetchPending} from './onboardingApi'
+import {fetchPending, type OnboardingCode} from './onboardingApi'
 import {OnboardingDriver} from './OnboardingDriver'
 
 vi.mock('./onboardingApi', async (importOriginal) => {
@@ -16,5 +16,29 @@ describe('OnboardingDriver', () => {
         render(<StrictMode><OnboardingDriver/></StrictMode>)
 
         expect(await screen.findByRole('textbox', {name: 'Display name'})).toBeInTheDocument()
+    })
+
+    it('skips a step code this client does not know instead of showing the profile step', async () => {
+        vi.mocked(fetchPending).mockResolvedValue([
+            {code: 'FUTURE_STEP' as OnboardingCode, blocking: true, status: 'PENDING'},
+            {code: 'SET_DISPLAY_NAME', blocking: true, status: 'PENDING'},
+        ])
+
+        render(<OnboardingDriver/>)
+
+        expect(await screen.findByRole('textbox', {name: 'Display name'})).toBeInTheDocument()
+    })
+
+    it('renders nothing when every pending step is unknown', async () => {
+        vi.mocked(fetchPending).mockResolvedValue([
+            {code: 'FUTURE_STEP' as OnboardingCode, blocking: true, status: 'PENDING'},
+        ])
+
+        render(<OnboardingDriver/>)
+
+        await waitFor(() => expect(fetchPending).toHaveBeenCalled())
+        await act(async () => undefined)
+        expect(screen.queryByText('Gender')).not.toBeInTheDocument()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 })
