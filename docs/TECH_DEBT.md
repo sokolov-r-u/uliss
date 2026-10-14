@@ -10,9 +10,9 @@ recorded here until implementation.
 - `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
   response. The response can be absent outside a request context; replace the assertion with an
   explicit check and failure, and move the file into `io.uliss.security.utils`.
-- `DataInitializer` has two `passwordEncoder.encode(...)!!` calls and `UserService` has one. These
-  are Kotlin platform types from the encoder API; either remove the ambiguity or document the
-  proven non-null boundary locally when those files are next changed.
+- `UserService` has a `passwordEncoder.encode(...)!!` call (`DataInitializer` fixed 2026-10-14). This is
+  a Kotlin platform type from the encoder API; either remove the ambiguity or document the
+  proven non-null boundary locally when the file is next changed.
 
 New Kotlin code must not copy these deviations.
 
@@ -318,6 +318,7 @@ diagnosed; suspects, most likely first:
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
+   **Fixed 2026-10-14:** startup syncs secret, client/token settings and callback URLs of both clients from config.
 3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
    signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
 

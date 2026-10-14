@@ -28,29 +28,24 @@ class DataInitializer(
 
     override fun run(args: ApplicationArguments) {
         saveOrUpdateAuthCodeClient(webClientId, webClientSecret, callbackUrls)
-        saveClientCredentialsClientIfNotExists(m2mClientId, m2mClientSecret)
+        saveOrUpdateClientCredentialsClient(m2mClientId, m2mClientSecret)
     }
 
+    /** Config is the source of truth: an existing client gets the current secret, settings and callback URLs. */
     private fun saveOrUpdateAuthCodeClient(clientId: String, clientSecret: String, callbackUrls: List<String>) {
         val existing = registeredClientRepository.findByClientId(clientId)
-        if (existing != null) {
-            val missing = callbackUrls.filter { it !in existing.redirectUris }
-            if (missing.isEmpty()) return
-            val updated = RegisteredClient.from(existing)
-            missing.forEach { updated.redirectUri(it) }
-            registeredClientRepository.save(updated.build())
-            return
-        }
+        val builder = existing?.let { RegisteredClient.from(it) }
+            ?: RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId(clientId)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .scope(OidcScopes.OPENID)
+                .scope(OidcScopes.PROFILE)
 
-        val client = RegisteredClient.withId(UUID.randomUUID().toString())
-            .clientId(clientId)
-            .clientSecret(passwordEncoder.encode(clientSecret)!!)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .apply { callbackUrls.forEach { redirectUri(it) } }
-            .scope(OidcScopes.OPENID)
-            .scope(OidcScopes.PROFILE)
+        val client = builder
+            .clientSecret(secretHash(existing, clientSecret))
+            .redirectUris { uris -> uris.addAll(callbackUrls) }
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
             .tokenSettings(
                 TokenSettings.builder()
@@ -61,20 +56,28 @@ class DataInitializer(
             )
             .build()
 
-        registeredClientRepository.save(client)
+        if (client != existing) registeredClientRepository.save(client)
     }
 
-    private fun saveClientCredentialsClientIfNotExists(clientId: String, clientSecret: String) {
-        if (registeredClientRepository.findByClientId(clientId) != null) return
+    private fun saveOrUpdateClientCredentialsClient(clientId: String, clientSecret: String) {
+        val existing = registeredClientRepository.findByClientId(clientId)
+        val builder = existing?.let { RegisteredClient.from(it) }
+            ?: RegisteredClient.withId(UUID.randomUUID().toString())
+                .clientId(clientId)
+                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .scope("internal")
 
-        val client = RegisteredClient.withId(UUID.randomUUID().toString())
-            .clientId(clientId)
-            .clientSecret(passwordEncoder.encode(clientSecret)!!)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-            .scope("internal")
-            .build()
+        val client = builder.clientSecret(secretHash(existing, clientSecret)).build()
 
-        registeredClientRepository.save(client)
+        if (client != existing) registeredClientRepository.save(client)
+    }
+
+    /** Keeps the stored hash when it still matches, so a restart does not rewrite the row. */
+    private fun secretHash(existing: RegisteredClient?, rawSecret: String): String {
+        val stored = existing?.clientSecret
+        if (stored != null && passwordEncoder.matches(rawSecret, stored)) return stored
+        return passwordEncoder.encode(rawSecret)
+            ?: throw IllegalStateException("password encoder returned no hash for a client secret")
     }
 }
