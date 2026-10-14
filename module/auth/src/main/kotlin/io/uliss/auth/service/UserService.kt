@@ -21,7 +21,8 @@ class UserService(
 
     override fun loadUserByUsername(username: String): UserDetails {
         val user =
-            userRepository.findByEmail(username) ?: throw UsernameNotFoundException("username=${username} wasn't found")
+            userRepository.findByEmail(username.lowercase())
+                ?: throw UsernameNotFoundException("username=${username} wasn't found")
         return user.toUserDetails()
     }
 
