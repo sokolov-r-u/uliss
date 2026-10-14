@@ -436,6 +436,38 @@ describe('ChatPage summary flow', () => {
         expect(mockedStream).toHaveBeenCalledOnce()
     })
 
+    it('keeps waiting for a turn generating elsewhere while its lease is live', async () => {
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            mockedGetMessages.mockResolvedValue(messagePage([]))
+            mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+                options.onTurnId('turn-2')
+                options.onPending?.(120_000)
+                return 'pending'
+            })
+            renderPage()
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'same')
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+            expect(await screen.findByText('Saving the reply…')).toBeInTheDocument()
+
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(60_000)
+            })
+            expect(screen.queryByText(/could not be confirmed/)).not.toBeInTheDocument()
+
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'same'},
+                {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved elsewhere'},
+            ]))
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(3_000)
+            })
+            expect(await screen.findByText('Saved elsewhere')).toBeInTheDocument()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
     it('recovers a saved turn after reload without replaying generation', async () => {
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
             idempotencyKey: 'key-2', turnId: 'turn-2', content: 'same',

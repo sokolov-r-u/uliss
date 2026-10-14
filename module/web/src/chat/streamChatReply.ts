@@ -12,6 +12,8 @@ export type StreamOutcome = 'done' | 'error' | 'pending'
 type StreamOptions = {
     onAppendText: (text: string) => void
     onTurnId: (turnId: string) => void
+    /** `pending` data: milliseconds until the generating request's lease ends. */
+    onPending?: (retryAfterMs: number) => void
     signal?: AbortSignal
 }
 
@@ -95,7 +97,10 @@ async function streamReply(
         if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
         else if (evt.event === 'done') return 'done'
         else if (evt.event === 'error') return 'error'
-        else if (evt.event === 'pending') return 'pending'
+        else if (evt.event === 'pending') {
+            opts.onPending?.(Number(evt.data))
+            return 'pending'
+        }
     }
     // Connection dropped without an explicit done/error terminal event.
     return 'error'

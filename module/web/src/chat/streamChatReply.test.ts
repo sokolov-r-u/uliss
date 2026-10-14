@@ -85,10 +85,12 @@ describe('streamAssistantReply', () => {
         mockedFetch.mockResolvedValue(sseResponse(['event: pending\ndata: 1500\n\n']))
         const onTurnId = vi.fn()
         const onAppendText = vi.fn()
-        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {onTurnId, onAppendText}))
+        const onPending = vi.fn()
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {onTurnId, onAppendText, onPending}))
             .resolves.toBe('pending')
         expect(onTurnId).toHaveBeenCalledWith('turn-1')
         expect(onAppendText).not.toHaveBeenCalled()
+        expect(onPending).toHaveBeenCalledWith(1500)
     })
 
     it('captures the backend-created chat identity from the initial response headers', async () => {

@@ -84,13 +84,23 @@ function wait(delayMs: number, signal?: AbortSignal): Promise<void> {
 }
 
 const DELAYS_MS = [250, 500, 1_000]
+const DEFAULT_TIMEOUT_MS = 15_000
+
+/**
+ * A `pending` turn is generating under another request's lease, which can last minutes. Wait until the lease
+ * ends plus the default grace instead of giving up after the default deadline.
+ */
+export function pendingReconcileTimeoutMs(retryAfterMs: number | undefined): number {
+    if (retryAfterMs === undefined || !Number.isFinite(retryAfterMs) || retryAfterMs < 0) return DEFAULT_TIMEOUT_MS
+    return retryAfterMs + DEFAULT_TIMEOUT_MS
+}
 
 export async function reconcileUntilTerminal(
     loadHistory: (signal: AbortSignal) => Promise<ChatMessage[]>,
     target: ReconciliationTarget,
     options: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<ChatMessage[]> {
-    const timeoutMs = options.timeoutMs ?? 15_000
+    const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
     const startedAt = Date.now()
     const controller = new AbortController()
     if (options.signal?.aborted) throw abortError()
