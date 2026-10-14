@@ -43,3 +43,4 @@ grpc:
   user-service:
     host: localhost
     port: 8080
+    deadline: 3s
