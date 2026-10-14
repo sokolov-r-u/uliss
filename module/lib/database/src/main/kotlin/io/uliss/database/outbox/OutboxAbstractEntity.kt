@@ -8,6 +8,7 @@ import jakarta.persistence.MappedSuperclass
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
 import java.time.Instant
+import java.util.UUID
 
 /**
  * Base outbox entity: id/timestamps/version come from [UuidEntity], plus the outbox state machine
@@ -28,6 +29,10 @@ abstract class OutboxAbstractEntity(
     @Column(name = "last_error")
     var lastError: String?,
 ) : UuidEntity() {
+
+    // Issued on every claim; a worker whose lease was taken over must not complete or fail the event.
+    @Column(name = "lease_id")
+    var leaseId: UUID? = null
 
     override fun toString(): String {
         return ", status=$status, attempts=$attempts" + super.toString()

@@ -9,32 +9,33 @@ import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.OutboxEventRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties
+import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties
 import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingProperties
-import org.springframework.ai.retry.autoconfigure.SpringAiRetryProperties
-import org.springframework.boot.http.client.HttpClientSettings
 import java.time.Duration
 import java.time.Instant
+import java.util.Optional
+import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-private val INDEX_LEASE: Duration = Duration.ofSeconds(156)
-private val SUMMARY_LEASE: Duration = Duration.ofSeconds(494)
+private val INDEX_LEASE: Duration = Duration.ofMillis(156_650)
+private val SUMMARY_LEASE: Duration = Duration.ofMillis(473_200)
 
 class OutboxServiceTest {
 
     private val outboxEventRepository = Mockito.mock(OutboxEventRepository::class.java)
     private val terminalFailureHandler = Mockito.mock(OutboxTerminalFailureHandler::class.java)
     private val leasePolicy = OutboxLeasePolicy(
+        commonProperties = OpenAiCommonProperties(),
+        chatProperties = OpenAiChatProperties(),
         embeddingProperties = OpenAiEmbeddingProperties().apply {
             timeout = Duration.ofSeconds(60)
             maxRetries = 1
         },
-        retryProperties = SpringAiRetryProperties().apply { maxAttempts = 2 },
-        httpClientSettings = HttpClientSettings.defaults().withTimeouts(
-            Duration.ofSeconds(10),
-            Duration.ofSeconds(120),
-        ),
         outboxProperties = OutboxProperties(),
     )
 
@@ -60,6 +61,22 @@ class OutboxServiceTest {
         lastError = null,
     )
 
+    private fun processingEvent(
+        attempts: Int,
+        leaseId: UUID,
+        type: OutboxEventType = OutboxEventType.NOTE_INDEX_REQUESTED,
+    ) = pendingEvent(attempts, type).also {
+        it.status = OutboxEventStatus.PROCESSING
+        it.leaseId = leaseId
+    }
+
+    private fun stubClaimable(vararg events: OutboxEventEntity) {
+        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
+            .thenReturn(events.toList())
+        Mockito.`when`(outboxEventRepository.saveAll(anyValue<List<OutboxEventEntity>>()))
+            .thenAnswer { it.getArgument<List<OutboxEventEntity>>(0) }
+    }
+
     @Test
     fun `publish saves a PENDING event with zero attempts`() {
         val service = service()
@@ -80,17 +97,62 @@ class OutboxServiceTest {
         val service = service()
         val event = pendingEvent()
         val before = Instant.now()
-        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
-            .thenReturn(listOf(event))
-        Mockito.`when`(outboxEventRepository.saveAll(anyValue<List<OutboxEventEntity>>()))
-            .thenAnswer { it.getArgument<List<OutboxEventEntity>>(0) }
+        stubClaimable(event)
 
         val result = service.claim(20)
 
         assertEquals(OutboxEventStatus.PROCESSING, event.status)
-        assertEquals(1, result.size)
+        assertEquals(listOf(event), result)
         // Re-purposed as a visibility deadline while PROCESSING - see claim() kdoc comment.
         assertTrue(event.nextAttemptAt.isAfter(before.plus(INDEX_LEASE).minusSeconds(1)))
+    }
+
+    @Test
+    fun `claim counts the delivery as an attempt so a worker crash still consumes one`() {
+        val service = service()
+        val event = pendingEvent(attempts = 1)
+        stubClaimable(event)
+
+        service.claim(1)
+
+        assertEquals(2, event.attempts)
+    }
+
+    @Test
+    fun `claim issues a new lease on every claim so a stale worker can be told apart`() {
+        val service = service()
+        val staleLease = UUID.randomUUID()
+        val expired = processingEvent(attempts = 1, leaseId = staleLease)
+        stubClaimable(expired)
+
+        service.claim(1)
+
+        assertNotNull(expired.leaseId)
+        assertNotEquals(staleLease, expired.leaseId)
+    }
+
+    @Test
+    fun `claim fails an expired event that already used its last attempt instead of running it again`() {
+        Mockito.`when`(terminalFailureHandler.type).thenReturn(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        val service = service(maxAttempts = 3, terminalFailureHandlers = listOf(terminalFailureHandler))
+        val exhausted = processingEvent(
+            attempts = 3,
+            leaseId = UUID.randomUUID(),
+            type = OutboxEventType.NOTE_SUMMARY_REQUESTED,
+        )
+        val fresh = pendingEvent()
+        stubClaimable(exhausted, fresh)
+
+        val result = service.claim(2)
+
+        assertEquals(listOf(fresh), result)
+        assertEquals(OutboxEventStatus.FAILED, exhausted.status)
+        assertEquals(3, exhausted.attempts)
+        assertNull(exhausted.leaseId)
+        Mockito.verify(terminalFailureHandler).handleTerminalFailure(exhausted)
+        val savedCaptor = captorFor<List<OutboxEventEntity>>(List::class.java)
+        Mockito.verify(outboxEventRepository).saveAll(savedCaptor.captureValue())
+        assertTrue(exhausted in savedCaptor.value)
     }
 
     @Test
@@ -98,10 +160,7 @@ class OutboxServiceTest {
         val service = service()
         val event = pendingEvent(type = OutboxEventType.NOTE_SUMMARY_REQUESTED)
         val before = Instant.now()
-        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
-            .thenReturn(listOf(event))
-        Mockito.`when`(outboxEventRepository.saveAll(anyValue<List<OutboxEventEntity>>()))
-            .thenAnswer { it.getArgument<List<OutboxEventEntity>>(0) }
+        stubClaimable(event)
 
         service.claim(1)
 
@@ -112,11 +171,7 @@ class OutboxServiceTest {
     @Test
     fun `claim requests both PENDING and expired-PROCESSING events so a crashed worker's claim expires`() {
         val service = service()
-        val event = pendingEvent()
-        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
-            .thenReturn(listOf(event))
-        Mockito.`when`(outboxEventRepository.saveAll(anyValue<List<OutboxEventEntity>>()))
-            .thenAnswer { it.getArgument<List<OutboxEventEntity>>(0) }
+        stubClaimable(pendingEvent())
         val statusesCaptor = captorFor<List<OutboxEventStatus>>(List::class.java)
 
         service.claim(20)
@@ -126,55 +181,76 @@ class OutboxServiceTest {
     }
 
     @Test
-    fun `complete marks a PROCESSING event COMPLETED`() {
+    fun `complete marks the event COMPLETED when the caller still holds the lease`() {
         val service = service()
-        val event = pendingEvent().also { it.status = OutboxEventStatus.PROCESSING }
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 1, leaseId = lease)
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        service.complete(event.id)
+        service.complete(event.id, lease)
 
         assertEquals(OutboxEventStatus.COMPLETED, event.status)
+        assertNull(event.leaseId)
+        Mockito.verify(outboxEventRepository).save(event)
+    }
+
+    @Test
+    fun `complete ignores a worker whose lease was taken over by a re-claim`() {
+        val service = service()
+        val currentLease = UUID.randomUUID()
+        val event = processingEvent(attempts = 2, leaseId = currentLease)
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
+
+        service.complete(event.id, UUID.randomUUID())
+
+        assertEquals(OutboxEventStatus.PROCESSING, event.status)
+        assertEquals(currentLease, event.leaseId)
+        Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
 
     @Test
     fun `complete ignores a non-PROCESSING event`() {
         val service = service()
         val event = pendingEvent()
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
 
-        service.complete(event.id)
+        service.complete(event.id, UUID.randomUUID())
 
         assertEquals(OutboxEventStatus.PENDING, event.status)
         Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
 
     @Test
-    fun `recordFailure reschedules with backoff and keeps PENDING below the attempt limit`() {
+    fun `recordFailure reschedules with backoff below the attempt limit without counting the attempt again`() {
         val service = service()
-        val event = pendingEvent(attempts = 1).also { it.status = OutboxEventStatus.PROCESSING }
-        val before = event.nextAttemptAt
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 1, leaseId = lease)
+        val before = Instant.now()
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        service.recordFailure(event.id, RuntimeException("boom"))
+        service.recordFailure(event.id, lease, RuntimeException("boom"))
 
         assertEquals(OutboxEventStatus.PENDING, event.status)
-        assertEquals(2, event.attempts)
+        assertEquals(1, event.attempts)
         assertEquals("boom", event.lastError)
-        assertTrue(event.nextAttemptAt.isAfter(before))
+        assertNull(event.leaseId)
+        // First failure backs off by the 30s base.
+        assertTrue(event.nextAttemptAt.isAfter(before.plusSeconds(29)))
+        Mockito.verify(outboxEventRepository).save(event)
     }
 
     @Test
-    fun `recordFailure marks the event FAILED once the attempt limit is reached`() {
+    fun `recordFailure marks the event FAILED when the failed attempt was the last one`() {
         Mockito.`when`(terminalFailureHandler.type).thenReturn(OutboxEventType.NOTE_SUMMARY_REQUESTED)
         val service = service(terminalFailureHandlers = listOf(terminalFailureHandler))
-        val event = pendingEvent(attempts = 2, type = OutboxEventType.NOTE_SUMMARY_REQUESTED)
-            .also { it.status = OutboxEventStatus.PROCESSING }
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 3, leaseId = lease, type = OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
         Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
 
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
-        service.recordFailure(event.id, RuntimeException("boom"))
+        service.recordFailure(event.id, lease, RuntimeException("boom"))
 
         assertEquals(OutboxEventStatus.FAILED, event.status)
         assertEquals(3, event.attempts)
@@ -182,27 +258,33 @@ class OutboxServiceTest {
     }
 
     @Test
-    fun `recordFailure reloads the event fresh and applies the same backoff bookkeeping`() {
-        val service = service()
-        val event = pendingEvent(attempts = 1).also { it.status = OutboxEventStatus.PROCESSING }
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
-        Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
+    fun `recordFailure from a stale worker neither reschedules the re-claimed event nor fails it`() {
+        Mockito.`when`(terminalFailureHandler.type).thenReturn(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        val service = service(terminalFailureHandlers = listOf(terminalFailureHandler))
+        val currentLease = UUID.randomUUID()
+        val event = processingEvent(
+            attempts = 3,
+            leaseId = currentLease,
+            type = OutboxEventType.NOTE_SUMMARY_REQUESTED,
+        )
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
 
-        service.recordFailure(event.id, RuntimeException("save failed"))
+        service.recordFailure(event.id, UUID.randomUUID(), RuntimeException("late failure"))
 
-        assertEquals(OutboxEventStatus.PENDING, event.status)
-        assertEquals(2, event.attempts)
-        assertEquals("save failed", event.lastError)
-        Mockito.verify(outboxEventRepository).save(event)
+        assertEquals(OutboxEventStatus.PROCESSING, event.status)
+        assertEquals(currentLease, event.leaseId)
+        assertNull(event.lastError)
+        Mockito.verify(terminalFailureHandler, Mockito.never()).handleTerminalFailure(anyValue())
+        Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
 
     @Test
     fun `recordFailure does nothing but log when the event no longer exists`() {
         val service = service()
         val eventId = pendingEvent().id
-        Mockito.`when`(outboxEventRepository.findById(eventId)).thenReturn(java.util.Optional.empty())
+        Mockito.`when`(outboxEventRepository.findById(eventId)).thenReturn(Optional.empty())
 
-        service.recordFailure(eventId, RuntimeException("save failed"))
+        service.recordFailure(eventId, UUID.randomUUID(), RuntimeException("save failed"))
 
         Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
@@ -210,13 +292,13 @@ class OutboxServiceTest {
     @Test
     fun `recordFailure ignores an event that is no longer processing`() {
         val service = service()
-        val event = pendingEvent().also { it.status = OutboxEventStatus.COMPLETED }
-        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(java.util.Optional.of(event))
+        val event = pendingEvent(attempts = 1).also { it.status = OutboxEventStatus.COMPLETED }
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
 
-        service.recordFailure(event.id, RuntimeException("late failure"))
+        service.recordFailure(event.id, UUID.randomUUID(), RuntimeException("late failure"))
 
         assertEquals(OutboxEventStatus.COMPLETED, event.status)
-        assertEquals(0, event.attempts)
+        assertEquals(1, event.attempts)
         Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
     }
 }

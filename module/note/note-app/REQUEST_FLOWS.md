@@ -332,7 +332,7 @@ sequenceDiagram
     P ->> OS: claim(availableSlots)
     rect rgb(235, 245, 255)
         Note over OS: Short claim transaction<br/>FOR UPDATE SKIP LOCKED
-        OS ->> DB: PENDING or expired PROCESSING -> PROCESSING
+        OS ->> DB: PENDING or expired PROCESSING -> PROCESSING<br/>attempts + 1, new lease_id
     end
     P ->> EP: process(NOTE_SUMMARY_REQUESTED)
     EP ->> SH: handle(event)
@@ -353,7 +353,7 @@ sequenceDiagram
         NS ->> DB: store title/content, GENERATING -> READY
         NS ->> DB: publish NOTE_INDEX_REQUESTED
     end
-    EP ->> OS: complete(summary event)
+    EP ->> OS: complete(summary event, leaseId)
     P ->> EP: process(NOTE_INDEX_REQUESTED)
     EP ->> IH: handle(event)
     IH ->> DB: load owned READY note
@@ -362,14 +362,17 @@ sequenceDiagram
     R ->> EM: embed(chunks)
     EM -->> R: chunk vectors
     R ->> DB: replace this note's rag_chunks
-    EP ->> OS: complete(index event)
+    EP ->> OS: complete(index event, leaseId)
 ```
 
-On a handler error, `OutboxEventProcessor` calls `OutboxService.recordFailure` in a new short
-transaction. The event returns to `PENDING` with exponential backoff until the configured attempt
-limit. When a `NOTE_SUMMARY_REQUESTED` event reaches the limit, that same transaction marks the
-outbox event and its still-`GENERATING` note as `FAILED`. A crashed worker leaves a `PROCESSING`
-event reclaimable after its visibility deadline.
+Every claim counts as an attempt and issues a fresh `lease_id`. On a handler error,
+`OutboxEventProcessor` calls `OutboxService.recordFailure` in a new short transaction. The event
+returns to `PENDING` with exponential backoff until the configured attempt limit. When a
+`NOTE_SUMMARY_REQUESTED` event reaches the limit, that same transaction marks the outbox event and
+its still-`GENERATING` note as `FAILED`. A crashed worker leaves a `PROCESSING` event reclaimable
+after its visibility deadline; if that worker used the last attempt, the next claim fails the event
+instead of running it again. `complete` and `recordFailure` are fenced by `lease_id`: a worker whose
+lease expired and was re-claimed cannot complete, reschedule, or fail the event.
 
 ### Note states
 
