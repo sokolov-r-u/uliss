@@ -9,7 +9,7 @@ import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidRefreshTokenException
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
-import org.springframework.http.client.SimpleClientHttpRequestFactory
+import org.springframework.http.client.JdkClientHttpRequestFactory
 import org.springframework.resilience.annotation.Retryable
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.stereotype.Service
@@ -24,7 +24,11 @@ import utils.MAX_COOKIE_AGE
 import utils.generateCodeChallenge
 import utils.generateCodeVerifier
 import utils.setCookie
+import java.net.ConnectException
 import java.net.URI
+import java.net.UnknownHostException
+import java.net.http.HttpClient
+import java.net.http.HttpConnectTimeoutException
 import java.time.Duration
 
 @Service
@@ -36,12 +40,15 @@ class AuthService(
     private val clientSecret get() = securityProperties.authorizationCode.clientSecret
     private val log = AppLogger.of(AuthService::class)
 
+    // JDK client: a connect timeout is a distinct exception type, unlike HttpURLConnection.
     private val restClient: RestClient = RestClient.builder()
         .requestFactory(
-            SimpleClientHttpRequestFactory().apply {
-                setConnectTimeout(Duration.ofSeconds(3))
-                setReadTimeout(Duration.ofSeconds(5))
-            })
+            JdkClientHttpRequestFactory(
+                HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .connectTimeout(Duration.ofSeconds(3))
+                    .build()
+            ).apply { setReadTimeout(Duration.ofSeconds(5)) })
         .build()
 
 
@@ -59,8 +66,9 @@ class AuthService(
                 "&code_challenge_method=S256"
     }
 
+    // One-time grant: retry only when the request never reached the server (see isConnectFailure).
     @Retryable(
-        includes = [AuthServerUnavailableException::class, ResourceAccessException::class],
+        includes = [AuthServerUnavailableException::class],
         maxRetries = 3,
         delay = 500,
         multiplier = 2.0
@@ -85,11 +93,14 @@ class AuthService(
             throw InvalidAuthorizationCodeException("authorization code is invalid or expired", ex)
         } catch (ex: HttpServerErrorException) {
             throw AuthServerUnavailableException("auth server unavailable", ex)
+        } catch (ex: ResourceAccessException) {
+            throw retryableIfNotSent(ex)
         }
     }
 
+    // Rotating grant: retry only when the request never reached the server (see isConnectFailure).
     @Retryable(
-        includes = [AuthServerUnavailableException::class, ResourceAccessException::class],
+        includes = [AuthServerUnavailableException::class],
         maxRetries = 3,
         delay = 500,
         multiplier = 2.0
@@ -109,6 +120,8 @@ class AuthService(
                 throw InvalidRefreshTokenException("refresh token is invalid or expired", ex)
             }
             throw InternalException("auth server error: $err", ex)
+        } catch (ex: ResourceAccessException) {
+            throw retryableIfNotSent(ex)
         }
     }
 
@@ -136,6 +149,18 @@ class AuthService(
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
+
+/**
+ * A failure before the request was sent is safe to repeat even for one-time grants. After it was sent
+ * (read timeout, reset) the server may have consumed the code or rotated the token, so a repeat fails.
+ */
+internal fun isConnectFailure(ex: ResourceAccessException): Boolean =
+    generateSequence<Throwable>(ex) { it.cause }.any {
+        it is ConnectException || it is UnknownHostException || it is HttpConnectTimeoutException
+    }
+
+private fun retryableIfNotSent(ex: ResourceAccessException): RuntimeException =
+    if (isConnectFailure(ex)) AuthServerUnavailableException("auth server unreachable", ex) else ex
 
 /** Form body encoded by the converter, so user-supplied values cannot add parameters. */
 private fun form(vararg params: Pair<String, String>): MultiValueMap<String, String> =

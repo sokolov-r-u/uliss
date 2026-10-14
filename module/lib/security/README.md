@@ -28,7 +28,9 @@ note-service. These mediator routes are distinct from the real authorization ser
 4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair.
 5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
 
-Calls to the authorization server use `RestClient` and retry expected availability failures.
+Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange
+and refresh grant are one-time, so a read timeout or reset after the request was sent is not retried; logout is
+idempotent and also retries those.
 
 ## Split-horizon URLs
 

@@ -9,6 +9,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
+import com.github.tomakehurst.wiremock.http.Fault
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
@@ -134,6 +135,23 @@ class AuthMediatorTest {
 
         // 1 call + 3 retries
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
+    fun `callback does not retry a dropped response because the code may be consumed`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
+        )
+
+        mockMvc.post("/oauth2/callback") {
+            param("code", "some-code")
+            cookie(Cookie(CODE_VERIFIER, "verifier"))
+        }.andExpect {
+            status { isServiceUnavailable() }
+        }
+
+        wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
     }
 
     @Test
@@ -280,6 +298,23 @@ class AuthMediatorTest {
         }
 
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
+    fun `refresh does not retry a read timeout because the token may be rotated`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(200, TOKEN_JSON).withFixedDelay(6_000))
+        )
+
+        mockMvc.post("/oauth2/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"whatever"}"""
+        }.andExpect {
+            status { isServiceUnavailable() }
+        }
+
+        wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
     }
 
     // ---------- POST /oauth2/logout ----------
