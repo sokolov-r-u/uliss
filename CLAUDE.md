@@ -66,6 +66,8 @@ Obtain explicit per-request permission before crossing any of these limits:
   orchestration belong in services.
 - Controllers do not call repositories directly. In the user module, keep Spring/JPA annotations out of
   domain/onboarding command types.
+- A `data class` holding secrets (passwords, tokens, keys, client secrets, PKCE verifiers) overrides `toString` to
+  omit them; the generated one prints every field into logs and exception messages.
 - Avoid Kotlin `!!`; if platform nullability makes it provably safe, add a short justification or remove the ambiguity.
 - Versions live in `gradle/libs.versions.toml`; BOM-managed dependency versions are not duplicated in module builds.
 - Package roots use `io.uliss.<module>`. Comments, code, logs, and commit messages are English-only and concise.

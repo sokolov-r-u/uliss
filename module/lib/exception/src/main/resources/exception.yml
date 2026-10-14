@@ -1,7 +1,8 @@
 spring:
   web:
     error:
-      include-message: always
-      include-binding-errors: always
+      # the /error fallback must not echo exception text (SQL, internal URLs) to clients
+      include-message: never
+      include-binding-errors: never
       include-stacktrace: never
       include-exception: false

@@ -8,4 +8,10 @@ data class RegisterUserRequest(
     val email: String,
     @Password
     val password: String
-)
+
+
+) {
+    override fun toString(): String {
+        return "RegisterUserRequest(email='$email')"
+    }
+}
