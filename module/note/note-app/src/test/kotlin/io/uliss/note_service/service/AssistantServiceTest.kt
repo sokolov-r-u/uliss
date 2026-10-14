@@ -245,11 +245,7 @@ class AssistantServiceTest {
         Mockito.verifyNoInteractions(chatClient)
     }
 
-    @Test
-    fun `stale attempt never emits done`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        val turnId = UUID.randomUUID()
+    private fun staleFinalization(userId: UUID, chatId: UUID, turnId: UUID) {
         val start = ChatTurnRequestResolution.StartGeneration(
             turn(userId, chatId, turnId, ChatTurnStatus.GENERATING),
             history(chatId, turnId),
@@ -262,14 +258,36 @@ class AssistantServiceTest {
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "obsolete", ChatTurnStatus.COMPLETE)
         ).thenReturn(false)
+    }
+
+    @Test
+    fun `attempt canceled during generation ends with its canceled outcome, not done or an error`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        staleFinalization(userId, chatId, turnId)
+        Mockito.`when`(chatTurnService.getTurn(userId, turnId))
+            .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.CANCELED))
 
         StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
-            .expectErrorMatches { error ->
-                generateSequence(error) { it.cause }
-                    .any { it.message?.contains("became stale") == true }
-            }
-            .verify(Duration.ofSeconds(1))
+            .expectNext(AssistantStreamEvent.GenerationFailed(ChatTurnStatus.CANCELED))
+            .verifyComplete()
+    }
+
+    @Test
+    fun `attempt reclaimed by a newer one ends as pending`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        staleFinalization(userId, chatId, turnId)
+        Mockito.`when`(chatTurnService.getTurn(userId, turnId))
+            .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.GENERATING, attempt = 2))
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+            .expectNext(AssistantStreamEvent.AppendText("obsolete"))
+            .expectNext(AssistantStreamEvent.GenerationPending(60_000))
+            .verifyComplete()
     }
 }
 

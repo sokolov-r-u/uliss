@@ -63,7 +63,9 @@ lost response instead of creating a duplicate.
 The key identifies retries of one logical send within that chat. The backend generates a separate
 durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
 history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
-returns `done` or `error` without replaying text fragments or calling the provider again.
+returns `done` or `error` without replaying text fragments or calling the provider again. A stream whose attempt
+lost its fence before finalization (canceled from another tab, or reclaimed by a newer attempt) ends with the
+turn's current outcome: `error` with `CANCELED`, or `pending`; never `done`.
 
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a

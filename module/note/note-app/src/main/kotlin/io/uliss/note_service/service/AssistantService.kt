@@ -63,7 +63,8 @@ class AssistantService(
 
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
-    ): Flux<AssistantStreamEvent> =
+    ): Flux<AssistantStreamEvent> = Flux.defer {
+        var finalized = false
         Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
@@ -71,7 +72,9 @@ class AssistantService(
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
-            { reply -> persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE) },
+            { reply ->
+                persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE).doOnNext { finalized = it }
+            },
             { reply, ex ->
                 log.error(
                     "provider stream failed for chat=${resolution.turn.chatId} turn=${resolution.turn.id}",
@@ -81,7 +84,22 @@ class AssistantService(
                 persistAssistantResult(resolution, reply, interruptedStatus(reply))
             },
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
-        ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
+        ).concatWith(Mono.defer { if (finalized) Mono.just(AssistantStreamEvent.GenerationCompleted) else lostFenceEvent(resolution) })
+    }
+
+    /**
+     * The attempt lost its fence: the turn was canceled (e.g. from another tab) or reclaimed by a newer attempt.
+     * Report what the turn is now instead of failing the stream.
+     */
+    private fun lostFenceEvent(resolution: ChatTurnRequestResolution.StartGeneration): Mono<AssistantStreamEvent> =
+        Mono.fromCallable {
+            val current = chatTurnService.getTurn(resolution.turn.userId, resolution.turn.id)
+            if (current.status == ChatTurnStatus.GENERATING) {
+                AssistantStreamEvent.GenerationPending(current.retryAfterMs)
+            } else {
+                current.status.toReplayEvent()
+            }
+        }.subscribeOn(Schedulers.boundedElastic())
 
     private fun streamProviderTokens(chatId: UUID, history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
         chatClient.prompt()
@@ -111,22 +129,27 @@ class AssistantService(
         )
     }
 
+    /** Emits whether this attempt saved the outcome; `false` means it lost its fence before finalization. */
     private fun persistAssistantResult(
         resolution: ChatTurnRequestResolution.StartGeneration,
         content: StringBuilder,
         status: ChatTurnStatus,
-    ): Mono<Void> = Mono.fromCallable {
-        check(
-            chatTurnService.finishGenerationAttempt(
-                userId = resolution.turn.userId,
-                chatId = resolution.turn.chatId,
-                turnId = resolution.turn.id,
-                attempt = resolution.turn.attempt,
-                content = content.toString(),
-                status = status,
-            )
-        ) {
-            "chat turn id=${resolution.turn.id} attempt=${resolution.turn.attempt} became stale before finalization"
+    ): Mono<Boolean> = Mono.fromCallable {
+        chatTurnService.finishGenerationAttempt(
+            userId = resolution.turn.userId,
+            chatId = resolution.turn.chatId,
+            turnId = resolution.turn.id,
+            attempt = resolution.turn.attempt,
+            content = content.toString(),
+            status = status,
+        ).also { saved ->
+            if (!saved) {
+                log.info(
+                    "chat turn id=${resolution.turn.id} attempt=${resolution.turn.attempt} lost its fence; " +
+                            "$status result discarded",
+                    "persistAssistantResult",
+                )
+            }
         }
     }
         .subscribeOn(Schedulers.boundedElastic())
@@ -137,7 +160,6 @@ class AssistantService(
                 ex,
             )
         }
-        .then()
 
     private fun interruptedStatus(content: StringBuilder): ChatTurnStatus =
         if (content.isNotEmpty()) ChatTurnStatus.PARTIAL else ChatTurnStatus.FAILED
