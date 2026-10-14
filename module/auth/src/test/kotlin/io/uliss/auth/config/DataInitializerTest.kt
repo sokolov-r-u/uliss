@@ -19,7 +19,7 @@ class DataInitializerTest {
     private val encoder = BCryptPasswordEncoder(4)
 
     @Test
-    fun `startup syncs secret, token settings and redirect uris of existing clients`() {
+    fun `startup replaces secret, token settings and redirect uris of existing clients with config`() {
         val repository = InMemoryRegisteredClientRepository(
             staleClient(WEB, AuthorizationGrantType.AUTHORIZATION_CODE, "http://old/callback"),
             staleClient(M2M, AuthorizationGrantType.CLIENT_CREDENTIALS, null),
@@ -33,7 +33,7 @@ class DataInitializerTest {
         assertEquals(Duration.ofDays(30), web.tokenSettings.refreshTokenTimeToLive)
         assertFalse(web.tokenSettings.isReuseRefreshTokens)
         assertTrue(web.clientSettings.isRequireProofKey)
-        assertEquals(setOf("http://old/callback", "http://new/callback"), web.redirectUris)
+        assertEquals(setOf("http://new/callback"), web.redirectUris)
 
         val m2m = assertNotNull(repository.findByClientId(M2M))
         assertTrue(encoder.matches("m2m-secret", m2m.clientSecret))

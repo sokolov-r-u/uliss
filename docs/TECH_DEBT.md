@@ -318,7 +318,7 @@ diagnosed; suspects, most likely first:
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
-   **Fixed 2026-10-14:** startup syncs secret, client/token settings and callback URLs of both clients from config.
+   **Fixed 2026-10-14:** startup syncs secret, client/token settings and exact callback URLs from config.
 3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
    signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
 

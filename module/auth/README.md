@@ -18,8 +18,8 @@ Registered clients are stored in Spring Authorization Server JDBC tables and see
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
   accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`. Access tokens last 15 minutes; refresh tokens last 30 days and
-  rotate on use. Startup syncs an existing client with config: secret, client/token settings, and newly configured
-  callback URIs (existing URIs are kept).
+  rotate on use. Startup syncs an existing client with config: secret, client/token settings, and callback URIs
+  (URIs no longer configured are removed).
 - `uliss-internal` uses Client Credentials with the `internal` scope for service traffic; startup syncs its secret.
 
 Users authenticate by email through `UserService`, with BCrypt password hashing. Their OIDC `sub` is the immutable

@@ -31,7 +31,7 @@ class DataInitializer(
         saveOrUpdateClientCredentialsClient(m2mClientId, m2mClientSecret)
     }
 
-    /** Config is the source of truth: an existing client gets the current secret, settings and callback URLs. */
+    /** Config is the source of truth: an existing client gets exactly the configured secret, settings and callback URLs. */
     private fun saveOrUpdateAuthCodeClient(clientId: String, clientSecret: String, callbackUrls: List<String>) {
         val existing = registeredClientRepository.findByClientId(clientId)
         val builder = existing?.let { RegisteredClient.from(it) }
@@ -45,7 +45,11 @@ class DataInitializer(
 
         val client = builder
             .clientSecret(secretHash(existing, clientSecret))
-            .redirectUris { uris -> uris.addAll(callbackUrls) }
+            // Exactly the configured URLs: a stale URL left in the DB would still receive authorization codes.
+            .redirectUris { uris ->
+                uris.clear()
+                uris.addAll(callbackUrls)
+            }
             .clientSettings(ClientSettings.builder().requireProofKey(true).build())
             .tokenSettings(
                 TokenSettings.builder()
