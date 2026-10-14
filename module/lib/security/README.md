@@ -20,11 +20,11 @@ note-service. These mediator routes are distinct from the real authorization ser
 
 `AuthController` and `AuthService` implement the frontend-facing flow:
 
-1. `GET /user/oauth2/login` creates a PKCE verifier, stores it in an HttpOnly cookie, and redirects the browser to the
-   public authorization endpoint.
+1. `GET /user/oauth2/login` creates a PKCE verifier and a random `state`, stores both in HttpOnly cookies, and
+   redirects the browser to the public authorization endpoint.
 2. The authorization server returns the browser to the SPA callback.
-3. `POST /user/oauth2/callback?code=...` exchanges the code and verifier as the confidential client and returns tokens
-   as JSON.
+3. `POST /user/oauth2/callback?code=...&state=...` rejects a `state` that differs from the cookie (login CSRF),
+   exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies.
 4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair.
 5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
 

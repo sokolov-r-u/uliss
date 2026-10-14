@@ -61,6 +61,57 @@ class AuthMediatorTest {
         assert(location.contains("client_id=$WEB_CLIENT")) { "redirect: $location" }
     }
 
+    @Test
+    fun `login binds a random state to the browser with a cookie`() {
+        val result = mockMvc.get("/oauth2/login")
+            .andExpect {
+                cookie {
+                    exists(OAUTH_STATE)
+                    httpOnly(OAUTH_STATE, true)
+                    maxAge(OAUTH_STATE, 300)
+                }
+            }
+            .andReturn().response
+        val state = requireNotNull(result.getCookie(OAUTH_STATE)).value
+
+        assert(state.length >= 32) { "state: $state" }
+        assert(requireNotNull(result.redirectedUrl).contains("&state=$state")) { "redirect: ${result.redirectedUrl}" }
+    }
+
+    @Test
+    fun `callback rejects a state that does not match the login cookie`() {
+        mockMvc.post("/oauth2/callback") {
+            param("code", "auth-code")
+            param("state", "forged")
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
+        }
+
+        wireMock.verify(exactly(0), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
+    fun `callback clears the one-time login cookies`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(400, """{"error":"invalid_grant"}"""))
+        )
+
+        mockMvc.post("/oauth2/callback") {
+            param("code", "auth-code")
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
+        }.andExpect {
+            status { isBadRequest() }
+            cookie {
+                maxAge(CODE_VERIFIER, 0)
+                maxAge(OAUTH_STATE, 0)
+            }
+        }
+    }
+
     // ---------- POST /oauth2/callback ----------
 
     @Test
@@ -72,7 +123,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "auth-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isOk() }
             jsonPath("$.access_token") { value("access-abc") }
@@ -92,7 +144,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "expired-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
@@ -111,7 +164,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "some-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isInternalServerError() }
             jsonPath("$.code") { value("INTERNAL_ERROR") }
@@ -127,7 +181,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "some-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isInternalServerError() }
             jsonPath("$.code") { value("INTERNAL_ERROR") }
@@ -146,7 +201,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "some-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isServiceUnavailable() }
         }
@@ -163,7 +219,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "some-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isInternalServerError() }
             jsonPath("$.code") { value("INTERNAL_ERROR") }
@@ -178,6 +235,8 @@ class AuthMediatorTest {
         // known gap: raw 400 (MissingRequestCookieException), not ErrorResponse; never reaches AS
         mockMvc.post("/oauth2/callback") {
             param("code", "some-code")
+            param("state", STATE)
+            cookie(Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isBadRequest() }
         }
@@ -235,7 +294,8 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/callback") {
             param("code", "auth-code")
-            cookie(Cookie(CODE_VERIFIER, "verifier&client_id=other"))
+            param("state", STATE)
+            cookie(Cookie(CODE_VERIFIER, "verifier&client_id=other"), Cookie(OAUTH_STATE, STATE))
         }.andExpect {
             status { isOk() }
         }
@@ -375,6 +435,8 @@ class AuthMediatorTest {
     companion object {
         private const val WEB_CLIENT = "test-web-client"
         private const val CODE_VERIFIER = "code_verifier"
+        private const val OAUTH_STATE = "oauth_state"
+        private const val STATE = "state-123"
         private const val TOKEN_JSON =
             """{"access_token":"access-abc","refresh_token":"refresh-xyz","expires_in":900,"token_type":"Bearer"}"""
 

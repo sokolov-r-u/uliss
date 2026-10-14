@@ -22,11 +22,12 @@ export function Callback() {
     ran.current = true
 
     const code = params.get('code')
-    if (!code) {
+    const state = params.get('state')
+    if (!code || !state) {
       setError('missing authorization code')
       return
     }
-    exchangeCode(code)
+    exchangeCode(code, state)
       .then(() => {
         syncFromStore()
         navigate(takeReturnTo(), { replace: true })

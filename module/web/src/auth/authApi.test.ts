@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {RefreshRejectedError, refreshTokens} from './authApi'
+import {exchangeCode, RefreshRejectedError, refreshTokens} from './authApi'
 
 function respondWith(status: number, body = '{}') {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status})))
@@ -31,5 +31,22 @@ describe('refreshTokens', () => {
         expect(tokens.accessToken).toBe('a')
         expect(tokens.refreshToken).toBe('r')
         expect(JSON.parse(sessionStorage.getItem('uliss.tokens') ?? 'null')?.accessToken).toBe('a')
+    })
+})
+
+describe('exchangeCode', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('sends the code and the login state for verification', async () => {
+        const fetchMock = vi.fn(async () =>
+            new Response(JSON.stringify({access_token: 'a', refresh_token: 'r', expires_in: 900, token_type: 'Bearer'})))
+        vi.stubGlobal('fetch', fetchMock)
+
+        await exchangeCode('code 1', 'state&1')
+
+        expect(fetchMock).toHaveBeenCalledWith(
+            '/user/oauth2/callback?code=code+1&state=state%261',
+            expect.objectContaining({method: 'POST', credentials: 'include'}),
+        )
     })
 })

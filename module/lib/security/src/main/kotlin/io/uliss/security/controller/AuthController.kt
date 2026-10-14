@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import service.AuthService
+import utils.CODE_VERIFIER
+import utils.OAUTH_STATE
 
 @RestController
 @RequestMapping("/oauth2")
@@ -29,10 +31,16 @@ class AuthController(
     @PostMapping("/callback")
     fun callback(
         @RequestParam code: String,
-        @CookieValue("code_verifier") codeVerifier: String,
+        @RequestParam state: String,
+        @CookieValue(CODE_VERIFIER) codeVerifier: String,
+        @CookieValue(OAUTH_STATE) expectedState: String,
     ): ResponseEntity<TokenResponse> {
-        val tokenResponse = authService.exchangeCode(code, codeVerifier)
-        return ResponseEntity.ok(tokenResponse)
+        try {
+            authService.verifyState(state, expectedState)
+            return ResponseEntity.ok(authService.exchangeCode(code, codeVerifier))
+        } finally {
+            authService.clearLoginCookies()
+        }
     }
 
     @PostMapping("/refresh")

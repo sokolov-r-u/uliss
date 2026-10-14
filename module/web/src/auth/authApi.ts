@@ -50,9 +50,13 @@ export function takeReturnTo(): string {
   return '/'
 }
 
-/** Exchange the authorization code for tokens. `credentials:'include'` sends the code_verifier cookie. */
-export async function exchangeCode(code: string): Promise<Tokens> {
-  const res = await fetch(`/user/oauth2/callback?code=${encodeURIComponent(code)}`, {
+/**
+ * Exchange the authorization code for tokens. `credentials:'include'` sends the code_verifier and state cookies;
+ * the service rejects a `state` that differs from the one this browser received at login.
+ */
+export async function exchangeCode(code: string, state: string): Promise<Tokens> {
+  const query = new URLSearchParams({code, state})
+  const res = await fetch(`/user/oauth2/callback?${query}`, {
     method: 'POST',
     credentials: 'include',
   })

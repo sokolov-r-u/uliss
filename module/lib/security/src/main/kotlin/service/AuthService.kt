@@ -21,11 +21,13 @@ import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
 import utils.CODE_VERIFIER
 import utils.MAX_COOKIE_AGE
+import utils.OAUTH_STATE
 import utils.generateCodeChallenge
 import utils.generateCodeVerifier
 import utils.setCookie
 import java.net.ConnectException
 import java.net.URI
+import java.security.MessageDigest
 import java.net.UnknownHostException
 import java.net.http.HttpClient
 import java.net.http.HttpConnectTimeoutException
@@ -56,14 +58,31 @@ class AuthService(
         val verifier = generateCodeVerifier()
         val codeChallenge = generateCodeChallenge(verifier)
 
+        // state binds the callback to the browser that started the login (login CSRF).
+        val state = generateCodeVerifier()
         setCookie(CODE_VERIFIER, verifier, securityProperties.secureCookie, MAX_COOKIE_AGE)
+        setCookie(OAUTH_STATE, state, securityProperties.secureCookie, MAX_COOKIE_AGE)
 
         return "${securityProperties.authServerPublicUrl}/oauth2/authorize?" +
                 "response_type=code" +
                 "&redirect_uri=${securityProperties.redirectUri}" +
                 "&client_id=${securityProperties.authorizationCode.clientId}" +
                 "&code_challenge=$codeChallenge" +
-                "&code_challenge_method=S256"
+                "&code_challenge_method=S256" +
+                "&state=$state"
+    }
+
+    /** Rejects a callback whose state differs from the one this browser received at login. */
+    fun verifyState(state: String, expectedState: String) {
+        if (!MessageDigest.isEqual(state.toByteArray(), expectedState.toByteArray())) {
+            throw InvalidAuthorizationCodeException("login state does not match")
+        }
+    }
+
+    /** The verifier and state are single-use: drop them once the callback has used them. */
+    fun clearLoginCookies() {
+        setCookie(CODE_VERIFIER, "", securityProperties.secureCookie, 0)
+        setCookie(OAUTH_STATE, "", securityProperties.secureCookie, 0)
     }
 
     // One-time grant: retry only when the request never reached the server (see isConnectFailure).
