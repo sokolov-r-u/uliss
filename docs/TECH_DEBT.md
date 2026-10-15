@@ -268,6 +268,12 @@ Deferred follow-ups agreed during that design:
   during generation, so it cannot serve as the boundary. Today only the latest boundary is known to the client.
   Once markers exist and are positioned by `through_message_id`, they can replace the `summary` field of the latest
   message page.
+- **Summarize stays hidden after a failed create until the next message or reload.** The SPA moves the boundary
+  locally when a request is accepted; if that create then fails, the server has no current note but the chip stays
+  hidden on the open page. Track the accepted note's terminal status (or refetch on failure) to show it again.
+- **V9 backfill of concurrent creates.** Older duplicate `PENDING` requests are marked `FAILED`; if their note still
+  completes, its boundary stays null and a later update re-reads the whole chat. Only affects chats that had two
+  in-flight creates at deploy time.
 
 ## Design kit copy for chat/note deletion (`uliss-design-system`)
 
