@@ -76,6 +76,7 @@ class NoteSummaryUpdateRequestedHandler(
             payload.idempotencyKey,
             payload.noteId,
             payload.chatId,
+            payload.afterMessageId,
             payload.throughMessageId,
             addendum,
             LocalDate.now(clock),

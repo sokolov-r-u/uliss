@@ -143,8 +143,8 @@ class ChatSummaryStateIntegrationTest {
         noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
         val day = LocalDate.of(2026, 10, 8)
 
-        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, through.id, "Added.", day))
-        assertFalse(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, through.id, "Again.", day))
+        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Added.", day))
+        assertFalse(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Again.", day))
 
         assertEquals("body\n\n---\n\n## 2026-10-08\n\nAdded.", noteRepository.findById(note.id).orElseThrow().content)
         assertEquals(through.id, noteService.findCurrentChatSummary(chat.id)?.throughMessageId)

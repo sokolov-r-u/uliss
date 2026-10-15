@@ -136,7 +136,9 @@ class NoteLifecycleApiIntegrationTest {
         chatMessageRepository.save(
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "Sent while generating", ChatMessageStatus.COMPLETE)
         )
-        noteService.applyChatSummaryUpdate(userId, key, noteId, chat.id, second.id, "Added.", LocalDate.of(2026, 10, 8))
+        noteService.applyChatSummaryUpdate(
+            userId, key, noteId, chat.id, first.id, second.id, "Added.", LocalDate.of(2026, 10, 8),
+        )
 
         mockMvc.get("/note/chats/${chat.id}/messages") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })

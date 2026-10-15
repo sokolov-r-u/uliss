@@ -70,7 +70,8 @@ class NoteSummaryUpdateRequestedHandlerTest {
             .arguments[0] as String
         assertEquals(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT, systemPrompt)
         Mockito.verify(noteService).applyChatSummaryUpdate(
-            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.throughMessageId,
+            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.afterMessageId,
+            payload.throughMessageId,
             "Go by night train.", LocalDate.of(2026, 10, 8),
         )
     }
@@ -86,7 +87,8 @@ class NoteSummaryUpdateRequestedHandlerTest {
         handler.handle(event(payload))
 
         Mockito.verify(noteService).applyChatSummaryUpdate(
-            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.throughMessageId,
+            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.afterMessageId,
+            payload.throughMessageId,
             null, LocalDate.of(2026, 10, 8),
         )
     }
@@ -117,7 +119,9 @@ class NoteSummaryUpdateRequestedHandlerTest {
 
         assertFailsWith<IllegalStateException> { handler.handle(event(payload)) }
         Mockito.verify(noteService, Mockito.never())
-            .applyChatSummaryUpdate(anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue())
+            .applyChatSummaryUpdate(
+                anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+            )
     }
 
     private fun stubContext(payload: NoteSummaryUpdateRequestedPayload, content: String) {

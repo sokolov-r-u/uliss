@@ -431,13 +431,14 @@ class NoteServiceTest {
         val key = UUID.randomUUID()
         val through = UUID.randomUUID()
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
-        val link = ChatNoteEntity(ChatNoteId(chatId, note.id))
+        val after = UUID.randomUUID()
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), after)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(summaryRequestStore.finish(userId, key, SummaryRequestStatus.NOTHING_NEW))
             .thenReturn(SummaryRequest(userId, key, chatId, through, note.id, Instant.now(), SummaryRequestStatus.NOTHING_NEW))
         Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
 
-        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chatId, through, null, LocalDate.now()))
+        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chatId, after, through, null, LocalDate.now()))
 
         assertEquals("body", note.content)
         assertEquals(through, link.summarizedThroughMessageId)
@@ -452,9 +453,33 @@ class NoteServiceTest {
         val noteId = UUID.randomUUID()
 
         assertFalse(
-            noteService.applyChatSummaryUpdate(userId, key, noteId, UUID.randomUUID(), UUID.randomUUID(), "x", LocalDate.now())
+            noteService.applyChatSummaryUpdate(
+                userId, key, noteId, UUID.randomUUID(), null, UUID.randomUUID(), "x", LocalDate.now(),
+            )
         )
         Mockito.verify(summaryRequestStore).finish(userId, key, SummaryRequestStatus.FAILED)
+    }
+
+    @Test
+    fun `applyChatSummaryUpdate fails a stale update whose boundary already moved`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        // Another update already applied and moved the boundary past this request's start.
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), UUID.randomUUID())
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
+
+        assertFalse(
+            noteService.applyChatSummaryUpdate(
+                userId, key, note.id, chatId, UUID.randomUUID(), UUID.randomUUID(), "Again.", LocalDate.now(),
+            )
+        )
+
+        assertEquals("body", note.content)
+        Mockito.verify(summaryRequestStore).finish(userId, key, SummaryRequestStatus.FAILED)
+        Mockito.verifyNoInteractions(outboxService)
     }
 
     @Test

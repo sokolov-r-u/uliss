@@ -173,7 +173,8 @@ class NoteService(
 
     /**
      * Applies an update outcome exactly once: a null [addendum] records NOTHING_NEW. Returns false when the note is
-     * gone or no longer READY, or when the request already left PENDING (a redelivered event).
+     * gone or no longer READY, when its boundary is no longer [afterMessageId] (another update already covered these
+     * messages), or when the request already left PENDING (a redelivered event).
      */
     @Transactional
     fun applyChatSummaryUpdate(
@@ -181,12 +182,14 @@ class NoteService(
         idempotencyKey: UUID,
         noteId: UUID,
         chatId: UUID,
+        afterMessageId: UUID?,
         throughMessageId: UUID,
         addendum: String?,
         appliedOn: LocalDate,
     ): Boolean {
         val note = findReadyNote(userId, noteId)
-        if (note == null) {
+        val link = note?.let { chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) }
+        if (note == null || link == null || link.summarizedThroughMessageId != afterMessageId) {
             summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.FAILED)
             return false
         }
@@ -198,7 +201,8 @@ class NoteService(
             val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
             outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
         }
-        moveSummaryBoundary(chatId, noteId, throughMessageId)
+        link.summarizedThroughMessageId = throughMessageId
+        chatNoteRepository.save(link)
         return true
     }
 
