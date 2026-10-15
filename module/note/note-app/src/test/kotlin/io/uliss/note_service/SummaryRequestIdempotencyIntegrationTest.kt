@@ -2,12 +2,14 @@ package io.uliss.note_service
 
 import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
+import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatNoteRepository
@@ -21,7 +23,6 @@ import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.repository.CrudRepository
 import org.springframework.jdbc.core.JdbcTemplate
@@ -189,21 +190,63 @@ class SummaryRequestIdempotencyIntegrationTest {
     }
 
     @Test
-    fun `reservation does not hide a conflict on the unique note id`() {
+    fun `a second pending request for the chat is rejected as in progress`() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
-        val first = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
 
-        assertFailsWith<DataIntegrityViolationException> {
-            summaryRequestStore.reserve(
-                userId,
-                UUID.randomUUID(),
-                chat.id,
-                boundary.id,
-                first.id,
-            )
+        assertFailsWith<SummaryInProgressException> {
+            noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
         }
+        assertEquals(1, count("SELECT COUNT(*) FROM note.summary_request WHERE chat_id = ?", chat.id))
     }
+
+    @Test
+    fun `finish moves only a pending request and returns it once`() {
+        val userId = UUID.randomUUID()
+        val (chat, boundary) = createChatBoundary(userId)
+        val key = UUID.randomUUID()
+        noteService.requestChatSummary(userId, chat.id, boundary.id, key)
+
+        val finished = summaryRequestStore.finish(userId, key, SummaryRequestStatus.APPLIED)
+        val again = summaryRequestStore.finish(userId, key, SummaryRequestStatus.FAILED)
+
+        assertEquals(SummaryRequestStatus.APPLIED, finished?.status)
+        assertEquals(null, again)
+        assertEquals("APPLIED", requestStatus(userId, key))
+    }
+
+    @Test
+    fun `finishPendingForNote releases the chat for the next request`() {
+        val userId = UUID.randomUUID()
+        val (chat, boundary) = createChatBoundary(userId)
+        val note = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+
+        val finished = summaryRequestStore.finishPendingForNote(note.id, SummaryRequestStatus.FAILED)
+        noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+
+        assertEquals(chat.id, finished?.chatId)
+        assertEquals(boundary.id, finished?.throughMessageId)
+        assertEquals(2, count("SELECT COUNT(*) FROM note.summary_request WHERE chat_id = ?", chat.id))
+    }
+
+    @Test
+    fun `outbox accepts the summary update event type`() {
+        jdbcTemplate.update(
+            """
+            INSERT INTO note.outbox_event (id, type, payload, status, attempts, next_attempt_at, created_at, updated_at)
+            VALUES (?, 'NOTE_SUMMARY_UPDATE_REQUESTED', '{}'::jsonb, 'COMPLETED', 0, now(), now(), now())
+            """.trimIndent(),
+            UUID.randomUUID(),
+        )
+    }
+
+    private fun requestStatus(userId: UUID, key: UUID): String? = jdbcTemplate.queryForObject(
+        "SELECT status FROM note.summary_request WHERE user_id = ? AND idempotency_key = ?",
+        String::class.java,
+        userId,
+        key,
+    )
 
     private fun createChatBoundary(userId: UUID): Pair<ChatEntity, ChatMessageEntity> {
         val chat = chatRepository.save(ChatEntity(userId, "Summary idempotency test"))

@@ -46,3 +46,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   interrupted (`docs/TECH_DEBT.md`).
 - **Source:** `docs/tasks/2026-10-15-review-fixes.md`.
 
+
+## 2026-10-15 — Summarize requests carry a status; one in flight per chat
+
+- **Context:** a later Summarize appends to the chat's existing note, so one note gets many requests and the note
+  status no longer describes a request.
+- **Decision:** `summary_request.status` (`PENDING`, `APPLIED`, `NOTHING_NEW`, `FAILED`) replaces the unique
+  `note_id`. A partial unique index allows one `PENDING` request per chat; a second one is 409
+  `SUMMARY_IN_PROGRESS`. `chat_note.summarized_through_message_id` is the durable boundary of what a note covers;
+  deleting the boundary message nulls it (the whole chat counts as unsummarized) instead of dropping the link.
+- **Consequences:** `summary_request` stays short-lived idempotency and in-flight state; nothing durable reads it.
+- **Source:** `docs/tasks/2026-10-08-summary-update.md`.
