@@ -51,6 +51,19 @@ class JdbcRagChunkStoreIntegrationTest {
     }
 
     @Test
+    fun `search can exclude one note`() {
+        val userId = UUID.randomUUID()
+        val excluded = saveNote(userId)
+        val kept = saveNote(userId)
+        store.replace(userId, excluded.id, listOf(chunk(0, "excluded", 1.0f, 0.0f)))
+        store.replace(userId, kept.id, listOf(chunk(0, "kept", 0.8f, 0.6f)))
+
+        val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7, excludeNoteId = excluded.id)
+
+        assertEquals(listOf("kept"), result.map { it.content })
+    }
+
+    @Test
     fun `replace removes previous chunks of the selected note`() {
         val userId = UUID.randomUUID()
         val note = saveNote(userId)

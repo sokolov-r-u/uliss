@@ -51,4 +51,19 @@ class RagService(
         limit = limit,
         minSimilarity = minSimilarity,
     )
+
+    /** Like [search], but never returns chunks of [excludeNoteId] — the note being updated. */
+    fun searchExcluding(
+        userId: UUID,
+        query: String,
+        limit: Int,
+        minSimilarity: Double,
+        excludeNoteId: UUID,
+    ): List<RetrievedChunk> = ragChunkStore.search(
+        userId = userId,
+        queryEmbedding = embeddingModel.embed(query),
+        limit = limit,
+        minSimilarity = minSimilarity,
+        excludeNoteId = excludeNoteId,
+    )
 }
