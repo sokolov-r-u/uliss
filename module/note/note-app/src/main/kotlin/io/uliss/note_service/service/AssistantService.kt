@@ -8,6 +8,7 @@ import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.util.ChatPrompts
+import io.uliss.note_service.util.isEmptyAssistantReply
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
@@ -174,9 +175,8 @@ class AssistantService(
         ChatTurnStatus.GENERATING -> error("a generating turn cannot be a terminal replay")
     }
 
-    /** Empty FAILED/CANCELED replies carry nothing for the model and would only grow the prompt. */
     private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history
-        .filterNot { it.role == ChatMessageRole.ASSISTANT && it.content.isEmpty() }
+        .filterNot { it.isEmptyAssistantReply() }
         .map {
             when (it.role) {
                 ChatMessageRole.USER -> UserMessage(it.content)

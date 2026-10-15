@@ -236,6 +236,26 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
+    fun `retrieval query skips assistant replies without content, as the chat prompt to the provider does`() {
+        val chatId = UUID.randomUUID()
+        val context = ChatSummaryContext(
+            title = "Plan",
+            messages = listOf(
+                message(chatId, ChatMessageRole.USER, "first"),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.FAILED),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.CANCELED),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "  ", ChatMessageStatus.COMPLETE),
+                message(chatId, ChatMessageRole.USER, "second"),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "half", ChatMessageStatus.PARTIAL),
+            ),
+        )
+
+        val query = buildRetrievalQuery(context, maxChars = 500)
+
+        assertEquals("Chat title: Plan\nTranscript:\nUSER: first\nUSER: second\nASSISTANT: half", query)
+    }
+
+    @Test
     fun `retrieval query uses the complete transcript when its rendered length exactly matches the limit`() {
         val chatId = UUID.randomUUID()
         val context = ChatSummaryContext(

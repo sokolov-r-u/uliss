@@ -246,7 +246,7 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun `empty failed and canceled replies are not sent to the provider`() {
+    fun `empty or blank assistant replies of any status are not sent to the provider`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
@@ -256,6 +256,9 @@ class AssistantServiceTest {
             ChatMessageEntity(chatId, ChatMessageRole.USER, "second", ChatMessageStatus.COMPLETE),
             ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.CANCELED),
             ChatMessageEntity(chatId, ChatMessageRole.USER, "third", ChatMessageStatus.COMPLETE),
+            // whitespace carries nothing either, whatever the status
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, " \n", ChatMessageStatus.COMPLETE),
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "fourth", ChatMessageStatus.COMPLETE),
             ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "half", ChatMessageStatus.PARTIAL),
             ChatMessageEntity(chatId, ChatMessageRole.USER, "hi", ChatMessageStatus.COMPLETE, turnId),
         )
@@ -275,7 +278,7 @@ class AssistantServiceTest {
 
         val captor = captorFor<List<Message>>(List::class.java)
         Mockito.verify(requestSpec).messages(captor.captureValue())
-        assertEquals(listOf("first", "second", "third", "half", "hi"), captor.value.map { it.text })
+        assertEquals(listOf("first", "second", "third", "fourth", "half", "hi"), captor.value.map { it.text })
     }
 
     private fun staleFinalization(userId: UUID, chatId: UUID, turnId: UUID) {

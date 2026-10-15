@@ -6,7 +6,6 @@ import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
-import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
@@ -16,6 +15,7 @@ import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.TitleNormalizer
+import io.uliss.note_service.util.isEmptyAssistantReply
 import jakarta.validation.constraints.DecimalMax
 import jakarta.validation.constraints.DecimalMin
 import jakarta.validation.constraints.Min
@@ -90,11 +90,7 @@ class NoteSummaryRequestedHandler(
 
     private fun retrievalQuery(context: ChatSummaryContext): String {
         val maxChars = properties.retrievalQueryMaxChars
-        val messages = context.messages.filterNot {
-            it.role == ChatMessageRole.ASSISTANT &&
-                    it.status == ChatMessageStatus.FAILED &&
-                    it.content.isBlank()
-        }
+        val messages = context.messages.filterNot { it.isEmptyAssistantReply() }
         val fullPrefix = "Chat title: ${context.title}\nTranscript:\n"
         val fullLength = fullPrefix.length.toLong() + retrievalTranscriptLength(messages)
         if (fullLength <= maxChars.toLong()) {
