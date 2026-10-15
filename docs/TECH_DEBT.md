@@ -248,9 +248,8 @@ Opened 2026-08-31 during the design-system integration refresh
 
 ## Summarize updates the chat's existing note (`note-service`, `web`)
 
-**Status:** designed 2026-10-08 in `docs/features/2026-10-08-summary-update-design.md`; implementation in progress.
-The update appends a dated addendum to the chat's latest READY note; RAG retrieval embeds only the new messages and
-excludes that note.
+**Status:** implemented 2026-10-15 (see `module/note/note-app/DECISIONS.md`). The update appends a dated addendum to
+the chat's latest READY note; RAG retrieval embeds only the new messages and excludes that note.
 
 Deferred follow-ups agreed during that design:
 
