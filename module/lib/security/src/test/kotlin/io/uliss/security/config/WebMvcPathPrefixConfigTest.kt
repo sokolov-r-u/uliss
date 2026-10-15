@@ -6,6 +6,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import kotlin.test.assertFailsWith
 
 @SpringBootTest(properties = ["uliss.web.path-prefix=/svc"])
 @AutoConfigureMockMvc
@@ -26,5 +27,16 @@ class WebMvcPathPrefixConfigTest {
         mockMvc.get("/oauth2/login").andExpect {
             status { isNotFound() }
         }
+    }
+}
+
+class WebMvcPathPrefixValidationTest {
+
+    @Test
+    fun `a prefix must be a single path segment the mediator matchers can permit`() {
+        listOf("/api/user", "user", "/", "/user/").forEach { prefix ->
+            assertFailsWith<IllegalArgumentException>(prefix) { WebMvcPathPrefixConfig(prefix) }
+        }
+        WebMvcPathPrefixConfig("/user")
     }
 }

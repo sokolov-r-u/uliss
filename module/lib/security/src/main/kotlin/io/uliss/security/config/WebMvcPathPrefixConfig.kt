@@ -18,9 +18,17 @@ class WebMvcPathPrefixConfig(
     @Value("\${$PATH_PREFIX_PROPERTY}") private val pathPrefix: String,
 ) : WebMvcConfigurer {
 
+    init {
+        // SecurityConfig permits the mediator at /*/oauth2/**, i.e. under exactly one segment.
+        require(SINGLE_SEGMENT.matches(pathPrefix)) {
+            "$PATH_PREFIX_PROPERTY must be one path segment like /user: $pathPrefix"
+        }
+    }
+
     override fun configurePathMatch(configurer: PathMatchConfigurer) {
         configurer.addPathPrefix(pathPrefix, HandlerTypePredicate.forAnnotation(RestController::class.java))
     }
 }
 
-const val PATH_PREFIX_PROPERTY = "uliss.web.path-prefix"
+private const val PATH_PREFIX_PROPERTY = "uliss.web.path-prefix"
+private val SINGLE_SEGMENT = Regex("/[^/]+")
