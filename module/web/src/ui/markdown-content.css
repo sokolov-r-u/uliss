@@ -142,3 +142,9 @@
     margin-right: 0.45em;
     accent-color: var(--accent);
 }
+
+/* Addendum dates on the note page. */
+.markdown-content .markdown-date-heading {
+    color: var(--accent);
+    font-size: 1em;
+}

@@ -55,7 +55,7 @@ export function NoteDetailView({state, onRetry, actions}: {
             </div>}
         {state.status === 'ready' && <article className="note-content">
             {state.note.source === 'CHAT_SUMMARY'
-                ? <MarkdownContent content={state.note.content}/>
+                ? <MarkdownContent content={state.note.content} highlightDateHeadings/>
                 : state.note.content}
         </article>}
         </div>
