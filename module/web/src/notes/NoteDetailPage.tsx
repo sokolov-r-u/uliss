@@ -12,6 +12,9 @@ import {formatFullDate} from '../ui/format'
 
 type ReadyNote = Note & { content: string }
 
+/** Status-stream reconnects per load (the service closes a stream after 10 minutes) before offering Retry. */
+export const MAX_STATUS_RECONNECTS = 5
+
 type DetailState =
     | { status: 'loading' }
     | { status: 'generating'; note: Note }
@@ -82,35 +85,56 @@ export function NoteDetailPage() {
         controllerRef.current = controller
         setState({status: 'loading'})
         try {
-            const note = await getNote(noteId, controller.signal)
-            if (note.status === 'READY') {
-                if (note.content == null) {
-                    setState({status: 'error', message: 'ready note content is unavailable'})
+            let note = await getNote(noteId, controller.signal)
+            let settledBeforeStream = true
+            for (let reconnects = 0; ; reconnects++) {
+                if (note.status === 'READY') {
+                    // A note that finished while the stream was closed: note lists re-read it.
+                    if (!settledBeforeStream) notifyNotesChanged()
+                    if (note.content == null) {
+                        setState({status: 'error', message: 'ready note content is unavailable'})
+                        return
+                    }
+                    setState({status: 'ready', note: {...note, content: note.content}})
                     return
                 }
-                setState({status: 'ready', note: {...note, content: note.content}})
-                return
-            }
-            if (note.status === 'FAILED') {
-                setState({status: 'failed', note})
-                return
-            }
-            setState({status: 'generating', note})
-            const terminal = await streamNoteStatus(noteId, {
-                signal: controller.signal,
-                onStatus: (event) => {
-                    if (event.status === 'FAILED') setState({status: 'failed', note: {...note, status: 'FAILED'}})
-                },
-            })
-            // The note finished (title and content now exist, or it failed): note lists re-read it.
-            if (terminal) notifyNotesChanged()
-            if (terminal === 'READY') {
-                const ready = await getNote(noteId, controller.signal)
-                if (ready.status !== 'READY' || ready.content == null) {
-                    setState({status: 'error', message: 'ready note content is unavailable'})
+                if (note.status === 'FAILED') {
+                    if (!settledBeforeStream) notifyNotesChanged()
+                    setState({status: 'failed', note})
                     return
                 }
-                setState({status: 'ready', note: {...ready, content: ready.content}})
+                settledBeforeStream = false
+                setState({status: 'generating', note})
+                const generatingNote = note
+                const terminal = await streamNoteStatus(noteId, {
+                    signal: controller.signal,
+                    onStatus: (event) => {
+                        if (event.status === 'FAILED') {
+                            setState({status: 'failed', note: {...generatingNote, status: 'FAILED'}})
+                        }
+                    },
+                })
+                if (terminal) {
+                    // The note finished (title and content now exist, or it failed): note lists re-read it.
+                    notifyNotesChanged()
+                    if (terminal === 'READY') {
+                        const ready = await getNote(noteId, controller.signal)
+                        if (ready.status !== 'READY' || ready.content == null) {
+                            setState({status: 'error', message: 'ready note content is unavailable'})
+                            return
+                        }
+                        setState({status: 'ready', note: {...ready, content: ready.content}})
+                    }
+                    return
+                }
+                // The service closes a status stream after a fixed time (proxies may cut it too): reconnect while
+                // the note is still generating, but not forever if every stream ends at once.
+                if (controller.signal.aborted) return
+                if (reconnects === MAX_STATUS_RECONNECTS) {
+                    setState({status: 'error', message: 'The note is still being written. Check back later.'})
+                    return
+                }
+                note = await getNote(noteId, controller.signal)
             }
         } catch (error) {
             if (controller.signal.aborted || error instanceof AuthRequiredError || isAbortError(error)) return
