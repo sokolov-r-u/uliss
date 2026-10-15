@@ -7,6 +7,7 @@ import io.uliss.security.config.SecurityProperties
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
+import io.uliss.security.exception.InvalidClientCredentialsException
 import io.uliss.security.exception.InvalidRefreshTokenException
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -73,8 +74,14 @@ class AuthService(
                 "&state=$state"
     }
 
-    /** Rejects a callback whose state differs from the one this browser received at login. */
-    fun verifyState(@Sensitive state: String, @Sensitive expectedState: String) {
+    /**
+     * Rejects a callback whose state differs from the one this browser received at login. A missing or blank
+     * value (cookie expired, login started elsewhere) never matches.
+     */
+    fun verifyState(@Sensitive state: String?, @Sensitive expectedState: String?) {
+        if (state.isNullOrBlank() || expectedState.isNullOrBlank()) {
+            throw InvalidAuthorizationCodeException("login state is missing")
+        }
         if (!MessageDigest.isEqual(state.toByteArray(), expectedState.toByteArray())) {
             throw InvalidAuthorizationCodeException("login state does not match")
         }
@@ -93,7 +100,10 @@ class AuthService(
         delay = 500,
         multiplier = 2.0
     )
-    fun exchangeCode(@Sensitive code: String, @Sensitive codeVerifier: String): TokenResponse {
+    fun exchangeCode(@Sensitive code: String?, @Sensitive codeVerifier: String?): TokenResponse {
+        if (code.isNullOrBlank() || codeVerifier.isNullOrBlank()) {
+            throw InvalidAuthorizationCodeException("authorization code or verifier is missing")
+        }
         return try {
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
@@ -134,12 +144,18 @@ class AuthService(
                 .body(form("grant_type" to "refresh_token", "refresh_token" to refreshToken))
                 .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
-            log.warn("auth service reject refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
+            // Any rejection ends the session, so the SPA signs in again instead of retrying a dead token.
             val err = errorCode(ex)
             if (err == OAuth2ErrorCodes.INVALID_GRANT) {
-                throw InvalidRefreshTokenException("refresh token is invalid or expired", ex)
+                log.warn("auth server rejected refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
+            } else {
+                // e.g. invalid_client: the mediator's own client configuration is wrong
+                log.error("auth server rejected refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
             }
-            throw InternalException("auth server error: $err", ex)
+            throw InvalidRefreshTokenException("refresh token was rejected: ${err ?: ex.statusCode}", ex)
+        } catch (ex: InvalidClientCredentialsException) {
+            log.error("auth server rejected the mediator client credentials on refresh", "refresh", ex)
+            throw InvalidRefreshTokenException("refresh token was rejected: invalid_client", ex)
         } catch (ex: ResourceAccessException) {
             throw retryableIfNotSent(ex)
         }
@@ -196,7 +212,7 @@ inline fun <reified T : Any> RestClient.RequestBodySpec.getResponseOrThrow(): T 
                 else res.bodyTo(T::class.java) ?: throw InternalException("empty response")
 
             res.statusCode == HttpStatus.UNAUTHORIZED ->
-                throw InternalException("invalid client credentials")
+                throw InvalidClientCredentialsException("invalid client credentials")
 
             res.statusCode.is5xxServerError ->
                 throw AuthServerUnavailableException("auth server unavailable")

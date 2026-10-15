@@ -231,14 +231,58 @@ class AuthMediatorTest {
     }
 
     @Test
-    fun `callback without code_verifier cookie is 400`() {
-        // known gap: raw 400 (MissingRequestCookieException), not ErrorResponse; never reaches AS
+    fun `callback without code_verifier cookie is rejected and still clears the login cookies`() {
+        assertIncompleteCallbackRejected(
+            params = mapOf("code" to "some-code", "state" to STATE),
+            cookies = listOf(Cookie(OAUTH_STATE, STATE)),
+        )
+    }
+
+    @Test
+    fun `callback without state cookie is rejected and still clears the login cookies`() {
+        // e.g. the login started before the state cookie existed, or the cookie expired on a slow login page
+        assertIncompleteCallbackRejected(
+            params = mapOf("code" to "some-code", "state" to STATE),
+            cookies = listOf(Cookie(CODE_VERIFIER, "verifier")),
+        )
+    }
+
+    @Test
+    fun `callback without state parameter is rejected and still clears the login cookies`() {
+        assertIncompleteCallbackRejected(
+            params = mapOf("code" to "some-code"),
+            cookies = listOf(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE)),
+        )
+    }
+
+    @Test
+    fun `callback without code parameter is rejected and still clears the login cookies`() {
+        assertIncompleteCallbackRejected(
+            params = mapOf("state" to STATE),
+            cookies = listOf(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, STATE)),
+        )
+    }
+
+    @Test
+    fun `callback with blank state cookie and parameter is rejected`() {
+        // an empty state must never match itself
+        assertIncompleteCallbackRejected(
+            params = mapOf("code" to "some-code", "state" to ""),
+            cookies = listOf(Cookie(CODE_VERIFIER, "verifier"), Cookie(OAUTH_STATE, "")),
+        )
+    }
+
+    private fun assertIncompleteCallbackRejected(params: Map<String, String>, cookies: List<Cookie>) {
         mockMvc.post("/oauth2/callback") {
-            param("code", "some-code")
-            param("state", STATE)
-            cookie(Cookie(OAUTH_STATE, STATE))
+            params.forEach { (name, value) -> param(name, value) }
+            if (cookies.isNotEmpty()) cookie(*cookies.toTypedArray())
         }.andExpect {
             status { isBadRequest() }
+            jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
+            cookie {
+                maxAge(CODE_VERIFIER, 0)
+                maxAge(OAUTH_STATE, 0)
+            }
         }
 
         wireMock.verify(exactly(0), postRequestedFor(urlPathEqualTo("/oauth2/token")))
@@ -326,19 +370,26 @@ class AuthMediatorTest {
     }
 
     @Test
-    fun `refresh maps non invalid_grant error to 500`() {
-        // known gap: non-invalid_grant error on refresh -> 500 INTERNAL_ERROR
-        wireMock.stubFor(
-            post(urlPathEqualTo("/oauth2/token"))
-                .willReturn(jsonResponse(400, """{"error":"invalid_scope"}"""))
-        )
+    fun `refresh maps any other 4xx from the auth server to 401 so the SPA signs in again`() {
+        // invalid_client after a secret rotation, invalid_scope, unauthorized_client, or a 4xx without an OAuth body
+        listOf(
+            400 to """{"error":"invalid_scope"}""",
+            401 to """{"error":"invalid_client"}""",
+            400 to """{"error":"unauthorized_client"}""",
+            403 to "",
+        ).forEach { (status, body) ->
+            wireMock.resetAll()
+            wireMock.stubFor(post(urlPathEqualTo("/oauth2/token")).willReturn(jsonResponse(status, body)))
 
-        mockMvc.post("/oauth2/refresh") {
-            contentType = MediaType.APPLICATION_JSON
-            content = """{"refreshToken":"whatever"}"""
-        }.andExpect {
-            status { isInternalServerError() }
-            jsonPath("$.code") { value("INTERNAL_ERROR") }
+            mockMvc.post("/oauth2/refresh") {
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"refreshToken":"whatever"}"""
+            }.andExpect {
+                status { isUnauthorized() }
+                jsonPath("$.code") { value("INVALID_REFRESH_TOKEN") }
+            }
+            // a rejected grant is final: no retry
+            wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
         }
     }
 

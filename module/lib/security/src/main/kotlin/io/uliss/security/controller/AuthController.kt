@@ -30,10 +30,11 @@ class AuthController(
 
     @PostMapping("/callback")
     fun callback(
-        @RequestParam code: String,
-        @RequestParam state: String,
-        @CookieValue(CODE_VERIFIER) codeVerifier: String,
-        @CookieValue(OAUTH_STATE) expectedState: String,
+        // Optional so a missing value is rejected inside the try and the login cookies are still cleared.
+        @RequestParam(required = false) code: String?,
+        @RequestParam(required = false) state: String?,
+        @CookieValue(CODE_VERIFIER, required = false) codeVerifier: String?,
+        @CookieValue(OAUTH_STATE, required = false) expectedState: String?,
     ): ResponseEntity<TokenResponse> {
         try {
             authService.verifyState(state, expectedState)

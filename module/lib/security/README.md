@@ -24,8 +24,12 @@ note-service. These mediator routes are distinct from the real authorization ser
    redirects the browser to the public authorization endpoint.
 2. The authorization server returns the browser to the SPA callback.
 3. `POST /user/oauth2/callback?code=...&state=...` rejects a `state` that differs from the cookie (login CSRF),
-   exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies.
-4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair.
+   exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies. A
+   missing or blank code, state, or cookie is rejected with 400 `AUTHORIZATION_CODE_ERROR`, and the cookies are still
+   cleared.
+4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair. Any 4xx from the
+   authorization server (including `invalid_client`, which is also logged as an error) becomes 401
+   `INVALID_REFRESH_TOKEN`, so the SPA signs in again.
 5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
 
 Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange

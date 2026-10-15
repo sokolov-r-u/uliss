@@ -1,5 +1,5 @@
 import {afterEach, describe, expect, it, vi} from 'vitest'
-import {exchangeCode, RefreshRejectedError, refreshTokens} from './authApi'
+import {exchangeCode, LoginRejectedError, RefreshRejectedError, refreshTokens} from './authApi'
 
 function respondWith(status: number, body = '{}') {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status})))
@@ -48,5 +48,20 @@ describe('exchangeCode', () => {
             '/user/oauth2/callback?code=code+1&state=state%261',
             expect.objectContaining({method: 'POST', credentials: 'include'}),
         )
+    })
+
+    it('reports a login session the service rejected (state, verifier, or code) as LoginRejectedError', async () => {
+        respondWith(400)
+
+        await expect(exchangeCode('code-1', 'state-1')).rejects.toBeInstanceOf(LoginRejectedError)
+    })
+
+    it('reports a server failure as a plain error, not a rejected login', async () => {
+        respondWith(500)
+
+        const error = await exchangeCode('code-1', 'state-1').catch((e: unknown) => e)
+
+        expect(error).toBeInstanceOf(Error)
+        expect(error).not.toBeInstanceOf(LoginRejectedError)
     })
 })
