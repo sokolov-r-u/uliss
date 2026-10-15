@@ -29,11 +29,14 @@ data class NoteAddendumDraft(
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,
 ) {
-    /** The addendum body, or null when the model reported nothing new or gave no main thought. */
+    /**
+     * The addendum body, or null when the model reported nothing new. A missing main thought is a malformed answer,
+     * not "nothing new": it fails so the outbox retries instead of moving the boundary past unsummarized messages.
+     */
     fun toAddendumContent(): String? {
         if (nothingNew == true) return null
         val main = mainThought?.trim().orEmpty()
-        if (main.isBlank()) return null
+        check(main.isNotBlank()) { "summary update model returned a blank main thought" }
         return formatNoteThoughts(main, secondaryThoughts)
     }
 }

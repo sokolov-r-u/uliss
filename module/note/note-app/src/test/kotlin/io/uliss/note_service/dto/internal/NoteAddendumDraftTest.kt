@@ -3,6 +3,7 @@ package io.uliss.note_service.dto.internal
 import org.junit.jupiter.api.Test
 import org.springframework.ai.converter.BeanOutputConverter
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -16,10 +17,14 @@ class NoteAddendumDraftTest {
     }
 
     @Test
-    fun `toAddendumContent is null when nothing is new or the main thought is blank`() {
+    fun `toAddendumContent is null only when the model reports nothing new`() {
         assertNull(NoteAddendumDraft(true, "Ignored.", emptyList()).toAddendumContent())
-        assertNull(NoteAddendumDraft(false, "  ", listOf("Orphan.")).toAddendumContent())
-        assertNull(NoteAddendumDraft(null, null, null).toAddendumContent())
+    }
+
+    @Test
+    fun `toAddendumContent fails without a main thought so the update is retried`() {
+        assertFailsWith<IllegalStateException> { NoteAddendumDraft(false, "  ", listOf("Orphan.")).toAddendumContent() }
+        assertFailsWith<IllegalStateException> { NoteAddendumDraft(null, null, null).toAddendumContent() }
     }
 
     @Test
