@@ -10,6 +10,7 @@ import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
+import io.uliss.note_service.service.NoteService
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -42,6 +43,9 @@ class OutboxLeaseFencingIntegrationTest {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var noteService: NoteService
 
     @Autowired
     lateinit var outboxLeasePolicy: OutboxLeasePolicy
@@ -107,6 +111,28 @@ class OutboxLeaseFencingIntegrationTest {
     }
 
     @Test
+    fun `a summary that arrives after its last lease expired still makes the failed note ready`() {
+        val userId = UUID.randomUUID()
+        val note = noteRepository.save(NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING))
+        val event = savePendingEvent(OutboxEventType.NOTE_SUMMARY_REQUESTED, summaryPayload(note.id, userId))
+        // the last attempt is still waiting for the provider (e.g. a long Retry-After) when its lease expires
+        repeat(3) {
+            outboxService.claim(10)
+            expireLease(event.id)
+        }
+        assertTrue(outboxService.claim(10).isEmpty())
+        assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
+
+        // the slow worker finally gets the draft and saves it, as NoteSummaryRequestedHandler does
+        val saved = noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
+
+        assertTrue(saved)
+        val ready = noteRepository.findById(note.id).orElseThrow()
+        assertEquals(NoteStatus.READY, ready.status)
+        assertEquals("late summary", ready.content)
+    }
+
+    @Test
     fun `an instance without a handler for the type never claims it, so the event keeps all its attempts`() {
         val event = savePendingEvent(OutboxEventType.NOTE_SUMMARY_REQUESTED, "{}")
         // e.g. an older instance during a rolling deploy that knows only the index handler
@@ -137,6 +163,15 @@ class OutboxLeaseFencingIntegrationTest {
         override val type = handledType
         override fun handle(event: OutboxEventEntity) = Unit
     }
+
+    private fun summaryPayload(noteId: UUID, userId: UUID): String = objectMapper.writeValueAsString(
+        NoteSummaryRequestedPayload(
+            noteId = noteId,
+            userId = userId,
+            chatId = UUID.randomUUID(),
+            throughMessageId = UUID.randomUUID(),
+        )
+    )
 
     private fun savePendingEvent(type: OutboxEventType, payload: String): OutboxEventEntity =
         outboxEventRepository.save(

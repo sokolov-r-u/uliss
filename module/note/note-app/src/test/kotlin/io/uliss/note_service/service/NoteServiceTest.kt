@@ -311,6 +311,22 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `completeChatSummary accepts a late result for a note failed while its worker was still running`() {
+        // the last attempt outlived its lease, so the note was failed before the provider answered
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.FAILED)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(noteRepository.save(note)).thenReturn(note)
+
+        val completed = noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
+
+        assertTrue(completed)
+        assertEquals("late summary", note.content)
+        assertEquals(NoteStatus.READY, note.status)
+        assertTrue(publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED).contains(note.id.toString()))
+    }
+
+    @Test
     fun `completeChatSummary does nothing when the note is no longer generating`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, "existing", NoteSource.CHAT_SUMMARY, NoteStatus.READY)

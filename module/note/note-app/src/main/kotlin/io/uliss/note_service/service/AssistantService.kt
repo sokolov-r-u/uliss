@@ -123,9 +123,9 @@ class AssistantService(
         val usage = response.metadata.usage
         if (usage.promptTokens <= 0) return
         log.info(
-            "streamProviderTokens",
             "chat=$chatId usage prompt=${usage.promptTokens} cached=${usage.cacheReadInputTokens ?: 0} " +
                     "completion=${usage.completionTokens}",
+            "streamProviderTokens",
         )
     }
 
