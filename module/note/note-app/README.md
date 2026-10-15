@@ -2,7 +2,7 @@
 
 `module/note/note-app` (`:note`, package `io.uliss.note_service`) owns persistent chats,
 asynchronous chat summaries, notes, and per-user retrieval-augmented generation (RAG).
-`WebMvcPathPrefixConfig` adds `/note` to every REST controller.
+`uliss.web.path-prefix: /note` makes the `:security` `WebMvcPathPrefixConfig` add `/note` to every REST controller.
 
 See [REQUEST_FLOWS.md](REQUEST_FLOWS.md) for endpoint call order, transaction boundaries, chat-turn
 states, and asynchronous summary/indexing diagrams.

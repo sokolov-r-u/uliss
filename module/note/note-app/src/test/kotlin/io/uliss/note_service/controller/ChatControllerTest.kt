@@ -24,6 +24,7 @@ import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
+import io.uliss.security.config.WebMvcPathPrefixConfig
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
@@ -50,7 +51,7 @@ import kotlin.test.assertTrue
 // SecurityConfig/CorsProperties/GlobalExceptionHandler imported explicitly: @WebMvcTest does not
 // auto-load third-party AutoConfiguration.imports entries, only beans it discovers itself.
 @WebMvcTest(ChatController::class)
-@Import(SecurityConfig::class, CorsProperties::class, GlobalExceptionHandler::class)
+@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class, GlobalExceptionHandler::class)
 @ExtendWith(OutputCaptureExtension::class)
 class ChatControllerTest {
 

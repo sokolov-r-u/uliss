@@ -2,7 +2,7 @@
 
 This document describes the current request paths in `:note`. It focuses on call order,
 transaction boundaries, durable state, and external AI calls. All controller routes below receive
-the `/note` prefix from `WebMvcPathPrefixConfig`.
+the `/note` prefix from `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 
 ## Component map
 

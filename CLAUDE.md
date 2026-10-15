@@ -149,7 +149,7 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 - Preserve current architecture decisions by default. Change them only when the user explicitly scopes the task to that
   decision.
 - Each executable service owns its database schema. User and note REST controllers receive their service prefix through
-  `WebMvcPathPrefixConfig`; do not duplicate the prefix on individual controllers.
+  `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`); do not duplicate the prefix on individual controllers.
 
 ## Project map
 

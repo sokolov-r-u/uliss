@@ -160,11 +160,9 @@ throughout the codebase, e.g. (non-exhaustive):
 
 - `module/lib/database/.../audit/AuditorAwareImpl.kt`
 - `module/lib/security/.../config/AuditorConfig.kt`
-- `module/note/note-app/.../config/WebMvcPathPrefixConfig.kt`
 - `module/note/note-app/.../model/ChatMessageStatus.kt`
-- `module/user/user-app/.../config/WebMvcPathPrefixConfig.kt`
 - assorted test files (`MockitoTestHelpers.kt` in both `note-app` and `user-app`,
-  `ChatControllerTest.kt`, `ProfileControllerTest.kt`, `RetryAspectTest.kt`)
+  `ChatControllerTest.kt`, `ProfileControllerTest.kt`)
 
 ### Not in scope for the current task
 

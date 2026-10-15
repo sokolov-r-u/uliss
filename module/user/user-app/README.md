@@ -32,7 +32,7 @@ component, tests, and corresponding client handling; the dispatcher does not req
 
 ## REST API
 
-Controller mappings are declared below `/users`; `WebMvcPathPrefixConfig` adds `/user` to all REST controllers.
+Controller mappings are declared below `/users`; `uliss.web.path-prefix: /user` makes the `:security` `WebMvcPathPrefixConfig` add `/user` to all REST controllers.
 
 - `GET /user/users/me/onboarding` returns pending onboarding messages.
 - `POST /user/users/me/onboarding` accepts `{command, displayName?, birthDate?, gender?}` and returns no content on

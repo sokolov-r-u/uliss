@@ -21,3 +21,6 @@ spring:
     default-schema: profile
     locations: classpath:db/migration
     create-schemas: true
+uliss:
+  web:
+    path-prefix: /user

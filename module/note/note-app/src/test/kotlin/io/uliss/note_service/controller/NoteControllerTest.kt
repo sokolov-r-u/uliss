@@ -10,6 +10,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
+import io.uliss.security.config.WebMvcPathPrefixConfig
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -29,7 +30,7 @@ import java.time.Instant
 import java.util.UUID
 
 @WebMvcTest(NoteController::class)
-@Import(SecurityConfig::class, CorsProperties::class, GlobalExceptionHandler::class)
+@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class, GlobalExceptionHandler::class)
 class NoteControllerTest {
 
     @Autowired

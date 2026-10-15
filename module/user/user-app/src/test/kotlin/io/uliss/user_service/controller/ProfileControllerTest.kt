@@ -2,6 +2,7 @@ package io.uliss.user_service.controller
 
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.SecurityConfig
+import io.uliss.security.config.WebMvcPathPrefixConfig
 import io.uliss.user_service.anyValue
 import io.uliss.user_service.dto.OnboardingMessageView
 import io.uliss.user_service.dto.OnboardingRequest
@@ -25,7 +26,7 @@ import java.util.UUID
 // SecurityConfig/CorsProperties imported explicitly: @WebMvcTest does not auto-load third-party
 // AutoConfiguration.imports entries, only beans it discovers itself.
 @WebMvcTest(ProfileController::class)
-@Import(SecurityConfig::class, CorsProperties::class)
+@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class)
 class ProfileControllerTest {
 
     @Autowired

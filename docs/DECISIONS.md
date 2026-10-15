@@ -19,3 +19,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   is reworked before the move (`docs/TECH_DEBT.md`, "Rework logging before production").
 - **Consequences:** logs and Dozzle currently contain user content; not acceptable for production.
 - **Source:** `docs/tasks/2026-10-15-review-fixes.md`.
+
+## 2026-10-16 — Service path prefix comes from a property
+
+- **Context:** user and note each kept an identical `WebMvcPathPrefixConfig` differing only in the prefix string.
+- **Decision:** one `WebMvcPathPrefixConfig` in `:security`, enabled by `uliss.web.path-prefix`; each service sets the
+  property in its `application.yaml`. Replaces the per-service copies.
+- **Consequences:** a `@WebMvcTest` imports `WebMvcPathPrefixConfig` explicitly and needs the property in its test
+  `application.yaml`; a service without the property gets no prefix.
+- **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.

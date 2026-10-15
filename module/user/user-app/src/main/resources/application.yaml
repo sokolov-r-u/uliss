@@ -23,6 +23,10 @@ spring:
     server:
       port: ${USER_GRPC_PORT}
 
+uliss:
+  web:
+    path-prefix: /user
+
 # pre-production: LoggingAspect traces io.uliss calls at DEBUG; set LOG_LEVEL_ULISS=info before production
 logging:
   level:
