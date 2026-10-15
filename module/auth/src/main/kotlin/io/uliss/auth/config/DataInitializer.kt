@@ -76,10 +76,15 @@ class DataInitializer(
             .clientSecret(secretHash(existing, clientSecret))
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
 
-    /** Keeps the stored hash when it still matches, so a restart does not rewrite the row. */
+    /**
+     * Keeps the stored hash when it still matches and its encoding is current, so a restart does not rewrite the row;
+     * a hash made with a weaker encoding (e.g. lower BCrypt strength) is replaced.
+     */
     private fun secretHash(existing: RegisteredClient?, rawSecret: String): String {
         val stored = existing?.clientSecret
-        if (stored != null && passwordEncoder.matches(rawSecret, stored)) return stored
+        if (stored != null && passwordEncoder.matches(rawSecret, stored) && !passwordEncoder.upgradeEncoding(stored)) {
+            return stored
+        }
         return passwordEncoder.encode(rawSecret)
             ?: throw IllegalStateException("password encoder returned no hash for a client secret")
     }

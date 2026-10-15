@@ -2,6 +2,7 @@ package io.uliss.auth.config
 
 import org.springframework.boot.DefaultApplicationArguments
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod
 import org.springframework.security.oauth2.server.authorization.client.InMemoryRegisteredClientRepository
@@ -14,6 +15,7 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -118,9 +120,30 @@ class DataInitializerTest {
         assertEquals(savesOnFirstStart, repository.saves)
     }
 
-    private fun initializer(repository: RegisteredClientRepository) = DataInitializer(
+    @Test
+    fun `startup rehashes a matching secret stored with a weaker encoding`() {
+        // e.g. the BCrypt strength was raised: the old hash still matches but must not stay forever
+        val weakHash = requireNotNull(BCryptPasswordEncoder(4).encode("web-secret"))
+        val stale = RegisteredClient.from(staleClient(WEB, AuthorizationGrantType.AUTHORIZATION_CODE, "http://new/callback"))
+            .clientSecret(weakHash)
+            .build()
+        val repository = InMemoryRegisteredClientRepository(stale)
+        val strongerEncoder = BCryptPasswordEncoder(5)
+
+        initializer(repository, strongerEncoder).run(DefaultApplicationArguments())
+
+        val web = assertNotNull(repository.findByClientId(WEB))
+        assertNotEquals(weakHash, web.clientSecret)
+        assertTrue(strongerEncoder.matches("web-secret", web.clientSecret))
+        assertFalse(strongerEncoder.upgradeEncoding(web.clientSecret))
+    }
+
+    private fun initializer(
+        repository: RegisteredClientRepository,
+        passwordEncoder: PasswordEncoder = encoder,
+    ) = DataInitializer(
         registeredClientRepository = repository,
-        passwordEncoder = encoder,
+        passwordEncoder = passwordEncoder,
         webClientId = WEB,
         webClientSecret = "web-secret",
         callbackUrls = listOf("http://new/callback"),

@@ -475,6 +475,28 @@ Rebase the chat-turn lease on the same resolved OpenAI settings, sharing the bud
 `OutboxLeasePolicy`. First verify how the SDK request timeout applies to a streamed response: it may cap the whole
 stream, not a single read.
 
+## Chat reply generation stops when the user leaves the chat (`note-service`, `web`)
+
+**Status:** known issue, reported 2026-10-15; not implemented.
+
+Steps: send a chat message, leave the chat while the reply streams, come back. The reply is cut at the moment of
+leaving and stays `PARTIAL` ("interrupted"), or empty `FAILED` if no token had arrived yet. The full reply is never
+generated or saved.
+
+Cause: `AssistantService.streamNewGeneration` wraps the provider stream in `Flux.usingWhen` subscribed only by the SSE
+client. A client disconnect fires `onCancel`, which cancels the provider call and persists the buffered text with
+`interruptedStatus(reply)`. `ChatMessageStatus.PARTIAL` documents client disconnect as an intended cause, so the fix
+changes the contract.
+
+Direction to discuss:
+
+- Run generation as a server-side job detached from the HTTP subscriber; SSE clients only observe it.
+- Only an explicit `cancelTurn` (`CANCELED`) stops generation; a disconnect does not.
+- On return to a chat whose turn is `GENERATING`, reattach to the running generation (reuse `pending` /
+  `GenerationPending` and the turn lease/fencing) and continue streaming.
+- Decide how a turn interrupted by a service restart reaches a terminal status (lease expiry).
+- SSE semantics and the meaning of `PARTIAL` change, so `web` needs synchronized changes and tests.
+
 ## Rework logging before production (all JVM services, `infra`)
 
 **Status:** deferred until the move to production; nothing changed on 2026-10-15 (pre-production only).
@@ -490,3 +512,20 @@ Before production:
   content-carrying methods and an explicit allowlist of loggable types; keep `@Sensitive` for secrets.
 - Default `LOG_LEVEL_ULISS` to `info` in production configuration.
 - Restrict Dozzle (bind to `127.0.0.1` or put it behind authentication) or drop it from the production Compose file.
+
+## Registered clients missing from config stay active (`auth`)
+
+**Status:** not implemented (pre-existing; found in the 2026-10-15 review).
+
+`DataInitializer` rebuilds only the two configured clients (`app.clients.authorization-code`, `app.clients.m2m`).
+A client whose id was renamed or removed from config keeps its row in `oauth2_registered_client` with its old secret,
+grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
+secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
+
+## Explicit `SameSite` on mediator login cookies (`security`)
+
+**Status:** not implemented.
+
+`setCookie` (`module/lib/security/.../utils/SecurityUtils.kt`) sets `HttpOnly`, `Secure` and `Path` but no `SameSite`,
+so the `code_verifier` and `oauth_state` cookies rely on the browser default (Lax in current browsers). Set
+`SameSite=Lax` explicitly; cookie attributes are security-sensitive, so this needs its own focused tests.
