@@ -188,10 +188,11 @@ export async function deleteNote(noteId: string): Promise<void> {
     await requireOk(response, 'note delete')
 }
 
+/** Resolves the terminal status, or `null` when the stream ends before one. */
 export async function streamNoteStatus(
     noteId: string,
     options: { signal?: AbortSignal; onStatus: (event: NoteStatusEvent) => void },
-): Promise<NoteStatus> {
+): Promise<NoteStatus | null> {
     const response = await fetchNotes(`/note/notes/${noteId}/status/stream`, {
         headers: {'Accept': 'text/event-stream, application/json'},
         signal: options.signal,
@@ -212,5 +213,6 @@ export async function streamNoteStatus(
         options.onStatus(event)
         if (event.status === 'READY' || event.status === 'FAILED') return event.status
     }
-    throw new NoteApiError('protocol', 'note status stream disconnected before a terminal status')
+    // Ended without READY/FAILED (server time limit or a cut connection): the caller re-reads and reconnects.
+    return null
 }

@@ -29,6 +29,8 @@ import java.util.function.Consumer
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import org.junit.jupiter.api.assertThrows
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 
 class NoteSummaryRequestedHandlerTest {
 
@@ -121,6 +123,20 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.verify(entityParamSpec).useProviderStructuredOutput()
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
+    }
+
+    @Test
+    fun `handle leaves a save conflict to the outbox instead of retrying it`() {
+        // e.g. the outbox failed the note concurrently: the late summary is dropped, not forced in
+        val payload = payload()
+        Mockito.`when`(noteService.completeChatSummary(payload.userId, payload.noteId, "Title", "Summary"))
+            .thenThrow(ObjectOptimisticLockingFailureException("NoteEntity", payload.noteId))
+
+        assertThrows<ObjectOptimisticLockingFailureException> {
+            handleWithDraft(payload, NoteDraft("Title", "Summary", null))
+        }
+        Mockito.verify(noteService, Mockito.times(1))
+            .completeChatSummary(payload.userId, payload.noteId, "Title", "Summary")
     }
 
     @Test
@@ -233,6 +249,26 @@ class NoteSummaryRequestedHandlerTest {
                     "ASSISTANT: Используем PostgreSQL и pgvector ✅",
             query,
         )
+    }
+
+    @Test
+    fun `retrieval query skips assistant replies without content, as the chat prompt to the provider does`() {
+        val chatId = UUID.randomUUID()
+        val context = ChatSummaryContext(
+            title = "Plan",
+            messages = listOf(
+                message(chatId, ChatMessageRole.USER, "first"),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.FAILED),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.CANCELED),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "  ", ChatMessageStatus.COMPLETE),
+                message(chatId, ChatMessageRole.USER, "second"),
+                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "half", ChatMessageStatus.PARTIAL),
+            ),
+        )
+
+        val query = buildRetrievalQuery(context, maxChars = 500)
+
+        assertEquals("Chat title: Plan\nTranscript:\nUSER: first\nUSER: second\nASSISTANT: half", query)
     }
 
     @Test

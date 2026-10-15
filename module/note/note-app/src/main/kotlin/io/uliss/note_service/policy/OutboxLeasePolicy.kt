@@ -2,18 +2,30 @@ package io.uliss.note_service.policy
 
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxProperties
+import org.springframework.ai.model.openai.autoconfigure.OpenAiAutoConfigurationUtil
+import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties
+import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties
 import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingProperties
-import org.springframework.ai.retry.autoconfigure.SpringAiRetryProperties
-import org.springframework.boot.http.client.HttpClientSettings
 import org.springframework.stereotype.Component
 import java.time.Duration
 import kotlin.math.ceil
+import kotlin.math.min
+import kotlin.math.pow
 
+// openai-java RetryingHttpClient: 0.5s * 2^(retry-1), capped at 8s, jitter only shortens it.
+private const val SDK_BACKOFF_BASE_SECONDS = 0.5
+private const val SDK_BACKOFF_MAX_SECONDS = 8.0
+
+/**
+ * Lease = worst-case wall time of the provider calls an event makes, from the settings the OpenAI
+ * SDK clients are actually built with (spring.ai.openai.*, model level over common). A
+ * server-sent Retry-After has no upper bound; lease fencing in OutboxService covers that case.
+ */
 @Component
 class OutboxLeasePolicy(
+    commonProperties: OpenAiCommonProperties,
+    chatProperties: OpenAiChatProperties,
     embeddingProperties: OpenAiEmbeddingProperties,
-    retryProperties: SpringAiRetryProperties,
-    httpClientSettings: HttpClientSettings,
     outboxProperties: OutboxProperties,
 ) {
     private val indexLease: Duration
@@ -21,33 +33,28 @@ class OutboxLeasePolicy(
     private val safetyFactor = outboxProperties.leaseSafetyFactor
 
     init {
-        val embeddingTimeout = embeddingProperties.timeout
-        val embeddingMaxRetries = embeddingProperties.maxRetries
-        val connectTimeout = requireNotNull(httpClientSettings.connectTimeout()) {
-            "HTTP client connect timeout must be configured"
-        }
-        val chatReadTimeout = requireNotNull(httpClientSettings.readTimeout()) {
-            "HTTP client read timeout must be configured"
-        }
-        val chatMaxAttempts = retryProperties.maxAttempts
-        require(!embeddingTimeout.isNegative && !embeddingTimeout.isZero) { "embedding timeout must be positive" }
-        require(embeddingMaxRetries >= 0) { "embedding max retries must not be negative" }
-        require(!connectTimeout.isNegative) { "connect timeout must not be negative" }
-        require(!chatReadTimeout.isNegative && !chatReadTimeout.isZero) { "chat read timeout must be positive" }
-        require(chatMaxAttempts > 0) { "chat max attempts must be positive" }
+        val chat = OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, chatProperties)
+        val embedding = OpenAiAutoConfigurationUtil.resolveCommonProperties(commonProperties, embeddingProperties)
         require(safetyFactor >= 1.0) { "lease safety factor must be at least 1.0" }
 
-        val embeddingBudget = embeddingTimeout.multipliedBy((embeddingMaxRetries + 1).toLong())
-        val chatAttemptBudget = connectTimeout.plus(chatReadTimeout)
+        val embeddingBudget = callBudget(embedding.timeout, embedding.maxRetries)
         indexLease = withSafetyFactor(embeddingBudget)
-        summaryLease = withSafetyFactor(
-            embeddingBudget.plus(chatAttemptBudget.multipliedBy(chatMaxAttempts.toLong()))
-        )
+        summaryLease = withSafetyFactor(embeddingBudget.plus(callBudget(chat.timeout, chat.maxRetries)))
     }
 
     fun leaseFor(type: OutboxEventType): Duration = when (type) {
         OutboxEventType.NOTE_INDEX_REQUESTED -> indexLease
         OutboxEventType.NOTE_SUMMARY_REQUESTED -> summaryLease
+    }
+
+    private fun callBudget(timeout: Duration, maxRetries: Int): Duration {
+        require(!timeout.isNegative && !timeout.isZero) { "OpenAI timeout must be positive" }
+        require(maxRetries >= 0) { "OpenAI max retries must not be negative" }
+        val backoffSeconds = (1..maxRetries).sumOf { retry ->
+            min(SDK_BACKOFF_BASE_SECONDS * 2.0.pow(retry - 1), SDK_BACKOFF_MAX_SECONDS)
+        }
+        return timeout.multipliedBy((maxRetries + 1).toLong())
+            .plusMillis(ceil(backoffSeconds * 1000).toLong())
     }
 
     private fun withSafetyFactor(duration: Duration): Duration =

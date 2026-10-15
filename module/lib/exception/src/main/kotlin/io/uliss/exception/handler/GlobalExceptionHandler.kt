@@ -61,8 +61,14 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun handleException(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ResponseEntity<Any>? {
         val response = getExceptionResponse(ex, httpStatus, request)
+        // the only place an HTTP request failure is logged; 5xx keeps the single stack trace
         if (httpStatus.is5xxServerError) {
             log.error("server error on ${response.path}", "handleException", ex)
+        } else {
+            log.warn(
+                "client error ${httpStatus.value()} ${response.code} on ${response.path}: ${ex.message}",
+                "handleException",
+            )
         }
         return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
     }
@@ -73,7 +79,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             status = httpStatus.value(),
             code = getErrorCode(ex),
             path = getPath(request),
-            details = getDetails(ex),
+            details = getDetails(ex, httpStatus),
         )
 
     private fun getErrorCode(ex: Exception): String = when (ex) {
@@ -90,7 +96,8 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
         return if (path.startsWith(URI_PREFIX)) path.substring(URI_PREFIX.length) else UNKNOWN_PATH
     }
 
-    private fun getDetails(ex: Exception): Map<Any, Any> =
+    /** Unexpected 5xx messages (SQL, internal URLs) stay in the log; the client gets only status and code. */
+    private fun getDetails(ex: Exception, httpStatus: HttpStatus): Map<Any, Any> =
         when (ex) {
             is ServerException -> {
                 ex.details
@@ -107,7 +114,8 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
             }
 
             else -> {
-                ex.message?.let { mapOf(MESSAGE_KEY to it) } ?: emptyMap()
+                if (httpStatus.is5xxServerError) emptyMap()
+                else ex.message?.let { mapOf(MESSAGE_KEY to it) } ?: emptyMap()
             }
         }
 }

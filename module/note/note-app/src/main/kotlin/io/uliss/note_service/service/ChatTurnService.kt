@@ -309,6 +309,11 @@ class ChatTurnService(
         }
     }
 
+    /** Current state of an owned turn, e.g. after a generation attempt lost its fence. */
+    @Transactional(readOnly = true)
+    fun getTurn(userId: UUID, turnId: UUID): ChatTurn =
+        chatTurnStore.findById(userId, turnId) ?: throw NotFoundException("chat turn id=$turnId not found")
+
     private fun loadTurn(userId: UUID, turnId: UUID, failure: String): ChatTurn =
         chatTurnStore.findById(userId, turnId) ?: throw InternalException(failure)
 

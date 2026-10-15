@@ -4,6 +4,7 @@ import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.util.withHeartbeat
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
+import java.time.Duration
 import java.util.UUID
 
 @RestController
@@ -58,4 +60,9 @@ class NoteController(
     ): Flux<ServerSentEvent<NoteStatusResponse>> =
         noteService.streamNoteStatus(jwt.getUserId(), noteId)
             .map { status -> ServerSentEvent.builder(status).event("status").build() }
+            .withHeartbeat(STATUS_HEARTBEAT_INTERVAL)
+
+    private companion object {
+        val STATUS_HEARTBEAT_INTERVAL: Duration = Duration.ofSeconds(15)
+    }
 }

@@ -1,9 +1,9 @@
-import {render, screen} from '@testing-library/react'
+import {render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {deleteNote, getNote, NoteApiError, renameNote, streamNoteStatus} from './noteApi'
-import {NoteDetailPage} from './NoteDetailPage'
+import {MAX_STATUS_RECONNECTS, NoteDetailPage} from './NoteDetailPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
@@ -12,6 +12,9 @@ vi.mock('./noteApi', async (importOriginal) => {
 
 const mockedGetNote = vi.mocked(getNote)
 const mockedStatus = vi.mocked(streamNoteStatus)
+
+const generating = {id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null} as const
+const ready = (content: string) => ({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content} as const)
 
 function renderPage() {
     render(<MemoryRouter initialEntries={['/notes/note-1']}><Routes>
@@ -43,6 +46,72 @@ describe('NoteDetailPage', () => {
         renderPage()
         expect(await screen.findByText('Persisted content')).toBeInTheDocument()
         expect(mockedGetNote).toHaveBeenCalledTimes(2)
+    })
+
+    it('reconnects when the status stream ends while the note is still generating', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce(generating)
+            .mockResolvedValueOnce(generating)
+            .mockResolvedValueOnce(ready('After reconnect'))
+        mockedStatus.mockResolvedValueOnce(null).mockResolvedValueOnce('READY')
+
+        renderPage()
+
+        expect(await screen.findByText('After reconnect')).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(2)
+    })
+
+    it('shows a note that became ready while the stream was closed, without reconnecting', async () => {
+        mockedGetNote.mockResolvedValueOnce(generating).mockResolvedValueOnce(ready('Finished meanwhile'))
+        mockedStatus.mockResolvedValueOnce(null)
+
+        renderPage()
+
+        expect(await screen.findByText('Finished meanwhile')).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(1)
+    })
+
+    it('shows a note that failed while the stream was closed', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce(generating)
+            .mockResolvedValueOnce({...generating, status: 'FAILED'})
+        mockedStatus.mockResolvedValueOnce(null)
+
+        renderPage()
+
+        expect(await screen.findByText('Summary failed')).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(1)
+    })
+
+    it('gives up with a retryable error when the stream keeps ending without progress', async () => {
+        // guards against a tight reconnect loop if the service closes every stream immediately
+        mockedGetNote.mockResolvedValue(generating)
+        mockedStatus.mockResolvedValue(null)
+
+        renderPage()
+
+        expect(await screen.findByText(/still being written/i)).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(MAX_STATUS_RECONNECTS + 1)
+    })
+
+    it('stops reconnecting once the page is left', async () => {
+        mockedGetNote.mockResolvedValue(generating)
+        let closeStream: (status: null) => void = () => undefined
+        mockedStatus.mockImplementation(() => new Promise((resolve) => {
+            closeStream = resolve
+        }))
+        const view = render(<MemoryRouter initialEntries={['/notes/note-1']}><Routes>
+            <Route path="/notes/:noteId" element={<NoteDetailPage/>}/>
+        </Routes></MemoryRouter>)
+        await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(1))
+
+        view.unmount()
+        closeStream(null)
+        await new Promise((resolve) => setTimeout(resolve, 0))
+
+        expect(mockedGetNote).toHaveBeenCalledTimes(1)
+        expect(mockedStatus).toHaveBeenCalledTimes(1)
     })
 
     it('renders the stored title above the content', async () => {

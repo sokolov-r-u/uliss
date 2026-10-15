@@ -96,12 +96,26 @@ describe('noteApi', () => {
         }))
     })
 
-    it('rejects a disconnected non-terminal stream', async () => {
+    it('resolves null when the stream ends before a terminal status, so the caller can reconnect', async () => {
+        // the service closes a status stream after a fixed time; proxies may cut it too
         mockedFetch.mockResolvedValue(sseResponse([
             'event: status\ndata: {"noteId":"note-1","status":"GENERATING"}\n\n',
         ]))
-        await expect(streamNoteStatus('note-1', {onStatus: () => undefined}))
-            .rejects.toMatchObject({kind: 'protocol'})
+        await expect(streamNoteStatus('note-1', {onStatus: () => undefined})).resolves.toBeNull()
+    })
+
+    it('ignores heartbeat comments between status events', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            ':keepalive\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"GENERATING"}\n\n',
+            ':keepalive\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"READY"}\n\n',
+        ]))
+        const statuses: string[] = []
+
+        await expect(streamNoteStatus('note-1', {onStatus: (event) => statuses.push(event.status)}))
+            .resolves.toBe('READY')
+        expect(statuses).toEqual(['GENERATING', 'READY'])
     })
 
     it('rejects a status event for another note', async () => {

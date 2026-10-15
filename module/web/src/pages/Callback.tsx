@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { exchangeCode, login, takeReturnTo } from '../auth/authApi'
+import { exchangeCode, login, LoginRejectedError, takeReturnTo } from '../auth/authApi'
 import { useAuth } from '../auth/AuthContext'
 import { Shell } from '../ui/Shell'
 
 /**
  * Landing page the Authorization Server redirects the browser to after login.
- * Takes the `code` from the query, exchanges it for tokens via the service, then routes
- * the user back to where they were.
+ * Takes the `code` and `state` from the query, exchanges them for tokens via the service, then
+ * routes the user back to where they were.
  */
 export function Callback() {
   const navigate = useNavigate()
@@ -21,17 +21,29 @@ export function Callback() {
     if (ran.current) return
     ran.current = true
 
-    const code = params.get('code')
-    if (!code) {
-      setError('missing authorization code')
+    // The authorization server reports a refused or cancelled login as `error=...` instead of a code.
+    if (params.get('error')) {
+      setError('Sign-in was cancelled or refused.')
       return
     }
-    exchangeCode(code)
+    const code = params.get('code')
+    const state = params.get('state')
+    if (!code || !state) {
+      setError('The sign-in link is incomplete. Start sign-in again.')
+      return
+    }
+    exchangeCode(code, state)
       .then(() => {
         syncFromStore()
         navigate(takeReturnTo(), { replace: true })
       })
-      .catch((e: unknown) => setError(e instanceof Error ? e.message : String(e)))
+      .catch((e: unknown) =>
+        setError(
+          e instanceof LoginRejectedError
+            ? 'The sign-in session has expired. Start sign-in again.'
+            : 'Could not complete sign-in. Check the connection and try again.',
+        ),
+      )
   }, [params, navigate, syncFromStore])
 
   return (

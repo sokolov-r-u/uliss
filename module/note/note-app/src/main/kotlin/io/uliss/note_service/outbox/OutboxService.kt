@@ -5,6 +5,7 @@ import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.OutboxEventRepository
+import org.springframework.context.annotation.Lazy
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,6 +25,8 @@ class OutboxService(
     private val outboxLeasePolicy: OutboxLeasePolicy,
     private val outboxProperties: OutboxProperties,
     terminalFailureHandlers: List<OutboxTerminalFailureHandler>,
+    // Lazy: handlers depend on services that publish through this one.
+    @Lazy private val handlers: List<OutboxHandler>,
 ) {
     private val log = AppLogger.of(OutboxService::class)
     private val terminalFailureHandlers = terminalFailureHandlers.associateBy { it.type }
@@ -56,33 +59,42 @@ class OutboxService(
      * **Visibility timeout** - [nextAttemptAt] doubles as a visibility deadline while PROCESSING -
      * if the worker crashes before [complete] saves a terminal status, the event becomes claimable
      * again once the deadline passes instead of being stuck in PROCESSING forever.
+     *
+     * **Attempts and lease** - every claim counts as an attempt (a crashed worker consumes one too)
+     * and issues a fresh [OutboxEventEntity.leaseId]. An expired event that already used its last
+     * attempt is failed here instead of being handed out again.
+     *
+     * **Handled types only** - an event type without a registered handler (e.g. an older instance
+     * during a rolling deploy) is left for an instance that can process it, so it spends no attempts.
      */
     @Transactional
     fun claim(batchSize: Int): List<OutboxEventEntity> {
-        val claimable = outboxEventRepository.findClaimable(
+        val handledTypes = handlers.mapTo(mutableSetOf()) { it.type }
+        if (handledTypes.isEmpty()) return emptyList()
+        val now = Instant.now()
+        val found = outboxEventRepository.findClaimable(
             CLAIMABLE_STATUSES,
-            Instant.now(),
+            handledTypes,
+            now,
             PageRequest.of(0, batchSize),
         )
+        val (exhausted, claimable) = found.partition { it.attempts >= outboxProperties.maxAttempts }
+        exhausted.forEach { failExhausted(it) }
         claimable.forEach {
             it.status = OutboxEventStatus.PROCESSING
-            it.nextAttemptAt = Instant.now().plus(outboxLeasePolicy.leaseFor(it.type))
+            it.attempts += 1
+            it.leaseId = UUID.randomUUID()
+            it.nextAttemptAt = now.plus(outboxLeasePolicy.leaseFor(it.type))
         }
-        return outboxEventRepository.saveAll(claimable).toList()
+        outboxEventRepository.saveAll(found)
+        return claimable
     }
 
     @Transactional
-    fun complete(eventId: UUID) {
-        val event = outboxEventRepository.findById(eventId).orElse(null)
-        if (event == null) {
-            log.error("cannot complete missing outbox event id=$eventId", "complete")
-            return
-        }
-        if (event.status != OutboxEventStatus.PROCESSING) {
-            log.error("cannot complete outbox event id=$eventId with status=${event.status}", "complete")
-            return
-        }
+    fun complete(eventId: UUID, leaseId: UUID) {
+        val event = findLeased(eventId, leaseId, "complete", null) ?: return
         event.status = OutboxEventStatus.COMPLETED
+        event.leaseId = null
         outboxEventRepository.save(event)
     }
 
@@ -93,30 +105,46 @@ class OutboxService(
      * registered domain failure transition commit or roll back together.
      */
     @Transactional
-    fun recordFailure(eventId: UUID, ex: Exception) {
-        val event = outboxEventRepository.findById(eventId).orElse(null)
-        if (event == null) {
-            log.error("cannot record failure - outbox event no longer exists", "recordFailure", ex)
-            return
-        }
-        if (event.status != OutboxEventStatus.PROCESSING) {
-            log.error(
-                "cannot record failure for outbox event id=$eventId with status=${event.status}",
-                "recordFailure",
-                ex,
-            )
-            return
-        }
-        applyFailure(event, ex, "recordFailure")
+    fun recordFailure(eventId: UUID, leaseId: UUID, ex: Exception) {
+        val event = findLeased(eventId, leaseId, "recordFailure", ex) ?: return
+        applyFailure(event, ex)
         if (event.status == OutboxEventStatus.FAILED) {
             terminalFailureHandlers[event.type]?.handleTerminalFailure(event)
         }
         outboxEventRepository.save(event)
     }
 
-    private fun applyFailure(event: OutboxEventEntity, ex: Exception, method: String) {
-        event.attempts += 1
+    /**
+     * Returns the event only while [leaseId] still owns it. A re-claim racing with this check is
+     * caught by the entity's optimistic lock on commit.
+     */
+    private fun findLeased(eventId: UUID, leaseId: UUID, method: String, ex: Exception?): OutboxEventEntity? {
+        val event = outboxEventRepository.findById(eventId).orElse(null)
+        val reason = when {
+            event == null -> "event no longer exists"
+            event.status != OutboxEventStatus.PROCESSING -> "status=${event.status}"
+            event.leaseId != leaseId -> "lease was taken over by a re-claim"
+            else -> return event
+        }
+        val message = "ignoring $method for outbox event id=$eventId: $reason"
+        if (ex == null) log.warn(message, method) else log.warn(message, method, ex)
+        return null
+    }
+
+    private fun failExhausted(event: OutboxEventEntity) {
+        event.status = OutboxEventStatus.FAILED
+        event.leaseId = null
+        event.lastError = "processing lease expired on the last attempt"
+        log.error(
+            "outbox event id=${event.id} type=${event.type} lease expired after attempts=${event.attempts}",
+            "claim",
+        )
+        terminalFailureHandlers[event.type]?.handleTerminalFailure(event)
+    }
+
+    private fun applyFailure(event: OutboxEventEntity, ex: Exception) {
         event.lastError = ex.message
+        event.leaseId = null
         event.status = if (event.attempts >= outboxProperties.maxAttempts) {
             OutboxEventStatus.FAILED
         } else {
@@ -125,7 +153,7 @@ class OutboxService(
         event.nextAttemptAt = Instant.now().plus(backoff(event.attempts))
         log.error(
             "failed to process outbox event id=${event.id} type=${event.type} attempts=${event.attempts}",
-            method,
+            "recordFailure",
             ex,
         )
     }

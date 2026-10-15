@@ -10,6 +10,7 @@ import {ScreenHeader} from '../ui/ScreenHeader'
 import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
 import {
     findPersistedReply,
+    pendingReconcileTimeoutMs,
     reconcileUntilTerminal,
     type ReconciliationTarget,
     targetForTrailingUser,
@@ -199,6 +200,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         poll: boolean,
         routeRevision = routeRevisionRef.current,
         requestChatId = activeChatIdRef.current,
+        pollTimeoutMs?: number,
     ) {
         if (!requestChatId) return
         reconciliationAbortRef.current?.abort()
@@ -227,7 +229,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await reconcileUntilTerminal(async (signal) => {
                     refreshedPage = await getMessages(requestChatId, {signal})
                     return refreshedPage.messages
-                }, target, {signal: controller.signal})
+                }, target, {signal: controller.signal, timeoutMs: pollTimeoutMs})
                 : (refreshedPage = await getMessages(requestChatId, {signal: controller.signal})).messages
             if (!poll && !findPersistedReply(history, target)) {
                 if (mountedRef.current && routeRevisionRef.current === routeRevision
@@ -399,6 +401,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         streamAbortRef.current = controller
         let resolvedChatId = requestChatId
         let poll = false
+        let pollTimeoutMs: number | undefined
         try {
             const callbacks = {
                 signal: controller.signal,
@@ -410,6 +413,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     target.turnId = turnId
                     persistPendingChatRequest(request, resolvedChatId)
                     if (request.stopRequested) controller.abort()
+                },
+                onPending: (retryAfterMs: number) => {
+                    pollTimeoutMs = pendingReconcileTimeoutMs(retryAfterMs)
                 },
                 onAppendText: (text: string) => {
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
@@ -465,7 +471,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (streamAbortRef.current === controller) streamAbortRef.current = null
         }
         if (mountedRef.current && routeRevisionRef.current === routeRevision && resolvedChatId) {
-            await reconcile(target, poll, routeRevision, resolvedChatId)
+            await reconcile(target, poll, routeRevision, resolvedChatId, pollTimeoutMs)
         } else if (mountedRef.current && routeRevisionRef.current === routeRevision) {
             requireReconciliation()
         }

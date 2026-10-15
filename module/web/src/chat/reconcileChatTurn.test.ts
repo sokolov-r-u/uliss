@@ -2,6 +2,7 @@ import {afterEach, describe, expect, it, vi} from 'vitest'
 import type {ChatMessage} from './chatApi'
 import {
     findPersistedReply,
+    pendingReconcileTimeoutMs,
     reconcileUntilTerminal,
     ReconciliationTimeoutError,
     targetForTrailingUser,
@@ -65,6 +66,17 @@ describe('chat turn reconciliation', () => {
         const assertion = expect(result).rejects.toBeInstanceOf(ReconciliationTimeoutError)
         await vi.advanceTimersByTimeAsync(15_000)
         await assertion
+    })
+
+    it('waits for a pending turn until its server lease ends plus a grace period', () => {
+        expect(pendingReconcileTimeoutMs(338_000)).toBe(353_000)
+        expect(pendingReconcileTimeoutMs(1_500)).toBe(16_500)
+    })
+
+    it('falls back to the default deadline for a missing or malformed lease', () => {
+        expect(pendingReconcileTimeoutMs(undefined)).toBe(15_000)
+        expect(pendingReconcileTimeoutMs(Number.NaN)).toBe(15_000)
+        expect(pendingReconcileTimeoutMs(-5)).toBe(15_000)
     })
 
     it('aborts a hanging history request at the deadline', async () => {

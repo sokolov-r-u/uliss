@@ -10,9 +10,9 @@ recorded here until implementation.
 - `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
   response. The response can be absent outside a request context; replace the assertion with an
   explicit check and failure, and move the file into `io.uliss.security.utils`.
-- `DataInitializer` has two `passwordEncoder.encode(...)!!` calls and `UserService` has one. These
-  are Kotlin platform types from the encoder API; either remove the ambiguity or document the
-  proven non-null boundary locally when those files are next changed.
+- `UserService` has a `passwordEncoder.encode(...)!!` call (`DataInitializer` fixed 2026-10-14). This is
+  a Kotlin platform type from the encoder API; either remove the ambiguity or document the
+  proven non-null boundary locally when the file is next changed.
 
 New Kotlin code must not copy these deviations.
 
@@ -301,15 +301,24 @@ write per turn; the assistant reply does not touch it), and order `GET /chats` b
 Reported 2026-10-12: the user is sent back to sign-in much sooner than the 30-day refresh lifetime. Not yet
 diagnosed; suspects, most likely first:
 
+0. **In-memory authorization store** (explains drops after an auth restart only, not the 15-minute drops of a
+   running app). `auth` had no `OAuth2AuthorizationService` bean, so Spring used
+   `InMemoryOAuth2AuthorizationService`: every auth restart or deploy invalidated all refresh tokens. **Fixed
+   2026-10-14:** JDBC authorization and consent services in `AuthServerConfig`.
+
 1. **Concurrent refresh with rotation.** `reuseRefreshTokens(false)` rotates the refresh token on every use, but
    `authFetch` (`web/src/auth/apiClient.ts`) has no single-flight refresh. When the 15-minute access token expires,
    parallel requests (e.g. the side panel loads chats and notes at once) each refresh with the same token; the first
    rotates it, the next gets `invalid_grant`, and `refreshOrLogin` clears the tokens and redirects to login.
    **Fixed 2026-10-12:** one in-flight refresh shared by all calls, and a call that hits 401 after another call
-   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). If sign-outs continue, check suspect 2.
+   refreshed reuses the stored tokens (`auth/apiClient.test.ts`). 2026-10-14: `getAccessToken()` is the single
+   owner of the session, and only a 400/401 refresh rejection signs the user out; network/5xx failures keep the
+   tokens. Duplicated tabs still share one copied refresh token (needs shared storage plus Web Locks). If
+   sign-outs continue, check suspect 2.
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
+   **Fixed 2026-10-14:** startup syncs secret, client/token settings and exact callback URLs from config.
 3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
    signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
 
@@ -369,7 +378,8 @@ against the schema current at squash time):
 
 - Every service has a `V1` that only runs `CREATE SCHEMA IF NOT EXISTS`. It is a no-op: with `spring.flyway.schemas`
   set, Flyway creates the schema itself before `V1` to host `flyway_schema_history`.
-- `note`: `ALTER TABLE` column additions (`notes.source` in V4, `notes.title` in V7, `chat.idempotency_key` in V6),
+- `note`: `ALTER TABLE` column additions (`notes.source` in V4, `notes.title` in V7, `chat.idempotency_key` in V6,
+  `outbox_event.lease_id` in V8),
   a single-index migration (V5), and a legacy data fixup (`UPDATE note.chat` title truncation in V7) that is
   meaningless on an empty database. Comments are stale: `chat_note` is called an unused scaffold although
   `NoteService` uses it, and `chat_message` mentions historical rows with `turn_id = NULL`.
@@ -404,3 +414,127 @@ Procedure:
 Schema improvements noticed along the way stay out of the squash so the diff can prove equivalence. Make them
 separately: `(chat_id, created_at, id)` for the `ORDER BY created_at, id` chat-message queries, and CHECK constraints
 for `profile.user_message.status` and `profile.users.gender`.
+
+## Daily LLM quotas for users without a subscription (`note-service`, `user`, `auth`, `web`)
+
+**Status:** agreed direction 2026-10-14, not implemented. Any registered user can call the chat and summary endpoints
+without limit, and every call is paid to OpenAI.
+
+- Enforce in note-service, the only caller of the provider. Start with daily counts of new chat turns and summary
+  requests; a token budget (usage is already logged in `AssistantService.logUsage`) can follow, since long chats cost
+  more per turn.
+- Table `note.usage_daily (user_id, day, chat_turns, summaries)`, day in UTC. Increment with a single conditional
+  upsert (`... SET chat_turns = chat_turns + 1 WHERE chat_turns < :limit RETURNING`) inside the turn-reservation
+  transaction (`ChatTurnService.resolveTurnRequest`), so concurrent tabs cannot exceed the limit and idempotent
+  replays, which create no new turn, spend nothing.
+- The plan lives in user-service and reaches note-service as a `plan` access-token claim added by
+  `TokenConfig.tokenCustomizer` (like `displayName`); a change applies at the next refresh. Limits per plan are
+  note-service configuration.
+- Over the limit: `429 Too Many Requests`, code `QUOTA_EXCEEDED`, `Retry-After` until the next UTC midnight; `web`
+  shows the remaining allowance and a clear message.
+- Long-running task (schema, token contract, 3+ modules): create a `docs/tasks/` file first.
+
+## Rate limiting and brute-force protection (`infra`, `auth`)
+
+**Status:** not implemented. Login and registration accept unlimited attempts. Production runs on Docker Compose,
+not Kubernetes, so Ingress annotations do not apply.
+
+- In Compose, `auth` is published directly on `:9000`; only `/user` and `/note` pass through the `web` nginx. Put an
+  edge reverse proxy in front of every published service (extend the `web` nginx with an `auth` server block, or a
+  dedicated edge container that also terminates TLS) and stop publishing service ports to the host.
+- Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
+  `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
+  Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
+- Later, per-account protection in `auth`: count failures from `AuthenticationFailureBadCredentialsEvent` per email
+  and lock sign-in temporarily after N failures, which also covers attempts spread over many IPs.
+
+## Email verification at registration (`auth`, `infra`)
+
+**Status:** planned, not implemented. Users are created as `PENDING_VERIFICATION`, but nothing verifies the address
+and `UserEntity.toUserDetails` blocks only `DISABLED`, so unverified users sign in.
+
+- Send mail over SMTP with `spring-boot-starter-mail`; the provider is configuration only (`spring.mail.*`).
+- Development and tests: a Mailpit container in `infra/docker-compose.yml` (SMTP plus a web inbox), no provider,
+  domain, or limits.
+- Real users: a transactional provider on a free tier (Amazon SES, Mailgun, Resend, Brevo, SendGrid); compare
+  current free limits before launch. Self-hosting an MTA was rejected: cloud and residential IPs often block outbound
+  port 25 or are on block lists, a new IP has no reputation, and SPF/DKIM/DMARC/PTR plus queue and bounce handling
+  must be maintained. Either way the own domain needs SPF and DKIM records.
+- Flow: registration stores a random verification token (hash only, 24-hour TTL) and mails a `/verify?token=...`
+  link; opening it sets `ACTIVE`; sign-in is refused until then; resending the link is rate-limited.
+
+## Chat-turn lease is derived from settings the OpenAI client ignores (`note-service`)
+
+`ChatTurnExecutionPolicy` computes the chat-turn lease from `spring.http.clients` (connect + read timeout) and
+`spring.ai.retry.max-attempts`. Since Spring AI 2.0 the OpenAI chat model runs on the `openai-java` SDK, which uses
+`spring.ai.openai[.chat].timeout` / `max-retries` (and its own backoff) and no `RetryTemplate`; those Spring settings
+only matter for the inactive DeepSeek provider. The lease is currently long enough by coincidence and silently stops
+following real timeouts when either side changes. `OutboxLeasePolicy` was moved to the SDK settings on 2026-10-14.
+
+Rebase the chat-turn lease on the same resolved OpenAI settings, sharing the budget calculation with
+`OutboxLeasePolicy`. First verify how the SDK request timeout applies to a streamed response: it may cap the whole
+stream, not a single read.
+
+## Chat reply generation stops when the user leaves the chat (`note-service`, `web`)
+
+**Status:** known issue, reported 2026-10-15; not implemented.
+
+Steps: send a chat message, leave the chat while the reply streams, come back. The reply is cut at the moment of
+leaving and stays `PARTIAL` ("interrupted"), or empty `FAILED` if no token had arrived yet. The full reply is never
+generated or saved.
+
+Cause: `AssistantService.streamNewGeneration` wraps the provider stream in `Flux.usingWhen` subscribed only by the SSE
+client. A client disconnect fires `onCancel`, which cancels the provider call and persists the buffered text with
+`interruptedStatus(reply)`. `ChatMessageStatus.PARTIAL` documents client disconnect as an intended cause, so the fix
+changes the contract.
+
+Direction to discuss:
+
+- Run generation as a server-side job detached from the HTTP subscriber; SSE clients only observe it.
+- Only an explicit `cancelTurn` (`CANCELED`) stops generation; a disconnect does not.
+- On return to a chat whose turn is `GENERATING`, reattach to the running generation (reuse `pending` /
+  `GenerationPending` and the turn lease/fencing) and continue streaming.
+- Decide how a turn interrupted by a service restart reaches a terminal status (lease expiry).
+- SSE semantics and the meaning of `PARTIAL` change, so `web` needs synchronized changes and tests.
+
+## Rework logging before production (all JVM services, `infra`)
+
+**Status:** deferred until the move to production; nothing changed on 2026-10-15 (pre-production only).
+
+`LoggingAspect` traces every `@Service`/`@Repository` call at DEBUG with arguments and results, and
+`infra/env.example.properties` sets `LOG_LEVEL_ULISS=debug`. Secrets are masked (`@Sensitive` plus a name regex), but
+user content is not: chat prompts and replies, note content and email addresses reach stdout, `infra/volumes/logs`
+and Dozzle. Dozzle is published on `8888` on all interfaces without authentication.
+
+Before production:
+
+- User prompts and other user content must never be logged. Decide between disabling argument/result tracing for
+  content-carrying methods and an explicit allowlist of loggable types; keep `@Sensitive` for secrets.
+- Default `LOG_LEVEL_ULISS` to `info` in production configuration.
+- Restrict Dozzle (bind to `127.0.0.1` or put it behind authentication) or drop it from the production Compose file.
+
+## Registered clients missing from config stay active (`auth`)
+
+**Status:** not implemented (pre-existing; found in the 2026-10-15 review).
+
+`DataInitializer` rebuilds only the two configured clients (`app.clients.authorization-code`, `app.clients.m2m`).
+A client whose id was renamed or removed from config keeps its row in `oauth2_registered_client` with its old secret,
+grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
+secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
+
+## Explicit `SameSite` on mediator login cookies (`security`)
+
+**Status:** not implemented.
+
+`setCookie` (`module/lib/security/.../utils/SecurityUtils.kt`) sets `HttpOnly`, `Secure` and `Path` but no `SameSite`,
+so the `code_verifier` and `oauth_state` cookies rely on the browser default (Lax in current browsers). Set
+`SameSite=Lax` explicitly; cookie attributes are security-sensitive, so this needs its own focused tests.
+
+## Abandon an outbox worker once its lease is lost (`note-service`)
+
+**Status:** not implemented (agreed 2026-10-15 to defer).
+
+A summary worker that outlives its lease keeps its executor slot and keeps paying for the provider call, although its
+result is dropped (`module/note/note-app/DECISIONS.md`). The OpenAI SDK honours a server `Retry-After` without an upper
+bound, so provider timeouts alone cannot bound the wait. Run the handler with a deadline equal to its lease and
+interrupt the provider call when it passes (or check the lease before each provider call).

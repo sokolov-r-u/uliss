@@ -50,15 +50,38 @@ export function takeReturnTo(): string {
   return '/'
 }
 
-/** Exchange the authorization code for tokens. `credentials:'include'` sends the code_verifier cookie. */
-export async function exchangeCode(code: string): Promise<Tokens> {
-  const res = await fetch(`/user/oauth2/callback?code=${encodeURIComponent(code)}`, {
+/**
+ * Exchange the authorization code for tokens. `credentials:'include'` sends the code_verifier and state cookies;
+ * the service rejects a `state` that differs from the one this browser received at login.
+ * Throws `LoginRejectedError` on 400; network and server failures stay plain errors.
+ */
+export async function exchangeCode(code: string, state: string): Promise<Tokens> {
+  const query = new URLSearchParams({code, state})
+  const res = await fetch(`/user/oauth2/callback?${query}`, {
     method: 'POST',
     credentials: 'include',
   })
+  if (res.status === 400) throw new LoginRejectedError()
   return readTokens(res, 'token exchange')
 }
 
+/** The service rejected this login (state mismatch, expired login cookies, or an invalid code): start it again. */
+export class LoginRejectedError extends Error {
+  constructor() {
+    super('sign-in session rejected')
+    this.name = 'LoginRejectedError'
+  }
+}
+
+/** The service refused the refresh token itself (expired, revoked, or already rotated): the session is over. */
+export class RefreshRejectedError extends Error {
+  constructor(public readonly status: number) {
+    super(`token refresh rejected (${status})`)
+    this.name = 'RefreshRejectedError'
+  }
+}
+
+/** Rotates the tokens. Throws `RefreshRejectedError` on 400/401; network and server failures stay plain errors. */
 export async function refreshTokens(refreshToken: string): Promise<Tokens> {
   const res = await fetch('/user/oauth2/refresh', {
     method: 'POST',
@@ -66,6 +89,7 @@ export async function refreshTokens(refreshToken: string): Promise<Tokens> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
   })
+  if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
   return readTokens(res, 'token refresh')
 }
 

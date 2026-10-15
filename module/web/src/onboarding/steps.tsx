@@ -9,7 +9,7 @@ import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect} from '../ui/
 import {maxBirthDateIso, MIN_AGE_YEARS} from './age'
 import {DISPLAY_NAME_MAX_LENGTH, type Gender, OnboardingSubmitError, submit} from './onboardingApi'
 
-type StepProps = {
+export type StepProps = {
     progress: { current: number; total: number }
     blocking: boolean
     onDone: () => void

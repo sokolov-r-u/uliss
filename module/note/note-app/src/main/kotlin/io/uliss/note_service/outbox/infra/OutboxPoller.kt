@@ -27,7 +27,8 @@ class OutboxPoller(
      *
      *
      * **[NoOutboxHandlerException]** - a programming/deployment bug (no handler registered for the
-     * type), not a retryable business failure. Just logged, doesn't count against attempts.
+     * type), not a retryable business failure. [OutboxService.claim] hands out only handled types,
+     * so this is a guard that is just logged.
      *
      * Handler failures are recorded by [OutboxEventProcessor] in a separate transaction. An
      * exception reaching this class means that failure bookkeeping itself could not finish; the

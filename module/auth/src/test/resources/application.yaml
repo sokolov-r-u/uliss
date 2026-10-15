@@ -26,6 +26,8 @@ spring:
 app:
   auth:
     issuer: http://localhost:9000
+    authorization-cleanup:
+      cron: "-"   # disabled; tests call the service directly
   cors:
     allowed-origins: http://localhost:3000
   clients:
@@ -41,3 +43,4 @@ grpc:
   user-service:
     host: localhost
     port: 8080
+    deadline: 3s

@@ -20,6 +20,8 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFails
 
+private val LEASE: UUID = UUID.randomUUID()
+
 @Tag("integration")
 @SpringBootTest
 @Import(TestContainersConfiguration::class)
@@ -54,7 +56,7 @@ class OutboxTerminalFailureIntegrationTest {
             )
         )
 
-        outboxService.recordFailure(event.id, RuntimeException("provider unavailable"))
+        outboxService.recordFailure(event.id, LEASE, RuntimeException("provider unavailable"))
 
         assertEquals(OutboxEventStatus.FAILED, outboxEventRepository.findById(event.id).orElseThrow().status)
         assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
@@ -65,12 +67,13 @@ class OutboxTerminalFailureIntegrationTest {
         val event = saveProcessingEvent("{}")
 
         assertFails {
-            outboxService.recordFailure(event.id, RuntimeException("provider unavailable"))
+            outboxService.recordFailure(event.id, LEASE, RuntimeException("provider unavailable"))
         }
 
         val persisted = outboxEventRepository.findById(event.id).orElseThrow()
         assertEquals(OutboxEventStatus.PROCESSING, persisted.status)
-        assertEquals(2, persisted.attempts)
+        assertEquals(3, persisted.attempts)
+        assertEquals(LEASE, persisted.leaseId)
     }
 
     private fun saveProcessingEvent(payload: String): OutboxEventEntity = outboxEventRepository.save(
@@ -78,9 +81,9 @@ class OutboxTerminalFailureIntegrationTest {
             type = OutboxEventType.NOTE_SUMMARY_REQUESTED,
             payload = payload,
             status = OutboxEventStatus.PROCESSING,
-            attempts = 2,
+            attempts = 3,
             nextAttemptAt = Instant.now(),
             lastError = null,
-        )
+        ).also { it.leaseId = LEASE }
     )
 }

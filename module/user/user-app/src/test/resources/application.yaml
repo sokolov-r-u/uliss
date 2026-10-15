@@ -12,6 +12,10 @@ spring:
   threads:
     virtual:
       enabled: true
+  grpc:
+    server:
+      # Random port so tests don't clash with a running user-service on 9090
+      port: 0
   flyway:
     schemas: profile
     default-schema: profile

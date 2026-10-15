@@ -8,6 +8,7 @@ import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.util.ChatPrompts
+import io.uliss.note_service.util.isEmptyAssistantReply
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
@@ -63,7 +64,8 @@ class AssistantService(
 
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
-    ): Flux<AssistantStreamEvent> =
+    ): Flux<AssistantStreamEvent> = Flux.defer {
+        var finalized = false
         Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
@@ -71,7 +73,9 @@ class AssistantService(
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
             },
-            { reply -> persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE) },
+            { reply ->
+                persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE).doOnNext { finalized = it }
+            },
             { reply, ex ->
                 log.error(
                     "provider stream failed for chat=${resolution.turn.chatId} turn=${resolution.turn.id}",
@@ -81,7 +85,22 @@ class AssistantService(
                 persistAssistantResult(resolution, reply, interruptedStatus(reply))
             },
             { reply -> persistAssistantResult(resolution, reply, interruptedStatus(reply)) },
-        ).concatWith(Mono.just(AssistantStreamEvent.GenerationCompleted))
+        ).concatWith(Mono.defer { if (finalized) Mono.just(AssistantStreamEvent.GenerationCompleted) else lostFenceEvent(resolution) })
+    }
+
+    /**
+     * The attempt lost its fence: the turn was canceled (e.g. from another tab) or reclaimed by a newer attempt.
+     * Report what the turn is now instead of failing the stream.
+     */
+    private fun lostFenceEvent(resolution: ChatTurnRequestResolution.StartGeneration): Mono<AssistantStreamEvent> =
+        Mono.fromCallable {
+            val current = chatTurnService.getTurn(resolution.turn.userId, resolution.turn.id)
+            if (current.status == ChatTurnStatus.GENERATING) {
+                AssistantStreamEvent.GenerationPending(current.retryAfterMs)
+            } else {
+                current.status.toReplayEvent()
+            }
+        }.subscribeOn(Schedulers.boundedElastic())
 
     private fun streamProviderTokens(chatId: UUID, history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
         chatClient.prompt()
@@ -105,28 +124,33 @@ class AssistantService(
         val usage = response.metadata.usage
         if (usage.promptTokens <= 0) return
         log.info(
-            "streamProviderTokens",
             "chat=$chatId usage prompt=${usage.promptTokens} cached=${usage.cacheReadInputTokens ?: 0} " +
                     "completion=${usage.completionTokens}",
+            "streamProviderTokens",
         )
     }
 
+    /** Emits whether this attempt saved the outcome; `false` means it lost its fence before finalization. */
     private fun persistAssistantResult(
         resolution: ChatTurnRequestResolution.StartGeneration,
         content: StringBuilder,
         status: ChatTurnStatus,
-    ): Mono<Void> = Mono.fromCallable {
-        check(
-            chatTurnService.finishGenerationAttempt(
-                userId = resolution.turn.userId,
-                chatId = resolution.turn.chatId,
-                turnId = resolution.turn.id,
-                attempt = resolution.turn.attempt,
-                content = content.toString(),
-                status = status,
-            )
-        ) {
-            "chat turn id=${resolution.turn.id} attempt=${resolution.turn.attempt} became stale before finalization"
+    ): Mono<Boolean> = Mono.fromCallable {
+        chatTurnService.finishGenerationAttempt(
+            userId = resolution.turn.userId,
+            chatId = resolution.turn.chatId,
+            turnId = resolution.turn.id,
+            attempt = resolution.turn.attempt,
+            content = content.toString(),
+            status = status,
+        ).also { saved ->
+            if (!saved) {
+                log.info(
+                    "chat turn id=${resolution.turn.id} attempt=${resolution.turn.attempt} lost its fence; " +
+                            "$status result discarded",
+                    "persistAssistantResult",
+                )
+            }
         }
     }
         .subscribeOn(Schedulers.boundedElastic())
@@ -137,7 +161,6 @@ class AssistantService(
                 ex,
             )
         }
-        .then()
 
     private fun interruptedStatus(content: StringBuilder): ChatTurnStatus =
         if (content.isNotEmpty()) ChatTurnStatus.PARTIAL else ChatTurnStatus.FAILED
@@ -152,10 +175,12 @@ class AssistantService(
         ChatTurnStatus.GENERATING -> error("a generating turn cannot be a terminal replay")
     }
 
-    private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history.map {
-        when (it.role) {
-            ChatMessageRole.USER -> UserMessage(it.content)
-            ChatMessageRole.ASSISTANT -> AssistantMessage(it.content)
+    private fun toAiMessages(history: List<ChatMessageEntity>): List<Message> = history
+        .filterNot { it.isEmptyAssistantReply() }
+        .map {
+            when (it.role) {
+                ChatMessageRole.USER -> UserMessage(it.content)
+                ChatMessageRole.ASSISTANT -> AssistantMessage(it.content)
+            }
         }
-    }
 }

@@ -27,7 +27,9 @@ avoid colliding with Spring AI retry auto-configuration.
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
 streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
-`done`, and `error`. `ChatService` performs chat lookups using both chat ID and authenticated user
+`done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw `data:`
+lines; the others carry plain text (retry delay, terminal status, empty). `ChatService` performs chat lookups using both
+chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
 `GET /note/chats` and `GET /note/chats/{chatId}` return `ChatResponse` with `noteCount`, the number of linked notes (one
@@ -61,7 +63,9 @@ lost response instead of creating a duplicate.
 The key identifies retries of one logical send within that chat. The backend generates a separate
 durable turn UUID, echoes the client key, and returns the internal identity in `Chat-Turn-Id` for
 history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
-returns `done` or `error` without replaying text fragments or calling the provider again.
+returns `done` or `error` without replaying text fragments or calling the provider again. A stream whose attempt
+lost its fence before finalization (canceled from another tab, or reclaimed by a newer attempt) ends with the
+turn's current outcome: `error` with `CANCELED`, or `pending`; never `done`.
 
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a
@@ -90,7 +94,8 @@ handler instead of spending retries.
 - `GET /note/notes` returns the authenticated user's notes newest first.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
-  status changes, and closes on `READY` or `FAILED`.
+  status changes, and closes on `READY` or `FAILED`. A `:keepalive` comment every 15 s keeps proxies from cutting
+  a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
@@ -107,7 +112,8 @@ bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 The poller claims due work with `FOR UPDATE SKIP LOCKED`, runs each event independently on Boot's
 virtual-thread task executor, and keeps embedding, retrieval, and LLM calls outside database
 transactions. Current defaults are four concurrent events, three outbox attempts, exponential
-backoff, and a visibility lease derived from provider timeouts with a safety factor.
+backoff, and a visibility lease derived from provider timeouts with a safety factor (summary lease ≈ 5.2
+minutes, kept within 6 by a test of the shipped `application.yaml`).
 
 RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in

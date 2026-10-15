@@ -1,6 +1,8 @@
 package io.uliss.user_service.service
 
+import io.uliss.database.entity.generateId
 import io.uliss.exception.common.BadRequestException
+import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.user_service.dto.OnboardingRequest
 import io.uliss.user_service.model.UserEntity
@@ -19,9 +21,19 @@ class UserProfileService(
 
     private val commands = commands.associateBy { it.code }
 
+    /** Race-free: concurrent first logins insert one row, and only the inserting call seeds onboarding. */
     @Transactional
-    fun getOrCreate(authId: UUID): UserEntity =
-        userRepository.findByAuthId(authId) ?: create(authId)
+    fun getOrCreate(authId: UUID): UserEntity {
+        userRepository.findByAuthId(authId)?.let { return it }
+
+        val inserted = userRepository.insertIfAbsent(generateId(), authId) == 1
+        val user = userRepository.findByAuthId(authId)
+            ?: throw InternalException("user authId=$authId missing after insert")
+        if (inserted) {
+            messageService.seedOnboarding(user.id)
+        }
+        return user
+    }
 
     @Transactional
     fun submit(userId: UUID, request: OnboardingRequest) {
@@ -33,11 +45,5 @@ class UserProfileService(
         val status = command.apply(user, request)
         userRepository.save(user)
         messageService.transition(userId, request.command, status)
-    }
-
-    private fun create(authId: UUID): UserEntity {
-        val user = userRepository.save(UserEntity(authId = authId, displayName = null))
-        messageService.seedOnboarding(user.id)
-        return user
     }
 }

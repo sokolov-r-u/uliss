@@ -28,6 +28,8 @@ spring:
 app:
   auth:
     issuer: ${AUTH_PUBLIC_URL}
+    authorization-cleanup:
+      cron: ${AUTH_AUTHORIZATION_CLEANUP_CRON:0 0 3 * * *}   # daily, server time
   cors:
     allowed-origins: ${AUTH_ALLOWED_CORS_URLS:http://localhost:3000}
   clients:
@@ -44,3 +46,10 @@ grpc:
   user-service:
     host: ${USER_SERVICE_HOST}
     port: ${USER_GRPC_PORT}
+    # Login blocks on this call; fail closed instead of hanging.
+    deadline: ${USER_GRPC_DEADLINE:3s}
+
+# pre-production: LoggingAspect traces io.uliss calls at DEBUG; set LOG_LEVEL_ULISS=info before production
+logging:
+  level:
+    io.uliss: ${LOG_LEVEL_ULISS:info}

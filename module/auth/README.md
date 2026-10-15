@@ -10,12 +10,20 @@ handles the application UI, including the custom `/login` and `/register` pages,
 handling, and actuator health. Form pages eagerly load the CSRF token so the session exists before a large response
 commits.
 
+Authorizations (codes, access and refresh tokens) and consents are stored in the `oauth2_authorization*` JDBC tables
+(`AuthServerConfig`), so sessions survive restarts and work across replicas. `AuthorizationCleanupService` deletes
+authorizations whose every code and token has expired, daily by `AUTH_AUTHORIZATION_CLEANUP_CRON` (default 03:00).
+
 Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
   accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`. Access tokens last 15 minutes; refresh tokens last 30 days and
-  rotate on use. Startup appends newly configured callback URIs to an existing client.
+  rotate on use.
 - `uliss-internal` uses Client Credentials with the `internal` scope for service traffic.
+
+Config is the source of truth: at startup an existing client is rebuilt from config, keeping only its id and issue time
+(stored authorizations reference the id). Grant types, scopes, authentication methods, redirect and logout URIs, and
+settings that config does not have are removed; a client already in sync is not rewritten.
 
 Users authenticate by email through `UserService`, with BCrypt password hashing. Their OIDC `sub` is the immutable
 `auth.users.id` UUID rather than email. Signing keys are persisted through `SigningKeyEntity` and exposed through the

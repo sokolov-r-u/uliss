@@ -19,11 +19,12 @@ class OutboxEventProcessor(
 
     fun process(event: OutboxEventEntity) {
         val handler = handlers[event.type] ?: throw NoOutboxHandlerException(event.type)
+        val leaseId = checkNotNull(event.leaseId) { "outbox event id=${event.id} was not claimed" }
         try {
             handler.handle(event)
-            outboxService.complete(event.id)
+            outboxService.complete(event.id, leaseId)
         } catch (ex: Exception) {
-            outboxService.recordFailure(event.id, ex)
+            outboxService.recordFailure(event.id, leaseId, ex)
         }
     }
 }

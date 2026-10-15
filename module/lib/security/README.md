@@ -5,7 +5,9 @@ and a stateless OAuth mediator for user-service, note-service, and future JVM se
 
 ## Resource server
 
-The library validates JWTs against the authorization server's JWKS endpoint. It permits mediator routes in both
+The library validates JWTs against the authorization server's JWKS endpoint, requires `iss` to equal
+`AUTH_PUBLIC_URL`, and rejects tokens without a UUID `userId` claim with 401 (`userIdClaimValidator`), so m2m tokens
+cannot call user endpoints. It permits mediator routes in both
 unprefixed library tests and one-segment-prefixed consuming applications, permits `/actuator/health`, configures CORS,
 and requires authentication elsewhere.
 
@@ -18,15 +20,22 @@ note-service. These mediator routes are distinct from the real authorization ser
 
 `AuthController` and `AuthService` implement the frontend-facing flow:
 
-1. `GET /user/oauth2/login` creates a PKCE verifier, stores it in an HttpOnly cookie, and redirects the browser to the
-   public authorization endpoint.
+1. `GET /user/oauth2/login` creates a PKCE verifier and a random `state`, stores both in HttpOnly cookies, and
+   redirects the browser to the public authorization endpoint.
 2. The authorization server returns the browser to the SPA callback.
-3. `POST /user/oauth2/callback?code=...` exchanges the code and verifier as the confidential client and returns tokens
-   as JSON.
-4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair.
+3. `POST /user/oauth2/callback?code=...&state=...` rejects a `state` that differs from the cookie (login CSRF),
+   exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies. A
+   missing or blank code, state, or cookie is rejected with 400 `AUTHORIZATION_CODE_ERROR`; the login cookies are
+   cleared whenever the request carried one (a request with none, e.g. a cross-site POST, leaves them alone).
+4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair. An OAuth rejection
+   (400, or 401 `invalid_client`, which is also logged as an error) becomes 401 `INVALID_REFRESH_TOKEN`, so the SPA
+   signs in again. 408 and 429 (a busy server or proxy) are retried and then answered with 503; any other 4xx is a
+   configuration error answered with 500. In both cases the SPA keeps its tokens.
 5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
 
-Calls to the authorization server use `RestClient` and retry expected availability failures.
+Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange
+and refresh grant are one-time, so a read timeout or reset after the request was sent is not retried; logout is
+idempotent and also retries those.
 
 ## Split-horizon URLs
 
@@ -37,8 +46,8 @@ The public and internal addresses are intentionally separate:
 - `AUTH_INTERNAL_URL` must be reachable by services and is used for token exchange, refresh, revocation, and JWKS
   retrieval.
 
-They can be identical in a host/Compose environment and differ behind Kubernetes ingress. The resource server currently
-uses the JWKS location without issuer validation.
+They can be identical in a host/Compose environment and differ behind Kubernetes ingress. Keys come from the internal
+JWKS location; `issuer-uri` (the public URL) is used only to validate `iss`, without a discovery request.
 
 ## SPA token strategy
 

@@ -236,6 +236,40 @@ class ChatControllerTest {
     }
 
     @Test
+    fun `streamMessage sends append text as JSON so leading spaces and line breaks survive SSE framing`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamReply(userId, chatId, idempotencyKey, "hi"))
+            .thenReturn(
+                AssistantReplyStream(
+                    turnId,
+                    Flux.just(
+                        AssistantStreamEvent.AppendText(" world"),
+                        AssistantStreamEvent.AppendText("line\n  indented"),
+                        AssistantStreamEvent.GenerationCompleted,
+                    ),
+                    chatId,
+                )
+            )
+
+        mockMvc.post("/note/chats/$chatId/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                string(Matchers.containsString("event:append\ndata:{\"text\":\" world\"}\n\n"))
+                string(Matchers.containsString("event:append\ndata:{\"text\":\"line\\n  indented\"}\n\n"))
+                string(Matchers.containsString("event:done"))
+            }
+        }
+    }
+
+    @Test
     fun `streamInitialMessage returns the backend-created chat and streams its first turn`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

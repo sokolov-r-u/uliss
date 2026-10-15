@@ -28,53 +28,64 @@ class DataInitializer(
 
     override fun run(args: ApplicationArguments) {
         saveOrUpdateAuthCodeClient(webClientId, webClientSecret, callbackUrls)
-        saveClientCredentialsClientIfNotExists(m2mClientId, m2mClientSecret)
+        saveOrUpdateClientCredentialsClient(m2mClientId, m2mClientSecret)
     }
 
+    /**
+     * Config is the source of truth: an existing client is rebuilt from config, keeping only its id and issue time
+     * (stored authorizations reference the id). Anything added to the row by hand or by an older initializer -
+     * grant types, scopes, auth methods, redirect or logout URIs, settings - is dropped.
+     */
     private fun saveOrUpdateAuthCodeClient(clientId: String, clientSecret: String, callbackUrls: List<String>) {
-        val existing = registeredClientRepository.findByClientId(clientId)
-        if (existing != null) {
-            val missing = callbackUrls.filter { it !in existing.redirectUris }
-            if (missing.isEmpty()) return
-            val updated = RegisteredClient.from(existing)
-            missing.forEach { updated.redirectUri(it) }
-            registeredClientRepository.save(updated.build())
-            return
+        saveIfChanged(clientId) { existing ->
+            configuredClient(existing, clientId, clientSecret)
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
+                .scope(OidcScopes.OPENID)
+                .scope(OidcScopes.PROFILE)
+                .redirectUris { it.addAll(callbackUrls) }
+                .clientSettings(ClientSettings.builder().requireProofKey(true).build())
+                .tokenSettings(
+                    TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(15))
+                        .refreshTokenTimeToLive(Duration.ofDays(30))
+                        .reuseRefreshTokens(false)
+                        .build()
+                )
         }
-
-        val client = RegisteredClient.withId(UUID.randomUUID().toString())
-            .clientId(clientId)
-            .clientSecret(passwordEncoder.encode(clientSecret)!!)
-            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .apply { callbackUrls.forEach { redirectUri(it) } }
-            .scope(OidcScopes.OPENID)
-            .scope(OidcScopes.PROFILE)
-            .clientSettings(ClientSettings.builder().requireProofKey(true).build())
-            .tokenSettings(
-                TokenSettings.builder()
-                    .accessTokenTimeToLive(Duration.ofMinutes(15))
-                    .refreshTokenTimeToLive(Duration.ofDays(30))
-                    .reuseRefreshTokens(false)
-                    .build()
-            )
-            .build()
-
-        registeredClientRepository.save(client)
     }
 
-    private fun saveClientCredentialsClientIfNotExists(clientId: String, clientSecret: String) {
-        if (registeredClientRepository.findByClientId(clientId) != null) return
+    private fun saveOrUpdateClientCredentialsClient(clientId: String, clientSecret: String) {
+        saveIfChanged(clientId) { existing ->
+            configuredClient(existing, clientId, clientSecret)
+                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+                .scope("internal")
+        }
+    }
 
-        val client = RegisteredClient.withId(UUID.randomUUID().toString())
+    private fun saveIfChanged(clientId: String, configured: (RegisteredClient?) -> RegisteredClient.Builder) {
+        val existing = registeredClientRepository.findByClientId(clientId)
+        val client = configured(existing).build()
+        if (client != existing) registeredClientRepository.save(client)
+    }
+
+    private fun configuredClient(existing: RegisteredClient?, clientId: String, clientSecret: String) =
+        RegisteredClient.withId(existing?.id ?: UUID.randomUUID().toString())
             .clientId(clientId)
-            .clientSecret(passwordEncoder.encode(clientSecret)!!)
+            .apply { existing?.clientIdIssuedAt?.let(::clientIdIssuedAt) }
+            .clientSecret(secretHash(existing, clientSecret))
             .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
-            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-            .scope("internal")
-            .build()
 
-        registeredClientRepository.save(client)
+    /**
+     * Keeps the stored hash when it still matches and its encoding is current, so a restart does not rewrite the row;
+     * a hash made with a weaker encoding (e.g. lower BCrypt strength) is replaced.
+     */
+    private fun secretHash(existing: RegisteredClient?, rawSecret: String): String {
+        val stored = existing?.clientSecret
+        if (stored != null && passwordEncoder.matches(rawSecret, stored) && !passwordEncoder.upgradeEncoding(stored)) {
+            return stored
+        }
+        return passwordEncoder.encode(rawSecret)
+            ?: throw IllegalStateException("password encoder returned no hash for a client secret")
     }
 }

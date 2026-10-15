@@ -4,6 +4,7 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.SendMessageRequest
+import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.ChatSummaryResponse
@@ -81,7 +82,7 @@ class ChatController(
         @AuthenticationPrincipal jwt: Jwt,
         @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
         @Valid @RequestBody request: SendMessageRequest,
-    ): ResponseEntity<Flux<ServerSentEvent<String>>> {
+    ): ResponseEntity<Flux<ServerSentEvent<Any>>> {
         val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
         val reply = chatFacade.streamReply(jwt.getUserId(), null, idempotencyKey, request.content)
         return streamResponse(reply, idempotencyKey)
@@ -93,7 +94,7 @@ class ChatController(
         @PathVariable chatId: UUID,
         @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
         @Valid @RequestBody request: SendMessageRequest,
-    ): ResponseEntity<Flux<ServerSentEvent<String>>> {
+    ): ResponseEntity<Flux<ServerSentEvent<Any>>> {
         val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
         val reply = chatFacade.streamReply(jwt.getUserId(), chatId, idempotencyKey, request.content)
         return streamResponse(reply, idempotencyKey)
@@ -102,11 +103,11 @@ class ChatController(
     private fun streamResponse(
         reply: AssistantReplyStream,
         idempotencyKey: UUID,
-    ): ResponseEntity<Flux<ServerSentEvent<String>>> {
+    ): ResponseEntity<Flux<ServerSentEvent<Any>>> {
         val stream = reply.events
             .map(::toServerSentEvent)
             .onErrorResume {
-                Flux.just(ServerSentEvent.builder("FAILED").event("error").build())
+                Flux.just(ServerSentEvent.builder<Any>("FAILED").event("error").build())
             }
         val response = ResponseEntity.ok()
             .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
@@ -148,14 +149,16 @@ class ChatController(
         }
     }
 
-    private fun toServerSentEvent(event: AssistantStreamEvent): ServerSentEvent<String> = when (event) {
-        is AssistantStreamEvent.AppendText -> ServerSentEvent.builder(event.text).event("append").build()
-        is AssistantStreamEvent.GenerationPending ->
-            ServerSentEvent.builder(event.retryAfterMs.toString()).event("pending").build()
+    private fun toServerSentEvent(event: AssistantStreamEvent): ServerSentEvent<Any> = when (event) {
+        is AssistantStreamEvent.AppendText ->
+            ServerSentEvent.builder<Any>(AssistantTextChunkResponse(event.text)).event("append").build()
 
-        AssistantStreamEvent.GenerationCompleted -> ServerSentEvent.builder("").event("done").build()
+        is AssistantStreamEvent.GenerationPending ->
+            ServerSentEvent.builder<Any>(event.retryAfterMs.toString()).event("pending").build()
+
+        AssistantStreamEvent.GenerationCompleted -> ServerSentEvent.builder<Any>("").event("done").build()
         is AssistantStreamEvent.GenerationFailed ->
-            ServerSentEvent.builder(event.status.name).event("error").build()
+            ServerSentEvent.builder<Any>(event.status.name).event("error").build()
     }
 
     private companion object {

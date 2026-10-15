@@ -14,13 +14,13 @@ class MeasureTimeAspect {
     @Around("@annotation(io.uliss.logging.annotation.MeasureTime)")
     fun measure(proceedingJoinPoint: ProceedingJoinPoint): Any? {
         var result: Any?
-        val className = proceedingJoinPoint.signature.declaringType.simpleName
-        val methodName = proceedingJoinPoint.signature.name
-        val logger = LoggerFactory.getLogger(className)
+        val signature = proceedingJoinPoint.signature
+        // Full class name, so the logger falls under the io.uliss level settings.
+        val logger = LoggerFactory.getLogger(signature.declaringType)
         val elapsed = measureTimeMillis {
             result = proceedingJoinPoint.proceed()
         }
-        logger.debug("Method '{}.{}' executionTime {}", className, methodName, elapsed)
+        logger.atDebug().addKeyValue("method", signature.name).addKeyValue("elapsed_ms", elapsed).log("execution time")
         return result
     }
 }

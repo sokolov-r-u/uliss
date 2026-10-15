@@ -66,6 +66,8 @@ class NoteService(
             .startWith(initialStatus)
             .distinctUntilChanged { status -> status.status }
             .takeUntil { status -> status.status.isTerminal() }
+            // A note stuck in GENERATING must not hold the connection and its DB polling forever.
+            .take(STATUS_STREAM_TIMEOUT)
     }
 
     /**
@@ -116,6 +118,10 @@ class NoteService(
         return candidateNote
     }
 
+    /**
+     * Saves a generated summary while the note is still GENERATING. A result arriving after the outbox failed the
+     * note (its last attempt outlived the lease) is dropped: the user was already told to request a new summary.
+     */
     @Transactional
     fun completeChatSummary(userId: UUID, noteId: UUID, title: String?, content: String): Boolean {
         require(content.isNotBlank()) { "summary content must not be blank" }
@@ -172,5 +178,6 @@ class NoteService(
 
     private companion object {
         val STATUS_POLL_INTERVAL: Duration = Duration.ofSeconds(1)
+        val STATUS_STREAM_TIMEOUT: Duration = Duration.ofMinutes(10)
     }
 }

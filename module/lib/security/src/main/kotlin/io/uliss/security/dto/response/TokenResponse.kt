@@ -10,4 +10,7 @@ data class TokenResponse(
     @JsonProperty("token_type") val tokenType: String = "Bearer"
 ) {
     val expiresAt: Instant = Instant.now().plusSeconds(expiresIn)
+
+    override fun toString(): String =
+        "TokenResponse(tokenType=$tokenType, expiresIn=$expiresIn, expiresAt=$expiresAt)"
 }

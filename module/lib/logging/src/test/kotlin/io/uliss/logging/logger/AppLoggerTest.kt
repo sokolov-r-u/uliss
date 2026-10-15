@@ -1,114 +1,119 @@
 package io.uliss.logging.logger
 
-import org.mockito.ArgumentMatchers.eq
-import org.mockito.Mockito
-import org.slf4j.Logger
+import ch.qos.logback.classic.Level
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
+import org.junit.jupiter.api.AfterEach
+import org.junit.jupiter.api.BeforeEach
+import org.slf4j.LoggerFactory
 import kotlin.test.Test
+import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class AppLoggerTest {
 
-    private val logger = Mockito.mock(Logger::class.java)
-    private val appLogger = AppLogger(logger, AppLoggerTest::class)
+    private val logger = LoggerFactory.getLogger(AppLoggerTest::class.java) as Logger
+    private val appender = ListAppender<ILoggingEvent>()
+    private val appLogger = AppLogger.of(AppLoggerTest::class)
+
+    @BeforeEach
+    fun setUp() {
+        appender.start()
+        logger.addAppender(appender)
+        logger.level = Level.DEBUG
+    }
+
+    @AfterEach
+    fun tearDown() {
+        logger.detachAppender(appender)
+        logger.level = null
+    }
+
+    private fun event() = appender.list.single()
+
+    private fun ILoggingEvent.keyValues() = keyValuePairs.orEmpty().associate { it.key to it.value }
 
     @Test
-    fun `debug invokes lazy message and logs it when debug is enabled`() {
-        Mockito.`when`(logger.isDebugEnabled).thenReturn(true)
-        var invoked = false
+    fun `debug logs lazy message with method as a separate key value`() {
+        appLogger.debug("load") { "hello" }
 
-        appLogger.debug("method") {
-            invoked = true
-            "hello"
-        }
-
-        assertTrue(invoked)
-        Mockito.verify(logger).debug(
-            eq("method='{}.{}' message='hello'"),
-            eq(AppLoggerTest::class),
-            eq("method"),
-        )
+        assertEquals(Level.DEBUG, event().level)
+        assertEquals("hello", event().formattedMessage)
+        assertEquals(mapOf("method" to "load"), event().keyValues())
     }
 
     @Test
     fun `debug never invokes lazy message when debug is disabled`() {
-        Mockito.`when`(logger.isDebugEnabled).thenReturn(false)
+        logger.level = Level.INFO
         var invoked = false
 
-        appLogger.debug("method") {
+        appLogger.debug("load") {
             invoked = true
             "hello"
         }
 
         assertFalse(invoked)
-        Mockito.verify(logger, Mockito.never()).debug(Mockito.anyString(), Mockito.any(), Mockito.any())
+        assertTrue(appender.list.isEmpty())
     }
 
     @Test
-    fun `info passes message and varargs through to logger`() {
-        appLogger.info("message", "method", "arg1", "arg2")
+    fun `info formats message template with args and keeps method out of the message`() {
+        appLogger.info("deleted {} of {}", "cleanup", 3, 5)
 
-        Mockito.verify(logger).info(
-            eq("method='{}.{}' message='message'"),
-            eq(AppLoggerTest::class),
-            eq("method"),
-            eq("arg1"),
-            eq("arg2"),
-        )
+        assertEquals(Level.INFO, event().level)
+        assertEquals("deleted 3 of 5", event().formattedMessage)
+        assertEquals(mapOf("method" to "cleanup"), event().keyValues())
     }
 
     @Test
-    fun `warn passes message and varargs through to logger`() {
-        appLogger.warn("message", "method", "arg1")
+    fun `warn formats message template with args`() {
+        appLogger.warn("rejected {}", "refresh", 401)
 
-        Mockito.verify(logger).warn(
-            eq("method='{}.{}' message='message'"),
-            eq(AppLoggerTest::class),
-            eq("method"),
-            eq("arg1"),
-        )
+        assertEquals(Level.WARN, event().level)
+        assertEquals("rejected 401", event().formattedMessage)
+        assertEquals(mapOf("method" to "refresh"), event().keyValues())
+        assertNull(event().throwableProxy)
     }
 
     @Test
-    fun `warn with throwable uses inline template and passes exception`() {
+    fun `warn with throwable attaches the exception`() {
         val ex = RuntimeException("boom")
 
-        appLogger.warn("message", "method", ex)
+        appLogger.warn("failed", "refresh", ex)
 
-        Mockito.verify(logger).warn(
-            eq("method='${AppLoggerTest::class}.method' message='message'"),
-            eq(ex),
-        )
+        assertEquals("failed", event().formattedMessage)
+        assertEquals(mapOf("method" to "refresh"), event().keyValues())
+        assertEquals("boom", event().throwableProxy.message)
     }
 
     @Test
-    fun `error passes message and varargs through to logger`() {
-        appLogger.error("message", "method", "arg1")
+    fun `error formats message template with args`() {
+        appLogger.error("failed id={}", "poll", 7)
 
-        Mockito.verify(logger).error(
-            eq("method='{}.{}' message='message'"),
-            eq(AppLoggerTest::class),
-            eq("method"),
-            eq("arg1"),
-        )
+        assertEquals(Level.ERROR, event().level)
+        assertEquals("failed id=7", event().formattedMessage)
+        assertEquals(mapOf("method" to "poll"), event().keyValues())
     }
 
     @Test
-    fun `error with throwable uses inline template and passes exception`() {
-        val ex = RuntimeException("boom")
+    fun `error with throwable attaches the exception`() {
+        val ex = IllegalStateException("boom")
 
-        appLogger.error("message", "method", ex)
+        appLogger.error("failed", "poll", ex)
 
-        Mockito.verify(logger).error(
-            eq("method='${AppLoggerTest::class}.method' message='message'"),
-            eq(ex),
-        )
+        assertEquals(Level.ERROR, event().level)
+        assertEquals("failed", event().formattedMessage)
+        assertEquals(mapOf("method" to "poll"), event().keyValues())
+        assertEquals(IllegalStateException::class.java.name, event().throwableProxy.className)
     }
 
     @Test
-    fun `of factory builds a usable AppLogger bound to given class`() {
-        val built = AppLogger.of(AppLoggerTest::class)
+    fun `of binds the logger to the given class`() {
+        appLogger.info("smoke", "method")
 
-        built.info("smoke", "method")
+        assertEquals(AppLoggerTest::class.java.name, event().loggerName)
     }
 }

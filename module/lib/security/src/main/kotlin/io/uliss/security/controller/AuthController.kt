@@ -13,6 +13,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import service.AuthService
+import utils.CODE_VERIFIER
+import utils.OAUTH_STATE
 
 @RestController
 @RequestMapping("/oauth2")
@@ -28,11 +30,20 @@ class AuthController(
 
     @PostMapping("/callback")
     fun callback(
-        @RequestParam code: String,
-        @CookieValue("code_verifier") codeVerifier: String,
+        // Optional so a missing value is rejected inside the try and the login cookies are still cleared.
+        @RequestParam(required = false) code: String?,
+        @RequestParam(required = false) state: String?,
+        @CookieValue(CODE_VERIFIER, required = false) codeVerifier: String?,
+        @CookieValue(OAUTH_STATE, required = false) expectedState: String?,
     ): ResponseEntity<TokenResponse> {
-        val tokenResponse = authService.exchangeCode(code, codeVerifier)
-        return ResponseEntity.ok(tokenResponse)
+        try {
+            authService.verifyState(state, expectedState)
+            return ResponseEntity.ok(authService.exchangeCode(code, codeVerifier))
+        } finally {
+            // Only a browser that holds a login cookie has a login to end; a cross-site POST without them
+            // must not wipe a login in progress.
+            if (codeVerifier != null || expectedState != null) authService.clearLoginCookies()
+        }
     }
 
     @PostMapping("/refresh")

@@ -1,31 +1,51 @@
-# Task: <name>
+# Задача: <название>
 
-Status: active
+Статус: обсуждение | план согласован | в работе | на ручной проверке | готово
+Тип: DE | FE | TD
 Base commit: `<commit>`
+Epic: `<ссылка на epic-файл или —>`
 
-## Goal
+## Цель
 
-One sentence describing the intended outcome and why it matters.
+Одно предложение: какой результат нужен и зачем.
 
-## Scope
+## Критерии приёмки
 
-- Included behavior or subsystem.
-- Explicit boundary when scope could be misunderstood.
+- Наблюдаемое поведение, которое пользователь проверит вручную (обычно через UI).
 
-## Plan
+## Скоуп
 
-- [ ] Step 1
-- [ ] Step 2
+- Что входит.
+- Что явно не входит.
 
-## Progress
+## Решения из обсуждения
 
-- Record decisions and completed work that must survive another session.
+- Уточнения и договорённости, которые должны пережить сессию.
 
-## Verification
+## Блоки (один блок — один коммит)
 
-- Command or review performed — result.
+- [ ] Блок 1: <что делает>
+    - Тесты: unit — …; integration — …; property — …; web — …
+    - Коммит: `<PREFIX>  - <summary>`
+- [ ] Блок 2: …
 
-## Artifacts
+## Прогресс
 
-- `path/to/file` — purpose.
+- Сделанное, причина красного теста для каждого блока, отклонения от плана.
 
+## Проверка
+
+- Команда — результат.
+- Покрытие JaCoCo (line/branch) затронутых модулей.
+- Код-ревью: находки и как решены.
+
+## Отчёт
+
+- Что сделано, список коммитов.
+- Что не проверено, риски.
+
+## Ручная проверка
+
+- Что запустить.
+- Шаги в UI → ожидаемый результат.
+- Граничные случаи.
