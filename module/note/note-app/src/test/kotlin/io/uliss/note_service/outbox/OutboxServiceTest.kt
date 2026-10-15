@@ -42,12 +42,19 @@ class OutboxServiceTest {
     private fun service(
         maxAttempts: Int = 3,
         terminalFailureHandlers: List<OutboxTerminalFailureHandler> = emptyList(),
+        handledTypes: List<OutboxEventType> = OutboxEventType.entries,
     ) = OutboxService(
         outboxEventRepository = outboxEventRepository,
         outboxLeasePolicy = leasePolicy,
         outboxProperties = OutboxProperties(maxAttempts = maxAttempts),
         terminalFailureHandlers = terminalFailureHandlers,
+        handlers = handledTypes.map(::handlerFor),
     )
+
+    private fun handlerFor(handledType: OutboxEventType) = object : OutboxHandler {
+        override val type = handledType
+        override fun handle(event: OutboxEventEntity) = Unit
+    }
 
     private fun pendingEvent(
         attempts: Int = 0,
@@ -71,7 +78,7 @@ class OutboxServiceTest {
     }
 
     private fun stubClaimable(vararg events: OutboxEventEntity) {
-        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue()))
+        Mockito.`when`(outboxEventRepository.findClaimable(anyValue(), anyValue(), anyValue(), anyValue()))
             .thenReturn(events.toList())
         Mockito.`when`(outboxEventRepository.saveAll(anyValue<List<OutboxEventEntity>>()))
             .thenAnswer { it.getArgument<List<OutboxEventEntity>>(0) }
@@ -176,8 +183,31 @@ class OutboxServiceTest {
 
         service.claim(20)
 
-        Mockito.verify(outboxEventRepository).findClaimable(statusesCaptor.captureValue(), anyValue(), anyValue())
+        Mockito.verify(outboxEventRepository)
+            .findClaimable(statusesCaptor.captureValue(), anyValue(), anyValue(), anyValue())
         assertEquals(listOf(OutboxEventStatus.PENDING, OutboxEventStatus.PROCESSING), statusesCaptor.value)
+    }
+
+    @Test
+    fun `claim asks only for event types that have a registered handler`() {
+        // e.g. an older instance during a rolling deploy must not burn attempts of a type it cannot handle
+        val service = service(handledTypes = listOf(OutboxEventType.NOTE_INDEX_REQUESTED))
+        stubClaimable(pendingEvent())
+        val typesCaptor = captorFor<Collection<OutboxEventType>>(Collection::class.java)
+
+        service.claim(20)
+
+        Mockito.verify(outboxEventRepository)
+            .findClaimable(anyValue(), typesCaptor.captureValue(), anyValue(), anyValue())
+        assertEquals(setOf(OutboxEventType.NOTE_INDEX_REQUESTED), typesCaptor.value.toSet())
+    }
+
+    @Test
+    fun `claim does not query when no handler is registered`() {
+        val service = service(handledTypes = emptyList())
+
+        assertTrue(service.claim(20).isEmpty())
+        Mockito.verifyNoInteractions(outboxEventRepository)
     }
 
     @Test

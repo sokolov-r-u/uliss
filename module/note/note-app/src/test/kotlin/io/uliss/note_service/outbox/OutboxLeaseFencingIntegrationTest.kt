@@ -7,6 +7,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
 import org.junit.jupiter.api.BeforeEach
@@ -15,6 +16,8 @@ import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
@@ -39,6 +42,15 @@ class OutboxLeaseFencingIntegrationTest {
 
     @Autowired
     lateinit var objectMapper: ObjectMapper
+
+    @Autowired
+    lateinit var outboxLeasePolicy: OutboxLeasePolicy
+
+    @Autowired
+    lateinit var outboxProperties: OutboxProperties
+
+    @Autowired
+    lateinit var transactionManager: PlatformTransactionManager
 
     // claim() takes the oldest claimable rows; leftovers from other test classes would crowd out ours.
     @BeforeEach
@@ -92,6 +104,38 @@ class OutboxLeaseFencingIntegrationTest {
         assertEquals(OutboxEventStatus.FAILED, persisted.status)
         assertEquals(3, persisted.attempts)
         assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
+    }
+
+    @Test
+    fun `an instance without a handler for the type never claims it, so the event keeps all its attempts`() {
+        val event = savePendingEvent(OutboxEventType.NOTE_SUMMARY_REQUESTED, "{}")
+        // e.g. an older instance during a rolling deploy that knows only the index handler
+        val olderInstance = OutboxService(
+            outboxEventRepository = outboxEventRepository,
+            outboxLeasePolicy = outboxLeasePolicy,
+            outboxProperties = outboxProperties,
+            terminalFailureHandlers = emptyList(),
+            handlers = listOf(handlerFor(OutboxEventType.NOTE_INDEX_REQUESTED)),
+        )
+        val inTransaction = TransactionTemplate(transactionManager)
+
+        repeat(outboxProperties.maxAttempts + 1) {
+            assertTrue(inTransaction.execute { olderInstance.claim(10) }.orEmpty().isEmpty())
+        }
+
+        val untouched = outboxEventRepository.findById(event.id).orElseThrow()
+        assertEquals(OutboxEventStatus.PENDING, untouched.status)
+        assertEquals(0, untouched.attempts)
+        assertNull(untouched.leaseId)
+        // an instance that has the handler still gets the event with its full attempt budget
+        val claimed = outboxService.claim(10).single()
+        assertEquals(event.id, claimed.id)
+        assertEquals(1, claimed.attempts)
+    }
+
+    private fun handlerFor(handledType: OutboxEventType) = object : OutboxHandler {
+        override val type = handledType
+        override fun handle(event: OutboxEventEntity) = Unit
     }
 
     private fun savePendingEvent(type: OutboxEventType, payload: String): OutboxEventEntity =

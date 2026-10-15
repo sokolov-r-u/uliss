@@ -2,6 +2,7 @@ package io.uliss.note_service.repository
 
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.outbox.OutboxEventType
 import jakarta.persistence.LockModeType
 import jakarta.persistence.QueryHint
 import org.springframework.data.domain.Pageable
@@ -26,16 +27,18 @@ interface OutboxEventRepository : CrudRepository<OutboxEventEntity, UUID> {
      *
      * **PROCESSING** - claimed by a worker whose visibility timeout has expired (e.g. it crashed
      * before finishing) - see [io.uliss.note_service.outbox.OutboxService.claim].
+     * @param types only types this instance has a handler for; must not be empty.
      */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @QueryHints(QueryHint(name = "jakarta.persistence.lock.timeout", value = "-2"))
     @Query(
         "select e from OutboxEventEntity e " +
-                "where e.status in :statuses and e.nextAttemptAt <= :now " +
+                "where e.status in :statuses and e.type in :types and e.nextAttemptAt <= :now " +
                 "order by e.createdAt asc"
     )
     fun findClaimable(
         @Param("statuses") statuses: List<OutboxEventStatus>,
+        @Param("types") types: Collection<OutboxEventType>,
         @Param("now") now: Instant,
         pageable: Pageable,
     ): List<OutboxEventEntity>

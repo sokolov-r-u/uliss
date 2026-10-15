@@ -5,6 +5,7 @@ import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.OutboxEventRepository
+import org.springframework.context.annotation.Lazy
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -24,6 +25,8 @@ class OutboxService(
     private val outboxLeasePolicy: OutboxLeasePolicy,
     private val outboxProperties: OutboxProperties,
     terminalFailureHandlers: List<OutboxTerminalFailureHandler>,
+    // Lazy: handlers depend on services that publish through this one.
+    @Lazy private val handlers: List<OutboxHandler>,
 ) {
     private val log = AppLogger.of(OutboxService::class)
     private val terminalFailureHandlers = terminalFailureHandlers.associateBy { it.type }
@@ -60,12 +63,18 @@ class OutboxService(
      * **Attempts and lease** - every claim counts as an attempt (a crashed worker consumes one too)
      * and issues a fresh [OutboxEventEntity.leaseId]. An expired event that already used its last
      * attempt is failed here instead of being handed out again.
+     *
+     * **Handled types only** - an event type without a registered handler (e.g. an older instance
+     * during a rolling deploy) is left for an instance that can process it, so it spends no attempts.
      */
     @Transactional
     fun claim(batchSize: Int): List<OutboxEventEntity> {
+        val handledTypes = handlers.mapTo(mutableSetOf()) { it.type }
+        if (handledTypes.isEmpty()) return emptyList()
         val now = Instant.now()
         val found = outboxEventRepository.findClaimable(
             CLAIMABLE_STATUSES,
+            handledTypes,
             now,
             PageRequest.of(0, batchSize),
         )

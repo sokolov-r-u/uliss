@@ -474,3 +474,19 @@ following real timeouts when either side changes. `OutboxLeasePolicy` was moved 
 Rebase the chat-turn lease on the same resolved OpenAI settings, sharing the budget calculation with
 `OutboxLeasePolicy`. First verify how the SDK request timeout applies to a streamed response: it may cap the whole
 stream, not a single read.
+
+## Rework logging before production (all JVM services, `infra`)
+
+**Status:** deferred until the move to production; nothing changed on 2026-10-15 (pre-production only).
+
+`LoggingAspect` traces every `@Service`/`@Repository` call at DEBUG with arguments and results, and
+`infra/env.example.properties` sets `LOG_LEVEL_ULISS=debug`. Secrets are masked (`@Sensitive` plus a name regex), but
+user content is not: chat prompts and replies, note content and email addresses reach stdout, `infra/volumes/logs`
+and Dozzle. Dozzle is published on `8888` on all interfaces without authentication.
+
+Before production:
+
+- User prompts and other user content must never be logged. Decide between disabling argument/result tracing for
+  content-carrying methods and an explicit allowlist of loggable types; keep `@Sensitive` for secrets.
+- Default `LOG_LEVEL_ULISS` to `info` in production configuration.
+- Restrict Dozzle (bind to `127.0.0.1` or put it behind authentication) or drop it from the production Compose file.
