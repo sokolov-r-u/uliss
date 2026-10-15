@@ -26,10 +26,18 @@ export type ChatMessage = {
     createdAt?: string
 }
 
+/** The chat's current summary note and the last message it covers; only on the latest page. */
+export type ChatSummaryState = {
+    throughMessageId?: string | null
+    noteId: string
+    noteTitle?: string | null
+}
+
 export type ChatMessagePage = {
     messages: ChatMessage[]
     nextCursor: string | null
     hasMore: boolean
+    summary?: ChatSummaryState | null
 }
 
 export type GetMessagesOptions = {

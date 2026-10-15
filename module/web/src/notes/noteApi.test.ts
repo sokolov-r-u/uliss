@@ -40,6 +40,23 @@ describe('noteApi', () => {
         })
     })
 
+    it('requests an update of the current note with a JSON body', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'READY'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', 'note-1')).resolves.toMatchObject({noteId: 'note-1'})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1', 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'UPDATE', targetNoteId: 'note-1'}),
+        })
+    })
+
+    it('rejects an update response for another note', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-2', chatId: 'chat-1', status: 'READY'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', 'note-1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('distinguishes not found from retryable failures', async () => {
         mockedFetch.mockResolvedValue(new Response(null, {status: 404}))
         await expect(getNote('missing')).rejects.toMatchObject({kind: 'http', status: 404})

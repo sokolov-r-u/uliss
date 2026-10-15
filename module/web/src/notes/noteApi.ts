@@ -141,15 +141,25 @@ export function notifyNotesChanged() {
     notesListeners.forEach((listener) => listener())
 }
 
-export async function requestChatSummary(chatId: string, idempotencyKey: string): Promise<ChatSummaryResponse> {
-    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, {
-        method: 'POST',
-        headers: {'Idempotency-Key': idempotencyKey},
-    })
+/** Creates the chat's first note, or with [updateNoteId] appends to its current note. */
+export async function requestChatSummary(
+    chatId: string,
+    idempotencyKey: string,
+    updateNoteId?: string,
+): Promise<ChatSummaryResponse> {
+    const init: RequestInit = updateNoteId
+        ? {
+            method: 'POST',
+            headers: {'Idempotency-Key': idempotencyKey, 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'UPDATE', targetNoteId: updateNoteId}),
+        }
+        : {method: 'POST', headers: {'Idempotency-Key': idempotencyKey}}
+    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, init)
     await requireOk(response, 'summary request')
     if (response.status !== 202) throw new NoteApiError('protocol', `unexpected summary status (${response.status})`)
     const summary = parseSummary(await responseJson(response))
-    if (summary.chatId !== chatId || summary.status !== 'GENERATING') {
+    const matches = updateNoteId ? summary.noteId === updateNoteId : summary.status === 'GENERATING'
+    if (summary.chatId !== chatId || !matches) {
         throw new NoteApiError('protocol', 'summary response does not match the request')
     }
     return summary
