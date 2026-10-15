@@ -27,9 +27,10 @@ note-service. These mediator routes are distinct from the real authorization ser
    exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies. A
    missing or blank code, state, or cookie is rejected with 400 `AUTHORIZATION_CODE_ERROR`; the login cookies are
    cleared whenever the request carried one (a request with none, e.g. a cross-site POST, leaves them alone).
-4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair. Any 4xx from the
-   authorization server (including `invalid_client`, which is also logged as an error) becomes 401
-   `INVALID_REFRESH_TOKEN`, so the SPA signs in again.
+4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair. An OAuth rejection
+   (400, or 401 `invalid_client`, which is also logged as an error) becomes 401 `INVALID_REFRESH_TOKEN`, so the SPA
+   signs in again. 408 and 429 (a busy server or proxy) are retried and then answered with 503; any other 4xx is a
+   configuration error answered with 500. In both cases the SPA keeps its tokens.
 5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
 
 Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange

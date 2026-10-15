@@ -10,6 +10,7 @@ import com.github.tomakehurst.wiremock.client.WireMock.postRequestedFor
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.github.tomakehurst.wiremock.http.Fault
+import com.github.tomakehurst.wiremock.stubbing.Scenario
 import jakarta.servlet.http.Cookie
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
@@ -385,13 +386,14 @@ class AuthMediatorTest {
     }
 
     @Test
-    fun `refresh maps any other 4xx from the auth server to 401 so the SPA signs in again`() {
-        // invalid_client after a secret rotation, invalid_scope, unauthorized_client, or a 4xx without an OAuth body
+    fun `refresh maps an OAuth rejection from the auth server to 401 so the SPA signs in again`() {
+        // the token endpoint answers a refresh only with 400/401: invalid_client after a secret rotation,
+        // invalid_scope, unauthorized_client, or a 400 without an OAuth body
         listOf(
             400 to """{"error":"invalid_scope"}""",
             401 to """{"error":"invalid_client"}""",
             400 to """{"error":"unauthorized_client"}""",
-            403 to "",
+            400 to "",
         ).forEach { (status, body) ->
             wireMock.resetAll()
             wireMock.stubFor(post(urlPathEqualTo("/oauth2/token")).willReturn(jsonResponse(status, body)))
@@ -404,6 +406,68 @@ class AuthMediatorTest {
                 jsonPath("$.code") { value("INVALID_REFRESH_TOKEN") }
             }
             // a rejected grant is final: no retry
+            wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+        }
+    }
+
+    @Test
+    fun `refresh retries a throttled or timed-out auth server and finally maps to 503 keeping the session`() {
+        // 408/429 come from the server or a proxy in front of it, not from the token: the refresh token is still valid
+        listOf(408, 429).forEach { status ->
+            wireMock.resetAll()
+            wireMock.stubFor(post(urlPathEqualTo("/oauth2/token")).willReturn(jsonResponse(status, "")))
+
+            mockMvc.post("/oauth2/refresh") {
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"refreshToken":"still-valid"}"""
+            }.andExpect {
+                status { isServiceUnavailable() }
+                jsonPath("$.code") { value("INTERNAL_ERROR") }
+            }
+            wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+        }
+    }
+
+    @Test
+    fun `refresh succeeds when the auth server stops throttling within the retries`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token")).inScenario("throttled")
+                .whenScenarioStateIs(Scenario.STARTED)
+                .willReturn(jsonResponse(429, ""))
+                .willSetStateTo("recovered")
+        )
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token")).inScenario("throttled")
+                .whenScenarioStateIs("recovered")
+                .willReturn(
+                    jsonResponse(200, """{"access_token":"a2","refresh_token":"r2","expires_in":900,"token_type":"Bearer"}""")
+                )
+        )
+
+        mockMvc.post("/oauth2/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"still-valid"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.access_token") { value("a2") }
+        }
+        wireMock.verify(exactly(2), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
+    fun `refresh maps an unexpected 4xx from infrastructure to 500 without ending the session`() {
+        // e.g. a wrong AUTH_INTERNAL_URL (404) or a proxy rule (403): a configuration error, not a dead token
+        listOf(403, 404).forEach { status ->
+            wireMock.resetAll()
+            wireMock.stubFor(post(urlPathEqualTo("/oauth2/token")).willReturn(jsonResponse(status, "")))
+
+            mockMvc.post("/oauth2/refresh") {
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"refreshToken":"whatever"}"""
+            }.andExpect {
+                status { isInternalServerError() }
+                jsonPath("$.code") { value("INTERNAL_ERROR") }
+            }
             wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
         }
     }

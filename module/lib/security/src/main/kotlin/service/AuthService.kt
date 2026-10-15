@@ -144,15 +144,7 @@ class AuthService(
                 .body(form("grant_type" to "refresh_token", "refresh_token" to refreshToken))
                 .getResponseOrThrow()
         } catch (ex: HttpClientErrorException) {
-            // Any rejection ends the session, so the SPA signs in again instead of retrying a dead token.
-            val err = errorCode(ex)
-            if (err == OAuth2ErrorCodes.INVALID_GRANT) {
-                log.warn("auth server rejected refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
-            } else {
-                // e.g. invalid_client: the mediator's own client configuration is wrong
-                log.error("auth server rejected refresh ${ex.statusCode}:${ex.responseBodyAsString}", "refresh")
-            }
-            throw InvalidRefreshTokenException("refresh token was rejected: ${err ?: ex.statusCode}", ex)
+            throw refreshFailure(ex)
         } catch (ex: InvalidClientCredentialsException) {
             log.error("auth server rejected the mediator client credentials on refresh", "refresh", ex)
             throw InvalidRefreshTokenException("refresh token was rejected: invalid_client", ex)
@@ -182,6 +174,34 @@ class AuthService(
     }
 
     /** Reads the OAuth2 error from the raw body: a manually built exception has no body converter. */
+    /**
+     * The token endpoint answers a refresh with 400 (or 401, see [InvalidClientCredentialsException]) only: that
+     * rejection ends the session. 408/429 come from a busy server or a proxy and are retried, then 503; any other 4xx
+     * is infrastructure misconfiguration (e.g. a wrong URL) and keeps the session.
+     */
+    private fun refreshFailure(ex: HttpClientErrorException): RuntimeException {
+        val status = ex.statusCode.value()
+        val err = errorCode(ex)
+        return when (status) {
+            HttpStatus.BAD_REQUEST.value() -> {
+                if (err == OAuth2ErrorCodes.INVALID_GRANT) {
+                    log.warn("auth server rejected refresh $status:${ex.responseBodyAsString}", "refresh")
+                } else {
+                    log.error("auth server rejected refresh $status:${ex.responseBodyAsString}", "refresh")
+                }
+                InvalidRefreshTokenException("refresh token was rejected: ${err ?: status}", ex)
+            }
+
+            HttpStatus.REQUEST_TIMEOUT.value(), HttpStatus.TOO_MANY_REQUESTS.value() ->
+                AuthServerUnavailableException("auth server is busy: $status", ex, HttpStatus.SERVICE_UNAVAILABLE)
+
+            else -> {
+                log.error("unexpected refresh response $status:${ex.responseBodyAsString}", "refresh")
+                InternalException("auth server refresh failed: $status", ex)
+            }
+        }
+    }
+
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
