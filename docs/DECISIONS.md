@@ -28,3 +28,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a `@WebMvcTest` imports `WebMvcPathPrefixConfig` explicitly and needs the property in its test
   `application.yaml`; a service without the property gets no prefix.
 - **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.
+
+## 2026-10-16 — `:security` reads `SYSTEM_AUDITOR` from `:database` at compile time only
+
+- **Context:** the "no user" auditor value was declared in both `:database` and `:security` to avoid a dependency.
+- **Decision:** the constant lives only in `:database`; `:security` uses `compileOnly(project(":database"))`. Kotlin
+  inlines `const val`, so `:security` has no runtime dependency on `:database` and its tests start without JPA.
+- **Consequences:** only `const val` declarations of `:database` may be used from `:security`; anything else fails at
+  runtime in a service without `:database`.
+- **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.

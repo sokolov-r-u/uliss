@@ -1,5 +1,6 @@
 package io.uliss.security.config
 
+import io.uliss.database.audit.SYSTEM_AUDITOR
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Test
 import org.springframework.security.authentication.TestingAuthenticationToken
