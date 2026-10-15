@@ -1,6 +1,7 @@
 package service
 
 import io.uliss.exception.common.InternalException
+import io.uliss.logging.annotation.Sensitive
 import io.uliss.logging.logger.AppLogger
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.dto.response.TokenResponse
@@ -27,10 +28,10 @@ import utils.generateCodeVerifier
 import utils.setCookie
 import java.net.ConnectException
 import java.net.URI
-import java.security.MessageDigest
 import java.net.UnknownHostException
 import java.net.http.HttpClient
 import java.net.http.HttpConnectTimeoutException
+import java.security.MessageDigest
 import java.time.Duration
 
 @Service
@@ -73,7 +74,7 @@ class AuthService(
     }
 
     /** Rejects a callback whose state differs from the one this browser received at login. */
-    fun verifyState(state: String, expectedState: String) {
+    fun verifyState(@Sensitive state: String, @Sensitive expectedState: String) {
         if (!MessageDigest.isEqual(state.toByteArray(), expectedState.toByteArray())) {
             throw InvalidAuthorizationCodeException("login state does not match")
         }
@@ -92,7 +93,7 @@ class AuthService(
         delay = 500,
         multiplier = 2.0
     )
-    fun exchangeCode(code: String, codeVerifier: String): TokenResponse {
+    fun exchangeCode(@Sensitive code: String, @Sensitive codeVerifier: String): TokenResponse {
         return try {
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
@@ -124,7 +125,7 @@ class AuthService(
         delay = 500,
         multiplier = 2.0
     )
-    fun refresh(refreshToken: String): TokenResponse {
+    fun refresh(@Sensitive refreshToken: String): TokenResponse {
         return try {
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/token") }
@@ -150,7 +151,7 @@ class AuthService(
         delay = 500,
         multiplier = 2.0
     )
-    fun logout(refreshToken: String) {
+    fun logout(@Sensitive refreshToken: String) {
         try {
             restClient.post()
                 .uri { URI.create("${securityProperties.authServerInternalUrl}/oauth2/revoke") }

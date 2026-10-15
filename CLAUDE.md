@@ -68,6 +68,9 @@ Obtain explicit per-request permission before crossing any of these limits:
   domain/onboarding command types.
 - A `data class` holding secrets (passwords, tokens, keys, client secrets, PKCE verifiers) overrides `toString` to
   omit them; the generated one prints every field into logs and exception messages.
+- A secret passed as a parameter of a `@Service` or `@Repository` method (auth codes, OAuth state, tokens, passwords,
+  keys) is annotated `@Sensitive` (`io.uliss.logging.annotation`), so `LoggingAspect` masks it in DEBUG call traces.
+  Do not rely on the parameter name matching the aspect's fallback regex.
 - Avoid Kotlin `!!`; if platform nullability makes it provably safe, add a short justification or remove the ambiguity.
 - Versions live in `gradle/libs.versions.toml`; BOM-managed dependency versions are not duplicated in module builds.
 - Package roots use `io.uliss.<module>`. Comments, code, logs, and commit messages are English-only and concise.

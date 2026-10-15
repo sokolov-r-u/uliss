@@ -4,6 +4,7 @@ import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import ch.qos.logback.classic.spi.ILoggingEvent
 import ch.qos.logback.core.read.ListAppender
+import io.uliss.logging.annotation.Sensitive
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -20,6 +21,7 @@ import kotlin.test.assertTrue
 @Service
 open class SampleService {
     open fun refresh(refreshToken: String, clientId: String): String = "ok:$clientId"
+    open fun exchange(@Sensitive code: String, clientId: String): String = "ok:$clientId"
     open fun echo(text: String): String = text
     open fun fail(): String = throw IllegalStateException("boom")
 }
@@ -65,6 +67,16 @@ class LoggingAspectTest {
         val args = keyValues(0).getValue("args")
         assertFalse("secret-refresh" in args, args)
         assertContains(args, "refreshToken=***")
+        assertContains(args, "clientId=web")
+    }
+
+    @Test
+    fun `masks arguments annotated as sensitive`() {
+        service.exchange("one-time-code", "web")
+
+        val args = keyValues(0).getValue("args")
+        assertFalse("one-time-code" in args, args)
+        assertContains(args, "code=***")
         assertContains(args, "clientId=web")
     }
 

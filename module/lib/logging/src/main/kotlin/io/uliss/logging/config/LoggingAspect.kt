@@ -1,5 +1,6 @@
 package io.uliss.logging.config
 
+import io.uliss.logging.annotation.Sensitive
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
 import org.aspectj.lang.annotation.Aspect
@@ -10,7 +11,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
- * Pre-production call tracing for services and repositories at DEBUG: arguments by name (secrets masked), results,
+ * Pre-production call tracing for services and repositories at DEBUG: arguments by name (secrets and [Sensitive] parameters masked), results,
  * and a one-line exit on exception. Stack traces are logged once by the exception handler, never here.
  * Disable with `uliss.logging.aspect.enabled=false`.
  */
@@ -45,11 +46,15 @@ class LoggingAspect {
         return result
     }
 
+    /** Masks a parameter that is annotated [Sensitive] or whose name looks like a secret. */
     private fun renderArgs(joinPoint: ProceedingJoinPoint): String {
-        val names = (joinPoint.signature as? MethodSignature)?.parameterNames
+        val signature = joinPoint.signature as? MethodSignature
+        val names = signature?.parameterNames
+        val parameters = signature?.method?.parameters
         return joinPoint.args.withIndex().joinToString(", ") { (index, value) ->
             val name = names?.getOrNull(index) ?: "arg$index"
-            "$name=${if (SECRET_NAME.containsMatchIn(name)) MASK else truncate(value.toString())}"
+            val sensitive = parameters?.getOrNull(index)?.isAnnotationPresent(Sensitive::class.java) == true
+            "$name=${if (sensitive || SECRET_NAME.containsMatchIn(name)) MASK else truncate(value.toString())}"
         }
     }
 
