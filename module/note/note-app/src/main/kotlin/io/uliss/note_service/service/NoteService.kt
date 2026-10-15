@@ -14,6 +14,7 @@ import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
@@ -22,6 +23,7 @@ import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.TitleNormalizer
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
@@ -132,6 +134,8 @@ class NoteService(
         note.content = content
         note.status = NoteStatus.READY
         noteRepository.save(note)
+        summaryRequestStore.finishPendingForNote(noteId, SummaryRequestStatus.APPLIED)
+            ?.let { moveSummaryBoundary(it.chatId, noteId, it.throughMessageId) }
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
         return true
@@ -168,6 +172,12 @@ class NoteService(
     @Transactional
     fun deleteNote(userId: UUID, noteId: UUID) {
         noteRepository.delete(getOwnedNote(userId, noteId))
+    }
+
+    private fun moveSummaryBoundary(chatId: UUID, noteId: UUID, throughMessageId: UUID) {
+        val link = chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) ?: return
+        link.summarizedThroughMessageId = throughMessageId
+        chatNoteRepository.save(link)
     }
 
     private fun NoteStatus.isTerminal(): Boolean = this == NoteStatus.READY || this == NoteStatus.FAILED

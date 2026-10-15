@@ -8,9 +8,11 @@ import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.model.ChatNoteEntity
+import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
@@ -25,6 +27,7 @@ import reactor.test.StepVerifier
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.time.Instant
+import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -308,6 +311,37 @@ class NoteServiceTest {
         val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
         assertTrue(payload.contains(note.id.toString()))
         assertTrue(payload.contains(userId.toString()))
+    }
+
+    @Test
+    fun `completeChatSummary marks the request applied and moves the chat boundary`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val throughMessageId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id))
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(summaryRequestStore.finishPendingForNote(note.id, SummaryRequestStatus.APPLIED)).thenReturn(
+            SummaryRequest(userId, UUID.randomUUID(), chatId, throughMessageId, note.id, Instant.now()),
+        )
+        Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
+
+        assertTrue(noteService.completeChatSummary(userId, note.id, "Title", "Body"))
+
+        assertEquals(throughMessageId, link.summarizedThroughMessageId)
+        Mockito.verify(chatNoteRepository).save(link)
+    }
+
+    @Test
+    fun `completeChatSummary keeps the note ready when no request is pending`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertTrue(noteService.completeChatSummary(userId, note.id, "Title", "Body"))
+
+        assertEquals(NoteStatus.READY, note.status)
+        Mockito.verify(chatNoteRepository, Mockito.never()).save(anyValue())
     }
 
     @Test

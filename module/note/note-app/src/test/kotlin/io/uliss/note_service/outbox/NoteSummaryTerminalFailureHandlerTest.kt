@@ -6,8 +6,10 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
+import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -20,7 +22,19 @@ class NoteSummaryTerminalFailureHandlerTest {
 
     private val objectMapper = JsonMapper.builder().build()
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
-    private val handler = NoteSummaryTerminalFailureHandler(objectMapper, noteRepository)
+    private val summaryRequestStore = Mockito.mock(SummaryRequestStore::class.java)
+    private val handler = NoteSummaryTerminalFailureHandler(objectMapper, noteRepository, summaryRequestStore)
+
+    @Test
+    fun `handleTerminalFailure fails the pending request of a generating note`() {
+        val payload = payload()
+        val note = NoteEntity(payload.userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(payload.noteId, payload.userId)).thenReturn(note)
+
+        handler.handleTerminalFailure(event(payload))
+
+        Mockito.verify(summaryRequestStore).finishPendingForNote(payload.noteId, SummaryRequestStatus.FAILED)
+    }
 
     @Test
     fun `handleTerminalFailure marks a generating user-owned note failed`() {
@@ -45,6 +59,7 @@ class NoteSummaryTerminalFailureHandlerTest {
 
         assertEquals(NoteStatus.READY, note.status)
         Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(summaryRequestStore)
     }
 
     @Test
