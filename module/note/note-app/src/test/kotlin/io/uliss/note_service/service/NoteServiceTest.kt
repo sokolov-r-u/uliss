@@ -296,6 +296,53 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `requestChatSummaryUpdate reserves a request and publishes an update event without touching the note`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val after = UUID.randomUUID()
+        val through = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        Mockito.`when`(summaryRequestStore.reserve(userId, key, chatId, through, note.id))
+            .thenReturn(SummaryRequest(userId, key, chatId, through, note.id, Instant.now()))
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        val result = noteService.requestChatSummaryUpdate(userId, chatId, note.id, after, through, key)
+
+        assertEquals(note, result)
+        assertEquals("body", note.content)
+        val payload = publishedPayload(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED)
+        listOf(note.id, userId, chatId, key, after, through).forEach { assertTrue(payload.contains(it.toString())) }
+        Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+    }
+
+    @Test
+    fun `requestChatSummaryUpdate replays an existing key without publishing`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val key = UUID.randomUUID()
+        Mockito.`when`(summaryRequestStore.find(userId, key))
+            .thenReturn(SummaryRequest(userId, key, chatId, UUID.randomUUID(), note.id, Instant.now()))
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertEquals(note, noteService.requestChatSummaryUpdate(userId, chatId, note.id, null, UUID.randomUUID(), key))
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `findSummaryReplay rejects a key used for another chat`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        Mockito.`when`(summaryRequestStore.find(userId, key))
+            .thenReturn(SummaryRequest(userId, key, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), Instant.now()))
+
+        assertFailsWith<IdempotencyKeyReusedException> {
+            noteService.findSummaryReplay(userId, UUID.randomUUID(), key)
+        }
+    }
+
+    @Test
     fun `completeChatSummary changes a generating note to ready and publishes indexing`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)

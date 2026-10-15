@@ -43,6 +43,15 @@ class OutboxLeasePolicyTest {
     }
 
     @Test
+    fun `summary update lease matches the summary lease`() {
+        val policy = policy()
+        assertEquals(
+            policy.leaseFor(OutboxEventType.NOTE_SUMMARY_REQUESTED),
+            policy.leaseFor(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED),
+        )
+    }
+
+    @Test
     fun `chat-level timeout and retries take precedence over the common ones`() {
         val chat = OpenAiChatProperties().apply {
             timeout = Duration.ofSeconds(300)

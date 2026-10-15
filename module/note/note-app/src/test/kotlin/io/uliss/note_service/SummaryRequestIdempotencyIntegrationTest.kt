@@ -241,6 +241,28 @@ class SummaryRequestIdempotencyIntegrationTest {
         )
     }
 
+    @Test
+    fun `update requests for the same note are allowed one at a time and replay by key`() {
+        val userId = UUID.randomUUID()
+        val (chat, boundary) = createChatBoundary(userId)
+        val note = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        noteService.completeChatSummary(userId, note.id, "Title", "Body")
+        val next = chatMessageRepository.save(
+            ChatMessageEntity(chat.id, ChatMessageRole.USER, "More", ChatMessageStatus.COMPLETE),
+        )
+        val key = UUID.randomUUID()
+
+        val first = noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
+        val replay = noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
+
+        assertEquals(note.id, first.id)
+        assertEquals(note.id, replay.id)
+        assertEquals(2, count("SELECT COUNT(*) FROM note.summary_request WHERE note_id = ?", note.id))
+        assertFailsWith<SummaryInProgressException> {
+            noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, UUID.randomUUID())
+        }
+    }
+
     private fun requestStatus(userId: UUID, key: UUID): String? = jdbcTemplate.queryForObject(
         "SELECT status FROM note.summary_request WHERE user_id = ? AND idempotency_key = ?",
         String::class.java,

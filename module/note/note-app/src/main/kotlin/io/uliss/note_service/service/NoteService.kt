@@ -17,6 +17,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
@@ -104,19 +105,7 @@ class NoteService(
             noteId = candidateNote.id,
         )
 
-        if (reservation == null) {
-            val existing = summaryRequestStore.find(userId, idempotencyKey)
-                ?: throw InternalException(
-                    "summary request reservation detected an idempotency conflict, " +
-                            "but the request created by the winning transaction could not be loaded"
-                )
-            if (existing.chatId != chatId) throw IdempotencyKeyReusedException()
-            return noteRepository.findByIdAndUserId(existing.noteId, userId)
-                ?: throw InternalException(
-                    "summary request was loaded after an idempotent retry, " +
-                            "but its referenced note could not be found"
-                )
-        }
+        if (reservation == null) return getReplayedSummary(userId, chatId, idempotencyKey)
 
         noteRepository.saveAndFlush(candidateNote)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
@@ -125,6 +114,36 @@ class NoteService(
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
         return candidateNote
+    }
+
+    /** The note of an earlier request with this key; null when the key is new. */
+    fun findSummaryReplay(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity? {
+        val existing = summaryRequestStore.find(userId, idempotencyKey) ?: return null
+        if (existing.chatId != chatId) throw IdempotencyKeyReusedException()
+        return noteRepository.findByIdAndUserId(existing.noteId, userId)
+            ?: throw InternalException(
+                "summary request was loaded after an idempotent retry, " +
+                        "but its referenced note could not be found"
+            )
+    }
+
+    /** Reserves an update of an existing READY note; the note itself changes only when the update is applied. */
+    @Transactional
+    fun requestChatSummaryUpdate(
+        userId: UUID,
+        chatId: UUID,
+        noteId: UUID,
+        afterMessageId: UUID?,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+    ): NoteEntity {
+        summaryRequestStore.reserve(userId, idempotencyKey, chatId, throughMessageId, noteId)
+            ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryUpdateRequestedPayload(noteId, userId, chatId, idempotencyKey, afterMessageId, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, payload)
+        return getOwnedNote(userId, noteId)
     }
 
     /**
@@ -180,6 +199,13 @@ class NoteService(
     fun deleteNote(userId: UUID, noteId: UUID) {
         noteRepository.delete(getOwnedNote(userId, noteId))
     }
+
+    private fun getReplayedSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity =
+        findSummaryReplay(userId, chatId, idempotencyKey)
+            ?: throw InternalException(
+                "summary request reservation detected an idempotency conflict, " +
+                        "but the request created by the winning transaction could not be loaded"
+            )
 
     private fun moveSummaryBoundary(chatId: UUID, noteId: UUID, throughMessageId: UUID) {
         val link = chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) ?: return
