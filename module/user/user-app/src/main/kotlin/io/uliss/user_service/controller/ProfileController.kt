@@ -23,11 +23,6 @@ class ProfileController(
     private val messageService: MessageService,
 ) {
 
-    @GetMapping("/me")
-    fun getProfile(): String {
-        return "Hello World"
-    }
-
     @GetMapping("/me/onboarding")
     fun getOnboardingMessages(@AuthenticationPrincipal jwt: Jwt): List<OnboardingMessageView> =
         messageService.getPending(jwt.getUserId())

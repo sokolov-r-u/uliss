@@ -43,19 +43,11 @@ class ProfileControllerTest {
     lateinit var jwtDecoder: JwtDecoder
 
     @Test
-    fun `getProfile requires authentication`() {
-        mockMvc.get("/user/users/me").andExpect {
-            status { isUnauthorized() }
-        }
-    }
-
-    @Test
-    fun `getProfile returns hello world for authenticated user`() {
+    fun `profile root is not exposed`() {
         mockMvc.get("/user/users/me") {
             with(jwt())
         }.andExpect {
-            status { isOk() }
-            content { string("Hello World") }
+            status { isNotFound() }
         }
     }
 

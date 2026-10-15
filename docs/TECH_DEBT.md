@@ -238,7 +238,7 @@ Opened 2026-08-31 during the design-system integration refresh
   delete/summarise action exists.
 - **Settings: Sky / Account / Language are static.** Only Settings › Appearance
   (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
-  Account has no editable fields (`user-service` `GET /users/me` returns a stub), Language is
+  Account has no editable fields (`user-service` has no profile read endpoint yet), Language is
   English-only (no i18n layer). Build these out with their backing features.
 - **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
   specimens and `_ds_bundle.js`; the repo has no committed equivalent. Wave 2 left an
