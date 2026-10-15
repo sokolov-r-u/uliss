@@ -372,7 +372,9 @@ returns to `PENDING` with exponential backoff until the configured attempt limit
 its still-`GENERATING` note as `FAILED`. A crashed worker leaves a `PROCESSING` event reclaimable
 after its visibility deadline; if that worker used the last attempt, the next claim fails the event
 instead of running it again. `complete` and `recordFailure` are fenced by `lease_id`: a worker whose
-lease expired and was re-claimed cannot complete, reschedule, or fail the event.
+lease expired and was re-claimed cannot complete, reschedule, or fail the event. A summary that such a
+worker still produces is dropped: `completeChatSummary` saves only into a `GENERATING` note. Only event
+types with a registered handler are claimed.
 
 ### Note states
 

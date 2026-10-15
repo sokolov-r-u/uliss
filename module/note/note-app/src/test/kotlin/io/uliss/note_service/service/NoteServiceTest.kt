@@ -311,19 +311,19 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `completeChatSummary accepts a late result for a note failed while its worker was still running`() {
-        // the last attempt outlived its lease, so the note was failed before the provider answered
+    fun `completeChatSummary ignores a late result for a note the outbox already failed`() {
+        // the last attempt outlived its lease: the user was told to request a new summary, so the late one is dropped
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.FAILED)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
-        Mockito.`when`(noteRepository.save(note)).thenReturn(note)
 
         val completed = noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
 
-        assertTrue(completed)
-        assertEquals("late summary", note.content)
-        assertEquals(NoteStatus.READY, note.status)
-        assertTrue(publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED).contains(note.id.toString()))
+        assertEquals(false, completed)
+        assertEquals(NoteStatus.FAILED, note.status)
+        assertEquals(null, note.content)
+        Mockito.verify(noteRepository, Mockito.never()).save(note)
+        Mockito.verifyNoInteractions(outboxService)
     }
 
     @Test

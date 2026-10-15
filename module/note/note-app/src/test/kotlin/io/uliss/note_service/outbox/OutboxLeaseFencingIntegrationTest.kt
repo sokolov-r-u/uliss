@@ -112,7 +112,7 @@ class OutboxLeaseFencingIntegrationTest {
     }
 
     @Test
-    fun `a summary that arrives after its last lease expired still makes the failed note ready`() {
+    fun `a summary that arrives after its last lease expired is dropped and the note stays failed`() {
         val userId = UUID.randomUUID()
         val note = noteRepository.save(NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING))
         val event = savePendingEvent(OutboxEventType.NOTE_SUMMARY_REQUESTED, summaryPayload(note.id, userId))
@@ -123,7 +123,7 @@ class OutboxLeaseFencingIntegrationTest {
         }
         val lastAttempt = outboxService.claim(10).single()
         // The last worker waits for the provider (e.g. a long Retry-After) past its lease: the next poll fails the
-        // event and the note, then the provider answers and the worker saves the draft as the real handler does.
+        // event and the note, then the provider answers and the worker tries to save the draft as the real handler does.
         val slowSummaryHandler = object : OutboxHandler {
             override val type = OutboxEventType.NOTE_SUMMARY_REQUESTED
             override fun handle(event: OutboxEventEntity) {
@@ -136,19 +136,15 @@ class OutboxLeaseFencingIntegrationTest {
 
         OutboxEventProcessor(outboxService, listOf(slowSummaryHandler)).process(lastAttempt)
 
-        val ready = noteRepository.findById(note.id).orElseThrow()
-        assertEquals(NoteStatus.READY, ready.status)
-        assertEquals("late summary", ready.content)
+        // late is late: the user was already told the summary failed and may have requested a new one
+        val failedNote = noteRepository.findById(note.id).orElseThrow()
+        assertEquals(NoteStatus.FAILED, failedNote.status)
+        assertNull(failedNote.content)
         // the stale worker's completion is fenced off: the event keeps its terminal failure
         val failed = outboxEventRepository.findById(event.id).orElseThrow()
         assertEquals(OutboxEventStatus.FAILED, failed.status)
         assertNull(failed.leaseId)
-        // the late summary is indexed like any other
-        assertTrue(
-            outboxEventRepository.findAll().any {
-                it.type == OutboxEventType.NOTE_INDEX_REQUESTED && it.payload.contains(note.id.toString())
-            }
-        )
+        assertTrue(outboxEventRepository.findAll().none { it.type == OutboxEventType.NOTE_INDEX_REQUESTED })
     }
 
     @Test

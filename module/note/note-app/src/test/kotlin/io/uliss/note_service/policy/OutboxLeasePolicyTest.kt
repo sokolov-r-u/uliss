@@ -7,11 +7,17 @@ import org.springframework.ai.model.openai.autoconfigure.OpenAiChatProperties
 import org.springframework.ai.model.openai.autoconfigure.OpenAiCommonProperties
 import org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingProperties
 import java.time.Duration
+import org.springframework.beans.factory.config.YamlPropertiesFactoryBean
+import org.springframework.boot.context.properties.bind.Binder
+import org.springframework.boot.context.properties.source.MapConfigurationPropertySource
+import org.springframework.core.io.FileSystemResource
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class OutboxLeasePolicyTest {
 
-    // Mirrors application.yaml: embedding 60s with one retry, chat on SDK defaults (60s, 3 retries).
+    // Fixed inputs for the lease formula (embedding 60s with one retry, chat on SDK defaults: 60s, 3 retries);
+    // the shipped application.yaml is checked against the agreed bound separately.
     private fun embedding(timeout: Duration = Duration.ofSeconds(60), maxRetries: Int = 1) =
         OpenAiEmbeddingProperties().apply {
             this.timeout = timeout
@@ -71,5 +77,24 @@ class OutboxLeasePolicyTest {
             Duration.ofMillis(733_200),
             policy(chat = chat).leaseFor(OutboxEventType.NOTE_SUMMARY_REQUESTED),
         )
+    }
+
+    @Test
+    fun `the shipped configuration keeps a summary lease within six minutes`() {
+        // Agreed bound (2026-10-15): a summary still running after its lease is abandoned, so the lease must stay short.
+        // Test resources replace application.yaml on the classpath, so the shipped file is read from disk.
+        val yaml = YamlPropertiesFactoryBean().apply { setResources(FileSystemResource("src/main/resources/application.yaml")) }
+        val binder = Binder(MapConfigurationPropertySource(checkNotNull(yaml.getObject())))
+        fun <T : Any> bind(prefix: String, type: Class<T>): T = binder.bind(prefix, type).orElseGet { type.getDeclaredConstructor().newInstance() }
+
+        val policy = OutboxLeasePolicy(
+            bind("spring.ai.openai", OpenAiCommonProperties::class.java),
+            bind("spring.ai.openai.chat", OpenAiChatProperties::class.java),
+            bind("spring.ai.openai.embedding", OpenAiEmbeddingProperties::class.java),
+            binder.bind("note.outbox", OutboxProperties::class.java).get(),
+        )
+
+        val lease = policy.leaseFor(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        assertTrue(lease <= Duration.ofMinutes(6), "summary lease is $lease")
     }
 }

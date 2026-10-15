@@ -119,15 +119,14 @@ class NoteService(
     }
 
     /**
-     * Saves a generated summary. A FAILED note is accepted too: the outbox fails a note whose last
-     * attempt outlived its lease while the worker may still be waiting for the provider, and a
-     * result that does arrive must not be thrown away. Returns `false` for a missing or already READY note.
+     * Saves a generated summary while the note is still GENERATING. A result arriving after the outbox failed the
+     * note (its last attempt outlived the lease) is dropped: the user was already told to request a new summary.
      */
     @Transactional
     fun completeChatSummary(userId: UUID, noteId: UUID, title: String?, content: String): Boolean {
         require(content.isNotBlank()) { "summary content must not be blank" }
         val note = noteRepository.findByIdAndUserId(noteId, userId) ?: return false
-        if (note.status != NoteStatus.GENERATING && note.status != NoteStatus.FAILED) return false
+        if (note.status != NoteStatus.GENERATING) return false
 
         note.title = title
         note.content = content

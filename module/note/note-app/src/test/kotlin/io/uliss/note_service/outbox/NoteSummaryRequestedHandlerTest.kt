@@ -126,21 +126,8 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
-    fun `handle saves the summary again when a terminal failure committed between its read and write`() {
-        // the outbox failed the note (expired last lease) while this worker was saving; the re-read sees FAILED
-        val payload = payload()
-        Mockito.`when`(noteService.completeChatSummary(payload.userId, payload.noteId, "Title", "Summary"))
-            .thenThrow(ObjectOptimisticLockingFailureException("NoteEntity", payload.noteId))
-            .thenReturn(true)
-
-        handleWithDraft(payload, NoteDraft("Title", "Summary", null))
-
-        Mockito.verify(noteService, Mockito.times(2))
-            .completeChatSummary(payload.userId, payload.noteId, "Title", "Summary")
-    }
-
-    @Test
-    fun `handle leaves a repeated save conflict to the outbox retry`() {
+    fun `handle leaves a save conflict to the outbox instead of retrying it`() {
+        // e.g. the outbox failed the note concurrently: the late summary is dropped, not forced in
         val payload = payload()
         Mockito.`when`(noteService.completeChatSummary(payload.userId, payload.noteId, "Title", "Summary"))
             .thenThrow(ObjectOptimisticLockingFailureException("NoteEntity", payload.noteId))
@@ -148,7 +135,7 @@ class NoteSummaryRequestedHandlerTest {
         assertThrows<ObjectOptimisticLockingFailureException> {
             handleWithDraft(payload, NoteDraft("Title", "Summary", null))
         }
-        Mockito.verify(noteService, Mockito.times(2))
+        Mockito.verify(noteService, Mockito.times(1))
             .completeChatSummary(payload.userId, payload.noteId, "Title", "Summary")
     }
 

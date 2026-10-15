@@ -112,7 +112,8 @@ bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 The poller claims due work with `FOR UPDATE SKIP LOCKED`, runs each event independently on Boot's
 virtual-thread task executor, and keeps embedding, retrieval, and LLM calls outside database
 transactions. Current defaults are four concurrent events, three outbox attempts, exponential
-backoff, and a visibility lease derived from provider timeouts with a safety factor.
+backoff, and a visibility lease derived from provider timeouts with a safety factor (summary lease ≈ 5.2
+minutes, kept within 6 by a test of the shipped `application.yaml`).
 
 RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in

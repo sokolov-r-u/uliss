@@ -529,3 +529,12 @@ secret) or only warn about unknown clients; deleting needs care because `oauth2_
 `setCookie` (`module/lib/security/.../utils/SecurityUtils.kt`) sets `HttpOnly`, `Secure` and `Path` but no `SameSite`,
 so the `code_verifier` and `oauth_state` cookies rely on the browser default (Lax in current browsers). Set
 `SameSite=Lax` explicitly; cookie attributes are security-sensitive, so this needs its own focused tests.
+
+## Abandon an outbox worker once its lease is lost (`note-service`)
+
+**Status:** not implemented (agreed 2026-10-15 to defer).
+
+A summary worker that outlives its lease keeps its executor slot and keeps paying for the provider call, although its
+result is dropped (`module/note/note-app/DECISIONS.md`). The OpenAI SDK honours a server `Retry-After` without an upper
+bound, so provider timeouts alone cannot bound the wait. Run the handler with a deadline equal to its lease and
+interrupt the provider call when it passes (or check the lease before each provider call).

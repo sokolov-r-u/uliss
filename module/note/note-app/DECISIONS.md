@@ -31,3 +31,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** the stream sends SSE comment heartbeats and closes after 10 minutes; the SPA re-reads the note and
   reconnects while it is generating (`module/web/DECISIONS.md`).
 - **Source:** commits `bbfc872`, `77a398b`.
+
+## 2026-10-15 — A summary that outlives its lease is dropped
+
+- **Context:** the outbox fails a note when the last attempt's lease expires, while that worker may still be waiting
+  for the provider (the OpenAI SDK honours any server `Retry-After` without an upper bound). Accepting the late
+  result (commit `d57c929`) produced duplicate notes when the user had already requested a new summary.
+- **Decision:** replaces "accept a late chat summary for a failed note" (`d57c929`, `6b5cba8`): late is late.
+  `completeChatSummary` saves only into a GENERATING note. To keep the wait short, the summary lease is bounded to
+  6 minutes (chat `max-retries: 2`, embedding `timeout: 30s` → ≈ 5.2 min), checked by a test of the shipped
+  `application.yaml`.
+- **Consequences:** a slow summary costs its tokens and ends FAILED; the user requests a new one. Chat turns get one
+  provider retry less; embedding calls (indexing, RAG search) time out after 30 s. A worker past its lease is not
+  interrupted (`docs/TECH_DEBT.md`).
+- **Source:** `docs/tasks/2026-10-15-review-fixes.md`.
+
