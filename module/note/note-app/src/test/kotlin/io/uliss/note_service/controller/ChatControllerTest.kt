@@ -17,6 +17,8 @@ import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryMode
+import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
@@ -104,6 +106,7 @@ class ChatControllerTest {
             jsonPath("$.messages[0].content") { value("hi") }
             jsonPath("$.nextCursor") { value(nextCursor.toString()) }
             jsonPath("$.hasMore") { value(true) }
+            jsonPath("$.summary") { value(Matchers.nullValue()) }
         }
         Mockito.verify(chatFacade).getMessages(userId, chatId, null, 50)
     }
@@ -462,7 +465,7 @@ class ChatControllerTest {
             this.createdAt = createdAt
         }
         val idempotencyKey = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey)).thenReturn(note)
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null)).thenReturn(note)
 
         mockMvc.post("/note/chats/$chatId/summarize") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
@@ -521,7 +524,7 @@ class ChatControllerTest {
         listOf(NoteStatus.GENERATING, NoteStatus.READY, NoteStatus.FAILED).forEach { currentStatus ->
             val idempotencyKey = UUID.randomUUID()
             val note = NoteEntity(userId, "current content", NoteSource.CHAT_SUMMARY, currentStatus)
-            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey)).thenReturn(note)
+            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null)).thenReturn(note)
 
             mockMvc.post("/note/chats/$chatId/summarize") {
                 with(jwt().jwt { it.claim("userId", userId.toString()) })
@@ -540,7 +543,7 @@ class ChatControllerTest {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey))
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null))
             .thenThrow(IdempotencyKeyReusedException())
 
         mockMvc.post("/note/chats/$chatId/summarize") {
@@ -565,7 +568,7 @@ class ChatControllerTest {
 
         messages.forEach { message ->
             val idempotencyKey = UUID.randomUUID()
-            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey))
+            Mockito.`when`(chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null))
                 .thenThrow(InternalException(message))
 
             mockMvc.post("/note/chats/$chatId/summarize") {
@@ -583,7 +586,7 @@ class ChatControllerTest {
     fun `summarizeChat for a chat owned by another user returns 404`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue()))
+        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull()))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {
@@ -598,7 +601,7 @@ class ChatControllerTest {
     fun `summarizeChat for a chat with no messages returns 400`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue()))
+        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull()))
             .thenThrow(BadRequestException("chat id=$chatId has no messages to summarize"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {
@@ -747,6 +750,74 @@ class ChatControllerTest {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isNotFound() }
+        }
+    }
+
+    @Test
+    fun `summarizeChat without a body creates and reports GENERATING`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null)).thenReturn(note)
+
+        mockMvc.post("/note/chats/$chatId/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", key)
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.status") { value("GENERATING") }
+        }
+    }
+
+    @Test
+    fun `summarizeChat passes an update request and reports the note status`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, note.id)).thenReturn(note)
+
+        mockMvc.post("/note/chats/$chatId/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", key)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"mode":"UPDATE","targetNoteId":"${note.id}"}"""
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.noteId") { value(note.id.toString()) }
+            jsonPath("$.status") { value("READY") }
+        }
+    }
+
+    @Test
+    fun `summarizeChat rejects an unknown mode`() {
+        mockMvc.post("/note/chats/${UUID.randomUUID()}/summarize") {
+            with(jwt())
+            header("Idempotency-Key", UUID.randomUUID())
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"mode":"REWRITE"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
+    }
+
+    @Test
+    fun `getMessages exposes the summary state of the latest page`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val summary = CurrentChatSummary(UUID.randomUUID(), "Ownership", UUID.randomUUID())
+        Mockito.`when`(chatFacade.getMessages(userId, chatId, null, 50))
+            .thenReturn(ChatMessageCursorPage(emptyList(), null, false, summary))
+
+        mockMvc.get("/note/chats/$chatId/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.summary.noteId") { value(summary.noteId.toString()) }
+            jsonPath("$.summary.noteTitle") { value("Ownership") }
+            jsonPath("$.summary.throughMessageId") { value(summary.throughMessageId.toString()) }
         }
     }
 }

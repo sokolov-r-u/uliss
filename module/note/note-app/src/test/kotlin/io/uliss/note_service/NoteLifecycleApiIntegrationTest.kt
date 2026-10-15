@@ -10,6 +10,7 @@ import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.repository.ChatMessageRepository
@@ -181,7 +182,7 @@ class NoteLifecycleApiIntegrationTest {
             streamedReply.get(1, TimeUnit.SECONDS),
         )
 
-        chatFacade.requestSummary(userId, chat.id, UUID.randomUUID())
+        chatFacade.requestSummary(userId, chat.id, UUID.randomUUID(), SummaryMode.CREATE, null)
 
         val assistantMessage = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chat.id).last()
         assertEquals(ChatMessageRole.ASSISTANT, assistantMessage.role)

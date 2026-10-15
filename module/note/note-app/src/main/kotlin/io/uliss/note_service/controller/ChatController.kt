@@ -4,6 +4,7 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.SendMessageRequest
+import io.uliss.note_service.dto.request.SummarizeRequest
 import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
@@ -11,6 +12,7 @@ import io.uliss.note_service.dto.response.ChatSummaryResponse
 import io.uliss.note_service.dto.response.toChatSummaryResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.utils.getUserId
@@ -133,12 +135,19 @@ class ChatController(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable chatId: UUID,
         @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
+        @RequestBody(required = false) request: SummarizeRequest?,
     ): ResponseEntity<ChatSummaryResponse> {
         val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
-        val note = chatFacade.requestSummary(jwt.getUserId(), chatId, idempotencyKey)
+        val summarize = request ?: SummarizeRequest()
+        val note = chatFacade.requestSummary(
+            jwt.getUserId(), chatId, idempotencyKey, summarize.mode, summarize.targetNoteId,
+        )
+        val response = note.toChatSummaryResponse(chatId)
+        // A replayed create may already be READY; the client tracks it from GENERATING.
+        val body = if (summarize.mode == SummaryMode.CREATE) response.copy(status = NoteStatus.GENERATING) else response
         return ResponseEntity.accepted()
             .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
-            .body(note.toChatSummaryResponse(chatId).copy(status = NoteStatus.GENERATING))
+            .body(body)
     }
 
     private fun parseIdempotencyKey(value: String): UUID {

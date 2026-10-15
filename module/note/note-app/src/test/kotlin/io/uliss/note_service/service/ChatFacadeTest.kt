@@ -2,11 +2,16 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.anyValue
+import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
+import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.SummaryMode
+import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
 import org.junit.jupiter.api.Test
@@ -15,6 +20,7 @@ import reactor.core.publisher.Flux
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class ChatFacadeTest {
@@ -87,7 +93,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(null)
 
         assertFailsWith<BadRequestException> {
-            chatFacade.requestSummary(userId, chatId, idempotencyKey)
+            chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null)
         }
         Mockito.verifyNoInteractions(noteService)
     }
@@ -104,7 +110,7 @@ class ChatFacadeTest {
             noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
         ).thenReturn(savedNote)
 
-        val result = chatFacade.requestSummary(userId, chatId, idempotencyKey)
+        val result = chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null)
 
         assertSame(savedNote, result)
         Mockito.verify(chatService).getLatestMessageId(userId, chatId)
@@ -175,5 +181,85 @@ class ChatFacadeTest {
         assertFailsWith<ChatTurnAlreadyGeneratingException> { chatFacade.deleteChat(userId, chatId) }
 
         Mockito.verifyNoInteractions(chatService)
+    }
+
+    @Test
+    fun `requestSummary replays a known key before applying mode rules`() {
+        val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteService.findSummaryReplay(userId, chatId, key)).thenReturn(note)
+
+        assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, UUID.randomUUID()))
+        Mockito.verify(noteService, Mockito.never()).findCurrentChatSummary(anyValue())
+    }
+
+    @Test
+    fun `requestSummary rejects create when the chat already has a current note`() {
+        val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId))
+            .thenReturn(CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID()))
+
+        assertFailsWith<SummaryNoteConflictException> {
+            chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null)
+        }
+    }
+
+    @Test
+    fun `requestSummary rejects an update of a note that is no longer current`() {
+        val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId))
+            .thenReturn(CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID()))
+
+        assertFailsWith<SummaryNoteConflictException> {
+            chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, UUID.randomUUID())
+        }
+    }
+
+    @Test
+    fun `requestSummary rejects an update without new messages or without a target`() {
+        val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        val latest = UUID.randomUUID()
+        val current = CurrentChatSummary(UUID.randomUUID(), "Title", latest)
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId)
+        }
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, null)
+        }
+    }
+
+    @Test
+    fun `requestSummary updates the current note from its boundary to the latest message`() {
+        val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+        val latest = UUID.randomUUID()
+        val current = CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID())
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(
+            noteService.requestChatSummaryUpdate(userId, chatId, current.noteId, current.throughMessageId, latest, key)
+        ).thenReturn(note)
+
+        assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId))
+    }
+
+    @Test
+    fun `getMessages attaches the summary state to the latest page only`() {
+        val (userId, chatId) = Pair(UUID.randomUUID(), UUID.randomUUID())
+        val current = CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID())
+        val page = ChatMessageCursorPage(emptyList(), null, false)
+        val before = UUID.randomUUID()
+        Mockito.`when`(chatService.getMessages(userId, chatId, null, 50)).thenReturn(page)
+        Mockito.`when`(chatService.getMessages(userId, chatId, before, 50)).thenReturn(page)
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+
+        assertEquals(current, chatFacade.getMessages(userId, chatId, null, 50).summary)
+        assertNull(chatFacade.getMessages(userId, chatId, before, 50).summary)
     }
 }
