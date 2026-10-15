@@ -72,6 +72,16 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 `NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
 `202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status.
 
+A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
+`chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
+(`GET /messages` without `before`) returns it as `summary`. A later summarize sends
+`{"mode":"UPDATE","targetNoteId":...}`: the request is reserved without touching the note and publishes
+`NOTE_SUMMARY_UPDATE_REQUESTED`. The update worker reads only the messages after the boundary, searches related notes
+excluding the updated one, and asks for a `NoteAddendumDraft`; the backend appends it under a `## yyyy-MM-dd` (UTC)
+heading, reindexes the note, and moves the boundary. Each request ends `APPLIED`, `NOTHING_NEW` (boundary moves, note
+unchanged), or `FAILED`; at most one request per chat is `PENDING` (409 `SUMMARY_IN_PROGRESS`). `CREATE` with a
+current note or `UPDATE` of a note that is not current is 409 `SUMMARY_NOTE_CONFLICT`.
+
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
 current chat is authoritative; related notes are delimited as untrusted secondary context. One

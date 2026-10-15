@@ -57,3 +57,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   deleting the boundary message nulls it (the whole chat counts as unsummarized) instead of dropping the link.
 - **Consequences:** `summary_request` stays short-lived idempotency and in-flight state; nothing durable reads it.
 - **Source:** `docs/tasks/2026-10-08-summary-update.md`.
+
+## 2026-10-15 — A later Summarize appends a dated addendum to the current note
+
+- **Decision:** the current note is the chat's latest `READY` `CHAT_SUMMARY` note. `UPDATE` reads only the messages
+  after its boundary, embeds only them for RAG and excludes the note itself from the search, and gets a
+  `NoteAddendumDraft` (no title). The backend, not the model, appends `---` and a `## yyyy-MM-dd` (UTC) heading.
+  `applyChatSummaryUpdate` first moves the request out of `PENDING` with a conditional update, so a redelivered or
+  late event never appends twice; a concurrent rename fails the transaction on the note version and the outbox
+  retries. Creating a second note from the same chat is deferred (`docs/TECH_DEBT.md`).
+- **Consequences:** the latest message page carries `summary`; the SPA hides Summarize when the latest message is the
+  boundary. `NOTHING_NEW` and `FAILED` outcomes are not shown to the user yet.
+- **Source:** `docs/tasks/2026-10-08-summary-update.md`.

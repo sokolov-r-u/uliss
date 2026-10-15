@@ -20,6 +20,7 @@ import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatTurnService
+import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.util.ChatPrompts
 import org.hamcrest.Matchers
@@ -46,6 +47,7 @@ import org.springframework.test.web.servlet.post
 import reactor.core.publisher.Flux
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
+import java.time.LocalDate
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -87,11 +89,63 @@ class NoteLifecycleApiIntegrationTest {
     @Autowired
     lateinit var chatFacade: ChatFacade
 
+    @Autowired
+    lateinit var noteService: NoteService
+
     @MockitoBean
     lateinit var chatClient: ChatClient
 
     @MockitoSpyBean
     lateinit var chatTurnService: ChatTurnService
+
+    @Test
+    fun `second summarize updates the current note and the latest page reports the moved boundary`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Update chat"))
+        val first = chatMessageRepository.save(
+            ChatMessageEntity(chat.id, ChatMessageRole.USER, "First thought", ChatMessageStatus.COMPLETE)
+        )
+        val noteId = summarize(userId, chat.id, null)
+        noteService.completeChatSummary(userId, noteId, "Title", "Body")
+        val second = chatMessageRepository.save(
+            ChatMessageEntity(chat.id, ChatMessageRole.USER, "Second thought", ChatMessageStatus.COMPLETE)
+        )
+
+        mockMvc.post("/note/chats/${chat.id}/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", UUID.randomUUID())
+        }.andExpect { status { isConflict() } }
+
+        val key = UUID.randomUUID()
+        mockMvc.post("/note/chats/${chat.id}/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", key)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"mode":"UPDATE","targetNoteId":"$noteId"}"""
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.status") { value("READY") }
+        }
+        val event = outboxEventRepository.findAll().single {
+            it.type == OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED && it.payload.contains(noteId.toString())
+        }
+        val payload = objectMapper.readTree(event.payload)
+        assertEquals(first.id.toString(), payload["afterMessageId"].stringValue())
+        assertEquals(second.id.toString(), payload["throughMessageId"].stringValue())
+
+        chatMessageRepository.save(
+            ChatMessageEntity(chat.id, ChatMessageRole.USER, "Sent while generating", ChatMessageStatus.COMPLETE)
+        )
+        noteService.applyChatSummaryUpdate(userId, key, noteId, chat.id, second.id, "Added.", LocalDate.of(2026, 10, 8))
+
+        mockMvc.get("/note/chats/${chat.id}/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            jsonPath("$.summary.noteId") { value(noteId.toString()) }
+            jsonPath("$.summary.throughMessageId") { value(second.id.toString()) }
+        }
+        assertEquals("Body\n\n---\n\n## 2026-10-08\n\nAdded.", noteRepository.findById(noteId).orElseThrow().content)
+    }
 
     @Test
     fun `summary request persists placeholder link and outbox event before returning 202`() {
@@ -379,5 +433,17 @@ class NoteLifecycleApiIntegrationTest {
         )
         note.createdAt = createdAt
         return noteRepository.saveAndFlush(note)
+    }
+
+    private fun summarize(userId: UUID, chatId: UUID, body: String?): UUID {
+        val result = mockMvc.post("/note/chats/$chatId/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", UUID.randomUUID())
+            if (body != null) {
+                contentType = MediaType.APPLICATION_JSON
+                content = body
+            }
+        }.andExpect { status { isAccepted() } }.andReturn()
+        return UUID.fromString(objectMapper.readTree(result.response.contentAsString)["noteId"].stringValue())
     }
 }
