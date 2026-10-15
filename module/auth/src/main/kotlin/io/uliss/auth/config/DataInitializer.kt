@@ -31,51 +31,50 @@ class DataInitializer(
         saveOrUpdateClientCredentialsClient(m2mClientId, m2mClientSecret)
     }
 
-    /** Config is the source of truth: an existing client gets exactly the configured secret, settings and callback URLs. */
+    /**
+     * Config is the source of truth: an existing client is rebuilt from config, keeping only its id and issue time
+     * (stored authorizations reference the id). Anything added to the row by hand or by an older initializer -
+     * grant types, scopes, auth methods, redirect or logout URIs, settings - is dropped.
+     */
     private fun saveOrUpdateAuthCodeClient(clientId: String, clientSecret: String, callbackUrls: List<String>) {
-        val existing = registeredClientRepository.findByClientId(clientId)
-        val builder = existing?.let { RegisteredClient.from(it) }
-            ?: RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId(clientId)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+        saveIfChanged(clientId) { existing ->
+            configuredClient(existing, clientId, clientSecret)
                 .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
                 .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
-
-        val client = builder
-            .clientSecret(secretHash(existing, clientSecret))
-            // Exactly the configured URLs: a stale URL left in the DB would still receive authorization codes.
-            .redirectUris { uris ->
-                uris.clear()
-                uris.addAll(callbackUrls)
-            }
-            .clientSettings(ClientSettings.builder().requireProofKey(true).build())
-            .tokenSettings(
-                TokenSettings.builder()
-                    .accessTokenTimeToLive(Duration.ofMinutes(15))
-                    .refreshTokenTimeToLive(Duration.ofDays(30))
-                    .reuseRefreshTokens(false)
-                    .build()
-            )
-            .build()
-
-        if (client != existing) registeredClientRepository.save(client)
+                .redirectUris { it.addAll(callbackUrls) }
+                .clientSettings(ClientSettings.builder().requireProofKey(true).build())
+                .tokenSettings(
+                    TokenSettings.builder()
+                        .accessTokenTimeToLive(Duration.ofMinutes(15))
+                        .refreshTokenTimeToLive(Duration.ofDays(30))
+                        .reuseRefreshTokens(false)
+                        .build()
+                )
+        }
     }
 
     private fun saveOrUpdateClientCredentialsClient(clientId: String, clientSecret: String) {
-        val existing = registeredClientRepository.findByClientId(clientId)
-        val builder = existing?.let { RegisteredClient.from(it) }
-            ?: RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId(clientId)
-                .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
+        saveIfChanged(clientId) { existing ->
+            configuredClient(existing, clientId, clientSecret)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
                 .scope("internal")
+        }
+    }
 
-        val client = builder.clientSecret(secretHash(existing, clientSecret)).build()
-
+    private fun saveIfChanged(clientId: String, configured: (RegisteredClient?) -> RegisteredClient.Builder) {
+        val existing = registeredClientRepository.findByClientId(clientId)
+        val client = configured(existing).build()
         if (client != existing) registeredClientRepository.save(client)
     }
+
+    private fun configuredClient(existing: RegisteredClient?, clientId: String, clientSecret: String) =
+        RegisteredClient.withId(existing?.id ?: UUID.randomUUID().toString())
+            .clientId(clientId)
+            .apply { existing?.clientIdIssuedAt?.let(::clientIdIssuedAt) }
+            .clientSecret(secretHash(existing, clientSecret))
+            .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
 
     /** Keeps the stored hash when it still matches, so a restart does not rewrite the row. */
     private fun secretHash(existing: RegisteredClient?, rawSecret: String): String {

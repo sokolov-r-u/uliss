@@ -31,5 +31,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation(libs.jqwik)
+    testImplementation(libs.jqwik.kotlin)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
