@@ -17,12 +17,14 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.TitleNormalizer
+import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -55,6 +57,11 @@ class NoteService(
         if (chatIds.isEmpty()) return emptyMap()
         return chatNoteRepository.countNotesByChatIds(chatIds).associate { it.chatId to it.noteCount.toInt() }
     }
+
+    /** The chat's latest READY summary note; null when there is none. Callers pass an owned chat id. */
+    fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
+        .findSummaries(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, PageRequest.of(0, 1))
+        .firstOrNull()
 
     fun streamNoteStatus(userId: UUID, noteId: UUID): Flux<NoteStatusResponse> {
         val initialStatus = getOwnedNote(userId, noteId).toStatusResponse()
