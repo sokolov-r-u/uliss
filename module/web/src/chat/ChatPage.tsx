@@ -7,7 +7,14 @@ import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {ScreenHeader} from '../ui/ScreenHeader'
-import {type Chat, type ChatMessage, type ChatMessagePage, getMessages, notifyChatListChanged} from './chatApi'
+import {
+    type Chat,
+    type ChatMessage,
+    type ChatMessagePage,
+    type ChatSummaryState,
+    getMessages,
+    notifyChatListChanged,
+} from './chatApi'
 import {
     findPersistedReply,
     pendingReconcileTimeoutMs,
@@ -124,7 +131,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryDialog, setSummaryDialog] = useState(false)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
-    const [acceptedNoteId, setAcceptedNoteId] = useState<string | null>(null)
+    const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
+    const [acceptedSummary, setAcceptedSummary] = useState<{ noteId: string, update: boolean } | null>(null)
     const streamAbortRef = useRef<AbortController | null>(null)
     const olderAbortRef = useRef<AbortController | null>(null)
     const olderLoadingRef = useRef(false)
@@ -169,6 +177,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             replacePersistedWindow(mergeLatestMessages(current, page.messages))
         }
         if (!loadedOlderRef.current) updateOlderBoundary(page.nextCursor, page.hasMore)
+        setSummaryState(page.summary ?? null)
         updateGenerationPhase('idle')
         setStreamNotice(null)
         reconciliationTargetRef.current = null
@@ -264,6 +273,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         if (newChat) {
             activeChatIdRef.current = null
             replacePersistedWindow([])
+            setSummaryState(null)
             updateOlderBoundary(null, false)
             setPagePhase('ready')
             setLoadError(null)
@@ -309,7 +319,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setPagePhase('loading')
         setLoadError(null)
         updateGenerationPhase('idle')
-        setAcceptedNoteId(null)
+        setAcceptedSummary(null)
+        setSummaryState(null)
         setSummaryDialog(false)
         setSummaryPending(false)
         summaryPendingRef.current = false
@@ -321,6 +332,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 if (!active) return
                 const history = page.messages
                 replacePersistedWindow(history)
+                setSummaryState(page.summary ?? null)
                 updateOlderBoundary(page.nextCursor, page.hasMore)
                 setPagePhase('ready')
                 const pendingRequest = pendingChatRequestRef.current
@@ -394,7 +406,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         if (!request.initial && !requestChatId) return
         updateGenerationPhase('streaming')
         setStreamNotice(null)
-        setAcceptedNoteId(null)
+        setAcceptedSummary(null)
 
         const controller = new AbortController()
         const routeRevision = routeRevisionRef.current
@@ -559,6 +571,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     async function confirmSummary() {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
+        const target = summaryState
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
         const idempotencyKey = summaryIdempotencyKeyRef.current ?? generateClientUuid()
@@ -569,7 +582,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setSummaryPending(true)
         setSummaryError(null)
         try {
-            const summary = await requestChatSummary(chatId, idempotencyKey)
+            const summary = await requestChatSummary(chatId, idempotencyKey, target?.noteId)
             sessionStorage.removeItem(storageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                 summaryIdempotencyKeyRef.current = null
@@ -578,7 +591,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             notifyChatListChanged()
             notifyNotesChanged()
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId) return
-            setAcceptedNoteId(summary.noteId)
+            // Hide Summarize until a new message arrives; the next latest page confirms the boundary.
+            setSummaryState({
+                throughMessageId: persistedMessagesRef.current.at(-1)?.id ?? null,
+                noteId: summary.noteId,
+                noteTitle: target?.noteTitle ?? null,
+            })
+            setAcceptedSummary({noteId: summary.noteId, update: target != null})
             setSummaryDialog(false)
         } catch (error) {
             if (error instanceof NoteApiError && error.kind === 'http'
@@ -590,6 +609,17 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             }
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
+            if (target && error instanceof NoteApiError && error.status === 409) {
+                setSummaryError('The note changed or is already being updated. Try again in a moment.')
+                getMessages(chatId)
+                    .then((page) => {
+                        if (mountedRef.current && summaryRequestIdRef.current === requestId) {
+                            setSummaryState(page.summary ?? null)
+                        }
+                    })
+                    .catch(() => undefined)
+                return
+            }
             setSummaryError(error instanceof Error ? error.message : String(error))
         } finally {
             if (summaryRequestIdRef.current === requestId) {
@@ -611,7 +641,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 
-    const canSummarize = generationPhase === 'idle' && persistedMessages.length > 0 && !summaryPending
+    const latestPersistedId = persistedMessages.at(-1)?.id
+    const showSummarize = latestPersistedId != null && latestPersistedId !== summaryState?.throughMessageId
+    const canSummarize = generationPhase === 'idle' && !summaryPending
+    const updateTarget = summaryState
+    const summaryTitle = updateTarget
+        ? (updateTarget.noteTitle ? `Update “${updateTarget.noteTitle}”?` : 'Update the note?')
+        : 'Create a summary note?'
 
     return (
         <div className="detail-layout">
@@ -621,15 +657,19 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
                            onLoadOlder={() => void loadOlderMessages()}/>
-            {acceptedNoteId && <section
+            {acceptedSummary && <section
                 className="chat-summary-notice"
                 role="status"
                 aria-label="Summary note">
                 <div className="chat-summary-notice-header">
-                    <p><span>Uliss is writing a note</span> — summary started</p>
-                    <Link to={`/notes/${acceptedNoteId}`}>Open note</Link>
+                    <p>{acceptedSummary.update
+                        ? <><span>Uliss is updating the note</span> — update started</>
+                        : <><span>Uliss is writing a note</span> — summary started</>}</p>
+                    <Link to={`/notes/${acceptedSummary.noteId}`}>Open note</Link>
                 </div>
-                <p className="chat-summary-notice-detail">Generating in the background</p>
+                <p className="chat-summary-notice-detail">
+                    {acceptedSummary.update ? 'Updating in the background' : 'Generating in the background'}
+                </p>
             </section>}
             {streamNotice && <div className="chat-stream-notice">
                 <span>{streamNotice}</span>{generationPhase === 'reconciliation-required'
@@ -644,19 +684,25 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 generationActive={generationPhase === 'streaming'
                     || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}
                 onStop={stopGeneration}
-                action={<ActionChip label="Summarize" disabled={!canSummarize}
-                                    onClick={() => {
-                                        setSummaryError(null)
-                                        setSummaryDialog(true)
-                                    }}/>}/>
+                action={showSummarize
+                    ? <ActionChip label="Summarize" disabled={!canSummarize}
+                                  onClick={() => {
+                                      setSummaryError(null)
+                                      setSummaryDialog(true)
+                                  }}/>
+                    : undefined}/>
             {summaryDialog && <NoticeOverlay blocking={summaryPending}
                                              onBackdropClick={() => setSummaryDialog(false)}>
                 <Notice
-                    title="Create a summary note?"
+                    title={summaryTitle}
                     body={<>{summaryError
                         ? <span className="chat-summary-error">{summaryError}</span>
-                        : 'Uliss will create a permanent note in the background from the conversation saved so far.'}</>}
-                    primary={summaryPending ? 'Creating…' : 'Create summary'}
+                        : updateTarget
+                            ? 'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.'
+                            : 'Uliss will create a permanent note in the background from the conversation saved so far.'}</>}
+                    primary={summaryPending
+                        ? (updateTarget ? 'Updating…' : 'Creating…')
+                        : (updateTarget ? 'Update note' : 'Create summary')}
                     secondary={summaryPending ? undefined : 'Cancel'}
                     busy={summaryPending}
                     primaryDisabled={summaryPending}

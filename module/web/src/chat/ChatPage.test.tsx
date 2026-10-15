@@ -236,6 +236,74 @@ describe('ChatPage summary flow', () => {
         }
     })
 
+    const covered: ChatMessage[] = [
+        {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+        {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+    ]
+
+    it('hides Summarize in a chat without messages', async () => {
+        mockedGetMessages.mockResolvedValueOnce(messagePage([]))
+        renderPage()
+
+        expect(await screen.findByRole('textbox', {name: 'Message'})).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+    })
+
+    it('hides Summarize when the latest message is already summarized', async () => {
+        mockedGetMessages.mockResolvedValueOnce({
+            ...messagePage(covered),
+            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
+        })
+        renderPage()
+
+        expect(await screen.findByText('Answer')).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+    })
+
+    it('offers to update the current note after new messages', async () => {
+        mockedGetMessages.mockResolvedValueOnce({
+            ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]),
+            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
+        })
+        mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'READY'})
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        const dialog = screen.getByRole('dialog', {name: 'Update “Trip”?'})
+        expect(dialog).toHaveTextContent(
+            'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.')
+
+        await userEvent.click(screen.getByRole('button', {name: 'Update note'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String), 'note-1'))
+        expect(await screen.findByRole('status', {name: 'Summary note'}))
+            .toHaveTextContent('Uliss is updating the note — update started')
+        expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+    })
+
+    it('explains a conflicting update and refreshes the summary state', async () => {
+        // Ends with an assistant reply so the page does not start reconciling a trailing user message.
+        const newer: ChatMessage[] = [...covered,
+            {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+            {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]
+        mockedGetMessages
+            .mockResolvedValueOnce({
+                ...messagePage(newer),
+                summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
+            })
+            .mockResolvedValueOnce(messagePage(newer))
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (409)', 409))
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Update note'}))
+
+        expect(await screen.findByText('The note changed or is already being updated. Try again in a moment.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledTimes(2))
+    })
+
     it('requires confirmation and exposes the accepted note link', async () => {
         renderPage()
         const summarize = await screen.findByRole('button', {name: 'Summarize'})
@@ -244,7 +312,8 @@ describe('ChatPage summary flow', () => {
         expect(mockedSummary).not.toHaveBeenCalled()
 
         await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
-        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String)))
+        // No update target: the create request carries no note id.
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String), undefined))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
