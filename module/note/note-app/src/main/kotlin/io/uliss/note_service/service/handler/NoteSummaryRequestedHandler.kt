@@ -22,6 +22,7 @@ import jakarta.validation.constraints.Min
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.stereotype.Component
 import org.springframework.validation.annotation.Validated
 import tools.jackson.databind.ObjectMapper
@@ -85,7 +86,13 @@ class NoteSummaryRequestedHandler(
             .entity(NoteDraft::class.java) { it.useProviderStructuredOutput() }
         val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
         val title = TitleNormalizer.normalizeNoteTitle(draft.title, content)
-        noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
+        try {
+            noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
+        } catch (_: OptimisticLockingFailureException) {
+            // The outbox can fail the note (expired last lease) between our read and write; the re-read sees FAILED
+            // and still accepts the summary. A second conflict is left to the outbox retry.
+            noteService.completeChatSummary(payload.userId, payload.noteId, title, content)
+        }
     }
 
     private fun retrievalQuery(context: ChatSummaryContext): String {

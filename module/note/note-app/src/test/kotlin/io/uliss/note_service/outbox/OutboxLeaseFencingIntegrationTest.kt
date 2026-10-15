@@ -7,6 +7,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
+import io.uliss.note_service.outbox.infra.OutboxEventProcessor
 import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
@@ -115,21 +116,39 @@ class OutboxLeaseFencingIntegrationTest {
         val userId = UUID.randomUUID()
         val note = noteRepository.save(NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING))
         val event = savePendingEvent(OutboxEventType.NOTE_SUMMARY_REQUESTED, summaryPayload(note.id, userId))
-        // the last attempt is still waiting for the provider (e.g. a long Retry-After) when its lease expires
-        repeat(3) {
+        // two earlier workers died; the third is the last attempt
+        repeat(2) {
             outboxService.claim(10)
             expireLease(event.id)
         }
-        assertTrue(outboxService.claim(10).isEmpty())
-        assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
+        val lastAttempt = outboxService.claim(10).single()
+        // The last worker waits for the provider (e.g. a long Retry-After) past its lease: the next poll fails the
+        // event and the note, then the provider answers and the worker saves the draft as the real handler does.
+        val slowSummaryHandler = object : OutboxHandler {
+            override val type = OutboxEventType.NOTE_SUMMARY_REQUESTED
+            override fun handle(event: OutboxEventEntity) {
+                expireLease(event.id)
+                assertTrue(outboxService.claim(10).isEmpty())
+                assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
+                noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
+            }
+        }
 
-        // the slow worker finally gets the draft and saves it, as NoteSummaryRequestedHandler does
-        val saved = noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
+        OutboxEventProcessor(outboxService, listOf(slowSummaryHandler)).process(lastAttempt)
 
-        assertTrue(saved)
         val ready = noteRepository.findById(note.id).orElseThrow()
         assertEquals(NoteStatus.READY, ready.status)
         assertEquals("late summary", ready.content)
+        // the stale worker's completion is fenced off: the event keeps its terminal failure
+        val failed = outboxEventRepository.findById(event.id).orElseThrow()
+        assertEquals(OutboxEventStatus.FAILED, failed.status)
+        assertNull(failed.leaseId)
+        // the late summary is indexed like any other
+        assertTrue(
+            outboxEventRepository.findAll().any {
+                it.type == OutboxEventType.NOTE_INDEX_REQUESTED && it.payload.contains(note.id.toString())
+            }
+        )
     }
 
     @Test
