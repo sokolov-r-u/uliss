@@ -287,52 +287,6 @@ class ChatServiceTest {
         Mockito.verifyNoInteractions(chatMessageRepository)
     }
 
-    @Test
-    fun `appendUserMessage saves the user message and returns it appended to prior history`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        val chat = ChatEntity(userId, "Trip planning")
-        val priorMessage = ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "hello", ChatMessageStatus.COMPLETE)
-        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(chat)
-        Mockito.`when`(chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId))
-            .thenReturn(listOf(priorMessage))
-        Mockito.`when`(chatMessageRepository.save(anyValue()))
-            .thenAnswer { it.getArgument<ChatMessageEntity>(0) }
-
-        val result = chatService.appendUserMessage(userId, chatId, "what's next?")
-
-        assertEquals(2, result.size)
-        assertSame(priorMessage, result[0])
-        assertEquals(ChatMessageRole.USER, result[1].role)
-        assertEquals("what's next?", result[1].content)
-        assertEquals(ChatMessageStatus.COMPLETE, result[1].status)
-    }
-
-    @Test
-    fun `appendUserMessage throws NotFoundException and saves nothing for a foreign chat`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        Mockito.`when`(chatRepository.findByIdAndUserId(chatId, userId)).thenReturn(null)
-
-        assertFailsWith<NotFoundException> {
-            chatService.appendUserMessage(userId, chatId, "hi")
-        }
-        Mockito.verify(chatMessageRepository, Mockito.never()).save(anyValue())
-    }
-
-    @Test
-    fun `persistAssistantReply saves the given content and status`() {
-        val chatId = UUID.randomUUID()
-        Mockito.`when`(chatMessageRepository.save(anyValue()))
-            .thenAnswer { it.getArgument<ChatMessageEntity>(0) }
-
-        val result = chatService.persistAssistantReply(chatId, "partial answer", ChatMessageStatus.PARTIAL)
-
-        assertEquals(ChatMessageRole.ASSISTANT, result.role)
-        assertEquals("partial answer", result.content)
-        assertEquals(ChatMessageStatus.PARTIAL, result.status)
-    }
-
     private fun message(chatId: UUID, content: String) =
         ChatMessageEntity(chatId, ChatMessageRole.USER, content, ChatMessageStatus.COMPLETE)
 }

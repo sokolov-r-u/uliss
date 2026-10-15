@@ -206,19 +206,6 @@ class NoteService(
         return true
     }
 
-    /**
-     * The note, the chat<->note link, and the indexing outbox event commit atomically - either all
-     * three persist, or none do.
-     */
-    @Transactional
-    fun createChatSummary(userId: UUID, chatId: UUID, content: String): NoteEntity {
-        val note = noteRepository.save(NoteEntity(userId, content, NoteSource.CHAT_SUMMARY))
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, note.id)))
-        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
-        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
-        return note
-    }
-
     /** Renames a READY note and reindexes it, because the indexed text includes the title. */
     @Transactional
     fun renameNote(userId: UUID, noteId: UUID, rawTitle: String): NoteResponse {

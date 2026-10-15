@@ -123,29 +123,6 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `createChatSummary saves a CHAT_SUMMARY note, links it to the chat, and publishes an indexing event`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        Mockito.`when`(noteRepository.save(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
-        Mockito.`when`(chatNoteRepository.save(anyValue())).thenAnswer { it.getArgument<ChatNoteEntity>(0) }
-
-        val note = noteService.createChatSummary(userId, chatId, "summary text")
-
-        assertEquals(userId, note.userId)
-        assertEquals("summary text", note.content)
-        assertEquals(NoteSource.CHAT_SUMMARY, note.source)
-
-        val linkCaptor = ArgumentCaptor.forClass(ChatNoteEntity::class.java)
-        Mockito.verify(chatNoteRepository).save(linkCaptor.capture())
-        assertEquals(chatId, linkCaptor.value.chatNoteId.chatId)
-        assertEquals(note.id, linkCaptor.value.chatNoteId.noteId)
-
-        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
-        assertTrue(payload.contains(note.id.toString()))
-        assertTrue(payload.contains(userId.toString()))
-    }
-
-    @Test
     fun `requestChatSummary saves a GENERATING placeholder, links it, and publishes a summary request`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
