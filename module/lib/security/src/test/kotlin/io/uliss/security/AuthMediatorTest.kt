@@ -559,6 +559,23 @@ class AuthMediatorTest {
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
     }
 
+    @Test
+    fun `logout retries a dropped connection because revocation is idempotent`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/revoke"))
+                .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
+        )
+
+        mockMvc.post("/oauth2/logout") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"some-refresh"}"""
+        }.andExpect {
+            status { isServiceUnavailable() }
+        }
+
+        wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
+    }
+
     private fun jsonResponse(status: Int, body: String) =
         aResponse().withStatus(status).withHeader("Content-Type", "application/json").withBody(body)
 

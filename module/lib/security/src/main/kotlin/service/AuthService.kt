@@ -9,6 +9,7 @@ import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidClientCredentialsException
 import io.uliss.security.exception.InvalidRefreshTokenException
+import org.springframework.core.annotation.AliasFor
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
@@ -34,6 +35,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpConnectTimeoutException
 import java.security.MessageDigest
 import java.time.Duration
+import kotlin.reflect.KClass
 
 @Service
 class AuthService(
@@ -94,12 +96,7 @@ class AuthService(
     }
 
     // One-time grant: retry only when the request never reached the server (see isConnectFailure).
-    @Retryable(
-        includes = [AuthServerUnavailableException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    @RetryAuthServerCall
     fun exchangeCode(@Sensitive code: String?, @Sensitive codeVerifier: String?): TokenResponse {
         if (code.isNullOrBlank() || codeVerifier.isNullOrBlank()) {
             throw InvalidAuthorizationCodeException("authorization code or verifier is missing")
@@ -129,12 +126,7 @@ class AuthService(
     }
 
     // Rotating grant: retry only when the request never reached the server (see isConnectFailure).
-    @Retryable(
-        includes = [AuthServerUnavailableException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    @RetryAuthServerCall
     fun refresh(@Sensitive refreshToken: String): TokenResponse {
         return try {
             restClient.post()
@@ -153,12 +145,8 @@ class AuthService(
         }
     }
 
-    @Retryable(
-        includes = [AuthServerUnavailableException::class, ResourceAccessException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    // Revocation is idempotent: a dropped request is safe to repeat.
+    @RetryAuthServerCall(includes = [AuthServerUnavailableException::class, ResourceAccessException::class])
     fun logout(@Sensitive refreshToken: String) {
         try {
             restClient.post()
@@ -205,6 +193,15 @@ class AuthService(
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
+
+/** Retry policy for calls to the auth server: 3 retries with exponential backoff from 500 ms. */
+@Target(AnnotationTarget.FUNCTION)
+@Retention(AnnotationRetention.RUNTIME)
+@Retryable(maxRetries = 3, delay = 500, multiplier = 2.0)
+internal annotation class RetryAuthServerCall(
+    @get:AliasFor(annotation = Retryable::class, attribute = "includes")
+    val includes: Array<KClass<out Throwable>> = [AuthServerUnavailableException::class],
+)
 
 /**
  * A failure before the request was sent is safe to repeat even for one-time grants. After it was sent
