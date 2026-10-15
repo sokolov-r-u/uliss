@@ -528,3 +528,34 @@ A summary worker that outlives its lease keeps its executor slot and keeps payin
 result is dropped (`module/note/note-app/DECISIONS.md`). The OpenAI SDK honours a server `Retry-After` without an upper
 bound, so provider timeouts alone cannot bound the wait. Run the handler with a deadline equal to its lease and
 interrupt the provider call when it passes (or check the lease before each provider call).
+
+## Production hygiene before the first release (`auth`, `user`, `infra`)
+
+**Status:** not implemented (review item №29, recorded 2026-10-16).
+
+- `spring.thymeleaf.cache: false` in `module/auth/src/main/resources/application.yaml` is a dev setting that ships to
+  production: every login/registration page is re-parsed. Make it `true` by default and disable it only in dev
+  configuration. The source TODO stays until this is done.
+- Onboarding messages added by a later migration are not assigned to existing users (TODO in
+  `module/user/user-app/.../service/MessageService.kt`). Decide between a backfill migration and lazy assignment when
+  pending messages are read.
+- All containers run as root: the JVM images (`infra/docker/base-jre`, jib `io.uliss.docker-conventions`) set no
+  user, and `module/web` uses `nginx:alpine` on port 80. Set a non-root `container.user` in jib and switch web to an
+  unprivileged nginx image on a high port (Compose and k8s port mappings change with it).
+- `infra/k8s/*/deployment.yaml` have no readiness/liveness probes and no resource requests/limits. Production runs on
+  Docker Compose, so this matters only if k8s becomes a target platform; Compose healthchecks already exist.
+
+## Split the chat page state machine (`web`)
+
+**Status:** not implemented (review item №27).
+
+`module/web/src/chat/ChatPage.tsx` is ~750 lines with ~20 `useRef`s; the generation state is an implicit state machine
+spread across refs. Move it into a reducer or a `useChatTurn` hook with explicit transitions (idle → streaming →
+settling → …) that is testable without rendering.
+
+## Paginate chat and note lists (`note-service`, `web`)
+
+**Status:** not implemented (review item №28).
+
+`GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
+pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.
