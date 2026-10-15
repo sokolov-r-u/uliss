@@ -3,19 +3,6 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
-## Kotlin null assertions and package alignment
-
-**Status:** known deviations; reconcile when the affected code is next changed.
-
-- `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
-  response. The response can be absent outside a request context; replace the assertion with an
-  explicit check and failure, and move the file into `io.uliss.security.utils`.
-- `UserService` has a `passwordEncoder.encode(...)!!` call (`DataInitializer` fixed 2026-10-14). This is
-  a Kotlin platform type from the encoder API; either remove the ambiguity or document the
-  proven non-null boundary locally when the file is next changed.
-
-New Kotlin code must not copy these deviations.
-
 ## JaCoCo coverage gate
 
 **Status:** reporting exists; enforcement is deferred.

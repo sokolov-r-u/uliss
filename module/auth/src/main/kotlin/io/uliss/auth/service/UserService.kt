@@ -1,7 +1,7 @@
 package io.uliss.auth.service
 
-import dto.RegisterUserRequest
-import exception.EmailAlreadyExistsException
+import io.uliss.auth.dto.RegisterUserRequest
+import io.uliss.auth.exception.EmailAlreadyExistsException
 import io.uliss.auth.model.UserEntity
 import io.uliss.auth.model.UserStatus
 import io.uliss.auth.model.toUserDetails
@@ -29,7 +29,8 @@ class UserService(
     fun register(request: RegisterUserRequest) {
         val user = UserEntity(
             email = request.email.lowercase(),
-            passwordHash = passwordEncoder.encode(request.password)!!,
+            passwordHash = passwordEncoder.encode(request.password)
+                ?: throw IllegalStateException("password encoder returned no hash"),
             status = UserStatus.PENDING_VERIFICATION
         )
         try {

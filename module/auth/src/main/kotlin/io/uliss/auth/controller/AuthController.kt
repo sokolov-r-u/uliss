@@ -1,7 +1,7 @@
 package io.uliss.auth.controller
 
-import dto.RegisterUserRequest
-import exception.EmailAlreadyExistsException
+import io.uliss.auth.dto.RegisterUserRequest
+import io.uliss.auth.exception.EmailAlreadyExistsException
 import io.uliss.auth.service.UserService
 import jakarta.validation.Valid
 import org.springframework.stereotype.Controller

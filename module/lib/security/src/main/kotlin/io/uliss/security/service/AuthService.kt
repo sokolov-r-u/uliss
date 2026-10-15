@@ -1,4 +1,4 @@
-package service
+package io.uliss.security.service
 
 import io.uliss.exception.common.InternalException
 import io.uliss.logging.annotation.Sensitive
@@ -9,6 +9,12 @@ import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidClientCredentialsException
 import io.uliss.security.exception.InvalidRefreshTokenException
+import io.uliss.security.utils.CODE_VERIFIER
+import io.uliss.security.utils.MAX_COOKIE_AGE
+import io.uliss.security.utils.OAUTH_STATE
+import io.uliss.security.utils.generateCodeChallenge
+import io.uliss.security.utils.generateCodeVerifier
+import io.uliss.security.utils.setCookie
 import org.springframework.core.annotation.AliasFor
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -22,12 +28,6 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
-import utils.CODE_VERIFIER
-import utils.MAX_COOKIE_AGE
-import utils.OAUTH_STATE
-import utils.generateCodeChallenge
-import utils.generateCodeVerifier
-import utils.setCookie
 import java.net.ConnectException
 import java.net.URI
 import java.net.UnknownHostException

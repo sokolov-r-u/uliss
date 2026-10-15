@@ -3,6 +3,9 @@ package io.uliss.security.controller
 import io.uliss.security.dto.request.LogoutRequest
 import io.uliss.security.dto.request.RefreshRequest
 import io.uliss.security.dto.response.TokenResponse
+import io.uliss.security.service.AuthService
+import io.uliss.security.utils.CODE_VERIFIER
+import io.uliss.security.utils.OAUTH_STATE
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.CookieValue
@@ -12,9 +15,6 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import service.AuthService
-import utils.CODE_VERIFIER
-import utils.OAUTH_STATE
 
 @RestController
 @RequestMapping("/oauth2")
