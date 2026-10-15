@@ -39,6 +39,17 @@
 - Keep the task file current after each block. Record durable deferred work in `docs/TECH_DEBT.md`, not in source
   TODO/FIXME comments.
 
+## Architecture decisions
+
+- Every decision that matters for the architecture or for understanding the project — agreed in discussion or taken
+  by Claude during autonomous work — is appended to the end of the owning module's `DECISIONS.md`. Decisions that span
+  several modules go to `docs/DECISIONS.md`. Create the module file on its first decision.
+- Append only. A changed or reversed decision gets a new entry that names the one it replaces; old entries stay.
+- Entry: `## YYYY-MM-DD — <title>`, then **Context** (when not obvious), **Decision**, **Consequences** (when any), and
+  **Source** (commits and/or the task file). English, concise.
+- Commit the entry with the code that implements the decision. Skip routine choices that the code already makes
+  obvious.
+
 ## Commits
 
 - Work on the current branch. One commit per logical block, containing the block's code and its tests; the touched
@@ -149,4 +160,5 @@ These apply in every mode. Obtain explicit per-request permission before crossin
   `:uliss-design-system`. `.design-sync/` holds its Claude Design sync inputs; the workflow is in that module's
   `CLAUDE.md`.
 - Stable cross-cutting explanations live in `docs/ARCHITECTURE.md`; deployment commands and topology live in
-  `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`.
+  `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`; decision logs live in each module's
+  `DECISIONS.md` and in `docs/DECISIONS.md` (see Architecture decisions).
