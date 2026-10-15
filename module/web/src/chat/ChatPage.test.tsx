@@ -363,6 +363,44 @@ describe('ChatPage summary flow', () => {
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
     })
 
+    it('explains a conflicting create and refreshes the summary state', async () => {
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (409)', 409))
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+
+        expect(await screen.findByText('A summary of this chat is already in progress. Try again in a moment.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(mockedGetMessages).toHaveBeenCalledTimes(2))
+    })
+
+    it('does not replay a stored key for a request with new messages', async () => {
+        mockedSummary
+            .mockRejectedValueOnce(new NoteApiError('transport', 'connection lost'))
+            .mockResolvedValueOnce({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+        const page = renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        expect(await screen.findByText('connection lost')).toBeInTheDocument()
+        const firstKey = mockedSummary.mock.calls[0]?.[1]
+
+        // The lost request may have been applied; a request covering newer messages needs its own key.
+        page.unmount()
+        mockedGetMessages.mockResolvedValue(messagePage([
+            {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+            {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+            {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'},
+        ]))
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
+        expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(firstKey)
+    })
+
     it('restores the summary idempotency key after a page reload', async () => {
         mockedSummary
             .mockRejectedValueOnce(new NoteApiError('transport', 'connection lost'))
@@ -391,7 +429,9 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
 
         await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
-        expect(await screen.findByText(`summary request failed (${status})`)).toBeInTheDocument()
+        expect(await screen.findByText(status === 409
+            ? 'A summary of this chat is already in progress. Try again in a moment.'
+            : `summary request failed (${status})`)).toBeInTheDocument()
         const rejectedKey = mockedSummary.mock.calls[0]?.[1]
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
 

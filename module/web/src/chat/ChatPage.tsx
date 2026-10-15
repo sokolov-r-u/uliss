@@ -70,6 +70,15 @@ function summaryKeyStorageKey(chatId: string): string {
     return `uliss.chat-summary.v1:${chatId}`
 }
 
+/** What a stored summary key was issued for; a key is replayed only for the same request. */
+function summaryKeyTargetStorageKey(chatId: string): string {
+    return `uliss.chat-summary.v1:${chatId}:target`
+}
+
+function summaryRequestTarget(throughMessageId: string | undefined, noteId: string | undefined): string {
+    return `${throughMessageId ?? ''}|${noteId ?? ''}`
+}
+
 interface PendingChatRequest {
     idempotencyKey: string
     turnId?: string
@@ -148,6 +157,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const summaryPendingRef = useRef(false)
     const summaryRequestIdRef = useRef(0)
     const summaryIdempotencyKeyRef = useRef<string | null>(null)
+    const summaryKeyTargetRef = useRef<string | null>(null)
     const routeRevisionRef = useRef(0)
     const mountedRef = useRef(true)
 
@@ -326,6 +336,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         summaryPendingRef.current = false
         summaryRequestIdRef.current += 1
         summaryIdempotencyKeyRef.current = sessionStorage.getItem(summaryKeyStorageKey(chatId))
+        summaryKeyTargetRef.current = sessionStorage.getItem(summaryKeyTargetStorageKey(chatId))
         pendingChatRequestRef.current = readPendingChatRequest(chatId)
         getMessages(chatId, {signal: loadController.signal})
             .then((page) => {
@@ -574,16 +585,23 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         const target = summaryState
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
-        const idempotencyKey = summaryIdempotencyKeyRef.current ?? generateClientUuid()
+        const targetStorageKey = summaryKeyTargetStorageKey(chatId)
+        // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
+        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId)
+        const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
+        const idempotencyKey = storedKey ?? generateClientUuid()
         summaryRequestIdRef.current = requestId
         summaryIdempotencyKeyRef.current = idempotencyKey
+        summaryKeyTargetRef.current = requestTarget
         sessionStorage.setItem(storageKey, idempotencyKey)
+        sessionStorage.setItem(targetStorageKey, requestTarget)
         summaryPendingRef.current = true
         setSummaryPending(true)
         setSummaryError(null)
         try {
             const summary = await requestChatSummary(chatId, idempotencyKey, target?.noteId)
             sessionStorage.removeItem(storageKey)
+            sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                 summaryIdempotencyKeyRef.current = null
             }
@@ -603,14 +621,17 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (error instanceof NoteApiError && error.kind === 'http'
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
                 sessionStorage.removeItem(storageKey)
+                sessionStorage.removeItem(targetStorageKey)
                 if (summaryIdempotencyKeyRef.current === idempotencyKey) {
                     summaryIdempotencyKeyRef.current = null
                 }
             }
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
-            if (target && error instanceof NoteApiError && error.status === 409) {
-                setSummaryError('The note changed or is already being updated. Try again in a moment.')
+            if (error instanceof NoteApiError && error.status === 409) {
+                setSummaryError(target
+                    ? 'The note changed or is already being updated. Try again in a moment.'
+                    : 'A summary of this chat is already in progress. Try again in a moment.')
                 getMessages(chatId)
                     .then((page) => {
                         if (mountedRef.current && summaryRequestIdRef.current === requestId) {
