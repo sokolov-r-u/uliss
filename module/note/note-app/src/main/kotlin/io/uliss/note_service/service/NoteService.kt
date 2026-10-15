@@ -34,6 +34,7 @@ import reactor.core.publisher.Mono
 import reactor.core.scheduler.Schedulers
 import tools.jackson.databind.ObjectMapper
 import java.time.Duration
+import java.time.LocalDate
 import java.util.UUID
 
 @Service
@@ -164,6 +165,40 @@ class NoteService(
             ?.let { moveSummaryBoundary(it.chatId, noteId, it.throughMessageId) }
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        return true
+    }
+
+    fun findReadyNote(userId: UUID, noteId: UUID): NoteEntity? =
+        noteRepository.findByIdAndUserId(noteId, userId)?.takeIf { it.status == NoteStatus.READY }
+
+    /**
+     * Applies an update outcome exactly once: a null [addendum] records NOTHING_NEW. Returns false when the note is
+     * gone or no longer READY, or when the request already left PENDING (a redelivered event).
+     */
+    @Transactional
+    fun applyChatSummaryUpdate(
+        userId: UUID,
+        idempotencyKey: UUID,
+        noteId: UUID,
+        chatId: UUID,
+        throughMessageId: UUID,
+        addendum: String?,
+        appliedOn: LocalDate,
+    ): Boolean {
+        val note = findReadyNote(userId, noteId)
+        if (note == null) {
+            summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.FAILED)
+            return false
+        }
+        val status = if (addendum == null) SummaryRequestStatus.NOTHING_NEW else SummaryRequestStatus.APPLIED
+        summaryRequestStore.finish(userId, idempotencyKey, status) ?: return false
+        if (addendum != null) {
+            note.content = "${note.content.orEmpty().trimEnd()}\n\n---\n\n## $appliedOn\n\n$addendum"
+            noteRepository.save(note)
+            val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
+            outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        }
+        moveSummaryBoundary(chatId, noteId, throughMessageId)
         return true
     }
 

@@ -89,6 +89,22 @@ class ChatService(
         return ChatSummaryContext(chat.title, history)
     }
 
+    /** Messages in (afterMessageId, throughMessageId]; the whole chat through the boundary when afterMessageId is null. */
+    internal fun getSummaryUpdateContext(
+        userId: UUID,
+        chatId: UUID,
+        afterMessageId: UUID?,
+        throughMessageId: UUID,
+    ): ChatSummaryContext {
+        if (afterMessageId == null) return getSummaryContext(userId, chatId, throughMessageId)
+        val chat = requireOwnedChat(userId, chatId)
+        val messages = chatMessageRepository.findAfterThroughMessage(chatId, afterMessageId, throughMessageId)
+        check(messages.lastOrNull()?.id == throughMessageId) {
+            "summary boundary message id=$throughMessageId not found after id=$afterMessageId in chat id=$chatId"
+        }
+        return ChatSummaryContext(chat.title, messages)
+    }
+
     /**
      * Persists the user's message and returns the ordered history including it, ready to send to
      * the AI provider.

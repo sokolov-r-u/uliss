@@ -14,15 +14,19 @@ import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteService
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 @Tag("integration")
 @SpringBootTest
@@ -43,6 +47,9 @@ class ChatSummaryStateIntegrationTest {
 
     @Autowired
     lateinit var chatNoteRepository: ChatNoteRepository
+
+    @Autowired
+    lateinit var chatService: ChatService
 
     @Test
     fun `current summary is the latest ready chat summary note with its boundary`() {
@@ -105,6 +112,42 @@ class ChatSummaryStateIntegrationTest {
         val current = noteService.findCurrentChatSummary(chat.id)
         assertEquals(note.id, current?.noteId)
         assertNull(current?.throughMessageId)
+    }
+
+    @Test
+    fun `update context holds only the messages after the boundary up to the request`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Range"))
+        val covered = message(chat, "covered")
+        val first = message(chat, "first new")
+        val through = message(chat, "second new")
+        message(chat, "sent while generating")
+
+        val context = chatService.getSummaryUpdateContext(userId, chat.id, covered.id, through.id)
+
+        assertEquals(listOf("first new", "second new"), context.messages.map { it.content })
+        assertEquals(
+            listOf("covered", "first new", "second new"),
+            chatService.getSummaryUpdateContext(userId, chat.id, null, through.id).messages.map { it.content },
+        )
+    }
+
+    @Test
+    fun `applying an update appends once and moves the boundary to the request`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Apply"))
+        val covered = message(chat, "covered")
+        val note = linkNote(chat, NoteStatus.READY, "Title", covered.id)
+        val through = message(chat, "new")
+        val key = UUID.randomUUID()
+        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
+        val day = LocalDate.of(2026, 10, 8)
+
+        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, through.id, "Added.", day))
+        assertFalse(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, through.id, "Again.", day))
+
+        assertEquals("body\n\n---\n\n## 2026-10-08\n\nAdded.", noteRepository.findById(note.id).orElseThrow().content)
+        assertEquals(through.id, noteService.findCurrentChatSummary(chat.id)?.throughMessageId)
     }
 
     private fun message(chat: ChatEntity, content: String): ChatMessageEntity = chatMessageRepository.save(

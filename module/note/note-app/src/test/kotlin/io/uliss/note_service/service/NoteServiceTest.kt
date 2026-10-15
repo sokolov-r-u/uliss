@@ -27,10 +27,12 @@ import reactor.test.StepVerifier
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
 import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class NoteServiceTest {
@@ -420,6 +422,39 @@ class NoteServiceTest {
         assertEquals("existing", note.content)
         Mockito.verify(noteRepository, Mockito.never()).save(note)
         Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `applyChatSummaryUpdate records nothing new and moves only the boundary`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val through = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id))
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(summaryRequestStore.finish(userId, key, SummaryRequestStatus.NOTHING_NEW))
+            .thenReturn(SummaryRequest(userId, key, chatId, through, note.id, Instant.now(), SummaryRequestStatus.NOTHING_NEW))
+        Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
+
+        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chatId, through, null, LocalDate.now()))
+
+        assertEquals("body", note.content)
+        assertEquals(through, link.summarizedThroughMessageId)
+        Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `applyChatSummaryUpdate fails the request when the note is no longer ready`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+
+        assertFalse(
+            noteService.applyChatSummaryUpdate(userId, key, noteId, UUID.randomUUID(), UUID.randomUUID(), "x", LocalDate.now())
+        )
+        Mockito.verify(summaryRequestStore).finish(userId, key, SummaryRequestStatus.FAILED)
     }
 
     @Test
