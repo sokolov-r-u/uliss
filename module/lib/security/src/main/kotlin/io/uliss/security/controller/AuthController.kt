@@ -40,7 +40,9 @@ class AuthController(
             authService.verifyState(state, expectedState)
             return ResponseEntity.ok(authService.exchangeCode(code, codeVerifier))
         } finally {
-            authService.clearLoginCookies()
+            // Only a browser that holds a login cookie has a login to end; a cross-site POST without them
+            // must not wipe a login in progress.
+            if (codeVerifier != null || expectedState != null) authService.clearLoginCookies()
         }
     }
 

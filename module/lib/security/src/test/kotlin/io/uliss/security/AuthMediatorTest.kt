@@ -272,6 +272,21 @@ class AuthMediatorTest {
         )
     }
 
+    @Test
+    fun `callback without any login cookie leaves the browser cookies alone`() {
+        // a cross-site POST carries no SameSite=Lax cookies; it must not wipe a login running in another tab
+        mockMvc.post("/oauth2/callback") {
+            param("code", "some-code")
+            param("state", STATE)
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
+            header { doesNotExist("Set-Cookie") }
+        }
+
+        wireMock.verify(exactly(0), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
     private fun assertIncompleteCallbackRejected(params: Map<String, String>, cookies: List<Cookie>) {
         mockMvc.post("/oauth2/callback") {
             params.forEach { (name, value) -> param(name, value) }
