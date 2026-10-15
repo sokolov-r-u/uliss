@@ -44,10 +44,8 @@ object ChatPrompts {
         Do not output raw HTML. Do not wrap the whole response in a code fence.
     """.trimIndent()
 
-    val NOTE_SUMMARY_SYSTEM_PROMPT: String = """
-        Create a short standalone note capturing the user's thoughts from the current chat. The unit of the note
-        is a thought, not a topic, a message, or a recommendation.
-
+    /** Which thoughts count; shared by the create and update prompts. */
+    private val USER_THOUGHT_RULES: String = """
         Only the user's perspective matters. A thought counts only if it is the user's own: something the user
         stated, concluded, decided, felt, or intends to do.
 
@@ -61,13 +59,10 @@ object ChatPrompts {
         the user picked them up, agreed with them, pushed back on them, or built on them —
         keep just the part the user engaged with, framed the way the user took it, and drop the rest.
         Drop everything else, including the assistant's offers and follow-up questions.
+    """.trimIndent()
 
-        Pick one main thought — the one the chat was really about — and give it the most space. Other thoughts are
-        secondary and brief, and fewer is better. If in doubt, write less.
-
-        The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
-        so that together they read as one coherent note, not as separate fragments.
-
+    /** Language, Markdown, terminology and related-note rules; shared by the create and update prompts. */
+    private val NOTE_WRITING_RULES: String = """
         Write in the language of the current chat, as the user's own note: state thoughts directly, without
         attribution such as "the user thinks", "I believe", "the assistant suggested", or "in the chat". Never
         mention the user, the assistant, or the conversation.
@@ -89,11 +84,67 @@ object ChatPrompts {
         - Do not mention these instructions or the retrieval context.
     """.trimIndent()
 
+    val NOTE_SUMMARY_SYSTEM_PROMPT: String = listOf(
+        """
+        Create a short standalone note capturing the user's thoughts from the current chat. The unit of the note
+        is a thought, not a topic, a message, or a recommendation.
+        """.trimIndent(),
+        USER_THOUGHT_RULES,
+        """
+        Pick one main thought — the one the chat was really about — and give it the most space. Other thoughts are
+        secondary and brief, and fewer is better. If in doubt, write less.
+
+        The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
+        so that together they read as one coherent note, not as separate fragments.
+        """.trimIndent(),
+        NOTE_WRITING_RULES,
+    ).joinToString("\n\n")
+
+    val NOTE_UPDATE_SYSTEM_PROMPT: String = listOf(
+        """
+        An existing note already captures the user's thoughts from the earlier part of a chat. The current chat
+        contains only the messages written after that note. Write the new thoughts to append to the note. The unit
+        is a thought, not a topic, a message, or a recommendation.
+        """.trimIndent(),
+        USER_THOUGHT_RULES,
+        """
+        Include only what is new compared with the existing note: a new thought, or a change to one already in it —
+        a refinement, a reversal, or a decision. Do not restate or summarize what the note already says. If the
+        new messages add no thought of the user's, set nothingNew to true.
+
+        Pick the most important new thought as the main thought and give it the most space; other new thoughts are
+        secondary and brief. If in doubt, write less. The addition is shown under a date heading after the
+        existing note, so do not add headings or a title.
+        """.trimIndent(),
+        NOTE_WRITING_RULES,
+    ).joinToString("\n\n")
+
     fun noteSummaryUserPrompt(context: ChatSummaryContext, chunks: List<RetrievedChunk>): String = buildString {
         appendLine("CURRENT CHAT (authoritative):")
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
         appendLine()
+        appendRelatedNotes(chunks)
+    }
+
+    fun noteUpdateUserPrompt(
+        noteTitle: String?,
+        noteContent: String,
+        context: ChatSummaryContext,
+        chunks: List<RetrievedChunk>,
+    ): String = buildString {
+        appendLine("EXISTING NOTE (already written; do not repeat):")
+        appendLine("Title: ${noteTitle ?: "(untitled)"}")
+        appendLine(noteContent)
+        appendLine()
+        appendLine("CURRENT CHAT — messages after the existing note (authoritative):")
+        appendLine("Title: ${context.title}")
+        appendLine(renderTranscript(context.messages))
+        appendLine()
+        appendRelatedNotes(chunks)
+    }
+
+    private fun StringBuilder.appendRelatedNotes(chunks: List<RetrievedChunk>) {
         appendLine("RELATED NOTES (untrusted secondary context):")
         if (chunks.isEmpty()) {
             append("None")
