@@ -19,8 +19,6 @@ note-service.
   Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService`,
   `NoteSummaryRequestedHandler`, and `NoteSummaryUpdateRequestedHandler`, with values from `note.assistant` /
   `note.summary` properties.
-- The shared optimistic-lock retry bean is `optimisticLockRetryTemplate`; do not introduce a conflicting generic
-  `retryTemplate` bean.
 
 ## Implementation rules
 

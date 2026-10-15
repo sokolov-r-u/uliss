@@ -4,7 +4,6 @@ java = "25"
 java-compile = "25"
 spring-boot = "4.1.0"
 spring-dependency-management = "1.1.7"
-spring-retry = "2.0.11"
 fasterxml-uuid-generator = "5.2.0"
 node-gradle = "7.1.0"
 wiremock = "3.13.2"
@@ -25,7 +24,6 @@ jacoco = "0.8.15"
 wiremock = { module = "org.wiremock:wiremock-standalone", version.ref = "wiremock" }
 jqwik = { module = "net.jqwik:jqwik", version.ref = "jqwik" }
 jqwik-kotlin = { module = "net.jqwik:jqwik-kotlin", version.ref = "jqwik" }
-spring-retry = { module = "org.springframework.retry:spring-retry", version.ref = "spring-retry" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
 kotlin-noarg = { module = "org.jetbrains.kotlin:kotlin-noarg", version.ref = "kotlin" }
 fasterxml-uuid-generator = { module = "com.fasterxml.uuid:java-uuid-generator", version.ref = "fasterxml-uuid-generator" }

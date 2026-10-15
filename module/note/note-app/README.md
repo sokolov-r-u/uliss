@@ -19,9 +19,7 @@ Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity
 `note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
 history prefix. DeepSeek stays configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
-options from `AssistantService` and `NoteSummaryRequestedHandler`. The shared optimistic-lock
-retry bean remains named `optimisticLockRetryTemplate` to
-avoid colliding with Spring AI retry auto-configuration.
+options from `AssistantService` and `NoteSummaryRequestedHandler`.
 
 ## Chat and summary APIs
 
