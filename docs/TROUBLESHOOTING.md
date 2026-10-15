@@ -30,8 +30,8 @@ Two gotchas specific to running Gradle under a restrictive sandbox, not seen in 
   JVM flag works around this. Fix per affected module: add
   `src/test/resources/mockito-extensions/org.mockito.plugins.MockMaker` containing the line
   `mock-maker-subclass` — switches Mockito to classic subclass-based mocking, which needs no
-  agent/attach at all. Added to every module whose tests use Mockito (`auth`, `user-app`, `note-app`);
-  add the same file to a new module's test resources when its tests start mocking. Caveat: subclass mocking can't mock `final` classes/methods — not an issue so far
+  agent/attach at all. Added to `user-app` and `note-app`; not to `auth`, whose only mock is the
+  final gRPC `UserServiceBlockingStub` in an integration test (subclass mocking cannot mock it). Caveat: subclass mocking can't mock `final` classes/methods — not an issue so far
   since `kotlin-spring` already auto-opens `@Component`/`@Service`/etc. classes, and everything
   else mocked so far is an interface.
 
