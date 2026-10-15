@@ -23,7 +23,13 @@ open class SampleService {
     open fun refresh(refreshToken: String, clientId: String): String = "ok:$clientId"
     open fun exchange(@Sensitive code: String, clientId: String): String = "ok:$clientId"
     open fun echo(text: String): String = text
+    open fun find(id: String?): String? = id
+    open fun accept(value: Any): String = "accepted"
     open fun fail(): String = throw IllegalStateException("boom")
+}
+
+class BrokenToString {
+    override fun toString(): String = throw IllegalStateException("toString failed")
 }
 
 class LoggingAspectTest {
@@ -108,5 +114,21 @@ class LoggingAspectTest {
         service.echo("hello")
 
         assertTrue(appender.list.isEmpty())
+    }
+
+    @Test
+    fun `renders null arguments and results instead of failing the call`() {
+        assertNull(service.find(null))
+
+        assertEquals(mapOf("method" to "find", "args" to "id=null"), keyValues(0))
+        assertEquals(mapOf("method" to "find", "result" to "null"), keyValues(1))
+    }
+
+    @Test
+    fun `a failing toString never breaks the call`() {
+        assertEquals("accepted", service.accept(BrokenToString()))
+
+        assertEquals("value=<unrenderable: IllegalStateException>", keyValues(0).getValue("args"))
+        assertEquals("accepted", keyValues(1).getValue("result"))
     }
 }

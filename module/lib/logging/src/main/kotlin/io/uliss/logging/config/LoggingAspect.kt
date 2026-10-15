@@ -54,14 +54,25 @@ class LoggingAspect {
         return joinPoint.args.withIndex().joinToString(", ") { (index, value) ->
             val name = names?.getOrNull(index) ?: "arg$index"
             val sensitive = parameters?.getOrNull(index)?.isAnnotationPresent(Sensitive::class.java) == true
-            "$name=${if (sensitive || SECRET_NAME.containsMatchIn(name)) MASK else truncate(value.toString())}"
+            "$name=${if (sensitive || SECRET_NAME.containsMatchIn(name)) MASK else render(value)}"
         }
     }
 
     /** A reactive result is only a handle: its data and errors arrive after this method returns. */
     private fun renderResult(result: Any?): String =
         if (result != null && result.javaClass.name.startsWith(REACTOR_PACKAGE)) "<reactive stream>"
-        else truncate(result.toString())
+        else render(result)
+
+    /**
+     * Args arrive as platform types, so a plain `value.toString()` NPEs on null; tracing must never break the call,
+     * so a throwing `toString` is reported instead of propagated.
+     */
+    private fun render(value: Any?): String =
+        try {
+            truncate(value?.toString() ?: "null")
+        } catch (ex: Exception) {
+            "<unrenderable: ${ex.javaClass.simpleName}>"
+        }
 
     private fun truncate(text: String): String =
         if (text.length <= MAX_VALUE_LENGTH) text
