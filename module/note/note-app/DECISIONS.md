@@ -77,3 +77,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `OutboxBackoff` keeps the 30 s doubling step capped at 30 min and spreads each delay by ±20%; the cap
   stays a hard upper bound.
 - **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.
+
+## 2026-10-16 — A running summary update is visible on the note
+
+- **Context:** a note stays `READY` while its update runs, so an opened note page showed the old content and never
+  learned about the addendum.
+- **Decision:** note and status responses carry `updating`: the note is `READY` and has a `PENDING` summary request.
+  The status stream treats `READY` as terminal only when `updating` is false; the request state stays in
+  `summary_request`, no new note status.
+- **Source:** `docs/tasks/2026-10-16-note-update-live-refresh.md`.

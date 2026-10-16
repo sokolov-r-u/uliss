@@ -48,11 +48,12 @@ class NoteService(
 
     fun getNotes(userId: UUID): List<NoteResponse> {
         val notes = noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId)
-        return notes.map { it.toResponse() }
+        val pendingNoteIds = summaryRequestStore.findPendingNoteIds(userId)
+        return notes.map { it.toResponse(it.status == NoteStatus.READY && it.id in pendingNoteIds) }
     }
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse =
-        getOwnedNote(userId, noteId).toResponse()
+        getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it)) }
 
     /** Linked note counts keyed by chat id; chats without notes are absent. Callers pass owned chat ids only. */
     fun getNoteCounts(chatIds: Collection<UUID>): Map<UUID, Int> {
@@ -66,18 +67,19 @@ class NoteService(
         .firstOrNull()
 
     fun streamNoteStatus(userId: UUID, noteId: UUID): Flux<NoteStatusResponse> {
-        val initialStatus = getOwnedNote(userId, noteId).toStatusResponse()
+        val initialStatus = getStatus(userId, noteId)
         val persistedStatuses = Flux.interval(STATUS_POLL_INTERVAL)
             .concatMap {
-                Mono.fromCallable { getOwnedNote(userId, noteId).toStatusResponse() }
+                Mono.fromCallable { getStatus(userId, noteId) }
                     .subscribeOn(Schedulers.boundedElastic())
             }
 
         return persistedStatuses
             .startWith(initialStatus)
-            .distinctUntilChanged { status -> status.status }
-            .takeUntil { status -> status.status.isTerminal() }
-            // A note stuck in GENERATING must not hold the connection and its DB polling forever.
+            .distinctUntilChanged { status -> status.status to status.updating }
+            // A READY note stays open while its summary update runs, so the reader sees the appended content.
+            .takeUntil { status -> status.status.isTerminal() && !status.updating }
+            // A note stuck in GENERATING or updating must not hold the connection and its DB polling forever.
             .take(STATUS_STREAM_TIMEOUT)
     }
 
@@ -217,7 +219,7 @@ class NoteService(
         noteRepository.save(note)
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
-        return note.toResponse()
+        return note.toResponse(isUpdating(note))
     }
 
     /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */
@@ -238,6 +240,13 @@ class NoteService(
         link.summarizedThroughMessageId = throughMessageId
         chatNoteRepository.save(link)
     }
+
+    private fun getStatus(userId: UUID, noteId: UUID): NoteStatusResponse =
+        getOwnedNote(userId, noteId).let { it.toStatusResponse(isUpdating(it)) }
+
+    /** Only a READY note can be updating: a GENERATING note's pending request is its creation. */
+    private fun isUpdating(note: NoteEntity): Boolean =
+        note.status == NoteStatus.READY && summaryRequestStore.hasPendingForNote(note.id)
 
     private fun NoteStatus.isTerminal(): Boolean = this == NoteStatus.READY || this == NoteStatus.FAILED
 

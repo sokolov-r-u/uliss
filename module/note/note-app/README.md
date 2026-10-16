@@ -102,17 +102,18 @@ handler instead of spending retries.
 - `GET /note/notes` returns the authenticated user's notes newest first.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
-  status changes, and closes on `READY` or `FAILED`. A `:keepalive` comment every 15 s keeps proxies from cutting
+  status changes, and closes on `READY` or `FAILED`; a `READY` note with a running summary update (`updating: true`)
+  stays open until the update finishes. A `:keepalive` comment every 15 s keeps proxies from cutting
   a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
   summary request; chats remain.
 
-Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, and
-`updatedAt`. Notes created before stored titles keep a null `title`.
+Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, `updatedAt`, and
+`updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
-after `READY`. Status delivery currently polls PostgreSQL once per second per open connection on a
+after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 
 ## Outbox and RAG storage

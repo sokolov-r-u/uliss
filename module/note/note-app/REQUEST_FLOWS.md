@@ -441,12 +441,12 @@ sequenceDiagram
     NC -->> C: event: status
     loop Every second until terminal status
         NS ->> NR: load owned note on boundedElastic
-        alt Status changed
+        alt Status or updating changed
             NS -->> NC: new persisted status
             NC -->> C: event: status
         end
     end
-    Note over NS, C: Stream closes after READY or FAILED
+    Note over NS, C: Stream closes after FAILED, or READY with no pending summary update
 ```
 
 Missing and foreign note or chat identifiers both appear as `404`, so ownership information is not

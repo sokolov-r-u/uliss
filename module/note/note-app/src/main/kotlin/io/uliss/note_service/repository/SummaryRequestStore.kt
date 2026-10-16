@@ -55,6 +55,13 @@ class SummaryRequestStore(
     fun finish(userId: UUID, idempotencyKey: UUID, status: SummaryRequestStatus): SummaryRequest? =
         jdbcTemplate.query(FINISH_BY_KEY_SQL, ::mapRequest, status.name, userId, idempotencyKey).singleOrNull()
 
+    fun hasPendingForNote(noteId: UUID): Boolean =
+        jdbcTemplate.queryForObject(HAS_PENDING_FOR_NOTE_SQL, Boolean::class.java, noteId) == true
+
+    /** Ids of the user's notes that have a PENDING request; empty when none. */
+    fun findPendingNoteIds(userId: UUID): Set<UUID> =
+        jdbcTemplate.queryForList(FIND_PENDING_NOTE_IDS_SQL, UUID::class.java, userId).filterNotNull().toSet()
+
     /** Moves the pending request of a note out of PENDING; null when none is pending. */
     fun finishPendingForNote(noteId: UUID, status: SummaryRequestStatus): SummaryRequest? =
         jdbcTemplate.query(FINISH_BY_NOTE_SQL, ::mapRequest, status.name, noteId).singleOrNull()
@@ -99,6 +106,14 @@ class SummaryRequestStore(
             SET status = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1
             WHERE user_id = ? AND idempotency_key = ? AND status = 'PENDING'
             RETURNING $REQUEST_COLUMNS
+        """
+
+        const val HAS_PENDING_FOR_NOTE_SQL = """
+            SELECT EXISTS (SELECT 1 FROM note.summary_request WHERE note_id = ? AND status = 'PENDING')
+        """
+
+        const val FIND_PENDING_NOTE_IDS_SQL = """
+            SELECT note_id FROM note.summary_request WHERE user_id = ? AND status = 'PENDING'
         """
 
         const val FINISH_BY_NOTE_SQL = """

@@ -263,6 +263,22 @@ class SummaryRequestIdempotencyIntegrationTest {
         }
     }
 
+    @Test
+    fun `pending lookups see only the user's pending requests`() {
+        val userId = UUID.randomUUID()
+        val (chat, boundary) = createChatBoundary(userId)
+        val (otherChat, otherBoundary) = createChatBoundary(userId)
+        val pending = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        val finished = noteService.requestChatSummary(userId, otherChat.id, otherBoundary.id, UUID.randomUUID())
+        summaryRequestStore.finishPendingForNote(finished.id, SummaryRequestStatus.FAILED)
+        val (foreignChat, foreignBoundary) = createChatBoundary(UUID.randomUUID())
+        noteService.requestChatSummary(foreignChat.userId, foreignChat.id, foreignBoundary.id, UUID.randomUUID())
+
+        assertEquals(setOf(pending.id), summaryRequestStore.findPendingNoteIds(userId))
+        assertTrue(summaryRequestStore.hasPendingForNote(pending.id))
+        assertFalse(summaryRequestStore.hasPendingForNote(finished.id))
+    }
+
     private fun requestStatus(userId: UUID, key: UUID): String? = jdbcTemplate.queryForObject(
         "SELECT status FROM note.summary_request WHERE user_id = ? AND idempotency_key = ?",
         String::class.java,

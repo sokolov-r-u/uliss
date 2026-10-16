@@ -84,7 +84,7 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
 
         StepVerifier.create(noteService.streamNoteStatus(userId, note.id))
-            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, updatedAt))
+            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, updatedAt, false))
             .verifyComplete()
 
         Mockito.verify(noteRepository).findByIdAndUserId(note.id, userId)
@@ -102,12 +102,55 @@ class NoteServiceTest {
             .thenReturn(generating, generating, ready)
 
         StepVerifier.create(noteService.streamNoteStatus(userId, generating.id))
-            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null))
-            .expectNext(NoteStatusResponse(ready.id, NoteStatus.READY, null))
+            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null, false))
+            .expectNext(NoteStatusResponse(ready.id, NoteStatus.READY, null, false))
             .expectComplete()
             .verify(Duration.ofSeconds(4))
 
         Mockito.verify(noteRepository, Mockito.times(3)).findByIdAndUserId(generating.id, userId)
+    }
+
+    @Test
+    fun `getNote reports a pending update only for a ready note`() {
+        val userId = UUID.randomUUID()
+        val ready = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(ready.id, userId)).thenReturn(ready)
+        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId)).thenReturn(generating)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(ready.id)).thenReturn(true)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(generating.id)).thenReturn(true)
+
+        assertTrue(noteService.getNote(userId, ready.id).updating)
+        assertFalse(noteService.getNote(userId, generating.id).updating)
+    }
+
+    @Test
+    fun `getNotes marks ready notes with a pending update`() {
+        val userId = UUID.randomUUID()
+        val updating = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val settled = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
+            .thenReturn(listOf(updating, settled, generating))
+        Mockito.`when`(summaryRequestStore.findPendingNoteIds(userId)).thenReturn(setOf(updating.id, generating.id))
+
+        val notes = noteService.getNotes(userId)
+
+        assertEquals(listOf(true, false, false), notes.map { it.updating })
+    }
+
+    @Test
+    fun `streamNoteStatus keeps a ready note open until its update finishes`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true, true, false)
+
+        StepVerifier.create(noteService.streamNoteStatus(userId, note.id))
+            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, true))
+            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, false))
+            .expectComplete()
+            .verify(Duration.ofSeconds(4))
     }
 
     @Test
@@ -117,7 +160,7 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId)).thenReturn(generating)
 
         StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, generating.id) }
-            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null))
+            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null, false))
             .thenAwait(Duration.ofMinutes(10))
             .verifyComplete()
     }

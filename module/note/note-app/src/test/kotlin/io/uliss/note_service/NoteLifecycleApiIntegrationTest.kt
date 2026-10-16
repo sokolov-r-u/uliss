@@ -132,6 +132,12 @@ class NoteLifecycleApiIntegrationTest {
         val payload = objectMapper.readTree(event.payload)
         assertEquals(first.id.toString(), payload["afterMessageId"].stringValue())
         assertEquals(second.id.toString(), payload["throughMessageId"].stringValue())
+        mockMvc.get("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            jsonPath("$.status") { value("READY") }
+            jsonPath("$.updating") { value(true) }
+        }
 
         chatMessageRepository.save(
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "Sent while generating", ChatMessageStatus.COMPLETE)
@@ -146,6 +152,9 @@ class NoteLifecycleApiIntegrationTest {
             jsonPath("$.summary.noteId") { value(noteId.toString()) }
             jsonPath("$.summary.throughMessageId") { value(second.id.toString()) }
         }
+        mockMvc.get("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { jsonPath("$.updating") { value(false) } }
         assertEquals("Body\n\n---\n\n## 2026-10-08\n\nAdded.", noteRepository.findById(noteId).orElseThrow().content)
     }
 

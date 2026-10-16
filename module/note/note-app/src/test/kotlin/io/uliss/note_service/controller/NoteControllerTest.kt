@@ -64,6 +64,7 @@ class NoteControllerTest {
                     content = null,
                     createdAt = createdAt,
                     updatedAt = createdAt,
+                    updating = false,
                 )
             )
         )
@@ -102,8 +103,8 @@ class NoteControllerTest {
         val updatedAt = Instant.parse("2026-09-10T10:15:30Z")
         Mockito.`when`(noteService.streamNoteStatus(userId, noteId)).thenReturn(
             Flux.just(
-                NoteStatusResponse(noteId, NoteStatus.GENERATING, updatedAt),
-                NoteStatusResponse(noteId, NoteStatus.READY, updatedAt),
+                NoteStatusResponse(noteId, NoteStatus.GENERATING, updatedAt, false),
+                NoteStatusResponse(noteId, NoteStatus.READY, updatedAt, false),
             )
         )
 
@@ -141,7 +142,7 @@ class NoteControllerTest {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
         Mockito.`when`(noteService.renameNote(userId, noteId, "New"))
-            .thenReturn(NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "body", null, null))
+            .thenReturn(NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "body", null, null, false))
 
         mockMvc.patch("/note/notes/$noteId") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
