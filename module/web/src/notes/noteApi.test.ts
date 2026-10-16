@@ -81,6 +81,24 @@ describe('noteApi', () => {
         expect(notes.map((note) => note.title)).toEqual(['Ownership columns', undefined])
     })
 
+    it('parses a running update and treats its absence as none', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'updating', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: true},
+            {id: 'settled', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
+        ]))
+
+        const notes = await listNotes()
+
+        expect(notes.map((note) => note.updating)).toEqual([true, false])
+    })
+
+    it('rejects a non-boolean updating flag', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: 'yes',
+        }))
+        await expect(getNote('note-1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('rejects a non-string note title', async () => {
         mockedFetch.mockResolvedValue(jsonResponse([
             {id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 42, content: 'Body'},
@@ -111,6 +129,18 @@ describe('noteApi', () => {
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes/note-1/status/stream', expect.objectContaining({
             headers: {'Accept': 'text/event-stream, application/json'},
         }))
+    })
+
+    it('keeps reading while a ready note is updating and returns once the update finishes', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            'event: status\ndata: {"noteId":"note-1","status":"READY","updating":true}\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"READY","updating":false}\n\n',
+        ]))
+        const updates: (boolean | undefined)[] = []
+
+        await expect(streamNoteStatus('note-1', {onStatus: (event) => updates.push(event.updating)}))
+            .resolves.toBe('READY')
+        expect(updates).toEqual([true, false])
     })
 
     it('resolves null when the stream ends before a terminal status, so the caller can reconnect', async () => {

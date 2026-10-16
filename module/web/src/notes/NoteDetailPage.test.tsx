@@ -48,6 +48,47 @@ describe('NoteDetailPage', () => {
         expect(mockedGetNote).toHaveBeenCalledTimes(2)
     })
 
+    it('shows the current content with a notice while the note updates, then the updated content', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('Old content'), updating: true})
+            .mockResolvedValueOnce(ready('Old content\n\n---\n\n## 2026-10-16\n\nNew thought'))
+        let finishUpdate: (status: 'READY') => void = () => undefined
+        mockedStatus.mockImplementation(() => new Promise((resolve) => {
+            finishUpdate = resolve
+        }))
+
+        renderPage()
+
+        expect(await screen.findByText('Old content')).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent('Updating this note…')
+        finishUpdate('READY')
+        expect(await screen.findByText('New thought')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+    })
+
+    it('drops the update notice and keeps the content when the update adds nothing', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('Unchanged'), updating: true})
+            .mockResolvedValueOnce(ready('Unchanged'))
+        mockedStatus.mockResolvedValueOnce('READY')
+
+        renderPage()
+
+        await waitFor(() => expect(mockedGetNote).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Unchanged')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+    })
+
+    it('shows no update notice for a settled note and does not subscribe', async () => {
+        mockedGetNote.mockResolvedValueOnce(ready('Settled'))
+
+        renderPage()
+
+        expect(await screen.findByText('Settled')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+        expect(mockedStatus).not.toHaveBeenCalled()
+    })
+
     it('reconnects when the status stream ends while the note is still generating', async () => {
         mockedGetNote
             .mockResolvedValueOnce(generating)

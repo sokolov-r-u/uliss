@@ -53,6 +53,8 @@ export function NoteDetailView({state, onRetry, actions}: {
             <div className="note-detail-state note-detail-error"><h1>Could not load the note</h1>
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
+        {state.status === 'ready' && state.note.updating &&
+            <p className="note-update-notice" role="status">Updating this note…</p>}
         {state.status === 'ready' && <article className="note-content">
             {state.note.source === 'CHAT_SUMMARY'
                 ? <MarkdownContent content={state.note.content} highlightDateHeadings/>
@@ -88,7 +90,7 @@ export function NoteDetailPage() {
             let note = await getNote(noteId, controller.signal)
             let settledBeforeStream = true
             for (let reconnects = 0; ; reconnects++) {
-                if (note.status === 'READY') {
+                if (note.status === 'READY' && !note.updating) {
                     // A note that finished while the stream was closed: note lists re-read it.
                     if (!settledBeforeStream) notifyNotesChanged()
                     if (note.content == null) {
@@ -104,7 +106,16 @@ export function NoteDetailPage() {
                     return
                 }
                 settledBeforeStream = false
-                setState({status: 'generating', note})
+                if (note.status === 'READY') {
+                    // An update keeps the current content readable; the stream waits for the appended part.
+                    if (note.content == null) {
+                        setState({status: 'error', message: 'ready note content is unavailable'})
+                        return
+                    }
+                    setState({status: 'ready', note: {...note, content: note.content}})
+                } else {
+                    setState({status: 'generating', note})
+                }
                 const generatingNote = note
                 const terminal = await streamNoteStatus(noteId, {
                     signal: controller.signal,
@@ -119,6 +130,11 @@ export function NoteDetailPage() {
                     notifyNotesChanged()
                     if (terminal === 'READY') {
                         const ready = await getNote(noteId, controller.signal)
+                        // Another update started meanwhile: keep watching it.
+                        if (ready.status === 'READY' && ready.updating) {
+                            note = ready
+                            continue
+                        }
                         if (ready.status !== 'READY' || ready.content == null) {
                             setState({status: 'error', message: 'ready note content is unavailable'})
                             return
