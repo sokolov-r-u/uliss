@@ -36,5 +36,8 @@ class NoteAddendumDraftTest {
         assertEquals(setOf("nothingNew", "mainThought", "secondaryThoughts"), properties.keys)
         assertEquals(properties.keys, (schema["required"] as List<*>).toSet())
         assertTrue((properties.getValue("mainThought")["description"] as String).contains("do not use headings"))
+        val secondaryDescription = properties.getValue("secondaryThoughts")["description"] as String
+        assertTrue(secondaryDescription.contains("No fixed limit"))
+        assertTrue(secondaryDescription.contains("Not passing remarks"))
     }
 }

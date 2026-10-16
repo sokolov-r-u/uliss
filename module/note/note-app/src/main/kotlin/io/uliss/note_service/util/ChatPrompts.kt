@@ -131,8 +131,11 @@ object ChatPrompts {
         """.trimIndent(),
         USER_THOUGHT_RULES,
         """
-        Pick one main thought — the one the chat was really about — and give it the most space. Other thoughts are
-        secondary and brief, and fewer is better. If in doubt, write less.
+        Pick one main thought — the line the whole chat followed, the user's central view or conclusion — and give
+        it the most space. Then add the other thoughts worth remembering on their own: a distinct opinion,
+        conclusion, preference, decision, or intention of the user that would still matter without this chat. Leave
+        out passing remarks, reactions, and details that only support the main thought. A chat usually holds a few
+        such thoughts, not one per message; there is no fixed limit, but never pad.
 
         The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
         so that together they read as one coherent note, not as separate fragments.
@@ -152,9 +155,11 @@ object ChatPrompts {
         a refinement, a reversal, or a decision. Do not restate or summarize what the note already says. If the
         new messages add no thought of the user's, set nothingNew to true.
 
-        Pick the most important new thought as the main thought and give it the most space; other new thoughts are
-        secondary and brief. If in doubt, write less. The addition is shown under a date heading after the
-        existing note, so do not add headings or a title.
+        Pick the most important new thought as the main thought and give it the most space. Then add the other new
+        thoughts worth remembering on their own: a distinct opinion, conclusion, preference, decision, or intention
+        of the user that would still matter without this chat. Leave out passing remarks, reactions, and details
+        that only support the main thought. There is no fixed limit, but never pad. The addition is shown under a
+        date heading after the existing note, so do not add headings or a title.
         """.trimIndent(),
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")

@@ -145,3 +145,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test: 0 chunks for a Bowie query while a
   Bowie note was indexed).
 
+## 2026-10-16 — Summaries keep every thought worth remembering
+
+- **Context:** a note allowed at most three secondary thoughts ("fewer is better", and the backend dropped the rest).
+  Re-summarizing a long chat about two albums kept only the final comparison and lost several of the user's distinct
+  views.
+- **Decision:** no fixed limit on secondary thoughts, for new notes and addenda; nothing is dropped in code. The main
+  thought is the line the whole chat followed; a secondary thought must still matter without the chat (a distinct
+  opinion, conclusion, preference, decision, or intention), not a passing remark or a detail of the main thought.
+- **Consequences:** notes from long chats get longer; the "would still matter without this chat" filter is what keeps
+  them from becoming a per-message retelling.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test of a re-summarized Bowie chat).
+
