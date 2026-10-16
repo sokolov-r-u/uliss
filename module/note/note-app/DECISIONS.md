@@ -125,3 +125,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   `PARTIAL` like a provider error.
 - **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (code review).
 
+## 2026-10-16 — Chat replies run without reasoning until the Responses API
+
+- **Context:** with the `searchNotes` tool, gpt-5.6 on `/v1/chat/completions` answers 400 unless `reasoning_effort` is
+  `none`; Spring AI 2.0 has no Responses API model.
+- **Decision:** `note.assistant.reasoning-effort` is `none` (was `low`); summaries keep `medium`, since they send no
+  tools. Moving chat replies to `OpenAiResponsesChatModel` waits for Spring AI 2.1 GA (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.
+

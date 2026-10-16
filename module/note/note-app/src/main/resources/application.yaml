@@ -57,7 +57,8 @@ note:
   rag:
     chunk-size: 800
   assistant:
-    reasoning-effort: low
+    # Chat Completions rejects function tools with any other effort on gpt-5.6 (TECH_DEBT: Responses API).
+    reasoning-effort: none
     verbosity: low
     notes-search:
       top-k: 5
