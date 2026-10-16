@@ -55,6 +55,8 @@ over SSE; the SPA has the notes list and note screen.
   summarized boundary, a reply still being generated, deleting versus marking messages, a plain "regenerate".
 - Edit notes.
 - Create notes manually.
+- Start a new chat from a note to expand on its topics; the note is the chat's starting context. Design first: how the
+  note reaches the model and where notes produced by that chat are placed (for example, as child notes).
 - Notes of a chat: API that links chats and notes, the list in the chat delete dialog, and the context panel sections.
 - Account settings backed by `user-service`.
 
