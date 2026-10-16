@@ -164,4 +164,5 @@ These apply in every mode. Obtain explicit per-request permission before crossin
   `CLAUDE.md`.
 - Stable cross-cutting explanations live in `docs/ARCHITECTURE.md`; deployment commands and topology live in
   `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`; decision logs live in each module's
-  `DECISIONS.md` and in `docs/DECISIONS.md` (see Architecture decisions).
+  `DECISIONS.md` and in `docs/DECISIONS.md` (see Architecture decisions); product milestones live in
+  `docs/ROADMAP.md`; domain decisions (constellations, sky, updates) live in `docs/DOMAIN.md`.
