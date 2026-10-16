@@ -24,6 +24,8 @@ import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
+import org.springframework.aop.support.AopUtils
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.grpc.client.interceptor.security.BearerTokenAuthenticationInterceptor
@@ -34,6 +36,7 @@ import java.util.Date
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import com.github.tomakehurst.wiremock.client.WireMock.get as stubGet
 
@@ -41,6 +44,9 @@ import com.github.tomakehurst.wiremock.client.WireMock.get as stubGet
 @SpringBootTest(properties = ["spring.grpc.server.inprocess.name=$IN_PROCESS_NAME"])
 @Import(TestContainersConfiguration::class)
 class UserGrpcSecurityTest {
+
+    @Autowired
+    lateinit var grpcService: UserGrpcService
 
     private val channels = mutableListOf<ManagedChannel>()
 
@@ -54,6 +60,12 @@ class UserGrpcSecurityTest {
         val response = call(token())
 
         assertTrue(UUID.fromString(response.userId) != null)
+    }
+
+    @Test
+    fun `call tracing does not proxy the grpc service`() {
+        // a proxy cannot override the stub's final bindService and logs a warning at every startup
+        assertFalse(AopUtils.isAopProxy(grpcService))
     }
 
     @Test

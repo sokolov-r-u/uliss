@@ -86,3 +86,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   The status stream treats `READY` as terminal only when `updating` is false; the request state stays in
   `summary_request`, no new note status.
 - **Source:** `docs/tasks/2026-10-16-note-update-live-refresh.md`.
+
+## 2026-10-16 — Full model exchanges are logged at DEBUG
+
+- **Context:** prompts are still being tuned, but the logs held only the user's text, truncated by call tracing; the
+  assembled request (system prompt, history, RAG chunks) and the raw response were never logged.
+- **Decision:** the shared `ChatClient` gets Spring AI's `SimpleLoggerAdvisor` as a default advisor; its logger level
+  is `LOG_LEVEL_AI` (default `info`). Requests and responses are logged whole, user content included.
+- **Consequences:** at DEBUG every chat turn and summary writes its full context to the log; keep `info` in
+  production.
+- **Source:** task `docs/tasks/2026-10-16-log-cleanup.md`.

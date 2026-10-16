@@ -78,3 +78,5 @@ logging:
     # outbox polls every second; its call tracing drowns the rest. LOG_LEVEL_OUTBOX=debug to see it
     "[io.uliss.note_service.outbox]": ${LOG_LEVEL_OUTBOX:info}
     "[io.uliss.note_service.repository.OutboxEventRepository]": ${LOG_LEVEL_OUTBOX:info}
+    # full model requests (system prompt, history, RAG chunks) and responses; LOG_LEVEL_AI=debug to see them
+    "[org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor]": ${LOG_LEVEL_AI:info}

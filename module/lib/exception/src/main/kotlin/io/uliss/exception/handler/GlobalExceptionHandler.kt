@@ -11,6 +11,7 @@ import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.BindException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -61,16 +62,18 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
 
     private fun handleException(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ResponseEntity<Any>? {
         val response = getExceptionResponse(ex, httpStatus, request)
-        // the only place an HTTP request failure is logged; 5xx keeps the single stack trace
+        // the only place an HTTP request failure is logged; 5xx keeps the single stack trace, 4xx is the client's
         if (httpStatus.is5xxServerError) {
             log.error("server error on ${response.path}", "handleException", ex)
         } else {
-            log.warn(
+            log.info(
                 "client error ${httpStatus.value()} ${response.code} on ${response.path}: ${ex.message}",
                 "handleException",
             )
         }
-        return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
+        // an explicit type skips the Accept check, so an event-stream request still gets the JSON error
+        val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
+        return handleExceptionInternal(ex, response, headers, httpStatus, request)
     }
 
     private fun getExceptionResponse(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ErrorResponse =

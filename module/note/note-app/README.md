@@ -21,6 +21,10 @@ history prefix. DeepSeek stays configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
 options from `AssistantService` and `NoteSummaryRequestedHandler`.
 
+`LOG_LEVEL_AI=debug` logs every model request (system prompt, history, RAG chunks, user prompt) and its full response
+untruncated through Spring AI's `SimpleLoggerAdvisor`, a default advisor of the shared `ChatClient`; streamed replies
+are logged once, aggregated.
+
 ## Chat and summary APIs
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
