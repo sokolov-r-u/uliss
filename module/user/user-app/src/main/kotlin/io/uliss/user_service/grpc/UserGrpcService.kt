@@ -8,10 +8,11 @@ import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.logging.logger.AppLogger
 import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
-import org.springframework.stereotype.Service
+import org.springframework.stereotype.Component
 import java.util.UUID
 
-@Service
+// @Component, not @Service: call tracing proxies services, and the stub's final bindService cannot be proxied
+@Component
 class UserGrpcService(
     private val userProfileService: UserProfileService,
     private val messageService: MessageService,

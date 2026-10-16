@@ -6,8 +6,9 @@ Shared logging library for the JVM services (auto-configured, package `io.uliss.
 
 - `AppLogger` — thin SLF4J wrapper; logs the calling method as a `method` key value (a separate field in structured
   JSON output). `message` is an SLF4J template filled from `args`.
-- `LoggingAspect` — DEBUG call tracing for `@Service` and `@Repository` beans: arguments by name, result, and a one-line
-  exit on exception. Active only when the class logger is at DEBUG (`LOG_LEVEL_ULISS=debug`); disable entirely with
+- `LoggingAspect` — DEBUG call tracing for `@Service` and `@Repository` beans: one line per call, written when it ends
+  (`call` with `args`, `result`, `durationMs`; `call failed` with `args`, `exception`, `durationMs`). Nested calls
+  therefore appear innermost first. Active only when the class logger is at DEBUG (`LOG_LEVEL_ULISS=debug`); disable entirely with
   `uliss.logging.aspect.enabled=false`. Values are truncated to 500 characters; reactive results are not rendered.
 - `@MeasureTime` — logs a method's execution time at DEBUG.
 - `ConsoleLogPatternEnvironmentPostProcessor` — default text console pattern with `%kvp`, so key values stay visible
