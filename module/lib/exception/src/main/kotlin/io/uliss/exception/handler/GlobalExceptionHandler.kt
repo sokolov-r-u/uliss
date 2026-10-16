@@ -11,6 +11,7 @@ import jakarta.validation.ConstraintViolationException
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.HttpStatusCode
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.validation.BindException
 import org.springframework.web.bind.MethodArgumentNotValidException
@@ -70,7 +71,9 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
                 "handleException",
             )
         }
-        return handleExceptionInternal(ex, response, HttpHeaders(), httpStatus, request)
+        // an explicit type skips the Accept check, so an event-stream request still gets the JSON error
+        val headers = HttpHeaders().apply { contentType = MediaType.APPLICATION_JSON }
+        return handleExceptionInternal(ex, response, headers, httpStatus, request)
     }
 
     private fun getExceptionResponse(ex: Exception, httpStatus: HttpStatus, request: WebRequest): ErrorResponse =

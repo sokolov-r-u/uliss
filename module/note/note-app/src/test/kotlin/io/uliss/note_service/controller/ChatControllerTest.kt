@@ -413,10 +413,13 @@ class ChatControllerTest {
             mockMvc.post("/note/chats/$chatId/messages") {
                 with(jwt().jwt { it.claim("userId", userId.toString()) })
                 header("Idempotency-Key", idempotencyKey)
+                // the browser accepts only SSE here; the JSON error must still get through
+                accept = MediaType.TEXT_EVENT_STREAM
                 contentType = MediaType.APPLICATION_JSON
                 content = """{"content":"hi"}"""
             }.andExpect {
                 status { isEqualTo(expectedStatus) }
+                content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
                 header { doesNotExist("Chat-Turn-Id") }
             }
         }

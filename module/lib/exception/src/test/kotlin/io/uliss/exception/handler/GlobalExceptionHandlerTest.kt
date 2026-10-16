@@ -1,12 +1,16 @@
 package io.uliss.exception.handler
 
+import io.uliss.exception.common.NotFoundException
 import org.hamcrest.Matchers
 import org.junit.jupiter.api.Test
+import org.springframework.http.MediaType
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.setup.MockMvcBuilders
 import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.client.ResourceAccessException
 
@@ -23,6 +27,12 @@ class GlobalExceptionHandlerTest {
 
         @GetMapping("/cookie")
         fun cookie(@CookieValue("code_verifier") verifier: String): String = verifier
+
+        @PostMapping("/stream/missing", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+        fun streamMissing(): String = throw NotFoundException("chat id=42 not found")
+
+        @PostMapping("/stream/unexpected", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+        fun streamUnexpected(): String = throw IllegalStateException("boom")
     }
 
     private val mockMvc: MockMvc = MockMvcBuilders.standaloneSetup(FailingController())
@@ -55,6 +65,24 @@ class GlobalExceptionHandlerTest {
             status { isBadRequest() }
             jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
             jsonPath("$.details.message") { value(Matchers.containsString("code_verifier")) }
+        }
+    }
+
+    @Test
+    fun `client error on an event stream endpoint keeps its status and json body`() {
+        mockMvc.post("/stream/missing") { accept = MediaType.TEXT_EVENT_STREAM }.andExpect {
+            status { isNotFound() }
+            content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
+            jsonPath("$.code") { value("NOT_FOUND_ERROR") }
+        }
+    }
+
+    @Test
+    fun `server error on an event stream endpoint returns a json 500`() {
+        mockMvc.post("/stream/unexpected") { accept = MediaType.TEXT_EVENT_STREAM }.andExpect {
+            status { isInternalServerError() }
+            content { contentTypeCompatibleWith(MediaType.APPLICATION_JSON) }
+            jsonPath("$.code") { value("UNKNOWN_ERROR") }
         }
     }
 }
