@@ -17,17 +17,25 @@ import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.chat.prompt.Prompt
 import reactor.core.publisher.Flux
 import kotlin.test.assertContains
+import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ChatClientConfigTest {
 
-    private class FakeChatModel : ChatModel {
+    private class FakeChatModel(private val properties: Map<String, Any> = emptyMap()) : ChatModel {
         override fun call(prompt: Prompt): ChatResponse = response("full answer")
 
         override fun stream(prompt: Prompt): Flux<ChatResponse> =
             Flux.just(response("streamed "), response("answer"))
 
-        private fun response(text: String) = ChatResponse(listOf(Generation(AssistantMessage(text))))
+        private fun response(text: String) =
+            ChatResponse(listOf(Generation(AssistantMessage.builder().content(text).properties(properties).build())))
+    }
+
+    /** Provider metadata the JSON mapper cannot serialize. */
+    class Unserializable {
+        @Suppress("unused")
+        val value: String get() = throw IllegalStateException("not serializable")
     }
 
     private val advisorLogger = LoggerFactory.getLogger(SimpleLoggerAdvisor::class.java) as Logger
@@ -66,6 +74,16 @@ class ChatClientConfigTest {
         val (request, response) = messages()
         assertContains(request, LONG_PROMPT)
         assertContains(response, "streamed answer")
+    }
+
+    @Test
+    fun `a response the log cannot serialize never breaks the stream`() {
+        val client = ChatClientConfig().chatClient(ChatClient.builder(FakeChatModel(mapOf("broken" to Unserializable()))))
+
+        val tokens = client.prompt().user("hi").stream().content().collectList().block()
+
+        assertEquals(listOf("streamed ", "answer"), tokens)
+        assertContains(messages().last(), "unrenderable")
     }
 
     @Test
