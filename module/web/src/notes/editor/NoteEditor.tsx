@@ -51,7 +51,9 @@ export function NoteEditor({content, onChange, locked = false, highlightDateHead
         onCreate: ({editor}) => {
             baselineRef.current = editor.getMarkdown().trim()
         },
-        onUpdate: ({editor}) => {
+        onUpdate: ({editor, transaction}) => {
+            // setEditable also emits an update, before onCreate has recorded the baseline: only text changes count.
+            if (!transaction.docChanged) return
             // Blank lines around the document carry nothing; the service trims the end as well.
             const markdown = editor.getMarkdown().trim()
             onChangeRef.current({markdown, changed: markdown !== baselineRef.current})

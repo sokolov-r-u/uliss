@@ -70,6 +70,17 @@ describe('NoteEditor', () => {
         expect(text.querySelector('ul')).not.toBeNull()
     })
 
+    it('reports nothing when only the lock changes', async () => {
+        const onChange = vi.fn()
+        const {rerender} = render(<NoteEditor content="Steady" onChange={onChange}/>)
+        await screen.findByRole('textbox', {name: 'Note text'})
+
+        await act(async () => rerender(<NoteEditor content="Steady" onChange={onChange} locked/>))
+        await act(async () => rerender(<NoteEditor content="Steady" onChange={onChange}/>))
+
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
     it('locks the text and the toolbar', async () => {
         renderEditor('Busy', true)
 

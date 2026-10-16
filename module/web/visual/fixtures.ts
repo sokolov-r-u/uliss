@@ -24,10 +24,10 @@ export const CHAT_MESSAGES: Record<string, ChatMessage[]> = {
 }
 
 export const NOTES: Note[] = [
-    {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'The empty room', createdAt: at('06-24'),
+    {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'The empty room', createdAt: at('06-24'), version: 1,
         updatedAt: at('06-24'),
         content: '## Constraints as a frame\n\nConstraints make me more creative, not less. A smaller room is not a smaller self.\n\n- The first hour is ritual\n- One room, one task'},
-    {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'A grammar for mornings', createdAt: at('06-23'),
+    {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'A grammar for mornings', createdAt: at('06-23'), version: 1,
         content: 'If the first hour is ritual, the day has a spine to hang on.'},
     {id: 'n3', source: 'CHAT_SUMMARY', status: 'READY',
         title: 'Notes on forgetting, and why I trust the graph to remember the long thread for me', createdAt: at('06-12'),

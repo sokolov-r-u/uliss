@@ -1,6 +1,14 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
-import {deleteNote, getNote, listNotes, renameNote, requestChatSummary, streamNoteStatus,} from './noteApi'
+import {
+    deleteNote,
+    getNote,
+    listNotes,
+    renameNote,
+    requestChatSummary,
+    streamNoteStatus,
+    updateNote,
+} from './noteApi'
 
 vi.mock('../auth/apiClient', () => ({
     authFetch: vi.fn(),
@@ -202,5 +210,51 @@ describe('noteApi', () => {
 
         await expect(deleteNote('n1')).rejects.toMatchObject({kind: 'http', status: 404})
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {method: 'DELETE'})
+    })
+
+    it('saves an edit with its version and returns the note with the new version', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: '## Body', version: 4,
+        }))
+
+        await expect(updateNote('n1', {title: 'New', content: '## Body', version: 3}))
+            .resolves.toMatchObject({title: 'New', content: '## Body', version: 4})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {
+            method: 'PUT',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({title: 'New', content: '## Body', version: 3}),
+        })
+    })
+
+    it('reports why the service refused an edit', async () => {
+        for (const code of ['NOTE_VERSION_CONFLICT', 'NOTE_UPDATING', 'NOTE_NOT_READY']) {
+            mockedFetch.mockResolvedValue(jsonResponse({status: 409, code, path: '/note/notes/n1'}, 409))
+
+            await expect(updateNote('n1', {title: 'T', content: 'c', version: 1}))
+                .rejects.toMatchObject({kind: 'http', status: 409, code})
+        }
+    })
+
+    it('reports a refusal without a readable body by its status alone', async () => {
+        mockedFetch.mockResolvedValue(new Response('<html>bad gateway</html>', {status: 502}))
+
+        const error = await updateNote('n1', {title: 'T', content: 'c', version: 1}).catch((e: unknown) => e)
+        expect(error).toMatchObject({kind: 'http', status: 502, code: undefined})
+    })
+
+    it('rejects a saved note that is not the edited one or has no version', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'other', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: 1}))
+        await expect(updateNote('n1', {title: 'T', content: 'c', version: 0})).rejects.toMatchObject({kind: 'protocol'})
+
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c'}))
+        await expect(updateNote('n1', {title: 'T', content: 'c', version: 0})).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reads the note version and rejects one that is not a number', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: 7}))
+        await expect(getNote('n1')).resolves.toMatchObject({version: 7})
+
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: '7'}))
+        await expect(getNote('n1')).rejects.toMatchObject({kind: 'protocol'})
     })
 })

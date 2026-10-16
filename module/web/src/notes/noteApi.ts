@@ -14,6 +14,14 @@ export interface Note {
     updatedAt?: string
     /** A READY note whose summary update is still running: its content changes when the update is applied. */
     updating?: boolean
+    /** Stored version; an edit sends it back so the service refuses to overwrite a newer one. */
+    version?: number
+}
+
+export interface NoteEdit {
+    title: string
+    content: string
+    version: number
 }
 
 export interface ChatSummaryResponse {
@@ -38,6 +46,8 @@ export class NoteApiError extends Error {
         message: string,
         public readonly status?: number,
         options?: ErrorOptions,
+        /** The service's error code (for example `NOTE_VERSION_CONFLICT`), when the body carried one. */
+        public readonly code?: string,
     ) {
         super(message, options)
         this.name = 'NoteApiError'
@@ -71,6 +81,14 @@ function optionalFlag(value: unknown, field: string): boolean {
     return value
 }
 
+function optionalVersion(value: unknown): number | undefined {
+    if (value == null) return undefined
+    if (typeof value !== 'number' || !Number.isInteger(value)) {
+        throw new NoteApiError('protocol', 'invalid version in note response')
+    }
+    return value
+}
+
 function parseStatus(value: unknown): NoteStatus {
     if (value === 'GENERATING' || value === 'READY' || value === 'FAILED') return value
     throw new NoteApiError('protocol', 'invalid status in note response')
@@ -95,6 +113,7 @@ function parseNote(value: unknown): Note {
         createdAt: optionalString(value.createdAt, 'createdAt'),
         updatedAt: optionalString(value.updatedAt, 'updatedAt'),
         updating: optionalFlag(value.updating, 'updating'),
+        version: optionalVersion(value.version),
     }
 }
 
@@ -129,7 +148,18 @@ async function fetchNotes(path: string, init?: RequestInit): Promise<Response> {
 
 async function requireOk(response: Response, operation: string): Promise<void> {
     if (response.ok) return
-    throw new NoteApiError('http', `${operation} failed (${response.status})`, response.status)
+    throw new NoteApiError('http', `${operation} failed (${response.status})`, response.status, undefined,
+        await errorCode(response))
+}
+
+/** The `code` of the service's error body; undefined for an empty or non-JSON body (a proxy error page). */
+async function errorCode(response: Response): Promise<string | undefined> {
+    try {
+        const body: unknown = await response.json()
+        return isRecord(body) && typeof body.code === 'string' ? body.code : undefined
+    } catch {
+        return undefined
+    }
 }
 
 async function responseJson(response: Response): Promise<unknown> {
@@ -202,6 +232,20 @@ export async function renameNote(noteId: string, title: string): Promise<Note> {
     await requireOk(response, 'note rename')
     const note = parseNote(await responseJson(response))
     if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
+    return note
+}
+
+/** Saves a user edit made against [edit.version]; a newer stored note fails with code `NOTE_VERSION_CONFLICT`. */
+export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> {
+    const response = await fetchNotes(`/note/notes/${noteId}`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({title: edit.title, content: edit.content, version: edit.version}),
+    })
+    await requireOk(response, 'note save')
+    const note = parseNote(await responseJson(response))
+    if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
+    if (note.version === undefined) throw new NoteApiError('protocol', 'saved note has no version')
     return note
 }
 
