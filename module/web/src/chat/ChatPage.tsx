@@ -500,6 +500,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         } finally {
             if (streamAbortRef.current === controller) streamAbortRef.current = null
         }
+        if (poll && mountedRef.current && routeRevisionRef.current === routeRevision) {
+            // Nothing reports activity any more; reconciliation waits on the saved reply.
+            setMessages((previous) => previous.map((message) =>
+                message.id === placeholderId ? {...message, activity: undefined} : message,
+            ))
+        }
         if (mountedRef.current && routeRevisionRef.current === routeRevision && resolvedChatId) {
             await reconcile(target, poll, routeRevision, resolvedChatId, pollTimeoutMs)
         } else if (mountedRef.current && routeRevisionRef.current === routeRevision) {

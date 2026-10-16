@@ -504,6 +504,26 @@ describe('ChatPage summary flow', () => {
         expect(input).toBeDisabled()
     })
 
+    it('drops the reported activity while a broken stream is being reconciled', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+            ]))
+            .mockImplementation(() => new Promise(() => undefined))
+        mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
+            options.onTurnId('turn-2')
+            options.onActivity?.('SEARCHING_NOTES')
+            return 'error'
+        })
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Next question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('thinking…')).toBeInTheDocument()
+        expect(screen.queryByText('searching notes…')).not.toBeInTheDocument()
+    })
+
     it('keeps Stop active until the matching PARTIAL reply is persisted', async () => {
         mockedGetMessages
             .mockResolvedValueOnce(messagePage([
