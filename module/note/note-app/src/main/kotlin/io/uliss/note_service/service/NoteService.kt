@@ -47,13 +47,16 @@ class NoteService(
 ) {
 
     fun getNotes(userId: UUID): List<NoteResponse> {
-        val notes = noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId)
+        // Pending requests first, as in isUpdating.
         val pendingNoteIds = summaryRequestStore.findPendingNoteIds(userId)
+        val notes = noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId)
         return notes.map { it.toResponse(it.status == NoteStatus.READY && it.id in pendingNoteIds) }
     }
 
-    fun getNote(userId: UUID, noteId: UUID): NoteResponse =
-        getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it)) }
+    fun getNote(userId: UUID, noteId: UUID): NoteResponse {
+        val pending = summaryRequestStore.hasPendingForNote(noteId)
+        return getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it, pending)) }
+    }
 
     /** Linked note counts keyed by chat id; chats without notes are absent. Callers pass owned chat ids only. */
     fun getNoteCounts(chatIds: Collection<UUID>): Map<UUID, Int> {
@@ -219,7 +222,7 @@ class NoteService(
         noteRepository.save(note)
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
-        return note.toResponse(isUpdating(note))
+        return note.toResponse(isUpdating(note, summaryRequestStore.hasPendingForNote(noteId)))
     }
 
     /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */
@@ -241,12 +244,16 @@ class NoteService(
         chatNoteRepository.save(link)
     }
 
-    private fun getStatus(userId: UUID, noteId: UUID): NoteStatusResponse =
-        getOwnedNote(userId, noteId).let { it.toStatusResponse(isUpdating(it)) }
+    private fun getStatus(userId: UUID, noteId: UUID): NoteStatusResponse {
+        val pending = summaryRequestStore.hasPendingForNote(noteId)
+        return getOwnedNote(userId, noteId).let { it.toStatusResponse(isUpdating(it, pending)) }
+    }
 
-    /** Only a READY note can be updating: a GENERATING note's pending request is its creation. */
-    private fun isUpdating(note: NoteEntity): Boolean =
-        note.status == NoteStatus.READY && summaryRequestStore.hasPendingForNote(note.id)
+    /**
+     * Only a READY note can be updating: a GENERATING note's pending request is its creation. Callers read [pending]
+     * before the note, so an update committing in between reads as updating, never as settled with stale content.
+     */
+    private fun isUpdating(note: NoteEntity, pending: Boolean): Boolean = note.status == NoteStatus.READY && pending
 
     private fun NoteStatus.isTerminal(): Boolean = this == NoteStatus.READY || this == NoteStatus.FAILED
 

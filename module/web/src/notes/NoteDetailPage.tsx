@@ -147,6 +147,8 @@ export function NoteDetailPage() {
                 // the note is still generating, but not forever if every stream ends at once.
                 if (controller.signal.aborted) return
                 if (reconnects === MAX_STATUS_RECONNECTS) {
+                    // An updating note stays readable under its notice; only a note still being written fails here.
+                    if (note.status === 'READY') return
                     setState({status: 'error', message: 'The note is still being written. Check back later.'})
                     return
                 }

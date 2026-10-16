@@ -125,6 +125,19 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `getNote reads the pending flag before the note, so a concurrent update never reads as settled`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        noteService.getNote(userId, note.id)
+
+        val order = Mockito.inOrder(summaryRequestStore, noteRepository)
+        order.verify(summaryRequestStore).hasPendingForNote(note.id)
+        order.verify(noteRepository).findByIdAndUserId(note.id, userId)
+    }
+
+    @Test
     fun `getNotes marks ready notes with a pending update`() {
         val userId = UUID.randomUUID()
         val updating = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)

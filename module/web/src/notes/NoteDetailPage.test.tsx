@@ -136,6 +136,31 @@ describe('NoteDetailPage', () => {
         expect(mockedStatus).toHaveBeenCalledTimes(MAX_STATUS_RECONNECTS + 1)
     })
 
+    it('keeps an updating note readable when the stream keeps ending without progress', async () => {
+        mockedGetNote.mockResolvedValue({...ready('Still readable'), updating: true})
+        mockedStatus.mockResolvedValue(null)
+
+        renderPage()
+
+        await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(MAX_STATUS_RECONNECTS + 1))
+        expect(screen.getByText('Still readable')).toBeInTheDocument()
+        expect(screen.queryByText(/still being written/i)).not.toBeInTheDocument()
+    })
+
+    it('keeps watching when another update started before the finished one was re-read', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('First'), updating: true})
+            .mockResolvedValueOnce({...ready('Second'), updating: true})
+            .mockResolvedValueOnce(ready('Third'))
+        mockedStatus.mockResolvedValue('READY')
+
+        renderPage()
+
+        expect(await screen.findByText('Third')).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(2)
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+    })
+
     it('stops reconnecting once the page is left', async () => {
         mockedGetNote.mockResolvedValue(generating)
         let closeStream: (status: null) => void = () => undefined
