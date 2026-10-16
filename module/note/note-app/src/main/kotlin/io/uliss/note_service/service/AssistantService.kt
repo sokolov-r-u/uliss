@@ -1,12 +1,16 @@
 package io.uliss.note_service.service
 
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.service.output.AssistantReplyStream
+import io.uliss.note_service.service.tool.NoteSearch
+import io.uliss.note_service.service.tool.NotesSearchProperties
+import io.uliss.note_service.service.tool.NotesSearchTool
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.isEmptyAssistantReply
 import org.springframework.ai.chat.client.ChatClient
@@ -19,6 +23,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import reactor.core.publisher.Sinks
 import reactor.core.scheduler.Schedulers
 import java.util.UUID
 
@@ -34,13 +39,25 @@ class AssistantService(
     private val chatClient: ChatClient,
     private val chatTurnService: ChatTurnService,
     private val properties: AssistantProperties,
+    private val notesSearchProperties: NotesSearchProperties,
 ) {
     private val log = AppLogger.of(AssistantService::class)
 
-    fun streamReply(userId: UUID, chatId: UUID, idempotencyKey: UUID, prompt: String): AssistantReplyStream {
+    /** [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. */
+    fun streamReply(
+        userId: UUID,
+        chatId: UUID,
+        idempotencyKey: UUID,
+        prompt: String,
+        noteSearch: NoteSearch,
+    ): AssistantReplyStream {
         return when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
             is ChatTurnRequestResolution.StartGeneration ->
-                AssistantReplyStream(resolution.turn.id, streamNewGeneration(resolution), resolution.turn.chatId)
+                AssistantReplyStream(
+                    resolution.turn.id,
+                    streamNewGeneration(resolution, noteSearch),
+                    resolution.turn.chatId,
+                )
 
             is ChatTurnRequestResolution.AlreadyGenerating ->
                 AssistantReplyStream(
@@ -64,14 +81,31 @@ class AssistantService(
 
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
+        noteSearch: NoteSearch,
     ): Flux<AssistantStreamEvent> = Flux.defer {
         var finalized = false
         Flux.usingWhen(
             Mono.fromSupplier { StringBuilder() },
             { reply ->
-                streamProviderTokens(resolution.turn.chatId, resolution.history)
+                // Only the tool emits here, one call at a time on its blocking thread; text never goes through it.
+                val activities = Sinks.many().unicast().onBackpressureBuffer<AssistantStreamEvent>()
+                val tool = NotesSearchTool(
+                    search = noteSearch,
+                    properties = notesSearchProperties,
+                    onSearchStarted = {
+                        // Each search adds a model call to this attempt; the lease must cover it.
+                        chatTurnService.extendLease(resolution.turn)
+                        activities.tryEmitNext(AssistantStreamEvent.Activity(AssistantActivity.SEARCHING_NOTES))
+                    },
+                    onSearchFinished = {
+                        activities.tryEmitNext(AssistantStreamEvent.Activity(AssistantActivity.THINKING))
+                    },
+                )
+                val text = streamProviderTokens(resolution.turn.chatId, resolution.history, tool)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
+                    .doFinally { activities.tryEmitComplete() }
+                Flux.merge(activities.asFlux(), text)
             },
             { reply ->
                 persistAssistantResult(resolution, reply, ChatTurnStatus.COMPLETE).doOnNext { finalized = it }
@@ -102,10 +136,15 @@ class AssistantService(
             }
         }.subscribeOn(Schedulers.boundedElastic())
 
-    private fun streamProviderTokens(chatId: UUID, history: List<ChatMessageEntity>): Flux<String> = Flux.defer {
+    private fun streamProviderTokens(
+        chatId: UUID,
+        history: List<ChatMessageEntity>,
+        notesSearchTool: NotesSearchTool,
+    ): Flux<String> = Flux.defer {
         chatClient.prompt()
             .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
             .messages(toAiMessages(history))
+            .tools(notesSearchTool)
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

@@ -96,3 +96,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** at DEBUG every chat turn and summary writes its full context to the log; keep `info` in
   production.
 - **Source:** task `docs/tasks/2026-10-16-log-cleanup.md`.
+
+## 2026-10-16 — The chat model searches the user's notes through a tool
+
+- **Context:** chat replies did not know the user's notes; RAG was used only by Summarize.
+- **Decision:** the model gets a per-turn `searchNotes(query)` tool (OpenAI function calling through Spring AI's
+  `ToolCallingAdvisor`) instead of a search before every message, so it searches only when needed and writes its own
+  query. `ChatFacade` passes `AssistantService` a `NoteSearch` bound to the user that leaves out the chat's current
+  summary note, so the chat domain does not call note services. Limits: top-5, similarity 0.70, 3 searches per turn.
+  A failed search is returned to the model as text. Each search extends the attempt's lease to `now + lease`
+  (fenced by attempt, never shortened) instead of a lease sized for the worst case of every search, which would make a
+  retry after a crash wait about 20 minutes. Search progress is the new SSE event `activity`
+  (`SEARCHING_NOTES` / `THINKING`), not persisted and not replayed.
+- **Consequences:** a turn makes one more model call per search; found fragments are not in the saved history, so a
+  later turn searches again. OpenAI's hosted `file_search` is not used: notes stay in our pgvector.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.

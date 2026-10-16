@@ -11,7 +11,9 @@ import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.output.AssistantReplyStream
+import io.uliss.note_service.service.tool.NoteSearch
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -22,6 +24,7 @@ class ChatFacade(
     private val assistantService: AssistantService,
     private val noteService: NoteService,
     private val chatTurnService: ChatTurnService,
+    private val ragService: RagService,
 ) {
 
     fun getChats(userId: UUID): List<ChatWithNoteCount> {
@@ -62,7 +65,17 @@ class ChatFacade(
         } else {
             chatService.requireOwnedChat(userId, chatId)
         }
-        return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt)
+        return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id))
+    }
+
+    /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
+    private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
+        val currentNoteId = noteService.findCurrentChatSummary(chatId)?.noteId
+        if (currentNoteId == null) {
+            ragService.search(userId, query, limit, minSimilarity)
+        } else {
+            ragService.searchExcluding(userId, query, limit, minSimilarity, currentNoteId)
+        }
     }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {

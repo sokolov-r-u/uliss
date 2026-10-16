@@ -162,6 +162,9 @@ class ChatController(
         is AssistantStreamEvent.AppendText ->
             ServerSentEvent.builder<Any>(AssistantTextChunkResponse(event.text)).event("append").build()
 
+        is AssistantStreamEvent.Activity ->
+            ServerSentEvent.builder<Any>(event.activity.name).event("activity").build()
+
         is AssistantStreamEvent.GenerationPending ->
             ServerSentEvent.builder<Any>(event.retryAfterMs.toString()).event("pending").build()
 

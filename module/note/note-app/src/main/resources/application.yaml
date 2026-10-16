@@ -59,6 +59,10 @@ note:
   assistant:
     reasoning-effort: low
     verbosity: low
+    notes-search:
+      top-k: 5
+      min-similarity: 0.70
+      max-calls-per-turn: 3
   summary:
     retrieval-query-max-chars: 8000
     retrieval-top-k: 5

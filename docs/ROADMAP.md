@@ -65,6 +65,10 @@ over SSE; the SPA has the notes list and note screen.
 - Limited web search for checkable facts.
 - AI-generated semantic chat titles.
 - Address the user by display name in chat and summary prompts.
+- User profile from notes: all of the user's notes are compiled into one document about the user (tastes, views,
+  recurring themes) that is attached to every chat request next to the system prompt, so the model knows the user
+  without searching. Design first: how the profile is built and refreshed as notes change, its size limit, and how it
+  stays consistent with the notes search in chat.
 - Chat context through its summary: when the chat has a summary note, the model receives the system prompt, the
   note's current text and every message after the summary boundary, always; without a note (or after it was deleted)
   it receives the full history. A turn whose context exceeds 200,000 characters is not created, and the user is asked
@@ -133,3 +137,6 @@ Squash Flyway migrations, deploy to production, and switch migrations to append-
 ## After the MVP
 
 - A note in several constellations at once (multi-tagging), proposed by the system through Updates.
+- Sources of a chat reply (to think over; may move before the MVP): the notes found by the chat's notes search are
+  shown under the reply and link to the notes. Needs a many-to-many link between an assistant message and notes
+  (fragments of one note collapse into one link; removed with the note or the chat).

@@ -5,15 +5,15 @@ note-service.
 
 ## Invariants
 
-- The service owns persistent chats, asynchronous summaries, notes, and the future note/RAG schema. Do not describe
-  RAG retrieval or indexing as implemented until corresponding code exists.
+- The service owns persistent chats, asynchronous summaries, notes, and the note/RAG schema.
+- The model never chooses whose notes a tool reads: tools receive the user from the server, not from tool arguments.
 - Every chat read/write must enforce ownership with the authenticated user identifier. A chat owned by someone else
   remains indistinguishable from a missing chat.
 - Persist the user message before requesting an assistant response. Persist a terminal `FAILED` assistant message when
   a turn fails before producing content.
 - Streaming must derive `COMPLETE`, `PARTIAL`, or `FAILED` from the terminal signal and buffered content, and run
   blocking JPA persistence off the reactive event-loop thread.
-- Preserve the SSE contract (`append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
+- Preserve the SSE contract (`activity`, `append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
   `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
   Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService`,
@@ -59,7 +59,8 @@ never preemptively (a `graph` domain is planned but doesn't exist yet).
 - `service/` root is real `@Service` orchestrators; `facade/` coordinates several services per
   controller use case; `handler/` implements an outbox entry-point interface; `output/` is a
   non-service, non-DTO return shape (e.g. `AssistantReplyStream` wraps a live `Flux`, so it can't be
-  a DTO — a DTO is a materialized value, not a handle to unfinished work).
+  a DTO — a DTO is a materialized value, not a handle to unfinished work); `tool/` holds model-callable tools
+  (`@Tool` classes built per request, not beans) and their contracts.
 - `dto/request/` and `dto/response/` are the HTTP wire boundary — never leak a raw entity into
   either. `dto/internal/` is for result types that cross service → facade → controller but never
   HTTP.

@@ -28,9 +28,10 @@ are logged once, aggregated.
 ## Chat and summary APIs
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
-streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
-`done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw `data:`
-lines; the others carry plain text (retry delay, terminal status, empty). `ChatService` performs chat lookups using both
+streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `activity`, `append`,
+`pending`, `done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw
+`data:` lines; the others carry plain text (activity name, retry delay, terminal status, empty). `activity` is
+`SEARCHING_NOTES` when a notes search starts and `THINKING` when it ends; a replayed turn sends none. `ChatService` performs chat lookups using both
 chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
@@ -100,6 +101,18 @@ still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.
 If the chat was deleted after the request, the worker fails the note at once through the same terminal-failure
 handler instead of spending retries.
+
+## Notes search in chat replies
+
+Chat replies can draw on the user's notes. `AssistantService` registers a per-turn `NotesSearchTool` (`searchNotes`)
+on the provider request, and the system prompt tells the model to search when a reply depends on the user's tastes,
+experiences, or earlier thoughts. Spring AI's tool-calling loop runs the search and calls the model again with the
+results. The model chooses only the query: `ChatFacade` binds the search to the authenticated user and leaves out the
+chat's current summary note. Results are note fragments with the note title and creation date, delimited as
+untrusted data. `note.assistant.notes-search` sets `top-k` (5), `min-similarity` (0.70), and `max-calls-per-turn` (3);
+a call over the limit, a blank query, or a failed search returns a short text to the model instead of failing the
+turn. Each search extends the turn's lease by one full lease, because it adds a model call to the attempt. Search
+results are not persisted with the reply.
 
 ## Note API and status delivery
 

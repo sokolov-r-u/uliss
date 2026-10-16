@@ -16,6 +16,11 @@ fun <T> anyValue(): T {
     return castNull()
 }
 
+fun <T> eqValue(value: T): T {
+    Mockito.eq(value)
+    return value
+}
+
 fun <T> ArgumentCaptor<T>.captureValue(): T {
     this.capture()
     return castNull()

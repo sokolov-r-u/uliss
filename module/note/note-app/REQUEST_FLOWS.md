@@ -175,7 +175,16 @@ sequenceDiagram
 
     alt StartGeneration
         Note over A, AI: No database transaction is held during provider streaming
-        A ->> AI: prompt(history).stream()
+        A ->> AI: prompt(history).tools(searchNotes).stream()
+        opt The model calls searchNotes(query) (at most 3 times per turn)
+            A ->> L: extendLease(turn): lease_until = max(lease_until, now + lease) for the same attempt
+            A -->> HC: Activity(SEARCHING_NOTES)
+            HC -->> C: event: activity, data: SEARCHING_NOTES
+            A ->> AI: embed(query), then exact cosine search in the user's chunks without the chat's own note
+            A -->> HC: Activity(THINKING)
+            HC -->> C: event: activity, data: THINKING
+            A ->> AI: history + tool call + found fragments (next model call)
+        end
         loop Provider text chunks
             AI -->> A: text chunk
             A -->> HC: AppendText
@@ -210,6 +219,10 @@ Important behavior:
 - A live lease returns `pending`; an expired lease may be reclaimed with a higher attempt number.
 - Finalization is fenced by `turnId + userId + chatId + attempt + GENERATING`. A late provider result
   cannot overwrite a cancellation or the result of a newer attempt.
+- The model searches the user's notes through the `searchNotes` tool (Spring AI tool calling). The server binds the
+  user and leaves out the chat's current summary note; the model sets only the query. A failed search is returned to
+  the model as text and the turn goes on. Each search extends the attempt's lease, because it adds a model call.
+  `activity` events are not part of the reply text, are not persisted, and are never replayed.
 - A completed replay emits the terminal event but does not replay old text chunks. The client
   reconciles the durable assistant message from chat history.
 - The SPA uses `Chat-Turn-Id` for history reconciliation and cancellation. It uses the client key
@@ -474,6 +487,7 @@ leaked.
 | Use case             | Transactional work                                                | Work outside that transaction                                |
 |----------------------|-------------------------------------------------------------------|--------------------------------------------------------------|
 | New chat turn        | Lock chat, reserve turn, persist user message                     | Provider stream                                              |
+| Notes search         | Extend the attempt's lease (fenced single update)                 | Embedding call and chunk search                              |
 | Finish chat turn     | Fence the attempt, persist terminal turn and assistant message    | SSE delivery                                                 |
 | Cancel chat turn     | Lock chat, mark turn canceled, persist canceled assistant message | Provider request may finish later and is rejected by fencing |
 | Request summary      | Reserve key, create note/link, publish summary event              | Summary generation                                           |
