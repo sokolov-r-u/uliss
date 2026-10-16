@@ -1,6 +1,7 @@
 package io.uliss.security.utils
 
-import jakarta.servlet.http.Cookie
+import org.springframework.http.HttpHeaders
+import org.springframework.http.ResponseCookie
 import org.springframework.web.context.request.RequestContextHolder
 import org.springframework.web.context.request.ServletRequestAttributes
 import java.security.MessageDigest
@@ -22,10 +23,13 @@ fun generateCodeChallenge(verifier: String): String {
 fun setCookie(name: String, value: String, secureCookie: Boolean, maxAge: Int) {
     val response = (RequestContextHolder.getRequestAttributes() as? ServletRequestAttributes)?.response
         ?: throw IllegalStateException("cookie $name can only be set while handling an HTTP request")
-    response.addCookie(Cookie(name, value).apply {
-        isHttpOnly = true
-        secure = secureCookie
-        path = "/"
-        this.maxAge = maxAge
-    })
+    val cookie = ResponseCookie.from(name, value)
+        .httpOnly(true)
+        .secure(secureCookie)
+        .path("/")
+        .maxAge(maxAge.toLong())
+        // login cookies are read only by same-site requests from the SPA
+        .sameSite("Lax")
+        .build()
+    response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString())
 }

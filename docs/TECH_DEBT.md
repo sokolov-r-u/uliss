@@ -512,14 +512,6 @@ A client whose id was renamed or removed from config keeps its row in `oauth2_re
 grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
 secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
 
-## Explicit `SameSite` on mediator login cookies (`security`)
-
-**Status:** not implemented.
-
-`setCookie` (`module/lib/security/.../utils/SecurityUtils.kt`) sets `HttpOnly`, `Secure` and `Path` but no `SameSite`,
-so the `code_verifier` and `oauth_state` cookies rely on the browser default (Lax in current browsers). Set
-`SameSite=Lax` explicitly; cookie attributes are security-sensitive, so this needs its own focused tests.
-
 ## Abandon an outbox worker once its lease is lost (`note-service`)
 
 **Status:** not implemented (agreed 2026-10-15 to defer).
