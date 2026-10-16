@@ -3,6 +3,7 @@ package io.uliss.security.service
 import io.uliss.exception.common.InternalException
 import io.uliss.logging.annotation.Sensitive
 import io.uliss.logging.logger.AppLogger
+import io.uliss.security.annotation.RetryAuthServerCall
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
@@ -15,11 +16,9 @@ import io.uliss.security.utils.OAUTH_STATE
 import io.uliss.security.utils.generateCodeChallenge
 import io.uliss.security.utils.generateCodeVerifier
 import io.uliss.security.utils.setCookie
-import org.springframework.core.annotation.AliasFor
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
-import org.springframework.resilience.annotation.Retryable
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
@@ -35,7 +34,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpConnectTimeoutException
 import java.security.MessageDigest
 import java.time.Duration
-import kotlin.reflect.KClass
 
 @Service
 class AuthService(
@@ -193,15 +191,6 @@ class AuthService(
     private fun errorCode(ex: HttpClientErrorException): String? =
         OAUTH2_ERROR.find(ex.responseBodyAsString)?.groupValues?.get(1)
 }
-
-/** Retry policy for calls to the auth server: 3 retries with exponential backoff from 500 ms. */
-@Target(AnnotationTarget.FUNCTION)
-@Retention(AnnotationRetention.RUNTIME)
-@Retryable(maxRetries = 3, delay = 500, multiplier = 2.0)
-internal annotation class RetryAuthServerCall(
-    @get:AliasFor(annotation = Retryable::class, attribute = "includes")
-    val includes: Array<KClass<out Throwable>> = [AuthServerUnavailableException::class],
-)
 
 /**
  * A failure before the request was sent is safe to repeat even for one-time grants. After it was sent

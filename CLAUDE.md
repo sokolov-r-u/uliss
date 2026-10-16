@@ -132,6 +132,9 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 
 ## Engineering conventions
 
+- Single responsibility per file: a service, controller, or other component file holds only that class. Annotations,
+  exceptions, DTOs, configuration, and reusable helpers go to their own files in the package for their role
+  (`annotation`, `exception`, `dto`, `config`, `utils`) — never declare them inside the file that happens to use them.
 - Method naming: `find*` may return null/empty (absence is a valid outcome); `get*` is guaranteed non-null or throws
   — this applies even to methods returning a `List`.
 - Kotlin/Spring: constructor injection only; controllers and repositories stay thin; business logic and transactional
