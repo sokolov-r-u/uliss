@@ -24,6 +24,7 @@ import {
 } from './reconcileChatTurn'
 import {
     cancelChatTurn,
+    type ChatActivity,
     ChatStreamHttpError,
     streamAssistantReply,
     streamInitialAssistantReply,
@@ -439,6 +440,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 },
                 onPending: (retryAfterMs: number) => {
                     pollTimeoutMs = pendingReconcileTimeoutMs(retryAfterMs)
+                },
+                onActivity: (activity: ChatActivity) => {
+                    if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
+                    setMessages((previous) => previous.map((message) =>
+                        message.id === placeholderId ? {...message, activity} : message,
+                    ))
                 },
                 onAppendText: (text: string) => {
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
