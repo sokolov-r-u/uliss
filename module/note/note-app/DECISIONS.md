@@ -111,3 +111,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a turn makes one more model call per search; found fragments are not in the saved history, so a
   later turn searches again. OpenAI's hosted `file_search` is not used: notes stay in our pgvector.
 - **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.
+
+## 2026-10-16 — The notes search tool bounds the tool-calling loop
+
+- **Context:** refines "The chat model searches the user's notes through a tool": the 3-search limit only refused
+  searches, while Spring AI's `ToolCallingAdvisor` has no iteration cap, so a model that kept calling the tool kept
+  making paid model calls.
+- **Decision:** every call counts (blank queries too); the first call over the limit is refused with text, the next one
+  throws `NotesSearchAbortedException`, which ends the turn. It is a checked exception on purpose: Spring AI returns
+  runtime tool failures to the model but rethrows other causes. A search whose lease extension reports a lost fence ends
+  the turn the same way; a lease-extension error is reported to the model as "search unavailable".
+- **Consequences:** a turn makes at most `max-calls-per-turn + 2` model calls; an aborted turn ends `FAILED` or
+  `PARTIAL` like a provider error.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (code review).
+

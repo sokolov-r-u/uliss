@@ -1,11 +1,13 @@
 package io.uliss.note_service.service.tool
 
+import io.uliss.note_service.exception.NotesSearchAbortedException
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
 class NotesSearchToolTest {
@@ -13,9 +15,11 @@ class NotesSearchToolTest {
     private val properties = NotesSearchProperties(topK = 4, minSimilarity = 0.65, maxCallsPerTurn = 2)
     private val calls = mutableListOf<String>()
 
-    private fun tool(search: NoteSearch) = NotesSearchTool(
+    private fun tool(keepLease: () -> Boolean = { true }, search: NoteSearch) = NotesSearchTool(
+        chatId = UUID.randomUUID(),
         search = search,
         properties = properties,
+        keepLease = keepLease,
         onSearchStarted = { calls += "started" },
         onSearchFinished = { calls += "finished" },
     )
@@ -61,18 +65,40 @@ class NotesSearchToolTest {
     }
 
     @Test
-    fun `calls beyond the per-turn limit do not search`() {
+    fun `a failing lease extension is reported to the model without starting the search`() {
+        var searched = false
+        val tool = tool(keepLease = { throw IllegalStateException("db down") }) { _, _, _ ->
+            searched = true
+            emptyList()
+        }
+
+        assertEquals(ChatPrompts.NOTES_SEARCH_UNAVAILABLE, tool.searchNotes("jazz"))
+        assertEquals(false, searched)
+        assertEquals(emptyList(), calls)
+    }
+
+    @Test
+    fun `a turn that lost its fence ends the tool loop instead of searching`() {
+        val tool = tool(keepLease = { false }) { _, _, _ -> error("must not search") }
+
+        assertFailsWith<NotesSearchAbortedException> { tool.searchNotes("jazz") }
+        assertEquals(emptyList(), calls)
+    }
+
+    @Test
+    fun `the call after the limit is refused and the next one ends the tool loop`() {
         var searches = 0
         val tool = tool { _, _, _ -> searches++; emptyList() }
 
         tool.searchNotes("first")
-        tool.searchNotes("second")
+        tool.searchNotes("   ")
         calls.clear()
         val third = tool.searchNotes("third")
 
-        assertEquals(2, searches)
+        assertEquals(1, searches)
         assertEquals(ChatPrompts.NOTES_SEARCH_LIMIT_REACHED, third)
         assertEquals(emptyList(), calls)
+        assertFailsWith<NotesSearchAbortedException> { tool.searchNotes("fourth") }
     }
 
     @Test

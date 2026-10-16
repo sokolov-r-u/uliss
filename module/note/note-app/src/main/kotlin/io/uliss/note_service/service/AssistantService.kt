@@ -90,11 +90,12 @@ class AssistantService(
                 // Only the tool emits here, one call at a time on its blocking thread; text never goes through it.
                 val activities = Sinks.many().unicast().onBackpressureBuffer<AssistantStreamEvent>()
                 val tool = NotesSearchTool(
+                    chatId = resolution.turn.chatId,
                     search = noteSearch,
                     properties = notesSearchProperties,
+                    // Each search adds a model call to this attempt; the lease must cover it.
+                    keepLease = { chatTurnService.extendLease(resolution.turn) },
                     onSearchStarted = {
-                        // Each search adds a model call to this attempt; the lease must cover it.
-                        chatTurnService.extendLease(resolution.turn)
                         activities.tryEmitNext(AssistantStreamEvent.Activity(AssistantActivity.SEARCHING_NOTES))
                     },
                     onSearchFinished = {

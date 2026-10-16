@@ -38,8 +38,8 @@ import kotlin.test.assertTrue
 /** Runs [AssistantService] through a real [ChatClient], so Spring AI's tool-calling loop invokes the notes search. */
 class AssistantServiceToolCallingTest {
 
-    /** Asks for one notes search, then answers with the tool result it got back. */
-    private class SearchingModel : ChatModel {
+    /** Asks for one notes search, then answers with the tool result it got back; with [endless], never stops asking. */
+    private class SearchingModel(private val endless: Boolean = false) : ChatModel {
         val prompts = mutableListOf<Prompt>()
 
         override fun call(prompt: Prompt): ChatResponse = error("the assistant streams")
@@ -50,7 +50,7 @@ class AssistantServiceToolCallingTest {
         override fun stream(prompt: Prompt): Flux<ChatResponse> {
             prompts += prompt
             val toolResponse = prompt.instructions.filterIsInstance<ToolResponseMessage>().lastOrNull()
-            val message = if (toolResponse == null) {
+            val message = if (toolResponse == null || endless) {
                 AssistantMessage.builder()
                     .content("")
                     .toolCalls(
@@ -68,18 +68,42 @@ class AssistantServiceToolCallingTest {
 
     private val chatTurnService = Mockito.mock(ChatTurnService::class.java)
     private val model = SearchingModel()
-    private val assistantService = AssistantService(
+
+    private fun assistantService(model: ChatModel) = AssistantService(
         ChatClient.builder(model).build(),
         chatTurnService,
         AssistantProperties(reasoningEffort = "low", verbosity = "low"),
         NotesSearchProperties(topK = 3, minSimilarity = 0.6, maxCallsPerTurn = 3),
     )
 
+    private val userId = UUID.randomUUID()
+    private val chatId = UUID.randomUUID()
+    private val turnId = UUID.randomUUID()
+
     @Test
-    fun `the model's notes search runs through the tool loop and feeds the reply`() {
-        val userId = UUID.randomUUID()
-        val chatId = UUID.randomUUID()
-        val turnId = UUID.randomUUID()
+    fun `a model that keeps searching past the limit ends the turn instead of looping`() {
+        val endless = SearchingModel(endless = true)
+        val turn = startTurn()
+        Mockito.`when`(
+            chatTurnService.finishGenerationAttempt(
+                eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue(1),
+                anyValue(), eqValue(ChatTurnStatus.FAILED),
+            ),
+        ).thenReturn(true)
+        var searches = 0
+
+        val events = assistantService(endless)
+            .streamReply(userId, chatId, turnId, "What music do I like?") { _, _, _ -> searches++; emptyList() }
+            .events
+
+        StepVerifier.create(events.filter { it !is AssistantStreamEvent.Activity }).verifyError()
+        assertEquals(3, searches)
+        // Three searches, one refused call, one call that ends the loop.
+        assertEquals(5, endless.prompts.size)
+        Mockito.verify(chatTurnService, Mockito.times(3)).extendLease(turn)
+    }
+
+    private fun startTurn(): ChatTurn {
         val turn = ChatTurn(
             id = turnId,
             userId = userId,
@@ -97,6 +121,12 @@ class AssistantServiceToolCallingTest {
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "What music do I like?"))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history))
         Mockito.`when`(chatTurnService.extendLease(turn)).thenReturn(true)
+        return turn
+    }
+
+    @Test
+    fun `the model's notes search runs through the tool loop and feeds the reply`() {
+        startTurn()
         Mockito.`when`(
             chatTurnService.finishGenerationAttempt(
                 eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue(1),
@@ -109,7 +139,7 @@ class AssistantServiceToolCallingTest {
             listOf(RetrievedChunk(UUID.randomUUID(), 0, "Loves Satori.", 0.9, "Satori", Instant.EPOCH))
         }
 
-        val events = assistantService.streamReply(userId, chatId, turnId, "What music do I like?", search).events
+        val events = assistantService(model).streamReply(userId, chatId, turnId, "What music do I like?", search).events
 
         StepVerifier.create(events)
             .expectNext(
