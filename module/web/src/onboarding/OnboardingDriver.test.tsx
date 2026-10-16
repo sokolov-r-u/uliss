@@ -1,7 +1,9 @@
 import {StrictMode} from 'react'
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {onOnboardingRequired, refreshSession} from '../auth/apiClient'
+import {onOnboardingRequired, refreshSession, tokenRequiresOnboarding} from '../auth/apiClient'
+import {notifyChatListChanged} from '../chat/chatApi'
+import {notifyNotesChanged} from '../notes/noteApi'
 import {fetchPending, type OnboardingCode, submit} from './onboardingApi'
 import {OnboardingDriver} from './OnboardingDriver'
 
@@ -12,8 +14,23 @@ vi.mock('./onboardingApi', async (importOriginal) => {
 
 vi.mock('../auth/apiClient', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../auth/apiClient')>()
-    return {...actual, refreshSession: vi.fn(), onOnboardingRequired: vi.fn(() => () => undefined)}
+    return {
+        ...actual,
+        refreshSession: vi.fn(),
+        onOnboardingRequired: vi.fn(() => () => undefined),
+        tokenRequiresOnboarding: vi.fn(),
+    }
 })
+
+vi.mock('../chat/chatApi', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../chat/chatApi')>(),
+    notifyChatListChanged: vi.fn(),
+}))
+
+vi.mock('../notes/noteApi', async (importOriginal) => ({
+    ...await importOriginal<typeof import('../notes/noteApi')>(),
+    notifyNotesChanged: vi.fn(),
+}))
 
 const displayName = {code: 'SET_DISPLAY_NAME' as const, blocking: true, status: 'PENDING'}
 const profile = {code: 'COMPLETE_PROFILE' as const, blocking: false, status: 'PENDING'}
@@ -35,6 +52,9 @@ describe('OnboardingDriver', () => {
         vi.mocked(submit).mockReset().mockResolvedValue(undefined)
         vi.mocked(refreshSession).mockReset().mockResolvedValue(undefined)
         vi.mocked(onOnboardingRequired).mockClear()
+        vi.mocked(tokenRequiresOnboarding).mockReset().mockReturnValue(true)
+        vi.mocked(notifyChatListChanged).mockClear()
+        vi.mocked(notifyNotesChanged).mockClear()
     })
 
     it('shows the pending step under StrictMode (effects run twice in development)', async () => {
@@ -47,7 +67,7 @@ describe('OnboardingDriver', () => {
 
     it('skips a step code this client does not know instead of showing the profile step', async () => {
         vi.mocked(fetchPending).mockResolvedValue([
-            {code: 'FUTURE_STEP' as OnboardingCode, blocking: true, status: 'PENDING'},
+            {code: 'FUTURE_STEP' as OnboardingCode, blocking: false, status: 'PENDING'},
             {code: 'SET_DISPLAY_NAME', blocking: true, status: 'PENDING'},
         ])
 
@@ -56,9 +76,9 @@ describe('OnboardingDriver', () => {
         expect(await screen.findByRole('textbox', {name: 'Display name'})).toBeInTheDocument()
     })
 
-    it('renders nothing when every pending step is unknown', async () => {
+    it('renders nothing when every pending step is unknown and optional', async () => {
         vi.mocked(fetchPending).mockResolvedValue([
-            {code: 'FUTURE_STEP' as OnboardingCode, blocking: true, status: 'PENDING'},
+            {code: 'FUTURE_STEP' as OnboardingCode, blocking: false, status: 'PENDING'},
         ])
 
         render(<OnboardingDriver/>)
@@ -118,5 +138,64 @@ describe('OnboardingDriver', () => {
         act(() => onboardingRequiredListener()())
 
         await waitFor(() => expect(refreshSession).toHaveBeenCalledOnce())
+    })
+
+    it('lets an onboarded user in when the steps fail to load', async () => {
+        vi.mocked(tokenRequiresOnboarding).mockReturnValue(false)
+        vi.mocked(fetchPending).mockRejectedValue(new Error('user-service down'))
+
+        render(<OnboardingDriver/>)
+
+        await waitFor(() => expect(fetchPending).toHaveBeenCalled())
+        await act(async () => undefined)
+        expect(screen.queryByRole('button', {name: 'Try again'})).not.toBeInTheDocument()
+    })
+
+    it('blocks after a refusal even when the token has no onboarding claim', async () => {
+        vi.mocked(tokenRequiresOnboarding).mockReturnValue(false)
+        vi.mocked(fetchPending).mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('offline'))
+
+        render(<OnboardingDriver/>)
+        await waitFor(() => expect(fetchPending).toHaveBeenCalledOnce())
+        act(() => onboardingRequiredListener()())
+
+        expect(await screen.findByRole('button', {name: 'Try again'})).toBeInTheDocument()
+    })
+
+    it('asks to reload when a blocking step is unknown to this client', async () => {
+        vi.mocked(fetchPending).mockResolvedValue([
+            {code: 'FUTURE_STEP' as OnboardingCode, blocking: true, status: 'PENDING'},
+        ])
+
+        render(<OnboardingDriver/>)
+
+        expect(await screen.findByRole('button', {name: 'Reload'})).toBeInTheDocument()
+    })
+
+    it('reloads the chat and note lists refused before the session was refreshed', async () => {
+        vi.mocked(fetchPending).mockResolvedValue([displayName])
+
+        render(<OnboardingDriver/>)
+        await completeDisplayName()
+
+        await waitFor(() => expect(notifyChatListChanged).toHaveBeenCalledOnce())
+        expect(notifyNotesChanged).toHaveBeenCalledOnce()
+    })
+
+    it('keeps the steps reloaded while the session was refreshing', async () => {
+        let finishRefresh: () => void = () => undefined
+        vi.mocked(refreshSession).mockImplementationOnce(() => new Promise((resolve) => {
+            finishRefresh = () => resolve()
+        }))
+        vi.mocked(fetchPending).mockResolvedValueOnce([displayName]).mockResolvedValueOnce([profile])
+
+        render(<OnboardingDriver/>)
+        await completeDisplayName()
+        await waitFor(() => expect(refreshSession).toHaveBeenCalledOnce())
+        act(() => onboardingRequiredListener()())
+        expect(await screen.findByText('Gender')).toBeInTheDocument()
+        await act(async () => finishRefresh())
+
+        expect(screen.getByText('Gender')).toBeInTheDocument()
     })
 })

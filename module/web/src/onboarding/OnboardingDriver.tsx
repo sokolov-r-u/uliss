@@ -4,12 +4,15 @@
  * then it renders nothing and the app behind (Home) is usable. Mount once in the authed area.
  *
  * Services refuse every request with `403 ONBOARDING_REQUIRED` while a blocking step is pending (the access token
- * carries the claim), so a failed load blocks with a retry instead of letting the user in, the session is refreshed
- * once the last blocking step is done, and such a refusal starts the onboarding again.
+ * carries the claim). So a failed load blocks with a retry when the token or a refusal says onboarding is pending
+ * (an onboarded user is let in while user-service is down), a blocking step this client does not know asks for a
+ * reload, the session is refreshed once the last blocking step is done, and such a refusal starts onboarding again.
  */
 import {type ComponentType, useEffect, useRef, useState} from 'react'
 import {Notice} from '@uliss/design-system'
-import {AuthRequiredError, onOnboardingRequired, refreshSession} from '../auth/apiClient'
+import {AuthRequiredError, onOnboardingRequired, refreshSession, tokenRequiresOnboarding} from '../auth/apiClient'
+import {notifyChatListChanged} from '../chat/chatApi'
+import {notifyNotesChanged} from '../notes/noteApi'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {fetchPending, type OnboardingCode, type OnboardingMessage} from './onboardingApi'
 import {DisplayNameStep, ProfileStep, type StepProps} from './steps'
@@ -24,14 +27,20 @@ function isKnownStep(message: OnboardingMessage): boolean {
     return Object.hasOwn(STEPS, message.code)
 }
 
-/** A failed refresh is not fatal: the next refused request starts the onboarding again and refreshes once more. */
-function refreshQuietly(): Promise<void> {
-    return refreshSession().catch(() => undefined)
+/**
+ * A failed refresh is not fatal: the next refused request starts the onboarding again and refreshes once more.
+ * The lists refused with the old token are reloaded.
+ */
+async function refreshQuietly(): Promise<void> {
+    await refreshSession().catch(() => undefined)
+    notifyChatListChanged()
+    notifyNotesChanged()
 }
 
 type State =
     | { status: 'idle' }
     | { status: 'error' }
+    | { status: 'outdated' }
     | { status: 'active'; messages: OnboardingMessage[]; index: number }
     | { status: 'done' }
 
@@ -53,14 +62,19 @@ export function OnboardingDriver() {
         fetchPending()
             .then(async (pending) => {
                 if (!active) return
+                if (pending.some((message) => message.blocking && !isKnownStep(message))) {
+                    setState({status: 'outdated'})
+                    return
+                }
                 const messages = pending.filter(isKnownStep)
                 if (refused.current && !pending.some((message) => message.blocking)) await refreshQuietly()
                 refused.current = false
                 if (active) setState(messages.length ? {status: 'active', messages, index: 0} : {status: 'done'})
             })
             .catch((error: unknown) => {
-                // authFetch already handles auth redirects; any other failure keeps the app blocked.
-                if (active && !(error instanceof AuthRequiredError)) setState({status: 'error'})
+                // authFetch already handles auth redirects; block only a user the services would refuse anyway.
+                if (!active || error instanceof AuthRequiredError) return
+                setState(refused.current || tokenRequiresOnboarding() ? {status: 'error'} : {status: 'done'})
             })
         return () => {
             active = false
@@ -81,6 +95,20 @@ export function OnboardingDriver() {
         )
     }
 
+    if (state.status === 'outdated') {
+        return (
+            <NoticeOverlay blocking>
+                <Notice
+                    blocking
+                    title="Uliss has been updated"
+                    body="A new setup step needs the latest version of the app. Reload the page to continue."
+                    primary="Reload"
+                    onPrimary={() => window.location.reload()}
+                />
+            </NoticeOverlay>
+        )
+    }
+
     if (state.status !== 'active') return null
 
     const message = state.messages[state.index]
@@ -88,11 +116,11 @@ export function OnboardingDriver() {
     const lastBlocking = message.blocking && !state.messages.slice(state.index + 1).some((next) => next.blocking)
     const advance = async () => {
         if (lastBlocking) await refreshQuietly()
-        setState((s) =>
-            s.status === 'active' && s.index + 1 < s.messages.length
-                ? {...s, index: s.index + 1}
-                : {status: 'done'},
-        )
+        setState((s) => {
+            // a refusal during the refresh may have reloaded the steps: keep them
+            if (s.status !== 'active' || s.messages[s.index]?.code !== message.code) return s
+            return s.index + 1 < s.messages.length ? {...s, index: s.index + 1} : {status: 'done'}
+        })
     }
 
     // key remounts the step (and its local form state) when the message changes.

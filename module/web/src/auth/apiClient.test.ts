@@ -1,5 +1,13 @@
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {authFetch, AuthRequiredError, getAccessToken, onOnboardingRequired, refreshSession, SessionRefreshError} from './apiClient'
+import {
+    authFetch,
+    AuthRequiredError,
+    getAccessToken,
+    onOnboardingRequired,
+    refreshSession,
+    SessionRefreshError,
+    tokenRequiresOnboarding,
+} from './apiClient'
 import {login, RefreshRejectedError, refreshTokens} from './authApi'
 import {getTokens, setTokens, type Tokens} from './tokenStore'
 
@@ -141,6 +149,52 @@ describe('refreshSession', () => {
 
         expect(refreshTokens).toHaveBeenCalledWith('refresh-2')
         expect(getTokens()?.accessToken).toBe('access-3')
+    })
+    it('does not settle for a refresh that started before it was asked', async () => {
+        setTokens(expired)
+        let finishFirst: () => void = () => undefined
+        vi.mocked(refreshTokens)
+            .mockImplementationOnce(() => new Promise((resolve) => {
+                finishFirst = () => {
+                    setTokens(fresh)
+                    resolve(fresh)
+                }
+            }))
+            .mockImplementationOnce(async () => {
+                setTokens({...fresh, accessToken: 'access-3'})
+                return {...fresh, accessToken: 'access-3'}
+            })
+
+        const earlier = getAccessToken()
+        const forced = refreshSession()
+        finishFirst()
+        await Promise.all([earlier, forced])
+
+        expect(refreshTokens).toHaveBeenCalledTimes(2)
+        expect(getTokens()?.accessToken).toBe('access-3')
+    })
+})
+
+describe('tokenRequiresOnboarding', () => {
+    beforeEach(() => sessionStorage.clear())
+
+    function jwt(payload: object): string {
+        const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
+        return `${encode({alg: 'RS256'})}.${encode(payload)}.signature`
+    }
+
+    it('reads the onboarding claim of the access token', () => {
+        setTokens({...fresh, accessToken: jwt({onboardingRequired: true})})
+
+        expect(tokenRequiresOnboarding()).toBe(true)
+    })
+
+    it('is false without the claim, a session or a readable token', () => {
+        expect(tokenRequiresOnboarding()).toBe(false)
+        setTokens({...fresh, accessToken: jwt({userId: 'u'})})
+        expect(tokenRequiresOnboarding()).toBe(false)
+        setTokens({...fresh, accessToken: 'not-a-jwt'})
+        expect(tokenRequiresOnboarding()).toBe(false)
     })
 })
 

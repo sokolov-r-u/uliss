@@ -84,7 +84,21 @@ export async function getAccessToken(rejected?: string): Promise<string> {
  * (e.g. `onboardingRequired` disappears once the last blocking onboarding step is done).
  */
 export async function refreshSession(): Promise<void> {
+  // a refresh already in flight may have been issued before the server-side change
+  if (refreshing) await refreshing.catch(() => undefined)
   await getAccessToken(getTokens()?.accessToken)
+}
+
+/** Whether the current access token says blocking onboarding is pending; the services enforce it either way. */
+export function tokenRequiresOnboarding(): boolean {
+  const payload = getTokens()?.accessToken.split('.')[1]
+  if (!payload) return false
+  try {
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    return (JSON.parse(json) as { onboardingRequired?: unknown }).onboardingRequired === true
+  } catch {
+    return false
+  }
 }
 
 const ONBOARDING_REQUIRED = 'ONBOARDING_REQUIRED'
