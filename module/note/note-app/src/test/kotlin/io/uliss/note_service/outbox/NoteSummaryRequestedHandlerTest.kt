@@ -70,7 +70,7 @@ class NoteSummaryRequestedHandlerTest {
             ),
         )
         val related = listOf(
-            RetrievedChunk(UUID.randomUUID(), 2, "The user prefers explicit ownership columns.", 0.88)
+            RetrievedChunk(UUID.randomUUID(), 2, "The user prefers explicit ownership columns.", 0.88, null, Instant.EPOCH)
         )
         val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
         val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)

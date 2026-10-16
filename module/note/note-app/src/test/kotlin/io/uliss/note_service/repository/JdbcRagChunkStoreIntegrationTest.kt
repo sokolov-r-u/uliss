@@ -9,6 +9,7 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Transactional
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.assertEquals
 
@@ -48,6 +49,23 @@ class JdbcRagChunkStoreIntegrationTest {
 
         assertEquals(listOf("exact", "close"), result.map { it.content })
         assertEquals(listOf(note.id, note.id), result.map { it.noteId })
+    }
+
+    @Test
+    fun `search returns the title and creation time of each chunk's note`() {
+        val userId = UUID.randomUUID()
+        val titled = noteRepository.saveAndFlush(NoteEntity(userId = userId, content = "note", title = "Satori"))
+        val untitled = saveNote(userId)
+        store.replace(userId, titled.id, listOf(chunk(0, "titled", 1.0f, 0.0f)))
+        store.replace(userId, untitled.id, listOf(chunk(0, "untitled", 0.8f, 0.6f)))
+
+        val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7)
+
+        assertEquals(listOf("Satori", null), result.map { it.noteTitle })
+        assertEquals(
+            listOf(titled.createdAt, untitled.createdAt).map { it?.truncatedTo(ChronoUnit.MILLIS) },
+            result.map { it.noteCreatedAt.truncatedTo(ChronoUnit.MILLIS) },
+        )
     }
 
     @Test
