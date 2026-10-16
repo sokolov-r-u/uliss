@@ -79,12 +79,37 @@ export async function getAccessToken(rejected?: string): Promise<string> {
   return (await refreshOnce(tokens.refreshToken)).accessToken
 }
 
+/**
+ * Replaces the access token even while it is still valid, so claims that changed on the server reach the services
+ * (e.g. `onboardingRequired` disappears once the last blocking onboarding step is done).
+ */
+export async function refreshSession(): Promise<void> {
+  await getAccessToken(getTokens()?.accessToken)
+}
+
+const ONBOARDING_REQUIRED = 'ONBOARDING_REQUIRED'
+const onboardingListeners = new Set<() => void>()
+
+/** Called whenever a service answers `403 ONBOARDING_REQUIRED`; returns the unsubscribe function. */
+export function onOnboardingRequired(listener: () => void): () => void {
+  onboardingListeners.add(listener)
+  return () => onboardingListeners.delete(listener)
+}
+
+async function reportOnboardingRequired(res: Response): Promise<void> {
+  if (res.status !== 403) return
+  // a clone: the caller still reads the body
+  const body = (await res.clone().json().catch(() => null)) as { code?: string } | null
+  if (body?.code === ONBOARDING_REQUIRED) onboardingListeners.forEach((listener) => listener())
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
   const accessToken = await getAccessToken()
-  const res = await fetch(path, withAuth(init, accessToken))
-  if (!needsAuth(res)) return res
-
-  const retried = await fetch(path, withAuth(init, await getAccessToken(accessToken)))
-  if (needsAuth(retried)) signInAgain()
-  return retried
+  let res = await fetch(path, withAuth(init, accessToken))
+  if (needsAuth(res)) {
+    res = await fetch(path, withAuth(init, await getAccessToken(accessToken)))
+    if (needsAuth(res)) signInAgain()
+  }
+  await reportOnboardingRequired(res)
+  return res
 }
