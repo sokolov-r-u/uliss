@@ -266,8 +266,9 @@ class OutboxServiceTest {
         assertEquals(1, event.attempts)
         assertEquals("boom", event.lastError)
         assertNull(event.leaseId)
-        // First failure backs off by the 30s base.
-        assertTrue(event.nextAttemptAt.isAfter(before.plusSeconds(29)))
+        // First failure backs off by the 30s base, spread by ±20%.
+        assertTrue(event.nextAttemptAt.isAfter(before.plusSeconds(23)))
+        assertTrue(event.nextAttemptAt.isBefore(Instant.now().plusSeconds(37)))
         Mockito.verify(outboxEventRepository).save(event)
     }
 

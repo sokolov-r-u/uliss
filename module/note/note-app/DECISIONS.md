@@ -69,3 +69,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the latest message page carries `summary`; the SPA hides Summarize when the latest message is the
   boundary. `NOTHING_NEW` and `FAILED` outcomes are not shown to the user yet.
 - **Source:** `docs/tasks/2026-10-08-summary-update.md`.
+
+## 2026-10-16 — Outbox retries are jittered
+
+- **Context:** events that fail together (a provider outage) were all rescheduled to the same moment and retried as one
+  burst.
+- **Decision:** `OutboxBackoff` keeps the 30 s doubling step capped at 30 min and spreads each delay by ±20%; the cap
+  stays a hard upper bound.
+- **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.

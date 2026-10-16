@@ -402,7 +402,7 @@ sequenceDiagram
 
 Every claim counts as an attempt and issues a fresh `lease_id`. On a handler error,
 `OutboxEventProcessor` calls `OutboxService.recordFailure` in a new short transaction. The event
-returns to `PENDING` with exponential backoff until the configured attempt limit. When a
+returns to `PENDING` with exponential backoff (±20% jitter) until the configured attempt limit. When a
 `NOTE_SUMMARY_REQUESTED` event reaches the limit, that same transaction marks the outbox event and
 its still-`GENERATING` note as `FAILED`. A crashed worker leaves a `PROCESSING` event reclaimable
 after its visibility deadline; if that worker used the last attempt, the next claim fails the event
