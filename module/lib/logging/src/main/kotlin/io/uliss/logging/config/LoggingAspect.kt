@@ -11,8 +11,9 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Component
 
 /**
- * Pre-production call tracing for services and repositories at DEBUG: arguments by name (secrets and [Sensitive] parameters masked), results,
- * and a one-line exit on exception. Stack traces are logged once by the exception handler, never here.
+ * Pre-production call tracing for services and repositories at DEBUG: one line per call with arguments by name
+ * (secrets and [Sensitive] parameters masked), the result or exception class, and the duration. Stack traces are
+ * logged once by the exception handler, never here.
  * Disable with `uliss.logging.aspect.enabled=false`.
  */
 @Aspect
@@ -33,18 +34,25 @@ class LoggingAspect {
         val logger = LoggerFactory.getLogger(signature.declaringType)
         if (!logger.isDebugEnabled) return proceedingJoinPoint.proceed()
 
-        // The class is the logger name; method, args and result are separate fields in structured output.
+        // One line per call, written when it ends; the class is the logger name and the rest are separate fields.
         val method = signature.name
-        logger.atDebug().addKeyValue("method", method).addKeyValue("args", renderArgs(proceedingJoinPoint)).log("call")
+        val args = renderArgs(proceedingJoinPoint)
+        val start = System.nanoTime()
         val result = try {
             proceedingJoinPoint.proceed()
         } catch (ex: Throwable) {
-            logger.atDebug().addKeyValue("method", method).addKeyValue("exception", ex.javaClass.simpleName).log("exit")
+            logger.atDebug().addKeyValue("method", method).addKeyValue("args", args)
+                .addKeyValue("exception", ex.javaClass.simpleName).addKeyValue("durationMs", elapsedMs(start))
+                .log("call failed")
             throw ex
         }
-        logger.atDebug().addKeyValue("method", method).addKeyValue("result", renderResult(result)).log("finish")
+        logger.atDebug().addKeyValue("method", method).addKeyValue("args", args)
+            .addKeyValue("result", renderResult(result)).addKeyValue("durationMs", elapsedMs(start))
+            .log("call")
         return result
     }
+
+    private fun elapsedMs(start: Long): Long = (System.nanoTime() - start) / NANOS_PER_MILLI
 
     /** Masks a parameter that is annotated [Sensitive] or whose name looks like a secret. */
     private fun renderArgs(joinPoint: ProceedingJoinPoint): String {
@@ -80,6 +88,7 @@ class LoggingAspect {
 
     private companion object {
         const val MAX_VALUE_LENGTH = 500
+        const val NANOS_PER_MILLI = 1_000_000L
         const val MASK = "***"
         const val REACTOR_PACKAGE = "reactor.core.publisher."
         val SECRET_NAME = Regex("password|secret|token|verifier|privatekey|apikey", RegexOption.IGNORE_CASE)

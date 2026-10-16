@@ -57,13 +57,16 @@ class LoggingAspectTest {
     private fun keyValues(index: Int) =
         appender.list[index].keyValuePairs.orEmpty().associate { it.key to it.value.toString() }
 
+    /** Key values without the timing, which is not deterministic. */
+    private fun untimedKeyValues(index: Int) = keyValues(index) - DURATION_KEY
+
     @Test
-    fun `logs call and result with argument names`() {
+    fun `logs one line per call with argument names, result and duration`() {
         service.echo("hello")
 
-        assertEquals(listOf("call", "finish"), messages())
-        assertEquals(mapOf("method" to "echo", "args" to "text=hello"), keyValues(0))
-        assertEquals(mapOf("method" to "echo", "result" to "hello"), keyValues(1))
+        assertEquals(listOf("call"), messages())
+        assertEquals(mapOf("method" to "echo", "args" to "text=hello", "result" to "hello"), untimedKeyValues(0))
+        assertTrue(keyValues(0).getValue(DURATION_KEY).toLong() >= 0)
     }
 
     @Test
@@ -91,7 +94,7 @@ class LoggingAspectTest {
         service.echo("x".repeat(2_000))
 
         val args = keyValues(0).getValue("args")
-        val result = keyValues(1).getValue("result")
+        val result = keyValues(0).getValue("result")
         assertTrue(args.length < 1_000 && result.length < 1_000, "${args.length}, ${result.length}")
         assertContains(args, "(2000 chars)")
     }
@@ -100,10 +103,12 @@ class LoggingAspectTest {
     fun `logs an exception once at debug without a stack trace and rethrows it`() {
         assertThrows<IllegalStateException> { service.fail() }
 
-        val exit = appender.list.single { it.formattedMessage == "exit" }
-        assertEquals(Level.DEBUG, exit.level)
-        assertEquals(mapOf("method" to "fail", "exception" to "IllegalStateException"), keyValues(1))
-        assertNull(exit.throwableProxy)
+        val failed = appender.list.single()
+        assertEquals("call failed", failed.formattedMessage)
+        assertEquals(Level.DEBUG, failed.level)
+        assertEquals(mapOf("method" to "fail", "args" to "", "exception" to "IllegalStateException"), untimedKeyValues(0))
+        assertTrue(keyValues(0).getValue(DURATION_KEY).toLong() >= 0)
+        assertNull(failed.throwableProxy)
         assertFalse(appender.list.any { it.level == Level.ERROR })
     }
 
@@ -120,8 +125,7 @@ class LoggingAspectTest {
     fun `renders null arguments and results instead of failing the call`() {
         assertNull(service.find(null))
 
-        assertEquals(mapOf("method" to "find", "args" to "id=null"), keyValues(0))
-        assertEquals(mapOf("method" to "find", "result" to "null"), keyValues(1))
+        assertEquals(mapOf("method" to "find", "args" to "id=null", "result" to "null"), untimedKeyValues(0))
     }
 
     @Test
@@ -129,6 +133,10 @@ class LoggingAspectTest {
         assertEquals("accepted", service.accept(BrokenToString()))
 
         assertEquals("value=<unrenderable: IllegalStateException>", keyValues(0).getValue("args"))
-        assertEquals("accepted", keyValues(1).getValue("result"))
+        assertEquals("accepted", keyValues(0).getValue("result"))
+    }
+
+    private companion object {
+        const val DURATION_KEY = "durationMs"
     }
 }
