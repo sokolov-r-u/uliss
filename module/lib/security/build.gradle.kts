@@ -21,5 +21,6 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("tools.jackson.module:jackson-module-kotlin")
     testImplementation(libs.wiremock)
+    testImplementation("org.springframework.security:spring-security-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

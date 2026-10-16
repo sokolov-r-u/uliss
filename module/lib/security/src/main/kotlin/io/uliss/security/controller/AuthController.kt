@@ -1,5 +1,6 @@
 package io.uliss.security.controller
 
+import io.uliss.security.annotation.AllowedDuringOnboarding
 import io.uliss.security.dto.request.LogoutRequest
 import io.uliss.security.dto.request.RefreshRequest
 import io.uliss.security.dto.response.TokenResponse
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
+// a user in onboarding must still sign in, refresh the token that drops the claim, and sign out
+@AllowedDuringOnboarding
 @RestController
 @RequestMapping("/oauth2")
 class AuthController(

@@ -1,5 +1,6 @@
 package io.uliss.user_service.controller
 
+import io.uliss.security.annotation.AllowedDuringOnboarding
 import io.uliss.security.utils.getUserId
 import io.uliss.user_service.dto.OnboardingMessageView
 import io.uliss.user_service.dto.OnboardingRequest
@@ -23,10 +24,13 @@ class ProfileController(
     private val messageService: MessageService,
 ) {
 
+    // the onboarding steps themselves must stay reachable while they are pending
+    @AllowedDuringOnboarding
     @GetMapping("/me/onboarding")
     fun getOnboardingMessages(@AuthenticationPrincipal jwt: Jwt): List<OnboardingMessageView> =
         messageService.getPending(jwt.getUserId())
 
+    @AllowedDuringOnboarding
     @PostMapping("/me/onboarding")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun submitOnboarding(@AuthenticationPrincipal jwt: Jwt, @Valid @RequestBody request: OnboardingRequest) =

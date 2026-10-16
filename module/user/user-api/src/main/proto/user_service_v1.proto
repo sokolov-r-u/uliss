@@ -16,4 +16,6 @@ message UserInfoRequest {
 message UserInfoResponse {
   string user_id = 1;
   optional string display_name = 2;
+  // true while the user has blocking onboarding steps pending; services refuse their requests until then
+  bool onboarding_required = 3;
 }

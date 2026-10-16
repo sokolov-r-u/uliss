@@ -65,6 +65,10 @@ over SSE; the SPA has the notes list and note screen.
 - Limited web search for checkable facts.
 - AI-generated semantic chat titles.
 - Address the user by display name in chat and summary prompts.
+- Chat context through its summary: when the chat has a summary note, the model receives the system prompt, the
+  note's current text and every message after the summary boundary, always; without a note (or after it was deleted)
+  it receives the full history. A turn whose context exceeds 200,000 characters is not created, and the user is asked
+  to Summarize. The limit must stay well below the model window, since creating a summary sends the whole chat.
 
 ### 3. Constellations
 
@@ -115,6 +119,8 @@ The SPA, the `auth` pages, emails, and the language of AI replies and notes.
 - Scalable note-status delivery instead of per-connection polling.
 - Retention cleanup for terminal outbox events and summary requests.
 - Account deletion.
+- Production hygiene from `docs/TECH_DEBT.md` (Thymeleaf cache, non-root containers, onboarding backfill) —
+  mandatory before the release.
 
 ### 12. Product tour
 

@@ -512,14 +512,6 @@ A client whose id was renamed or removed from config keeps its row in `oauth2_re
 grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
 secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
 
-## Explicit `SameSite` on mediator login cookies (`security`)
-
-**Status:** not implemented.
-
-`setCookie` (`module/lib/security/.../utils/SecurityUtils.kt`) sets `HttpOnly`, `Secure` and `Path` but no `SameSite`,
-so the `code_verifier` and `oauth_state` cookies rely on the browser default (Lax in current browsers). Set
-`SameSite=Lax` explicitly; cookie attributes are security-sensitive, so this needs its own focused tests.
-
 ## Abandon an outbox worker once its lease is lost (`note-service`)
 
 **Status:** not implemented (agreed 2026-10-15 to defer).
@@ -531,7 +523,8 @@ interrupt the provider call when it passes (or check the lease before each provi
 
 ## Production hygiene before the first release (`auth`, `user`, `infra`)
 
-**Status:** not implemented (review item №29, recorded 2026-10-16).
+**Status:** not implemented (review item №29, recorded 2026-10-16). **Mandatory before the first production
+release** (ROADMAP, Production readiness).
 
 - `spring.thymeleaf.cache: false` in `module/auth/src/main/resources/application.yaml` is a dev setting that ships to
   production: every login/registration page is re-parsed. Make it `true` by default and disable it only in dev
@@ -559,3 +552,38 @@ settling → …) that is testable without rendering.
 
 `GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
 pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.
+
+## Security headers in the `web` nginx (`web`, `infra`)
+
+**Status:** not implemented (review item №9, deferred 2026-10-16).
+
+`module/web/nginx.conf` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
+`frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
+Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
+Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with
+`Content-Security-Policy-Report-Only`, check fonts, SSE and the auth redirects in a browser, then enforce.
+
+## Signing key encryption and rotation (`auth`)
+
+**Status:** not implemented (review item №9, deferred 2026-10-16).
+
+`auth.signing_keys` stores the JWT signing private key in plain text, and one key lives forever. Encrypt the key at
+rest with a key from the environment, and rotate: publish the next key in the JWKS before signing with it, keep the old
+one until the longest-lived token signed with it expires.
+
+## Separate database users and secrets per service (`infra`)
+
+**Status:** not implemented (review item №9, deferred 2026-10-16).
+
+All services connect as `postgres` and share one `.env` / Secret with every key. Give each service its own database
+user limited to its schema (Flyway runs as the schema owner) and only the secrets it needs.
+
+## Stop provider generation on an explicit cancel (`note-service`)
+
+**Status:** not implemented (review item №15, deferred 2026-10-16).
+
+`cancelTurn` marks the turn `CANCELED` in the database, but a stream opened in another tab or instance keeps reading
+from OpenAI and the tokens are paid. Options discussed: an in-memory registry of provider subscriptions per instance
+(cancels local streams only) or a cross-instance signal through the database that the streaming attempt polls. Solve
+together with "Chat reply generation stops when the user leaves the chat", which moves generation off the SSE
+subscriber.

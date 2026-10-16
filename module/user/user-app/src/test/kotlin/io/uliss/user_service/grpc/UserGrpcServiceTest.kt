@@ -5,6 +5,7 @@ import io.grpc.stub.StreamObserver
 import io.uliss.api.user.v1.UserInfoRequest
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.user_service.model.UserEntity
+import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
@@ -17,7 +18,8 @@ import kotlin.test.assertTrue
 class UserGrpcServiceTest {
 
     private val userProfileService = Mockito.mock(UserProfileService::class.java)
-    private val grpcService = UserGrpcService(userProfileService)
+    private val messageService = Mockito.mock(MessageService::class.java)
+    private val grpcService = UserGrpcService(userProfileService, messageService)
 
     @Suppress("UNCHECKED_CAST")
     private val responseObserver = Mockito.mock(StreamObserver::class.java) as StreamObserver<UserInfoResponse>
@@ -51,6 +53,33 @@ class UserGrpcServiceTest {
         val captor = ArgumentCaptor.forClass(UserInfoResponse::class.java)
         Mockito.verify(responseObserver).onNext(captor.capture())
         assertFalse(captor.value.hasDisplayName())
+    }
+
+    @Test
+    fun `reports pending blocking onboarding`() {
+        val authId = UUID.randomUUID()
+        val user = UserEntity(authId = authId, displayName = null)
+        Mockito.`when`(userProfileService.getOrCreate(authId)).thenReturn(user)
+        Mockito.`when`(messageService.isOnboardingRequired(user.id)).thenReturn(true)
+
+        grpcService.getUserInfo(request(authId.toString()), responseObserver)
+
+        val captor = ArgumentCaptor.forClass(UserInfoResponse::class.java)
+        Mockito.verify(responseObserver).onNext(captor.capture())
+        assertTrue(captor.value.onboardingRequired)
+    }
+
+    @Test
+    fun `reports no onboarding when nothing blocking is pending`() {
+        val authId = UUID.randomUUID()
+        val user = UserEntity(authId = authId, displayName = "Bob")
+        Mockito.`when`(userProfileService.getOrCreate(authId)).thenReturn(user)
+
+        grpcService.getUserInfo(request(authId.toString()), responseObserver)
+
+        val captor = ArgumentCaptor.forClass(UserInfoResponse::class.java)
+        Mockito.verify(responseObserver).onNext(captor.capture())
+        assertFalse(captor.value.onboardingRequired)
     }
 
     @Test

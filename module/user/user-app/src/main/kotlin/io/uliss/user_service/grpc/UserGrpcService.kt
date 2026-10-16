@@ -6,6 +6,7 @@ import io.uliss.api.user.v1.UserInfoRequest
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.logging.logger.AppLogger
+import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
 import org.springframework.stereotype.Service
 import java.util.UUID
@@ -13,6 +14,7 @@ import java.util.UUID
 @Service
 class UserGrpcService(
     private val userProfileService: UserProfileService,
+    private val messageService: MessageService,
 ) : UserServiceGrpc.UserServiceImplBase() {
 
     private val log = AppLogger.of(UserGrpcService::class)
@@ -28,6 +30,7 @@ class UserGrpcService(
             val response = UserInfoResponse.newBuilder()
                 .setUserId(user.id.toString())
                 .apply { user.displayName?.let { setDisplayName(it) } }
+                .setOnboardingRequired(messageService.isOnboardingRequired(user.id))
                 .build()
 
             responseObserver.onNext(response)

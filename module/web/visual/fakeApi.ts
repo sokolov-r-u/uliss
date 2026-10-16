@@ -26,6 +26,18 @@ function onboarding() {
     return []
 }
 
+/** The harness session never changes: nothing to refresh and no onboarding refusals. */
+export async function refreshSession(): Promise<void> {
+}
+
+export function onOnboardingRequired(_listener: () => void): () => void {
+    return () => undefined
+}
+
+export function tokenRequiresOnboarding(): boolean {
+    return false
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, location.origin)
     const method = init?.method ?? 'GET'

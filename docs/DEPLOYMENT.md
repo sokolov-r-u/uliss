@@ -36,6 +36,8 @@ path below is unchanged and still fully supported** — this is an additional op
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
   and to `infra/volumes/logs/<service>.log` (gitignored). Files roll daily or at 10 MB into `archive/` as plain text,
   kept 7 days (1 GB cap).
+- `postgres` (`5432`) and the `user` gRPC port (`9090`) are published on `127.0.0.1` only: host-based `bootRun`
+  still reaches them, other machines do not. Containers talk over the Compose network (`user:9090`).
 - `dozzle` (no profile, starts with any `up`) is a live log viewer for all containers at
   `http://localhost:8888`.
 - Rebuild + `docker compose -f infra/docker-compose.yml --profile full up -d` again to pick up new

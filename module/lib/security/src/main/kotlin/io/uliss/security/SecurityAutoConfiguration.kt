@@ -2,6 +2,7 @@ package io.uliss.security
 
 import io.uliss.security.config.AuditorConfig
 import io.uliss.security.config.CorsProperties
+import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.config.WebMvcPathPrefixConfig
@@ -23,5 +24,6 @@ import org.springframework.resilience.annotation.EnableResilientMethods
     AuthService::class,
     SecurityProperties::class,
     WebMvcPathPrefixConfig::class,
+    OnboardingGuardConfig::class,
 )
 class SecurityAutoConfiguration

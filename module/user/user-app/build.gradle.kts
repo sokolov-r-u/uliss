@@ -28,5 +28,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.springframework.security:spring-security-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation(libs.wiremock)
+    testImplementation("io.grpc:grpc-inprocess")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }

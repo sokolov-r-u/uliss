@@ -28,6 +28,10 @@ class MessageService(
     fun getPending(userId: UUID): List<OnboardingMessageView> =
         userMessageRepository.findPendingByUserId(userId)
 
+    /** Whether a blocking onboarding step is still pending; services refuse the user's requests until it is not. */
+    fun isOnboardingRequired(userId: UUID): Boolean =
+        userMessageRepository.existsPendingBlockingByUserId(userId)
+
     @Transactional
     fun transition(userId: UUID, code: OnboardingMessageCode, status: UserMessageStatus) {
         val message = messageRepository.findByCode(code.name) ?: return
