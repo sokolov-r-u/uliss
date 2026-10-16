@@ -9,6 +9,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService
 import io.uliss.security.config.CorsProperties
+import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.WebMvcPathPrefixConfig
 import org.hamcrest.Matchers
@@ -30,7 +31,13 @@ import java.time.Instant
 import java.util.UUID
 
 @WebMvcTest(NoteController::class)
-@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class, GlobalExceptionHandler::class)
+@Import(
+    SecurityConfig::class,
+    CorsProperties::class,
+    WebMvcPathPrefixConfig::class,
+    OnboardingGuardConfig::class,
+    GlobalExceptionHandler::class,
+)
 class NoteControllerTest {
 
     @Autowired
@@ -46,6 +53,16 @@ class NoteControllerTest {
     fun `unauthenticated note list request is rejected with 401`() {
         mockMvc.get("/note/notes").andExpect {
             status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `user with blocking onboarding pending is refused`() {
+        mockMvc.get("/note/notes") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()).claim("onboardingRequired", true) })
+        }.andExpect {
+            status { isForbidden() }
+            jsonPath("$.code") { value("ONBOARDING_REQUIRED") }
         }
     }
 

@@ -51,3 +51,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   gRPC as well. No TLS yet.
 - **Source:** `docs/tasks/2026-10-16-review-remaining-fixes.md`.
 
+
+## 2026-10-16 — Services refuse users until blocking onboarding is done
+
+- **Context:** only the SPA enforced blocking onboarding steps; when loading the steps failed it let the user in, and
+  no service checked that a display name was set (review item №23). More mandatory steps may follow.
+- **Decision:** user-service reports `onboarding_required` (any pending blocking message) in `GetUserInfo`; auth adds
+  the access-token claim `onboardingRequired: true` only while it is true. `:security` registers
+  `OnboardingGuardInterceptor`, which answers `403 ONBOARDING_REQUIRED` for every handler not marked
+  `@AllowedDuringOnboarding` (the mediator `AuthController` and user-service onboarding endpoints are). The SPA keeps
+  onboarding blocking when the steps fail to load, force-refreshes the session after the last blocking step, and starts
+  onboarding again on `403 ONBOARDING_REQUIRED` (refreshing a stale token when nothing blocking is left).
+- **Consequences:** the claim lags behind the database until the next refresh, so the SPA refresh after the last
+  blocking step is part of the contract. A new endpoint that must work during onboarding needs the annotation. A new
+  blocking step needs SPA support, or users of an older SPA are refused until they reload.
+- **Source:** `docs/tasks/2026-10-16-review-remaining-fixes.md`.

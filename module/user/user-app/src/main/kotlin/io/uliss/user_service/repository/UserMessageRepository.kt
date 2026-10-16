@@ -20,4 +20,18 @@ interface UserMessageRepository : JpaRepository<UserMessageEntity, UserMessageId
     """, nativeQuery = true
     )
     fun findPendingByUserId(userId: UUID): List<OnboardingMessageView>
+
+    @Query(
+        """
+        select exists (
+            select 1
+            from profile.user_message as um
+            join profile.messages as m on um.message_id = m.id
+            where um.user_id = :userId
+            and um.status = 'PENDING'
+            and m.blocking
+        )
+    """, nativeQuery = true
+    )
+    fun existsPendingBlockingByUserId(userId: UUID): Boolean
 }

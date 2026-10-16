@@ -1,6 +1,7 @@
 package io.uliss.user_service.controller
 
 import io.uliss.security.config.CorsProperties
+import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.WebMvcPathPrefixConfig
 import io.uliss.user_service.anyValue
@@ -26,7 +27,7 @@ import java.util.UUID
 // SecurityConfig/CorsProperties imported explicitly: @WebMvcTest does not auto-load third-party
 // AutoConfiguration.imports entries, only beans it discovers itself.
 @WebMvcTest(ProfileController::class)
-@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class)
+@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class, OnboardingGuardConfig::class)
 class ProfileControllerTest {
 
     @Autowired
@@ -68,6 +69,18 @@ class ProfileControllerTest {
             status { isOk() }
             jsonPath("$[0].code") { value("SET_DISPLAY_NAME") }
         }
+    }
+
+    @Test
+    fun `onboarding endpoints stay available while blocking onboarding is pending`() {
+        val onboarding = jwt().jwt { it.claim("userId", UUID.randomUUID().toString()).claim("onboardingRequired", true) }
+
+        mockMvc.get("/user/users/me/onboarding") { with(onboarding) }.andExpect { status { isOk() } }
+        mockMvc.post("/user/users/me/onboarding") {
+            with(onboarding)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"command":"SET_DISPLAY_NAME","displayName":"John","birthDate":null,"gender":null}"""
+        }.andExpect { status { isNoContent() } }
     }
 
     @Test

@@ -1,5 +1,6 @@
 package io.uliss.user_service.controller
 
+import io.uliss.security.annotation.AllowedDuringOnboarding
 import io.uliss.security.utils.getUserId
 import io.uliss.user_service.dto.OnboardingMessageView
 import io.uliss.user_service.dto.OnboardingRequest
@@ -16,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
+// the onboarding steps themselves must stay reachable while they are pending
+@AllowedDuringOnboarding
 @RestController
 @RequestMapping("/users")
 class ProfileController(

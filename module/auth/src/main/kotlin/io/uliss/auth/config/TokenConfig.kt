@@ -10,6 +10,7 @@ import io.uliss.api.user.v1.UserInfoRequest
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.model.toKeyPair
 import io.uliss.auth.service.SigningKeysService
+import io.uliss.auth.utils.addUserInfo
 import io.uliss.logging.logger.AppLogger
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -43,11 +44,7 @@ class TokenConfig {
                 try {
                     // principal.name is the auth user id (see UserEntity.toUserDetails)
                     val userInfoRequest = UserInfoRequest.newBuilder().setAuthId(principal.name).build()
-                    val response = userChanel.getUserInfo(userInfoRequest)
-                    context.claims.claim("userId", response.userId)
-                    if (response.hasDisplayName()) {
-                        context.claims.claim("displayName", response.displayName)
-                    }
+                    context.claims.addUserInfo(userChanel.getUserInfo(userInfoRequest))
                 } catch (ex: StatusRuntimeException) {
                     logger.error("user service unavailable, blocking login", "tokenCustomizer", ex)
                     throw OAuth2AuthenticationException("user_service_unavailable")
