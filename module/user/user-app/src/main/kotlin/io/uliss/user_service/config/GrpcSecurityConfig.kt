@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.grpc.server.GlobalServerInterceptor
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.grpc.server.security.AuthenticationProcessInterceptor
 import org.springframework.grpc.server.security.GrpcSecurity
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator
@@ -13,6 +14,8 @@ import org.springframework.security.oauth2.jwt.JwtClaimValidator
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.jwt.JwtValidators
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder
+import org.springframework.web.client.RestTemplate
+import java.time.Duration
 
 /**
  * gRPC accepts only the service token auth signs for user-service (`aud`, `scope` from [UserServiceAuth]).
@@ -35,7 +38,7 @@ class GrpcSecurityConfig(
     }
 
     private fun serviceTokenDecoder(): JwtDecoder =
-        NimbusJwtDecoder.withJwkSetUri(jwkSetUri).build().apply {
+        NimbusJwtDecoder.withJwkSetUri(jwkSetUri).restOperations(jwksClient()).build().apply {
             setJwtValidator(
                 DelegatingOAuth2TokenValidator(
                     JwtValidators.createDefaultWithIssuer(issuer),
@@ -44,4 +47,14 @@ class GrpcSecurityConfig(
                 )
             )
         }
+
+    // the default RestTemplate has no timeouts: a hung auth would hold gRPC threads forever
+    private fun jwksClient() = RestTemplate(SimpleClientHttpRequestFactory().apply {
+        setConnectTimeout(JWKS_TIMEOUT)
+        setReadTimeout(JWKS_TIMEOUT)
+    })
+
+    private companion object {
+        val JWKS_TIMEOUT: Duration = Duration.ofSeconds(2)
+    }
 }

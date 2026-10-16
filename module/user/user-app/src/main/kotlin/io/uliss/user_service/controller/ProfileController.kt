@@ -17,8 +17,6 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-// the onboarding steps themselves must stay reachable while they are pending
-@AllowedDuringOnboarding
 @RestController
 @RequestMapping("/users")
 class ProfileController(
@@ -26,10 +24,13 @@ class ProfileController(
     private val messageService: MessageService,
 ) {
 
+    // the onboarding steps themselves must stay reachable while they are pending
+    @AllowedDuringOnboarding
     @GetMapping("/me/onboarding")
     fun getOnboardingMessages(@AuthenticationPrincipal jwt: Jwt): List<OnboardingMessageView> =
         messageService.getPending(jwt.getUserId())
 
+    @AllowedDuringOnboarding
     @PostMapping("/me/onboarding")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun submitOnboarding(@AuthenticationPrincipal jwt: Jwt, @Valid @RequestBody request: OnboardingRequest) =
