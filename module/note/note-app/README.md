@@ -2,7 +2,7 @@
 
 `module/note/note-app` (`:note`, package `io.uliss.note_service`) owns persistent chats,
 asynchronous chat summaries, notes, and per-user retrieval-augmented generation (RAG).
-`WebMvcPathPrefixConfig` adds `/note` to every REST controller.
+`uliss.web.path-prefix: /note` makes the `:security` `WebMvcPathPrefixConfig` add `/note` to every REST controller.
 
 See [REQUEST_FLOWS.md](REQUEST_FLOWS.md) for endpoint call order, transaction boundaries, chat-turn
 states, and asynchronous summary/indexing diagrams.
@@ -19,9 +19,7 @@ Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity
 `note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
 history prefix. DeepSeek stays configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
-options from `AssistantService` and `NoteSummaryRequestedHandler`. The shared optimistic-lock
-retry bean remains named `optimisticLockRetryTemplate` to
-avoid colliding with Spring AI retry auto-configuration.
+options from `AssistantService` and `NoteSummaryRequestedHandler`.
 
 ## Chat and summary APIs
 
@@ -72,6 +70,16 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 `NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
 `202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status.
 
+A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
+`chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
+(`GET /messages` without `before`) returns it as `summary`. A later summarize sends
+`{"mode":"UPDATE","targetNoteId":...}`: the request is reserved without touching the note and publishes
+`NOTE_SUMMARY_UPDATE_REQUESTED`. The update worker reads only the messages after the boundary, searches related notes
+excluding the updated one, and asks for a `NoteAddendumDraft`; the backend appends it under a `## yyyy-MM-dd` (UTC)
+heading, reindexes the note, and moves the boundary. Each request ends `APPLIED`, `NOTHING_NEW` (boundary moves, note
+unchanged), or `FAILED`; at most one request per chat is `PENDING` (409 `SUMMARY_IN_PROGRESS`). `CREATE` with a
+current note or `UPDATE` of a note that is not current is 409 `SUMMARY_NOTE_CONFLICT`.
+
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
 current chat is authoritative; related notes are delimited as untrusted secondary context. One
@@ -94,17 +102,18 @@ handler instead of spending retries.
 - `GET /note/notes` returns the authenticated user's notes newest first.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
-  status changes, and closes on `READY` or `FAILED`. A `:keepalive` comment every 15 s keeps proxies from cutting
+  status changes, and closes on `READY` or `FAILED`; a `READY` note with a running summary update (`updating: true`)
+  stays open until the update finishes. A `:keepalive` comment every 15 s keeps proxies from cutting
   a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
   summary request; chats remain.
 
-Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, and
-`updatedAt`. Notes created before stored titles keep a null `title`.
+Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, `updatedAt`, and
+`updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
-after `READY`. Status delivery currently polls PostgreSQL once per second per open connection on a
+after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 
 ## Outbox and RAG storage
@@ -112,7 +121,7 @@ bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 The poller claims due work with `FOR UPDATE SKIP LOCKED`, runs each event independently on Boot's
 virtual-thread task executor, and keeps embedding, retrieval, and LLM calls outside database
 transactions. Current defaults are four concurrent events, three outbox attempts, exponential
-backoff, and a visibility lease derived from provider timeouts with a safety factor (summary lease ≈ 5.2
+backoff with ±20% jitter, and a visibility lease derived from provider timeouts with a safety factor (summary lease ≈ 5.2
 minutes, kept within 6 by a test of the shipped `application.yaml`).
 
 RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed

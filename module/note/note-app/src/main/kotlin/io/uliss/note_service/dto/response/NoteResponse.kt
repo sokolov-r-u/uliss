@@ -14,15 +14,18 @@ data class NoteResponse(
     val content: String?,
     val createdAt: Instant?,
     val updatedAt: Instant?,
+    /** A READY note whose summary update is still running; its content changes once the update is applied. */
+    val updating: Boolean,
 )
 
 data class NoteStatusResponse(
     val noteId: UUID,
     val status: NoteStatus,
     val updatedAt: Instant?,
+    val updating: Boolean,
 )
 
-fun NoteEntity.toResponse() = NoteResponse(
+fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     id = id,
     source = source,
     status = status,
@@ -30,7 +33,8 @@ fun NoteEntity.toResponse() = NoteResponse(
     content = content,
     createdAt = createdAt,
     updatedAt = updatedAt,
+    updating = updating,
 )
 
-fun NoteEntity.toStatusResponse(): NoteStatusResponse =
-    NoteStatusResponse(id, status, updatedAt)
+fun NoteEntity.toStatusResponse(updating: Boolean): NoteStatusResponse =
+    NoteStatusResponse(id, status, updatedAt, updating)

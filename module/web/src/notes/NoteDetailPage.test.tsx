@@ -48,6 +48,47 @@ describe('NoteDetailPage', () => {
         expect(mockedGetNote).toHaveBeenCalledTimes(2)
     })
 
+    it('shows the current content with a notice while the note updates, then the updated content', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('Old content'), updating: true})
+            .mockResolvedValueOnce(ready('Old content\n\n---\n\n## 2026-10-16\n\nNew thought'))
+        let finishUpdate: (status: 'READY') => void = () => undefined
+        mockedStatus.mockImplementation(() => new Promise((resolve) => {
+            finishUpdate = resolve
+        }))
+
+        renderPage()
+
+        expect(await screen.findByText('Old content')).toBeInTheDocument()
+        expect(screen.getByRole('status')).toHaveTextContent('Updating this note…')
+        finishUpdate('READY')
+        expect(await screen.findByText('New thought')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+    })
+
+    it('drops the update notice and keeps the content when the update adds nothing', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('Unchanged'), updating: true})
+            .mockResolvedValueOnce(ready('Unchanged'))
+        mockedStatus.mockResolvedValueOnce('READY')
+
+        renderPage()
+
+        await waitFor(() => expect(mockedGetNote).toHaveBeenCalledTimes(2))
+        expect(screen.getByText('Unchanged')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+    })
+
+    it('shows no update notice for a settled note and does not subscribe', async () => {
+        mockedGetNote.mockResolvedValueOnce(ready('Settled'))
+
+        renderPage()
+
+        expect(await screen.findByText('Settled')).toBeInTheDocument()
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+        expect(mockedStatus).not.toHaveBeenCalled()
+    })
+
     it('reconnects when the status stream ends while the note is still generating', async () => {
         mockedGetNote
             .mockResolvedValueOnce(generating)
@@ -93,6 +134,31 @@ describe('NoteDetailPage', () => {
         expect(await screen.findByText(/still being written/i)).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Retry'})).toBeInTheDocument()
         expect(mockedStatus).toHaveBeenCalledTimes(MAX_STATUS_RECONNECTS + 1)
+    })
+
+    it('keeps an updating note readable when the stream keeps ending without progress', async () => {
+        mockedGetNote.mockResolvedValue({...ready('Still readable'), updating: true})
+        mockedStatus.mockResolvedValue(null)
+
+        renderPage()
+
+        await waitFor(() => expect(mockedStatus).toHaveBeenCalledTimes(MAX_STATUS_RECONNECTS + 1))
+        expect(screen.getByText('Still readable')).toBeInTheDocument()
+        expect(screen.queryByText(/still being written/i)).not.toBeInTheDocument()
+    })
+
+    it('keeps watching when another update started before the finished one was re-read', async () => {
+        mockedGetNote
+            .mockResolvedValueOnce({...ready('First'), updating: true})
+            .mockResolvedValueOnce({...ready('Second'), updating: true})
+            .mockResolvedValueOnce(ready('Third'))
+        mockedStatus.mockResolvedValue('READY')
+
+        renderPage()
+
+        expect(await screen.findByText('Third')).toBeInTheDocument()
+        expect(mockedStatus).toHaveBeenCalledTimes(2)
+        expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
     })
 
     it('stops reconnecting once the page is left', async () => {

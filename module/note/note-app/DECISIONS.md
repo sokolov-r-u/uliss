@@ -46,3 +46,43 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   interrupted (`docs/TECH_DEBT.md`).
 - **Source:** `docs/tasks/2026-10-15-review-fixes.md`.
 
+
+## 2026-10-15 — Summarize requests carry a status; one in flight per chat
+
+- **Context:** a later Summarize appends to the chat's existing note, so one note gets many requests and the note
+  status no longer describes a request.
+- **Decision:** `summary_request.status` (`PENDING`, `APPLIED`, `NOTHING_NEW`, `FAILED`) replaces the unique
+  `note_id`. A partial unique index allows one `PENDING` request per chat; a second one is 409
+  `SUMMARY_IN_PROGRESS`. `chat_note.summarized_through_message_id` is the durable boundary of what a note covers;
+  deleting the boundary message nulls it (the whole chat counts as unsummarized) instead of dropping the link.
+- **Consequences:** `summary_request` stays short-lived idempotency and in-flight state; nothing durable reads it.
+- **Source:** `docs/tasks/2026-10-08-summary-update.md`.
+
+## 2026-10-15 — A later Summarize appends a dated addendum to the current note
+
+- **Decision:** the current note is the chat's latest `READY` `CHAT_SUMMARY` note. `UPDATE` reads only the messages
+  after its boundary, embeds only them for RAG and excludes the note itself from the search, and gets a
+  `NoteAddendumDraft` (no title). The backend, not the model, appends `---` and a `## yyyy-MM-dd` (UTC) heading.
+  `applyChatSummaryUpdate` first moves the request out of `PENDING` with a conditional update, so a redelivered or
+  late event never appends twice; a concurrent rename fails the transaction on the note version and the outbox
+  retries. Creating a second note from the same chat is deferred (`docs/TECH_DEBT.md`).
+- **Consequences:** the latest message page carries `summary`; the SPA hides Summarize when the latest message is the
+  boundary. `NOTHING_NEW` and `FAILED` outcomes are not shown to the user yet.
+- **Source:** `docs/tasks/2026-10-08-summary-update.md`.
+
+## 2026-10-16 — Outbox retries are jittered
+
+- **Context:** events that fail together (a provider outage) were all rescheduled to the same moment and retried as one
+  burst.
+- **Decision:** `OutboxBackoff` keeps the 30 s doubling step capped at 30 min and spreads each delay by ±20%; the cap
+  stays a hard upper bound.
+- **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.
+
+## 2026-10-16 — A running summary update is visible on the note
+
+- **Context:** a note stays `READY` while its update runs, so an opened note page showed the old content and never
+  learned about the addendum.
+- **Decision:** note and status responses carry `updating`: the note is `READY` and has a `PENDING` summary request.
+  The status stream treats `READY` as terminal only when `updating` is false; the request state stays in
+  `summary_request`, no new note status.
+- **Source:** `docs/tasks/2026-10-16-note-update-live-refresh.md`.

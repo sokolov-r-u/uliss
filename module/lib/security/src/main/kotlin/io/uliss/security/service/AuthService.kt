@@ -1,18 +1,24 @@
-package service
+package io.uliss.security.service
 
 import io.uliss.exception.common.InternalException
 import io.uliss.logging.annotation.Sensitive
 import io.uliss.logging.logger.AppLogger
+import io.uliss.security.annotation.RetryAuthServerCall
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.exception.AuthServerUnavailableException
 import io.uliss.security.exception.InvalidAuthorizationCodeException
 import io.uliss.security.exception.InvalidClientCredentialsException
 import io.uliss.security.exception.InvalidRefreshTokenException
+import io.uliss.security.utils.CODE_VERIFIER
+import io.uliss.security.utils.MAX_COOKIE_AGE
+import io.uliss.security.utils.OAUTH_STATE
+import io.uliss.security.utils.generateCodeChallenge
+import io.uliss.security.utils.generateCodeVerifier
+import io.uliss.security.utils.setCookie
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.client.JdkClientHttpRequestFactory
-import org.springframework.resilience.annotation.Retryable
 import org.springframework.security.oauth2.core.OAuth2ErrorCodes
 import org.springframework.stereotype.Service
 import org.springframework.util.LinkedMultiValueMap
@@ -21,12 +27,6 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
-import utils.CODE_VERIFIER
-import utils.MAX_COOKIE_AGE
-import utils.OAUTH_STATE
-import utils.generateCodeChallenge
-import utils.generateCodeVerifier
-import utils.setCookie
 import java.net.ConnectException
 import java.net.URI
 import java.net.UnknownHostException
@@ -94,12 +94,7 @@ class AuthService(
     }
 
     // One-time grant: retry only when the request never reached the server (see isConnectFailure).
-    @Retryable(
-        includes = [AuthServerUnavailableException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    @RetryAuthServerCall
     fun exchangeCode(@Sensitive code: String?, @Sensitive codeVerifier: String?): TokenResponse {
         if (code.isNullOrBlank() || codeVerifier.isNullOrBlank()) {
             throw InvalidAuthorizationCodeException("authorization code or verifier is missing")
@@ -129,12 +124,7 @@ class AuthService(
     }
 
     // Rotating grant: retry only when the request never reached the server (see isConnectFailure).
-    @Retryable(
-        includes = [AuthServerUnavailableException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    @RetryAuthServerCall
     fun refresh(@Sensitive refreshToken: String): TokenResponse {
         return try {
             restClient.post()
@@ -153,12 +143,8 @@ class AuthService(
         }
     }
 
-    @Retryable(
-        includes = [AuthServerUnavailableException::class, ResourceAccessException::class],
-        maxRetries = 3,
-        delay = 500,
-        multiplier = 2.0
-    )
+    // Revocation is idempotent: a dropped request is safe to repeat.
+    @RetryAuthServerCall(includes = [AuthServerUnavailableException::class, ResourceAccessException::class])
     fun logout(@Sensitive refreshToken: String) {
         try {
             restClient.post()

@@ -14,12 +14,11 @@ note-service.
 - Streaming must derive `COMPLETE`, `PARTIAL`, or `FAILED` from the terminal signal and buffered content, and run
   blocking JPA persistence off the reactive event-loop thread.
 - Preserve the SSE contract (`append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
-  `WebMvcPathPrefixConfig`.
+  `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
-  Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService` and
-  `NoteSummaryRequestedHandler`, with values from `note.assistant` / `note.summary` properties.
-- The shared optimistic-lock retry bean is `optimisticLockRetryTemplate`; do not introduce a conflicting generic
-  `retryTemplate` bean.
+  Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService`,
+  `NoteSummaryRequestedHandler`, and `NoteSummaryUpdateRequestedHandler`, with values from `note.assistant` /
+  `note.summary` properties.
 
 ## Implementation rules
 

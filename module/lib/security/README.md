@@ -11,7 +11,8 @@ cannot call user endpoints. It permits mediator routes in both
 unprefixed library tests and one-segment-prefixed consuming applications, permits `/actuator/health`, configures CORS,
 and requires authentication elsewhere.
 
-Consuming applications add their own prefix to every `@RestController` through `WebMvcPathPrefixConfig`. As a result,
+Consuming applications set `uliss.web.path-prefix`, and `WebMvcPathPrefixConfig` adds it to every `@RestController`;
+without the property no prefix is added. As a result,
 the library controller declared at `/oauth2` is exposed as `/user/oauth2` in user-service or `/note/oauth2` in
 note-service. These mediator routes are distinct from the real authorization server's `/oauth2/authorize`,
 `/oauth2/token`, `/oauth2/revoke`, and `/oauth2/jwks` endpoints.

@@ -71,4 +71,27 @@ interface ChatMessageRepository : CrudRepository<ChatMessageEntity, UUID> {
         @Param("chatId") chatId: UUID,
         @Param("throughMessageId") throughMessageId: UUID,
     ): List<ChatMessageEntity>
+
+    @Query(
+        value = """
+            SELECT message_row.*
+            FROM note.chat_message message_row
+            JOIN note.chat_message after_row
+              ON after_row.id = :afterMessageId
+             AND after_row.chat_id = :chatId
+            JOIN note.chat_message boundary_row
+              ON boundary_row.id = :throughMessageId
+             AND boundary_row.chat_id = :chatId
+            WHERE message_row.chat_id = :chatId
+              AND (message_row.created_at, message_row.id) > (after_row.created_at, after_row.id)
+              AND (message_row.created_at, message_row.id) <= (boundary_row.created_at, boundary_row.id)
+            ORDER BY message_row.created_at, message_row.id
+        """,
+        nativeQuery = true,
+    )
+    fun findAfterThroughMessage(
+        @Param("chatId") chatId: UUID,
+        @Param("afterMessageId") afterMessageId: UUID,
+        @Param("throughMessageId") throughMessageId: UUID,
+    ): List<ChatMessageEntity>
 }

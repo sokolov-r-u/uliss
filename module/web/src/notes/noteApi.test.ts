@@ -40,6 +40,23 @@ describe('noteApi', () => {
         })
     })
 
+    it('requests an update of the current note with a JSON body', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'READY'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', 'note-1')).resolves.toMatchObject({noteId: 'note-1'})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1', 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'UPDATE', targetNoteId: 'note-1'}),
+        })
+    })
+
+    it('rejects an update response for another note', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-2', chatId: 'chat-1', status: 'READY'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', 'note-1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('distinguishes not found from retryable failures', async () => {
         mockedFetch.mockResolvedValue(new Response(null, {status: 404}))
         await expect(getNote('missing')).rejects.toMatchObject({kind: 'http', status: 404})
@@ -62,6 +79,24 @@ describe('noteApi', () => {
         const notes = await listNotes()
 
         expect(notes.map((note) => note.title)).toEqual(['Ownership columns', undefined])
+    })
+
+    it('parses a running update and treats its absence as none', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'updating', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: true},
+            {id: 'settled', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
+        ]))
+
+        const notes = await listNotes()
+
+        expect(notes.map((note) => note.updating)).toEqual([true, false])
+    })
+
+    it('rejects a non-boolean updating flag', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: 'yes',
+        }))
+        await expect(getNote('note-1')).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('rejects a non-string note title', async () => {
@@ -94,6 +129,18 @@ describe('noteApi', () => {
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes/note-1/status/stream', expect.objectContaining({
             headers: {'Accept': 'text/event-stream, application/json'},
         }))
+    })
+
+    it('keeps reading while a ready note is updating and returns once the update finishes', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            'event: status\ndata: {"noteId":"note-1","status":"READY","updating":true}\n\n',
+            'event: status\ndata: {"noteId":"note-1","status":"READY","updating":false}\n\n',
+        ]))
+        const updates: (boolean | undefined)[] = []
+
+        await expect(streamNoteStatus('note-1', {onStatus: (event) => updates.push(event.updating)}))
+            .resolves.toBe('READY')
+        expect(updates).toEqual([true, false])
     })
 
     it('resolves null when the stream ends before a terminal status, so the caller can reconnect', async () => {

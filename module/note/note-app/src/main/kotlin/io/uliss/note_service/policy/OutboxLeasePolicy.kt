@@ -44,7 +44,8 @@ class OutboxLeasePolicy(
 
     fun leaseFor(type: OutboxEventType): Duration = when (type) {
         OutboxEventType.NOTE_INDEX_REQUESTED -> indexLease
-        OutboxEventType.NOTE_SUMMARY_REQUESTED -> summaryLease
+        // An update makes the same calls as a new summary: one embedding and one chat completion.
+        OutboxEventType.NOTE_SUMMARY_REQUESTED, OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED -> summaryLease
     }
 
     private fun callBudget(timeout: Duration, maxRetries: Int): Duration {

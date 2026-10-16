@@ -12,6 +12,8 @@ export interface Note {
     content: string | null
     createdAt?: string
     updatedAt?: string
+    /** A READY note whose summary update is still running: its content changes when the update is applied. */
+    updating?: boolean
 }
 
 export interface ChatSummaryResponse {
@@ -25,6 +27,7 @@ export interface NoteStatusEvent {
     noteId: string
     status: NoteStatus
     updatedAt?: string
+    updating?: boolean
 }
 
 export type NoteApiFailureKind = 'http' | 'transport' | 'protocol'
@@ -61,6 +64,13 @@ function optionalString(value: unknown, field: string): string | undefined {
     return requiredString(value, field)
 }
 
+/** Absent means false, so a response without the field reads as a settled note. */
+function optionalFlag(value: unknown, field: string): boolean {
+    if (value === undefined || value === null) return false
+    if (typeof value !== 'boolean') throw new NoteApiError('protocol', `invalid ${field} in note response`)
+    return value
+}
+
 function parseStatus(value: unknown): NoteStatus {
     if (value === 'GENERATING' || value === 'READY' || value === 'FAILED') return value
     throw new NoteApiError('protocol', 'invalid status in note response')
@@ -84,6 +94,7 @@ function parseNote(value: unknown): Note {
         content: value.content,
         createdAt: optionalString(value.createdAt, 'createdAt'),
         updatedAt: optionalString(value.updatedAt, 'updatedAt'),
+        updating: optionalFlag(value.updating, 'updating'),
     }
 }
 
@@ -103,6 +114,7 @@ function parseStatusEvent(value: unknown): NoteStatusEvent {
         noteId: requiredString(value.noteId, 'noteId'),
         status: parseStatus(value.status),
         updatedAt: optionalString(value.updatedAt, 'updatedAt'),
+        updating: optionalFlag(value.updating, 'updating'),
     }
 }
 
@@ -141,15 +153,25 @@ export function notifyNotesChanged() {
     notesListeners.forEach((listener) => listener())
 }
 
-export async function requestChatSummary(chatId: string, idempotencyKey: string): Promise<ChatSummaryResponse> {
-    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, {
-        method: 'POST',
-        headers: {'Idempotency-Key': idempotencyKey},
-    })
+/** Creates the chat's first note, or with [updateNoteId] appends to its current note. */
+export async function requestChatSummary(
+    chatId: string,
+    idempotencyKey: string,
+    updateNoteId?: string,
+): Promise<ChatSummaryResponse> {
+    const init: RequestInit = updateNoteId
+        ? {
+            method: 'POST',
+            headers: {'Idempotency-Key': idempotencyKey, 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'UPDATE', targetNoteId: updateNoteId}),
+        }
+        : {method: 'POST', headers: {'Idempotency-Key': idempotencyKey}}
+    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, init)
     await requireOk(response, 'summary request')
     if (response.status !== 202) throw new NoteApiError('protocol', `unexpected summary status (${response.status})`)
     const summary = parseSummary(await responseJson(response))
-    if (summary.chatId !== chatId || summary.status !== 'GENERATING') {
+    const matches = updateNoteId ? summary.noteId === updateNoteId : summary.status === 'GENERATING'
+    if (summary.chatId !== chatId || !matches) {
         throw new NoteApiError('protocol', 'summary response does not match the request')
     }
     return summary
@@ -211,7 +233,8 @@ export async function streamNoteStatus(
         const event = parseStatusEvent(value)
         if (event.noteId !== noteId) throw new NoteApiError('protocol', 'note status event does not match the request')
         options.onStatus(event)
-        if (event.status === 'READY' || event.status === 'FAILED') return event.status
+        // A READY note that is still updating keeps the stream open until the update is applied.
+        if ((event.status === 'READY' && !event.updating) || event.status === 'FAILED') return event.status
     }
     // Ended without READY/FAILED (server time limit or a cut connection): the caller re-reads and reconnects.
     return null

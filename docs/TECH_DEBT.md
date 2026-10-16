@@ -3,19 +3,6 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
-## Kotlin null assertions and package alignment
-
-**Status:** known deviations; reconcile when the affected code is next changed.
-
-- `module/lib/security/src/main/kotlin/utils/SecurityUtils.kt` uses `!!` for the current servlet
-  response. The response can be absent outside a request context; replace the assertion with an
-  explicit check and failure, and move the file into `io.uliss.security.utils`.
-- `UserService` has a `passwordEncoder.encode(...)!!` call (`DataInitializer` fixed 2026-10-14). This is
-  a Kotlin platform type from the encoder API; either remove the ambiguity or document the
-  proven non-null boundary locally when the file is next changed.
-
-New Kotlin code must not copy these deviations.
-
 ## JaCoCo coverage gate
 
 **Status:** reporting exists; enforcement is deferred.
@@ -160,11 +147,9 @@ throughout the codebase, e.g. (non-exhaustive):
 
 - `module/lib/database/.../audit/AuditorAwareImpl.kt`
 - `module/lib/security/.../config/AuditorConfig.kt`
-- `module/note/note-app/.../config/WebMvcPathPrefixConfig.kt`
 - `module/note/note-app/.../model/ChatMessageStatus.kt`
-- `module/user/user-app/.../config/WebMvcPathPrefixConfig.kt`
 - assorted test files (`MockitoTestHelpers.kt` in both `note-app` and `user-app`,
-  `ChatControllerTest.kt`, `ProfileControllerTest.kt`, `RetryAspectTest.kt`)
+  `ChatControllerTest.kt`, `ProfileControllerTest.kt`)
 
 ### Not in scope for the current task
 
@@ -238,7 +223,7 @@ Opened 2026-08-31 during the design-system integration refresh
   delete/summarise action exists.
 - **Settings: Sky / Account / Language are static.** Only Settings › Appearance
   (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
-  Account has no editable fields (`user-service` `GET /users/me` returns a stub), Language is
+  Account has no editable fields (`user-service` has no profile read endpoint yet), Language is
   English-only (no i18n layer). Build these out with their backing features.
 - **Design-system card / specimen pages not ported.** Claude Design ships `*.card.html`
   specimens and `_ds_bundle.js`; the repo has no committed equivalent. Wave 2 left an
@@ -248,9 +233,8 @@ Opened 2026-08-31 during the design-system integration refresh
 
 ## Summarize updates the chat's existing note (`note-service`, `web`)
 
-**Status:** designed 2026-10-08 in `docs/features/2026-10-08-summary-update-design.md`; implementation in progress.
-The update appends a dated addendum to the chat's latest READY note; RAG retrieval embeds only the new messages and
-excludes that note.
+**Status:** implemented 2026-10-15 (see `module/note/note-app/DECISIONS.md`). The update appends a dated addendum to
+the chat's latest READY note; RAG retrieval embeds only the new messages and excludes that note.
 
 Deferred follow-ups agreed during that design:
 
@@ -269,6 +253,12 @@ Deferred follow-ups agreed during that design:
   during generation, so it cannot serve as the boundary. Today only the latest boundary is known to the client.
   Once markers exist and are positioned by `through_message_id`, they can replace the `summary` field of the latest
   message page.
+- **Summarize stays hidden after a failed create until the next message or reload.** The SPA moves the boundary
+  locally when a request is accepted; if that create then fails, the server has no current note but the chip stays
+  hidden on the open page. Track the accepted note's terminal status (or refetch on failure) to show it again.
+- **V9 backfill of concurrent creates.** Older duplicate `PENDING` requests are marked `FAILED`; if their note still
+  completes, its boundary stays null and a later update re-reads the whole chat. Only affects chats that had two
+  in-flight creates at deploy time.
 
 ## Design kit copy for chat/note deletion (`uliss-design-system`)
 
@@ -538,3 +528,34 @@ A summary worker that outlives its lease keeps its executor slot and keeps payin
 result is dropped (`module/note/note-app/DECISIONS.md`). The OpenAI SDK honours a server `Retry-After` without an upper
 bound, so provider timeouts alone cannot bound the wait. Run the handler with a deadline equal to its lease and
 interrupt the provider call when it passes (or check the lease before each provider call).
+
+## Production hygiene before the first release (`auth`, `user`, `infra`)
+
+**Status:** not implemented (review item №29, recorded 2026-10-16).
+
+- `spring.thymeleaf.cache: false` in `module/auth/src/main/resources/application.yaml` is a dev setting that ships to
+  production: every login/registration page is re-parsed. Make it `true` by default and disable it only in dev
+  configuration. The source TODO stays until this is done.
+- Onboarding messages added by a later migration are not assigned to existing users (TODO in
+  `module/user/user-app/.../service/MessageService.kt`). Decide between a backfill migration and lazy assignment when
+  pending messages are read.
+- All containers run as root: the JVM images (`infra/docker/base-jre`, jib `io.uliss.docker-conventions`) set no
+  user, and `module/web` uses `nginx:alpine` on port 80. Set a non-root `container.user` in jib and switch web to an
+  unprivileged nginx image on a high port (Compose and k8s port mappings change with it).
+- `infra/k8s/*/deployment.yaml` have no readiness/liveness probes and no resource requests/limits. Production runs on
+  Docker Compose, so this matters only if k8s becomes a target platform; Compose healthchecks already exist.
+
+## Split the chat page state machine (`web`)
+
+**Status:** not implemented (review item №27).
+
+`module/web/src/chat/ChatPage.tsx` is ~750 lines with ~20 `useRef`s; the generation state is an implicit state machine
+spread across refs. Move it into a reducer or a `useChatTurn` hook with explicit transitions (idle → streaming →
+settling → …) that is testable without rendering.
+
+## Paginate chat and note lists (`note-service`, `web`)
+
+**Status:** not implemented (review item №28).
+
+`GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
+pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.

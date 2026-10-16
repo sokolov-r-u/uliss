@@ -47,6 +47,8 @@ spring:
         timeout: 30s
         max-retries: 1
 uliss:
+  web:
+    path-prefix: /note
   database:
     pool:
       maximum-size: ${NOTE_DB_POOL_MAX_SIZE:8}

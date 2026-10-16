@@ -9,14 +9,10 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import kotlin.math.min
-import kotlin.math.pow
+import java.util.concurrent.ThreadLocalRandom
 
-private val BASE_BACKOFF: Duration = Duration.ofSeconds(30)
-private val MAX_BACKOFF: Duration = Duration.ofMinutes(30)
 private val CLAIMABLE_STATUSES = listOf(OutboxEventStatus.PENDING, OutboxEventStatus.PROCESSING)
 
 @Service
@@ -150,16 +146,12 @@ class OutboxService(
         } else {
             OutboxEventStatus.PENDING
         }
-        event.nextAttemptAt = Instant.now().plus(backoff(event.attempts))
+        val delay = OutboxBackoff.delayAfter(event.attempts, ThreadLocalRandom.current().nextDouble())
+        event.nextAttemptAt = Instant.now().plus(delay)
         log.error(
             "failed to process outbox event id=${event.id} type=${event.type} attempts=${event.attempts}",
             "recordFailure",
             ex,
         )
-    }
-
-    private fun backoff(attempts: Int): Duration {
-        val seconds = min(BASE_BACKOFF.seconds * 2.0.pow(attempts - 1), MAX_BACKOFF.seconds.toDouble())
-        return Duration.ofSeconds(seconds.toLong())
     }
 }

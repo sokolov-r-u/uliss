@@ -1,4 +1,4 @@
-package utils
+package io.uliss.security.utils
 
 const val CODE_VERIFIER = "code_verifier"
 const val OAUTH_STATE = "oauth_state"

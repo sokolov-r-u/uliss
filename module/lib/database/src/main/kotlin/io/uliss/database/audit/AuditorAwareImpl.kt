@@ -3,10 +3,7 @@ package io.uliss.database.audit
 import org.springframework.data.domain.AuditorAware
 import java.util.Optional
 
-/**
- * Kept in sync with :security's AuditorConfig, which is unaware of this fallback
- * (no dependency in that direction) and would otherwise diverge on the "no user" value.
- */
+/** Auditor recorded when no user performed the write; :security's JWT-aware provider uses it too. */
 const val SYSTEM_AUDITOR = "SYSTEM"
 
 /**

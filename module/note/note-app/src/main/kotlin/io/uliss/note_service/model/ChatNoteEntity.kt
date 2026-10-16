@@ -14,6 +14,9 @@ import java.util.UUID
 class ChatNoteEntity(
     @EmbeddedId
     var chatNoteId: ChatNoteId,
+    /** Last chat message this summary note covers; null for notes created before boundaries existed. */
+    @Column(name = "summarized_through_message_id")
+    var summarizedThroughMessageId: UUID? = null,
 ) : AbstractEntity()
 
 @Embeddable

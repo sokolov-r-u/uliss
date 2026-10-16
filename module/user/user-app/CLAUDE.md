@@ -16,7 +16,7 @@ user-service.
 - The onboarding command discriminator stays in the request body. Do not create per-command or separate skip endpoints
   without an explicit contract change.
 - Message ordering remains blocking-first. Preserve the state transition from `PENDING` to `COMPLETED` or `SKIPPED`.
-- The `/user` REST prefix comes from `WebMvcPathPrefixConfig`; do not repeat it in controller mappings.
+- The `/user` REST prefix comes from `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`); do not repeat it in controller mappings.
 
 ## Implementation rules
 

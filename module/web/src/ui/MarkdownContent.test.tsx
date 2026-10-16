@@ -48,6 +48,18 @@ val answer = 42
         expect(screen.getByText('unsafe')).not.toHaveAttribute('node')
     })
 
+    it('marks ISO date headings only when asked', () => {
+        const content = 'Body\n\n---\n\n## 2026-10-08\n\nAdded.\n\n## Not a date'
+        const view = render(<MarkdownContent content={content} highlightDateHeadings/>)
+
+        expect(screen.getByRole('heading', {name: '2026-10-08', level: 2})).toHaveClass('markdown-date-heading')
+        expect(screen.getByRole('heading', {name: 'Not a date', level: 2})).not.toHaveClass('markdown-date-heading')
+
+        view.unmount()
+        render(<MarkdownContent content={content}/>)
+        expect(screen.getByRole('heading', {name: '2026-10-08', level: 2})).not.toHaveClass('markdown-date-heading')
+    })
+
     it('keeps the streaming caret inside the final paragraph', () => {
         const view = render(<MarkdownContent content="The partial answer" pending/>)
         const caret = view.container.querySelector('.bubble-cursor')
@@ -75,6 +87,18 @@ describe('AI Markdown boundaries', () => {
 
         expect(screen.getByText('assistant').tagName).toBe('STRONG')
         expect(screen.getByText('**user**')).toBeInTheDocument()
+    })
+
+    it('highlights addendum dates in a generated note', () => {
+        const note = {
+            id: 'updated',
+            source: 'CHAT_SUMMARY',
+            status: 'READY',
+            content: 'Body\n\n---\n\n## 2026-10-08\n\nAdded.',
+        } satisfies Note
+        render(<MemoryRouter><NoteDetailView state={{status: 'ready', note}}/></MemoryRouter>)
+
+        expect(screen.getByRole('heading', {name: '2026-10-08', level: 2})).toHaveClass('markdown-date-heading')
     })
 
     it('renders generated notes as Markdown while preserving manual notes as plain text', () => {

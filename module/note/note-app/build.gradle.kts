@@ -22,6 +22,8 @@ dependencies {
     implementation("tools.jackson.module:jackson-module-kotlin")
 
     testImplementation("io.projectreactor:reactor-test")
+    testImplementation(libs.jqwik)
+    testImplementation(libs.jqwik.kotlin)
     testImplementation("org.testcontainers:testcontainers-junit-jupiter")
     testImplementation("org.springframework.boot:spring-boot-testcontainers")
     testImplementation("org.testcontainers:testcontainers-postgresql")

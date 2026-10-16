@@ -1,4 +1,4 @@
-package dto
+package io.uliss.auth.dto
 
 import io.uliss.validation.annotation.Email
 import io.uliss.validation.annotation.Password

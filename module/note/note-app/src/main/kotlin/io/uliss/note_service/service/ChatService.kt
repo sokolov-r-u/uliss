@@ -6,9 +6,6 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.model.ChatEntity
-import io.uliss.note_service.model.ChatMessageEntity
-import io.uliss.note_service.model.ChatMessageRole
-import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.util.TitleNormalizer
@@ -89,23 +86,21 @@ class ChatService(
         return ChatSummaryContext(chat.title, history)
     }
 
-    /**
-     * Persists the user's message and returns the ordered history including it, ready to send to
-     * the AI provider.
-     */
-    @Transactional
-    fun appendUserMessage(userId: UUID, chatId: UUID, prompt: String): List<ChatMessageEntity> {
-        requireOwnedChat(userId, chatId)
-        val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
-        val userMessage = chatMessageRepository.save(
-            ChatMessageEntity(chatId, ChatMessageRole.USER, prompt, ChatMessageStatus.COMPLETE)
-        )
-        return priorHistory + userMessage
+    /** Messages in (afterMessageId, throughMessageId]; the whole chat through the boundary when afterMessageId is null. */
+    internal fun getSummaryUpdateContext(
+        userId: UUID,
+        chatId: UUID,
+        afterMessageId: UUID?,
+        throughMessageId: UUID,
+    ): ChatSummaryContext {
+        if (afterMessageId == null) return getSummaryContext(userId, chatId, throughMessageId)
+        val chat = requireOwnedChat(userId, chatId)
+        val messages = chatMessageRepository.findAfterThroughMessage(chatId, afterMessageId, throughMessageId)
+        check(messages.lastOrNull()?.id == throughMessageId) {
+            "summary boundary message id=$throughMessageId not found after id=$afterMessageId in chat id=$chatId"
+        }
+        return ChatSummaryContext(chat.title, messages)
     }
-
-    @Transactional
-    fun persistAssistantReply(chatId: UUID, content: String, status: ChatMessageStatus): ChatMessageEntity =
-        chatMessageRepository.save(ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, content, status))
 
     fun requireOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
         chatRepository.findByIdAndUserId(chatId, userId)

@@ -1,7 +1,7 @@
 package io.uliss.auth.service
 
-import dto.RegisterUserRequest
 import io.uliss.auth.config.TestContainersConfiguration
+import io.uliss.auth.dto.RegisterUserRequest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test

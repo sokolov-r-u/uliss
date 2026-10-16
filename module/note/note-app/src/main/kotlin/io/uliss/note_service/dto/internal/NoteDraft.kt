@@ -33,23 +33,26 @@ data class NoteDraft(
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,
 ) {
-    /** Main thought paragraphs followed by up to [MAX_SECONDARY_THOUGHTS] one-line bullets; fails without a main thought. */
+    /** Main thought and secondary thoughts as one note; fails without a main thought. */
     fun toNoteContent(): String {
         val main = mainThought?.trim().orEmpty()
         check(main.isNotBlank()) { "summary model returned a blank main thought" }
-        val bullets = secondaryThoughts.orEmpty()
-            .map { it.replace(LINE_BREAKS, " ").trim().replace(LIST_MARKER, "") }
-            .filter { it.isNotEmpty() }
-            .take(MAX_SECONDARY_THOUGHTS)
-        if (bullets.isEmpty()) return main
-        return main + "\n\n" + bullets.joinToString("\n") { "- $it" }
+        return formatNoteThoughts(main, secondaryThoughts)
     }
+}
 
-    private companion object {
-        const val MAX_SECONDARY_THOUGHTS = 3
+private const val MAX_SECONDARY_THOUGHTS = 3
 
-        // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
-        val LINE_BREAKS = Regex("\\s*\\R\\s*")
-        val LIST_MARKER = Regex("^(?:[-*+]|\\d+[.)])(?:\\s+|$)")
-    }
+// Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
+private val LINE_BREAKS = Regex("\\s*\\R\\s*")
+private val LIST_MARKER = Regex("^(?:[-*+]|\\d+[.)])(?:\\s+|$)")
+
+/** Main thought paragraphs followed by up to [MAX_SECONDARY_THOUGHTS] one-line bullets. */
+internal fun formatNoteThoughts(mainThought: String, secondaryThoughts: List<String>?): String {
+    val bullets = secondaryThoughts.orEmpty()
+        .map { it.replace(LINE_BREAKS, " ").trim().replace(LIST_MARKER, "") }
+        .filter { it.isNotEmpty() }
+        .take(MAX_SECONDARY_THOUGHTS)
+    if (bullets.isEmpty()) return mainThought
+    return mainThought + "\n\n" + bullets.joinToString("\n") { "- $it" }
 }

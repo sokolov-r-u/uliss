@@ -3,8 +3,10 @@ package io.uliss.note_service.service.facade
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
+import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatTurnService
@@ -41,8 +43,12 @@ class ChatFacade(
         chatService.deleteChat(userId, chatId)
     }
 
-    fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage =
-        chatService.getMessages(userId, chatId, before, limit)
+    /** The latest page (no cursor) also carries the chat's current summary note. */
+    fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
+        val page = chatService.getMessages(userId, chatId, before, limit)
+        if (before != null) return page
+        return page.copy(summary = noteService.findCurrentChatSummary(chatId))
+    }
 
     @Transactional
     fun streamReply(
@@ -63,11 +69,43 @@ class ChatFacade(
         assistantService.cancelTurn(userId, chatId, turnId)
     }
 
+    /**
+     * A known key replays its earlier result before the mode rules, so a retry after the boundary moved still gets
+     * its note. CREATE needs a chat without a current note; UPDATE must target the current note and have new messages.
+     */
     @Transactional
-    fun requestSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity {
-        val throughMessageId = chatService.getLatestMessageId(userId, chatId)
+    fun requestSummary(
+        userId: UUID,
+        chatId: UUID,
+        idempotencyKey: UUID,
+        mode: SummaryMode,
+        targetNoteId: UUID?,
+    ): NoteEntity {
+        val latestMessageId = chatService.getLatestMessageId(userId, chatId)
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
-        return noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
+        noteService.findSummaryReplay(userId, chatId, idempotencyKey)?.let { return it }
+        val current = noteService.findCurrentChatSummary(chatId)
+        return when (mode) {
+            SummaryMode.CREATE -> {
+                if (current != null) {
+                    throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
+                }
+                noteService.requestChatSummary(userId, chatId, latestMessageId, idempotencyKey)
+            }
+
+            SummaryMode.UPDATE -> {
+                val target = targetNoteId ?: throw BadRequestException("targetNoteId is required to update a summary")
+                if (current?.noteId != target) {
+                    throw SummaryNoteConflictException("note id=$target is not the current summary of chat id=$chatId")
+                }
+                if (current.throughMessageId == latestMessageId) {
+                    throw BadRequestException("chat id=$chatId has no new messages to summarize")
+                }
+                noteService.requestChatSummaryUpdate(
+                    userId, chatId, target, current.throughMessageId, latestMessageId, idempotencyKey,
+                )
+            }
+        }
     }
 
     private fun withNoteCount(chat: ChatEntity): ChatWithNoteCount =

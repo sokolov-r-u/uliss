@@ -59,6 +59,7 @@ class JdbcRagChunkStore(
         queryEmbedding: FloatArray,
         limit: Int,
         minSimilarity: Double,
+        excludeNoteId: UUID? = null,
     ): List<RetrievedChunk> {
         require(limit > 0) { "limit must be positive" }
         require(minSimilarity in 0.0..1.0) { "minSimilarity must be between 0 and 1" }
@@ -78,6 +79,7 @@ class JdbcRagChunkStore(
             userId,
             vector,
             1.0 - minSimilarity,
+            excludeNoteId,
             vector,
             limit,
         )
@@ -103,6 +105,7 @@ class JdbcRagChunkStore(
             FROM note.rag_chunks
             WHERE user_id = ?
               AND embedding <=> ? <= ?
+              AND note_id IS DISTINCT FROM CAST(? AS uuid)
             ORDER BY embedding <=> ?
             LIMIT ?
         """

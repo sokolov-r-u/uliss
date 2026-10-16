@@ -132,6 +132,9 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 
 ## Engineering conventions
 
+- Single responsibility per file: a service, controller, or other component file holds only that class. Annotations,
+  exceptions, DTOs, configuration, and reusable helpers go to their own files in the package for their role
+  (`annotation`, `exception`, `dto`, `config`, `utils`) — never declare them inside the file that happens to use them.
 - Method naming: `find*` may return null/empty (absence is a valid outcome); `get*` is guaranteed non-null or throws
   — this applies even to methods returning a `List`.
 - Kotlin/Spring: constructor injection only; controllers and repositories stay thin; business logic and transactional
@@ -149,7 +152,7 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 - Preserve current architecture decisions by default. Change them only when the user explicitly scopes the task to that
   decision.
 - Each executable service owns its database schema. User and note REST controllers receive their service prefix through
-  `WebMvcPathPrefixConfig`; do not duplicate the prefix on individual controllers.
+  `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`); do not duplicate the prefix on individual controllers.
 
 ## Project map
 
@@ -161,4 +164,5 @@ These apply in every mode. Obtain explicit per-request permission before crossin
   `CLAUDE.md`.
 - Stable cross-cutting explanations live in `docs/ARCHITECTURE.md`; deployment commands and topology live in
   `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`; decision logs live in each module's
-  `DECISIONS.md` and in `docs/DECISIONS.md` (see Architecture decisions).
+  `DECISIONS.md` and in `docs/DECISIONS.md` (see Architecture decisions); product milestones live in
+  `docs/ROADMAP.md`; domain decisions (constellations, sky, updates) live in `docs/DOMAIN.md`.

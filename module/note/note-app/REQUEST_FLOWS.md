@@ -2,7 +2,7 @@
 
 This document describes the current request paths in `:note`. It focuses on call order,
 transaction boundaries, durable state, and external AI calls. All controller routes below receive
-the `/note` prefix from `WebMvcPathPrefixConfig`.
+the `/note` prefix from `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 
 ## Component map
 
@@ -28,6 +28,7 @@ flowchart LR
         OutboxPoller
         OutboxEventProcessor
         SummaryHandler[NoteSummaryRequestedHandler]
+        UpdateHandler[NoteSummaryUpdateRequestedHandler]
         IndexHandler[NoteIndexRequestedHandler]
     end
 
@@ -55,6 +56,11 @@ flowchart LR
     SummaryHandler --> RagService
     SummaryHandler --> ChatModel
     SummaryHandler --> NoteService
+    OutboxEventProcessor --> UpdateHandler
+    UpdateHandler --> ChatService
+    UpdateHandler --> RagService
+    UpdateHandler --> ChatModel
+    UpdateHandler --> NoteService
     IndexHandler --> RagService
     RagService --> EmbeddingModel
     RagService --> RagChunks
@@ -77,7 +83,7 @@ application services or outbox handlers.
 | `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                                       | Returns an ownership-filtered cursor page          |
 | `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
-| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or replays an asynchronous summary request |
+| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or updates the current note asynchronously, or replays |
 | `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
@@ -310,6 +316,35 @@ The reservation, placeholder note, `chat_note` link, and outbox event commit ato
 write fails, the reservation also rolls back and the same key can be retried. Concurrent requests
 with the same `(userId, Idempotency-Key)` converge on the winning transaction's `noteId`.
 
+`ChatFacade.requestSummary` replays a known key first, then applies the mode rules against the chat's current note
+(`NoteService.findCurrentChatSummary`). `UPDATE` follows the same reservation, but references the existing note and
+publishes `NOTE_SUMMARY_UPDATE_REQUESTED` with `afterMessageId` (the note's boundary) and `throughMessageId` (the latest
+message); the note is not changed. A second request of the chat while one is `PENDING` violates
+`uq_summary_request_pending_chat` and returns 409.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant P as OutboxPoller
+    participant UH as NoteSummaryUpdateRequestedHandler
+    participant CS as ChatService
+    participant RS as RagService
+    participant M as ChatModel
+    participant NS as NoteService
+    P ->> UH: NOTE_SUMMARY_UPDATE_REQUESTED
+    UH ->> CS: getSummaryUpdateContext(userId, chatId, after, through)
+    UH ->> NS: findReadyNote(userId, noteId)
+    alt Chat or note gone
+        UH ->> UH: terminal failure: request FAILED
+    else
+        UH ->> RS: searchExcluding(new messages, noteId)
+        UH ->> M: NOTE_UPDATE_SYSTEM_PROMPT + note + new messages
+        M -->> UH: NoteAddendumDraft
+        UH ->> NS: applyChatSummaryUpdate(..., addendum or null, today UTC)
+        Note over NS: One transaction: request PENDING to APPLIED or NOTHING_NEW (no-op if already finished),<br/>append the dated addendum, publish NOTE_INDEX_REQUESTED, move the boundary
+    end
+```
+
 ## Summary generation and indexing workers
 
 The outbox separates durable database changes from slow provider work. Claim, provider work, and
@@ -367,7 +402,7 @@ sequenceDiagram
 
 Every claim counts as an attempt and issues a fresh `lease_id`. On a handler error,
 `OutboxEventProcessor` calls `OutboxService.recordFailure` in a new short transaction. The event
-returns to `PENDING` with exponential backoff until the configured attempt limit. When a
+returns to `PENDING` with exponential backoff (±20% jitter) until the configured attempt limit. When a
 `NOTE_SUMMARY_REQUESTED` event reaches the limit, that same transaction marks the outbox event and
 its still-`GENERATING` note as `FAILED`. A crashed worker leaves a `PROCESSING` event reclaimable
 after its visibility deadline; if that worker used the last attempt, the next claim fails the event
@@ -406,12 +441,12 @@ sequenceDiagram
     NC -->> C: event: status
     loop Every second until terminal status
         NS ->> NR: load owned note on boundedElastic
-        alt Status changed
+        alt Status or updating changed
             NS -->> NC: new persisted status
             NC -->> C: event: status
         end
     end
-    Note over NS, C: Stream closes after READY or FAILED
+    Note over NS, C: Stream closes after FAILED, or READY with no pending summary update
 ```
 
 Missing and foreign note or chat identifiers both appear as `404`, so ownership information is not

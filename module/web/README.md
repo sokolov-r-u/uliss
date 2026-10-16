@@ -28,7 +28,8 @@ constellations, sky, updates, search, and settings; unknown routes return to cha
 Constellations, sky, updates, and search currently have no complete backend. Their screens use design-system empty
 states instead of simulated data. Notes use the note-service list, detail, and authenticated status-stream contracts. A status stream that ends
 without `READY`/`FAILED` (the service closes it after 10 minutes) is re-read and reconnected while the note is still
-generating, up to `MAX_STATUS_RECONNECTS` times per load.
+generating, up to `MAX_STATUS_RECONNECTS` times per load. A `READY` note with `updating: true` keeps its content
+visible under an "Updating this note…" notice and is re-read when the update finishes.
 Appearance settings are functional and persisted locally; other settings remain limited to behavior supported by
 current APIs.
 

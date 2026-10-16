@@ -1,4 +1,4 @@
-package exception
+package io.uliss.auth.exception
 
 import io.uliss.exception.common.AlreadyExistsException
 

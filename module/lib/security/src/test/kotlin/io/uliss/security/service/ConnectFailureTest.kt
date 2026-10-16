@@ -1,7 +1,6 @@
 package io.uliss.security.service
 
 import org.springframework.web.client.ResourceAccessException
-import service.isConnectFailure
 import java.io.IOException
 import java.net.ConnectException
 import java.net.SocketTimeoutException
