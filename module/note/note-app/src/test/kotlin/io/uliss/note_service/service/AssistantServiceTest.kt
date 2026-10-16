@@ -5,6 +5,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
+import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
@@ -18,6 +19,9 @@ import io.uliss.note_service.model.projection.RequestFingerprint
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatTurnStore
+import io.uliss.note_service.service.tool.NoteSearch
+import io.uliss.note_service.service.tool.NotesSearchProperties
+import io.uliss.note_service.service.tool.NotesSearchTool
 import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -51,7 +55,9 @@ class AssistantServiceTest {
         chatClient,
         chatTurnService,
         AssistantProperties(reasoningEffort = "low", verbosity = "low"),
+        NotesSearchProperties(),
     )
+    private val noSearch = NoteSearch { _, _, _ -> emptyList() }
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
 
     private fun history(chatId: UUID, turnId: UUID) = listOf(
@@ -87,6 +93,52 @@ class AssistantServiceTest {
         Mockito.`when`(requestSpec.system(ChatPrompts.CHAT_SYSTEM_PROMPT)).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.messages(anyValue<List<Message>>())).thenReturn(requestSpec)
         Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.tools(anyValue<Any>())).thenReturn(requestSpec)
+    }
+
+    /** The notes search tool registered on the provider request. */
+    private fun registeredTool(): NotesSearchTool = Mockito.mockingDetails(requestSpec).invocations
+        .single { it.method.name == "tools" }
+        .rawArguments.flatMap { (it as? Array<*>)?.toList() ?: listOf(it) }
+        .filterIsInstance<NotesSearchTool>()
+        .single()
+
+    @Test
+    fun `a notes search reports its activity and keeps it out of the saved reply`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val turn = turn(userId, chatId, turnId, ChatTurnStatus.GENERATING)
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        val queries = mutableListOf<String>()
+        mockRequestChain()
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "my taste?"))
+            .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history(chatId, turnId)))
+        Mockito.`when`(chatTurnService.extendLease(turn)).thenReturn(true)
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(Flux.defer {
+            registeredTool().searchNotes("music")
+            replies("Psych", " rock")
+        })
+        Mockito.`when`(
+            chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Psych rock", ChatTurnStatus.COMPLETE)
+        ).thenReturn(true)
+
+        val search = NoteSearch { query, _, _ -> queries += query; emptyList() }
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "my taste?", search).events)
+            .expectNext(
+                AssistantStreamEvent.Activity(AssistantActivity.SEARCHING_NOTES),
+                AssistantStreamEvent.Activity(AssistantActivity.THINKING),
+                AssistantStreamEvent.AppendText("Psych"),
+                AssistantStreamEvent.AppendText(" rock"),
+                AssistantStreamEvent.GenerationCompleted,
+            )
+            .verifyComplete()
+
+        assertEquals(listOf("music"), queries)
+        Mockito.verify(chatTurnService).extendLease(turn)
+        Mockito.verify(chatTurnService)
+            .finishGenerationAttempt(userId, chatId, turnId, 1, "Psych rock", ChatTurnStatus.COMPLETE)
     }
 
     @Test
@@ -118,7 +170,7 @@ class AssistantServiceTest {
             true
         }
 
-        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi", noSearch)
         assertEquals(turnId, reply.turnId)
         StepVerifier.create(reply.events)
             .expectNext(AssistantStreamEvent.AppendText("Hel"), AssistantStreamEvent.AppendText("lo"))
@@ -159,7 +211,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Hi", ChatTurnStatus.PARTIAL)
         ).thenReturn(true)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
             .expectNext(AssistantStreamEvent.AppendText("Hi"))
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
@@ -183,7 +235,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
         ).thenReturn(true)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
             .expectError(RuntimeException::class.java)
             .verify(Duration.ofSeconds(1))
     }
@@ -205,7 +257,7 @@ class AssistantServiceTest {
             chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "", ChatTurnStatus.FAILED)
         ).thenReturn(true)
 
-        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        val reply = assistantService.streamReply(userId, chatId, idempotencyKey, "hi", noSearch)
         Mockito.verify(chatClient, Mockito.never()).prompt()
 
         StepVerifier.create(reply.events)
@@ -225,7 +277,7 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "hi"))
             .thenReturn(ChatTurnRequestResolution.AlreadyFinished(complete))
 
-        val replay = assistantService.streamReply(userId, chatId, idempotencyKey, "hi")
+        val replay = assistantService.streamReply(userId, chatId, idempotencyKey, "hi", noSearch)
         assertEquals(turnId, replay.turnId)
         StepVerifier.create(replay.events)
             .expectNext(AssistantStreamEvent.GenerationCompleted)
@@ -236,7 +288,7 @@ class AssistantServiceTest {
             .copy(idempotencyKey = idempotencyKey)
         Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, "next"))
             .thenReturn(ChatTurnRequestResolution.AlreadyGenerating(pending))
-        val pendingReply = assistantService.streamReply(userId, chatId, idempotencyKey, "next")
+        val pendingReply = assistantService.streamReply(userId, chatId, idempotencyKey, "next", noSearch)
         assertEquals(pendingTurnId, pendingReply.turnId)
         StepVerifier.create(pendingReply.events)
             .expectNext(AssistantStreamEvent.GenerationPending(60_000))
@@ -272,7 +324,7 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "ok", ChatTurnStatus.COMPLETE))
             .thenReturn(true)
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
             .expectNext(AssistantStreamEvent.AppendText("ok"), AssistantStreamEvent.GenerationCompleted)
             .verifyComplete()
 
@@ -305,7 +357,7 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.getTurn(userId, turnId))
             .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.CANCELED))
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
             .expectNext(AssistantStreamEvent.GenerationFailed(ChatTurnStatus.CANCELED))
             .verifyComplete()
@@ -320,7 +372,7 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.getTurn(userId, turnId))
             .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.GENERATING, attempt = 2))
 
-        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi").events)
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
             .expectNext(AssistantStreamEvent.GenerationPending(60_000))
             .verifyComplete()

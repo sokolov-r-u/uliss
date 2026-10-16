@@ -52,7 +52,9 @@ preserving the visible scroll anchor. Only one older-page request runs at a time
 at `hasMore=false`, and route changes abort stale requests. The top of the thread exposes loading
 and beginning-of-conversation states.
 
-On send, `ChatPage` adds optimistic user and assistant entries and streams tokens. Send stays locked through persistence
+On send, `ChatPage` adds optimistic user and assistant entries and streams tokens. Until the reply's first text, the
+assistant entry shows the design system's `PendingStatus`: `thinking…`, or `searching notes…` while the `activity`
+event says the assistant is searching the user's notes; unknown activity values are ignored. Send stays locked through persistence
 reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL` or `FAILED` assistant reply for up to
 15 seconds. A trailing persisted user message is reconciled after refresh as well. Persisted `COMPLETE`, `PARTIAL`, and
 `FAILED` statuses remain authoritative. Reconciliation refreshes the latest page, replaces overlapping persisted rows,

@@ -32,7 +32,7 @@ data class NoteSummaryProperties(
     val retrievalTopK: Int = 5,
     @field:DecimalMin("0.0")
     @field:DecimalMax("1.0")
-    val retrievalMinSimilarity: Double = 0.70,
+    val retrievalMinSimilarity: Double = 0.50,
     /** OpenAI per-call options for the summary call; passed to the provider as-is. */
     val reasoningEffort: String = "medium",
     val verbosity: String = "low",

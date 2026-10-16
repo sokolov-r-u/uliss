@@ -6,6 +6,7 @@ import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.RetrievedChunk
 import org.junit.jupiter.api.Test
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertTrue
 
@@ -30,7 +31,7 @@ class ChatPromptsTest {
             "Trip",
             listOf(ChatMessageEntity(chatId, ChatMessageRole.USER, "Rather by train", ChatMessageStatus.COMPLETE)),
         )
-        val chunk = RetrievedChunk(UUID.randomUUID(), 0, "Prefers night trains.", 0.9)
+        val chunk = RetrievedChunk(UUID.randomUUID(), 0, "Prefers night trains.", 0.9, null, Instant.EPOCH)
 
         val prompt = ChatPrompts.noteUpdateUserPrompt("Trip plan", "Fly to Rome.", context, listOf(chunk))
 

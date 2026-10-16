@@ -23,10 +23,10 @@ class NoteDraftTest {
     }
 
     @Test
-    fun `toNoteContent keeps at most three secondary thoughts`() {
-        val draft = NoteDraft("Title", "Main.", listOf("One", "Two", "Three", "Four"))
+    fun `toNoteContent keeps every secondary thought`() {
+        val draft = NoteDraft("Title", "Main.", listOf("One", "Two", "Three", "Four", "Five"))
 
-        assertEquals("Main.\n\n- One\n- Two\n- Three", draft.toNoteContent())
+        assertEquals("Main.\n\n- One\n- Two\n- Three\n- Four\n- Five", draft.toNoteContent())
     }
 
     @Test
@@ -37,10 +37,9 @@ class NoteDraftTest {
             listOf("- Dash.", "* Star.", "+ Plus.", "1. Numbered.", "2) Paren.", "-", "**Bold** stays."),
         )
 
-        assertEquals("Main.\n\n- Dash.\n- Star.\n- Plus.", draft.toNoteContent())
         assertEquals(
-            "Main.\n\n- Numbered.\n- Paren.\n- **Bold** stays.",
-            NoteDraft("Title", "Main.", draft.secondaryThoughts.orEmpty().drop(3)).toNoteContent(),
+            "Main.\n\n- Dash.\n- Star.\n- Plus.\n- Numbered.\n- Paren.\n- **Bold** stays.",
+            draft.toNoteContent(),
         )
     }
 
@@ -100,8 +99,8 @@ class NoteDraftTest {
         assertTrue(mainDescription.contains("do not repeat it here"))
         assertTrue(mainDescription.contains("one or more paragraphs"))
         assertTrue(secondaryDescription.contains("only inline formatting"))
-        assertTrue(secondaryDescription.contains("At most three"))
-        assertTrue(secondaryDescription.contains("fewer is better"))
+        assertTrue(secondaryDescription.contains("No fixed limit"))
+        assertTrue(secondaryDescription.contains("Not passing remarks"))
         assertTrue(secondaryDescription.contains("Put open questions and intentions last"))
         assertEquals("A standalone note capturing the user's thoughts from the current chat.", schema["description"])
     }

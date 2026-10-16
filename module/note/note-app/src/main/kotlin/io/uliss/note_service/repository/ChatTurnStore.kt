@@ -106,6 +106,21 @@ class ChatTurnStore(
         ).isNotEmpty()
     }
 
+    /** Pushes the lease of a still-generating [attempt] to at least `now + leaseMillis`; never shortens it. */
+    fun extendLease(turnId: UUID, userId: UUID, chatId: UUID, attempt: Int, leaseMillis: Long): Boolean {
+        require(leaseMillis > 0) { "leaseMillis must be positive" }
+        return jdbcTemplate.query(
+            EXTEND_LEASE_SQL,
+            { _, _ -> true },
+            leaseMillis,
+            turnId,
+            userId,
+            chatId,
+            attempt,
+            ChatTurnStatus.GENERATING.name,
+        ).isNotEmpty()
+    }
+
     fun failExpiredAtAttemptLimit(turnId: UUID, userId: UUID, chatId: UUID, maxAttempts: Int): Boolean {
         require(maxAttempts > 0) { "maxAttempts must be positive" }
         return jdbcTemplate.query(
@@ -209,6 +224,15 @@ class ChatTurnStore(
         const val TRANSITION_TO_TERMINAL_SQL = """
             UPDATE note.chat_turn
             SET status = ?, lease_until = NULL, updated_at = CURRENT_TIMESTAMP,
+                version = COALESCE(version, 0) + 1
+            WHERE id = ? AND user_id = ? AND chat_id = ? AND attempt = ? AND status = ?
+            RETURNING id
+        """
+
+        const val EXTEND_LEASE_SQL = """
+            UPDATE note.chat_turn
+            SET lease_until = GREATEST(lease_until, CURRENT_TIMESTAMP + (? * INTERVAL '1 millisecond')),
+                updated_at = CURRENT_TIMESTAMP,
                 version = COALESCE(version, 0) + 1
             WHERE id = ? AND user_id = ? AND chat_id = ? AND attempt = ? AND status = ?
             RETURNING id

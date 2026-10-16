@@ -38,6 +38,7 @@ export * from './components/navigation/NavRow'
 export * from './components/navigation/SettingsRow'
 
 export * from './components/feedback/Notice'
+export * from './components/feedback/PendingStatus'
 export * from './components/feedback/Dialog'
 export * from './components/feedback/ItemMenu'
 export * from './components/feedback/ProgressDots'

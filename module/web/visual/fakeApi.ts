@@ -1,7 +1,8 @@
 /**
  * Test-only stand-in for `src/auth/apiClient.ts` (swapped in by `visual/vite.config.ts`): `authFetch` answers from
  * fixtures by URL, so the harness renders the real `App`. `?data=empty` serves a day-one account;
- * `?onboarding=name|profile` serves pending onboarding steps.
+ * `?onboarding=name|profile` serves pending onboarding steps. Sending a chat message opens a reply stream that reports
+ * a notes search and then stays open, so the waiting state can be inspected.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 
@@ -38,6 +39,20 @@ export function tokenRequiresOnboarding(): boolean {
     return false
 }
 
+/** An SSE reply that sends `records` and never finishes. */
+function openReplyStream(chatId: string, records: string[]): Response {
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+            records.forEach((record) => controller.enqueue(encoder.encode(record)))
+        },
+    })
+    return new Response(body, {
+        status: 200,
+        headers: {'Content-Type': 'text/event-stream', 'Chat-Id': chatId, 'Chat-Turn-Id': 'turn-visual'},
+    })
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, location.origin)
     const method = init?.method ?? 'GET'
@@ -49,6 +64,9 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/note/notes') return json(notes)
 
     const chatMessages = url.pathname.match(/^\/note\/chats\/([^/]+)\/messages$/)
+    if (chatMessages && method === 'POST') {
+        return openReplyStream(chatMessages[1], ['event:activity\ndata:SEARCHING_NOTES\n\n'])
+    }
     if (chatMessages) return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false})
 
     const chat = url.pathname.match(/^\/note\/chats\/([^/]+)$/)

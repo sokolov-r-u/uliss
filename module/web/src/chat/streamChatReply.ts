@@ -9,9 +9,20 @@ import {parseSseStream} from '../lib/sse'
 
 export type StreamOutcome = 'done' | 'error' | 'pending'
 
+/** What the assistant is doing before its reply text starts (`activity` event). */
+export type ChatActivity = 'THINKING' | 'SEARCHING_NOTES'
+
+const CHAT_ACTIVITIES: readonly string[] = ['THINKING', 'SEARCHING_NOTES'] satisfies ChatActivity[]
+
+function isChatActivity(value: string): value is ChatActivity {
+    return CHAT_ACTIVITIES.includes(value)
+}
+
 type StreamOptions = {
     onAppendText: (text: string) => void
     onTurnId: (turnId: string) => void
+    /** Unknown activity values (from a newer note-service) are ignored. */
+    onActivity?: (activity: ChatActivity) => void
     /** `pending` data: milliseconds until the generating request's lease ends. */
     onPending?: (retryAfterMs: number) => void
     signal?: AbortSignal
@@ -95,6 +106,9 @@ async function streamReply(
 
     for await (const evt of parseSseStream(res.body, opts.signal)) {
         if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
+        else if (evt.event === 'activity') {
+            if (isChatActivity(evt.data)) opts.onActivity?.(evt.data)
+        }
         else if (evt.event === 'done') return 'done'
         else if (evt.event === 'error') return 'error'
         else if (evt.event === 'pending') {

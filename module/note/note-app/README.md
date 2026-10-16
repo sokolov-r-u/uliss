@@ -17,7 +17,9 @@ dimensions. The required credential is `OPENAI_API_KEY`; `OPENAI_CHAT_MODEL` and
 `spring.ai.model.chat=openai` and `spring.ai.model.embedding=openai` select the providers explicitly.
 Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity` per call (`note.assistant.*` and
 `note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
-history prefix. DeepSeek stays configured but inactive; switching back to
+history prefix. Chat replies use `reasoningEffort: none`: they send the notes search tool, which Chat Completions
+rejects on gpt-5.6 with any other effort (moving to the Responses API is in `docs/TECH_DEBT.md`). DeepSeek stays
+configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
 options from `AssistantService` and `NoteSummaryRequestedHandler`.
 
@@ -28,9 +30,10 @@ are logged once, aggregated.
 ## Chat and summary APIs
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
-streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `append`, `pending`,
-`done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw `data:`
-lines; the others carry plain text (retry delay, terminal status, empty). `ChatService` performs chat lookups using both
+streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `activity`, `append`,
+`pending`, `done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw
+`data:` lines; the others carry plain text (activity name, retry delay, terminal status, empty). `activity` is
+`SEARCHING_NOTES` when a notes search starts and `THINKING` when it ends; a replayed turn sends none. `ChatService` performs chat lookups using both
 chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
@@ -88,11 +91,10 @@ The summary worker loads only messages through that boundary, builds a determini
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
 current chat is authoritative; related notes are delimited as untrusted secondary context. One
 non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
-Markdown `mainThought`, and up to three `secondaryThoughts`; field rules live in the `NoteDraft` JSON
+Markdown `mainThought`, and `secondaryThoughts` without a fixed limit; field rules live in the `NoteDraft` JSON
 schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,
 OpenAI strict mode), so every field is marked required and nullable in the schema. The worker joins them into Markdown
-`content` (main thought, then a bulleted
-list; extra secondary thoughts are dropped). A missing or blank main thought fails the attempt; a
+`content` (main thought, then every secondary thought as a bulleted list). A missing or blank main thought fails the attempt; a
 blank or missing title falls back to the first non-blank content line, normalized by
 `TitleNormalizer` (50 code points). Success atomically stores both fields,
 changes the note to `READY`, and publishes `NOTE_INDEX_REQUESTED`. The final configured failure changes a
@@ -100,6 +102,20 @@ still-generating note to `FAILED` in
 the same transaction that terminally fails the outbox event.
 If the chat was deleted after the request, the worker fails the note at once through the same terminal-failure
 handler instead of spending retries.
+
+## Notes search in chat replies
+
+Chat replies can draw on the user's notes. `AssistantService` registers a per-turn `NotesSearchTool` (`searchNotes`)
+on the provider request, and the system prompt tells the model to search when a reply depends on the user's tastes,
+experiences, or earlier thoughts. Spring AI's tool-calling loop runs the search and calls the model again with the
+results. The model chooses only the query: `ChatFacade` binds the search to the authenticated user and leaves out the
+chat's current summary note. Results are note fragments with the note title and creation date, delimited as
+untrusted data. `note.assistant.notes-search` sets `top-k` (5), `min-similarity` (0.30), and `max-calls-per-turn` (3,
+blank queries included). A blank query, a failed search, or the first call over the limit returns a short text to the
+model. Because every call costs a model round trip and Spring AI's tool loop has no cap of its own, the next call over
+the limit ends the turn, and so does a search whose turn has lost its lease (`NotesSearchAbortedException`, a checked
+exception that Spring AI rethrows). Each search extends the turn's lease by one full lease, because it adds a model call
+to the attempt. Search results are not persisted with the reply.
 
 ## Note API and status delivery
 

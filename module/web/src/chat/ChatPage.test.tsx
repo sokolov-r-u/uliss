@@ -210,6 +210,47 @@ describe('ChatPage summary flow', () => {
         expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
     })
 
+    it('shows what the assistant is doing until its reply text starts', async () => {
+        const steps: Array<() => void> = []
+        const step = () => new Promise<void>((resolve) => steps.push(resolve))
+        mockedInitialStream.mockImplementation(async (_content, _key, options) => {
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            await step()
+            options.onActivity?.('SEARCHING_NOTES')
+            await step()
+            options.onActivity?.('THINKING')
+            await step()
+            options.onAppendText('Live answer')
+            options.onActivity?.('SEARCHING_NOTES')
+            await step()
+            return 'done'
+        })
+        mockedGetMessages.mockResolvedValue(messagePage([
+            {id: 'u-new', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'First question'},
+            {id: 'a-new', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'Saved answer'},
+        ]))
+        const next = async () => act(async () => steps.shift()?.())
+
+        renderNewPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'First question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        const activityLine = () => screen.queryByText(/^(thinking|searching notes)…$/)
+
+        expect(await screen.findByText('thinking…')).toBeInTheDocument()
+        await next()
+        expect(activityLine()).toHaveTextContent('searching notes…')
+        await next()
+        expect(activityLine()).toHaveTextContent('thinking…')
+        await next()
+        expect(await screen.findByText('Live answer')).toBeInTheDocument()
+        expect(activityLine()).not.toBeInTheDocument()
+        await next()
+        expect(await screen.findByText('Saved answer')).toBeInTheDocument()
+        expect(activityLine()).not.toBeInTheDocument()
+    })
+
     it('starts a turn when the page is served without Web Crypto', async () => {
         const originalCrypto = globalThis.crypto
         Object.defineProperty(globalThis, 'crypto', {configurable: true, value: undefined})
@@ -461,6 +502,26 @@ describe('ChatPage summary flow', () => {
         )).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Retry'})).toBeEnabled()
         expect(input).toBeDisabled()
+    })
+
+    it('drops the reported activity while a broken stream is being reconciled', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+            ]))
+            .mockImplementation(() => new Promise(() => undefined))
+        mockedStream.mockImplementation(async (_chatId, _content, _idempotencyKey, options) => {
+            options.onTurnId('turn-2')
+            options.onActivity?.('SEARCHING_NOTES')
+            return 'error'
+        })
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Next question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByText('thinking…')).toBeInTheDocument()
+        expect(screen.queryByText('searching notes…')).not.toBeInTheDocument()
     })
 
     it('keeps Stop active until the matching PARTIAL reply is persisted', async () => {

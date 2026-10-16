@@ -587,3 +587,26 @@ from OpenAI and the tokens are paid. Options discussed: an in-memory registry of
 (cancels local streams only) or a cross-instance signal through the database that the streaming attempt polls. Solve
 together with "Chat reply generation stops when the user leaves the chat", which moves generation off the SSE
 subscriber.
+
+## Chat replies through the OpenAI Responses API (`note-service`)
+
+**Status:** waiting for Spring AI 2.1 GA (deferred 2026-10-16; RC1 of Spring AI 2.1 and Spring Boot 4.2 is due
+2026-10-22, GA dates are not announced).
+
+Since the notes search tool (`docs/tasks/2026-10-16-chat-notes-search.md`), chat replies send a function tool, and
+OpenAI's `/v1/chat/completions` rejects function tools on gpt-5.6 models unless `reasoning_effort` is `none` (400:
+"Function tools with reasoning_effort are not supported ... use /v1/responses"). Spring AI 2.0's `OpenAiChatModel`
+supports only Chat Completions, so `note.assistant.reasoning-effort` is `none` for now (it was `low`).
+
+Spring AI 2.1 adds `OpenAiResponsesChatModel` (`spring.ai.openai.chat.api=responses`); `ToolCallingAdvisor` still runs
+the tool loop, so `AssistantService` and `NotesSearchTool` stay. It requires Spring Boot 4.2. When both are GA:
+- upgrade Spring Boot (all services) and Spring AI, switch to `chat.api=responses`, and set chat replies back to a
+  reasoning effort (`low`);
+- move the per-call options (`reasoningEffort`, `verbosity`, `promptCacheKey`) to the Responses options in
+  `AssistantService`, `NoteSummaryRequestedHandler`, and `NoteSummaryUpdateRequestedHandler`; check that structured
+  output (`.entity()` with `useProviderStructuredOutput()`) still works for summaries;
+- re-check `ChatTurnExecutionPolicy` and `OutboxLeasePolicy`, which derive leases from `spring.ai.openai.*` timeouts
+  and retries, and the usage log (cached tokens) in `AssistantService`;
+- not chosen: Spring AI 2.1.0-M1 on Spring Boot 4.2 milestones now, or our own `ChatModel` over `openai-java`'s
+  Responses API (throwaway once 2.1 is GA).
+

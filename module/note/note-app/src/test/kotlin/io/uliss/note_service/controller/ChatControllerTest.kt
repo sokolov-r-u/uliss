@@ -5,6 +5,7 @@ import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
@@ -242,6 +243,42 @@ class ChatControllerTest {
                 contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
                 string(Matchers.containsString("event:append"))
                 string(Matchers.containsString("event:done"))
+            }
+        }
+    }
+
+    @Test
+    fun `streamMessage sends the assistant activity as plain-text activity events`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamReply(userId, chatId, idempotencyKey, "hi"))
+            .thenReturn(
+                AssistantReplyStream(
+                    UUID.randomUUID(),
+                    Flux.just(
+                        AssistantStreamEvent.Activity(AssistantActivity.SEARCHING_NOTES),
+                        AssistantStreamEvent.Activity(AssistantActivity.THINKING),
+                        AssistantStreamEvent.AppendText("Hi"),
+                        AssistantStreamEvent.GenerationCompleted,
+                    ),
+                    chatId,
+                )
+            )
+
+        mockMvc.post("/note/chats/$chatId/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                string(
+                    Matchers.startsWith(
+                        "event:activity\ndata:SEARCHING_NOTES\n\nevent:activity\ndata:THINKING\n\nevent:append\n",
+                    ),
+                )
             }
         }
     }

@@ -138,6 +138,18 @@ class ChatTurnService(
     }
 
     /**
+     * Gives a generating [turn] a full lease again from now, for work that adds provider calls to one attempt
+     * (a notes search before the next model call). Returns `false` when the attempt lost its fence.
+     */
+    fun extendLease(turn: ChatTurn): Boolean = chatTurnStore.extendLease(
+        turnId = turn.id,
+        userId = turn.userId,
+        chatId = turn.chatId,
+        attempt = turn.attempt,
+        leaseMillis = executionPolicy.lease.toMillis(),
+    )
+
+    /**
      * Cancels a generating turn and persists its canceled assistant outcome.
      *
      * Repeating cancellation for an already terminal turn is safe and leaves its state unchanged.

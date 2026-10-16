@@ -24,6 +24,7 @@ import {
 } from './reconcileChatTurn'
 import {
     cancelChatTurn,
+    type ChatActivity,
     ChatStreamHttpError,
     streamAssistantReply,
     streamInitialAssistantReply,
@@ -440,6 +441,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 onPending: (retryAfterMs: number) => {
                     pollTimeoutMs = pendingReconcileTimeoutMs(retryAfterMs)
                 },
+                onActivity: (activity: ChatActivity) => {
+                    if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
+                    setMessages((previous) => previous.map((message) =>
+                        message.id === placeholderId ? {...message, activity} : message,
+                    ))
+                },
                 onAppendText: (text: string) => {
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
                     setMessages((previous) => previous.map((message) =>
@@ -492,6 +499,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             poll = true
         } finally {
             if (streamAbortRef.current === controller) streamAbortRef.current = null
+        }
+        if (poll && mountedRef.current && routeRevisionRef.current === routeRevision) {
+            // Nothing reports activity any more; reconciliation waits on the saved reply.
+            setMessages((previous) => previous.map((message) =>
+                message.id === placeholderId ? {...message, activity: undefined} : message,
+            ))
         }
         if (mountedRef.current && routeRevisionRef.current === routeRevision && resolvedChatId) {
             await reconcile(target, poll, routeRevision, resolvedChatId, pollTimeoutMs)

@@ -23,6 +23,8 @@ data class RetrievedChunk(
     val chunkIndex: Int,
     val content: String,
     val similarity: Double,
+    val noteTitle: String?,
+    val noteCreatedAt: Instant,
 )
 
 @Repository
@@ -73,6 +75,8 @@ class JdbcRagChunkStore(
                     chunkIndex = resultSet.getInt("chunk_index"),
                     content = resultSet.getString("content"),
                     similarity = resultSet.getDouble("similarity"),
+                    noteTitle = resultSet.getString("note_title"),
+                    noteCreatedAt = resultSet.getTimestamp("note_created_at").toInstant(),
                 )
             },
             vector,
@@ -98,15 +102,18 @@ class JdbcRagChunkStore(
         """
 
         const val SEARCH_SQL = """
-            SELECT note_id,
-                   chunk_index,
-                   content,
-                   1.0 - (embedding <=> ?) AS similarity
-            FROM note.rag_chunks
-            WHERE user_id = ?
-              AND embedding <=> ? <= ?
-              AND note_id IS DISTINCT FROM CAST(? AS uuid)
-            ORDER BY embedding <=> ?
+            SELECT c.note_id,
+                   c.chunk_index,
+                   c.content,
+                   1.0 - (c.embedding <=> ?) AS similarity,
+                   n.title                   AS note_title,
+                   n.created_at              AS note_created_at
+            FROM note.rag_chunks c
+                     JOIN note.notes n ON n.id = c.note_id AND n.user_id = c.user_id
+            WHERE c.user_id = ?
+              AND c.embedding <=> ? <= ?
+              AND c.note_id IS DISTINCT FROM CAST(? AS uuid)
+            ORDER BY c.embedding <=> ?
             LIMIT ?
         """
     }

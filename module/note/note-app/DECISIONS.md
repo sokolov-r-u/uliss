@@ -96,3 +96,64 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** at DEBUG every chat turn and summary writes its full context to the log; keep `info` in
   production.
 - **Source:** task `docs/tasks/2026-10-16-log-cleanup.md`.
+
+## 2026-10-16 — The chat model searches the user's notes through a tool
+
+- **Context:** chat replies did not know the user's notes; RAG was used only by Summarize.
+- **Decision:** the model gets a per-turn `searchNotes(query)` tool (OpenAI function calling through Spring AI's
+  `ToolCallingAdvisor`) instead of a search before every message, so it searches only when needed and writes its own
+  query. `ChatFacade` passes `AssistantService` a `NoteSearch` bound to the user that leaves out the chat's current
+  summary note, so the chat domain does not call note services. Limits: top-5, similarity 0.70, 3 searches per turn.
+  A failed search is returned to the model as text. Each search extends the attempt's lease to `now + lease`
+  (fenced by attempt, never shortened) instead of a lease sized for the worst case of every search, which would make a
+  retry after a crash wait about 20 minutes. Search progress is the new SSE event `activity`
+  (`SEARCHING_NOTES` / `THINKING`), not persisted and not replayed.
+- **Consequences:** a turn makes one more model call per search; found fragments are not in the saved history, so a
+  later turn searches again. OpenAI's hosted `file_search` is not used: notes stay in our pgvector.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.
+
+## 2026-10-16 — The notes search tool bounds the tool-calling loop
+
+- **Context:** refines "The chat model searches the user's notes through a tool": the 3-search limit only refused
+  searches, while Spring AI's `ToolCallingAdvisor` has no iteration cap, so a model that kept calling the tool kept
+  making paid model calls.
+- **Decision:** every call counts (blank queries too); the first call over the limit is refused with text, the next one
+  throws `NotesSearchAbortedException`, which ends the turn. It is a checked exception on purpose: Spring AI returns
+  runtime tool failures to the model but rethrows other causes. A search whose lease extension reports a lost fence ends
+  the turn the same way; a lease-extension error is reported to the model as "search unavailable".
+- **Consequences:** a turn makes at most `max-calls-per-turn + 2` model calls; an aborted turn ends `FAILED` or
+  `PARTIAL` like a provider error.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (code review).
+
+## 2026-10-16 — Chat replies run without reasoning until the Responses API
+
+- **Context:** with the `searchNotes` tool, gpt-5.6 on `/v1/chat/completions` answers 400 unless `reasoning_effort` is
+  `none`; Spring AI 2.0 has no Responses API model.
+- **Decision:** `note.assistant.reasoning-effort` is `none` (was `low`); summaries keep `medium`, since they send no
+  tools. Moving chat replies to `OpenAiResponsesChatModel` waits for Spring AI 2.1 GA (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.
+
+## 2026-10-16 — RAG similarity thresholds measured on real notes
+
+- **Context:** every RAG search returned nothing, in chat and in Summarize: `min-similarity` was 0.70 for both. With
+  `text-embedding-3-small`, pairwise cosine similarity of one user's 12 indexed notes measured 0.46-0.69 for notes on
+  the same topic (music) and 0.27-0.45 across topics (music vs. anime and film); no pair reached 0.70.
+- **Decision:** Summarize (`note.summary.retrieval-min-similarity`) uses 0.50: its query is a transcript, so it compares
+  like note-to-note text. The chat notes search (`note.assistant.notes-search.min-similarity`) uses 0.30: a short query
+  scores lower than a note, so the floor only drops unrelated text and top-5 plus the model choose what is relevant.
+- **Consequences:** the sample is small and mostly one topic; re-measure when users have more and more varied notes.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test: 0 chunks for a Bowie query while a
+  Bowie note was indexed).
+
+## 2026-10-16 — Summaries keep every thought worth remembering
+
+- **Context:** a note allowed at most three secondary thoughts ("fewer is better", and the backend dropped the rest).
+  Re-summarizing a long chat about two albums kept only the final comparison and lost several of the user's distinct
+  views.
+- **Decision:** no fixed limit on secondary thoughts, for new notes and addenda; nothing is dropped in code. The main
+  thought is the line the whole chat followed; a secondary thought must still matter without the chat (a distinct
+  opinion, conclusion, preference, decision, or intention), not a passing remark or a detail of the main thought.
+- **Consequences:** notes from long chats get longer; the "would still matter without this chat" filter is what keeps
+  them from becoming a per-message retelling.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test of a re-summarized Bowie chat).
+

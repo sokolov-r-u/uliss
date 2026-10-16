@@ -25,10 +25,11 @@ data class NoteDraft(
     @field:JsonProperty(required = true)
     val mainThought: String?,
     @field:JsonPropertyDescription(
-        "Secondary thoughts, each one or two sentences that build on the main thought: extend it, qualify it, " +
-                "contrast with it, or lead to a next step. Each is shown as a list item, so use only inline " +
-                "formatting. At most three; fewer is better, and an empty list is fine — include only what is " +
-                "worth remembering. Put open questions and intentions last."
+        "Other thoughts worth remembering on their own, each one or two sentences: a distinct opinion, " +
+                "conclusion, preference, decision, or intention of the user. Not passing remarks or details that " +
+                "only support the main thought. No fixed limit — as many as the chat really holds, usually a few; " +
+                "an empty list is fine. Each is shown as a list item, so use only inline formatting. Put open " +
+                "questions and intentions last."
     )
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,
@@ -41,18 +42,15 @@ data class NoteDraft(
     }
 }
 
-private const val MAX_SECONDARY_THOUGHTS = 3
-
 // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
 private val LINE_BREAKS = Regex("\\s*\\R\\s*")
 private val LIST_MARKER = Regex("^(?:[-*+]|\\d+[.)])(?:\\s+|$)")
 
-/** Main thought paragraphs followed by up to [MAX_SECONDARY_THOUGHTS] one-line bullets. */
+/** Main thought paragraphs followed by every secondary thought as a one-line bullet. */
 internal fun formatNoteThoughts(mainThought: String, secondaryThoughts: List<String>?): String {
     val bullets = secondaryThoughts.orEmpty()
         .map { it.replace(LINE_BREAKS, " ").trim().replace(LIST_MARKER, "") }
         .filter { it.isNotEmpty() }
-        .take(MAX_SECONDARY_THOUGHTS)
     if (bullets.isEmpty()) return mainThought
     return mainThought + "\n\n" + bullets.joinToString("\n") { "- $it" }
 }

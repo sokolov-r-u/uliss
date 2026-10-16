@@ -50,6 +50,23 @@ describe('streamAssistantReply', () => {
         })
     })
 
+    it('reports assistant activity and ignores activity values it does not know', async () => {
+        mockedFetch.mockResolvedValue(sseResponse([
+            'event:activity\ndata:SEARCHING_NOTES\n\n',
+            'event:activity\ndata:BROWSING_WEB\n\n',
+            'event:activity\ndata:THINKING\n\nevent:append\ndata:{"text":"Hi"}\n\nevent:done\ndata:\n\n',
+        ]))
+        const activities: string[] = []
+
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {
+            onAppendText: vi.fn(),
+            onActivity: (activity) => activities.push(activity),
+            onTurnId: vi.fn(),
+        })).resolves.toBe('done')
+
+        expect(activities).toEqual(['SEARCHING_NOTES', 'THINKING'])
+    })
+
     it('keeps leading spaces and line breaks of JSON append text', async () => {
         mockedFetch.mockResolvedValue(sseResponse([
             'event:append\ndata:{"text":"Hello"}\n\n',
