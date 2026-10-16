@@ -3,9 +3,11 @@ package io.uliss.auth.config
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.uliss.api.user.v1.UserServiceGrpc
+import io.uliss.auth.service.UserServiceTokenProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.grpc.client.interceptor.security.BearerTokenAuthenticationInterceptor
 import java.time.Duration
 
 @Configuration
@@ -16,10 +18,14 @@ class GrpcConfig(
 ) {
 
     @Bean
-    fun userServiceChanel(): ManagedChannel =
+    fun userServiceChanel(tokenProvider: UserServiceTokenProvider): ManagedChannel =
         ManagedChannelBuilder.forAddress(userServiceHost, userServicePort)
             .usePlaintext()
-            .intercept(DefaultDeadlineInterceptor(userServiceDeadline))
+            .intercept(
+                DefaultDeadlineInterceptor(userServiceDeadline),
+                // user-service accepts only this service token (see UserServiceAuth)
+                BearerTokenAuthenticationInterceptor(tokenProvider::getToken),
+            )
             .build()
 
     @Bean

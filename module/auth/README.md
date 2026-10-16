@@ -36,8 +36,10 @@ with the auth UUID; user-service lazily creates the profile and returns its iden
 blocks user login because a token without the profile identity is incomplete. Client Credentials tokens do not use this
 path.
 
-The gRPC client is configured by `GrpcConfig` from `USER_SERVICE_HOST` and `USER_GRPC_PORT`. It is plaintext internal
-traffic today; transport hardening remains deferred work.
+The gRPC client is configured by `GrpcConfig` from `USER_SERVICE_HOST` and `USER_GRPC_PORT`. Every call carries a
+service token from `UserServiceTokenProvider`: a JWT auth signs with its own key (`aud=user-service`, `scope=user.info`,
+5 minutes, renewed a minute before expiry; contract in `UserServiceAuth` in `user-api`). Traffic is plaintext inside
+the Compose network; TLS is not configured.
 
 ## Registration and UI
 

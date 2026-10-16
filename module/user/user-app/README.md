@@ -14,6 +14,10 @@ authenticated REST endpoints and an internal gRPC service whose contract lives i
   transaction.
 - `onboarding/OnboardingCommand` implementations contain step-specific rules and are collected by command code.
 
+`config/GrpcSecurityConfig` accepts only auth's service token on gRPC (signature from the auth JWKS, `iss`,
+`aud=user-service`, scope `user.info`); a user token is rejected there, and the service token has no `userId`, so it is
+rejected by REST.
+
 The auth service calls `getUserInfo(authId)` during user-token creation. The service finds or creates the profile for
 that auth UUID, seeds onboarding messages, and returns profile data used in token claims.
 

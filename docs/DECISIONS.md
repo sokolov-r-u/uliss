@@ -37,3 +37,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** only `const val` declarations of `:database` may be used from `:security`; anything else fails at
   runtime in a service without `:database`.
 - **Source:** `docs/tasks/2026-10-16-code-quality-cleanup.md`.
+
+## 2026-10-16 — gRPC calls to user-service carry a service token signed by auth
+
+- **Context:** user-service gRPC permitted every call, so anyone reaching port 9090 could resolve any auth id to a
+  profile id and display name (review item №6).
+- **Decision:** auth signs a short-lived JWT with its own signing key for each user-service call (`sub=auth-service`,
+  `aud=user-service`, `scope=user.info`, 5 minutes, cached), without calling its own token endpoint. user-service
+  validates it on gRPC with a dedicated decoder (JWKS, `iss`, `aud`) and requires `SCOPE_user.info`. A reserved
+  all-zero `userId` was rejected: the token would pass the REST resource server, and user tokens would pass gRPC.
+  The contract constants live in `UserServiceAuth` in `user-api`. Compose publishes 9090 and 5432 on loopback only.
+- **Consequences:** auth and user-service must be deployed together; user-service needs the auth JWKS reachable for
+  gRPC as well. No TLS yet.
+- **Source:** `docs/tasks/2026-10-16-review-remaining-fixes.md`.
+
