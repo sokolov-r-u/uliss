@@ -133,3 +133,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   tools. Moving chat replies to `OpenAiResponsesChatModel` waits for Spring AI 2.1 GA (`docs/TECH_DEBT.md`).
 - **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md`.
 
+## 2026-10-16 — RAG similarity thresholds measured on real notes
+
+- **Context:** every RAG search returned nothing, in chat and in Summarize: `min-similarity` was 0.70 for both. With
+  `text-embedding-3-small`, pairwise cosine similarity of one user's 12 indexed notes measured 0.46-0.69 for notes on
+  the same topic (music) and 0.27-0.45 across topics (music vs. anime and film); no pair reached 0.70.
+- **Decision:** Summarize (`note.summary.retrieval-min-similarity`) uses 0.50: its query is a transcript, so it compares
+  like note-to-note text. The chat notes search (`note.assistant.notes-search.min-similarity`) uses 0.30: a short query
+  scores lower than a note, so the floor only drops unrelated text and top-5 plus the model choose what is relevant.
+- **Consequences:** the sample is small and mostly one topic; re-measure when users have more and more varied notes.
+- **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test: 0 chunks for a Bowie query while a
+  Bowie note was indexed).
+

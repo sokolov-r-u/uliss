@@ -111,7 +111,7 @@ on the provider request, and the system prompt tells the model to search when a 
 experiences, or earlier thoughts. Spring AI's tool-calling loop runs the search and calls the model again with the
 results. The model chooses only the query: `ChatFacade` binds the search to the authenticated user and leaves out the
 chat's current summary note. Results are note fragments with the note title and creation date, delimited as
-untrusted data. `note.assistant.notes-search` sets `top-k` (5), `min-similarity` (0.70), and `max-calls-per-turn` (3,
+untrusted data. `note.assistant.notes-search` sets `top-k` (5), `min-similarity` (0.30), and `max-calls-per-turn` (3,
 blank queries included). A blank query, a failed search, or the first call over the limit returns a short text to the
 model. Because every call costs a model round trip and Spring AI's tool loop has no cap of its own, the next call over
 the limit ends the turn, and so does a search whose turn has lost its lease (`NotesSearchAbortedException`, a checked

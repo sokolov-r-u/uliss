@@ -6,6 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 @ConfigurationProperties("note.assistant.notes-search")
 data class NotesSearchProperties(
     val topK: Int = 5,
-    val minSimilarity: Double = 0.70,
+    val minSimilarity: Double = 0.30,
     val maxCallsPerTurn: Int = 3,
 )

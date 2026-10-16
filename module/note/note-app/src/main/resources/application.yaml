@@ -62,12 +62,14 @@ note:
     verbosity: low
     notes-search:
       top-k: 5
-      min-similarity: 0.70
+      # A short query scores lower than note-to-note; top-k and the model do the selection.
+      min-similarity: 0.30
       max-calls-per-turn: 3
   summary:
     retrieval-query-max-chars: 8000
     retrieval-top-k: 5
-    retrieval-min-similarity: 0.70
+    # Same-topic notes measured 0.46-0.69, other topics 0.27-0.45 (DECISIONS 2026-10-16).
+    retrieval-min-similarity: 0.50
     reasoning-effort: medium
     verbosity: low
   outbox:
