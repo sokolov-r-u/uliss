@@ -16,6 +16,8 @@ data class NoteResponse(
     val updatedAt: Instant?,
     /** A READY note whose summary update is still running; its content changes once the update is applied. */
     val updating: Boolean,
+    /** Optimistic-lock version; an edit sends it back so a newer stored version rejects the edit. */
+    val version: Long?,
 )
 
 data class NoteStatusResponse(
@@ -34,6 +36,7 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     createdAt = createdAt,
     updatedAt = updatedAt,
     updating = updating,
+    version = version,
 )
 
 fun NoteEntity.toStatusResponse(updating: Boolean): NoteStatusResponse =
