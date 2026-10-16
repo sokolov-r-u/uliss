@@ -41,6 +41,16 @@ describe('NoteEditor', () => {
         await waitFor(() => expect(lastChange(onChange)).toEqual({markdown: 'A thought', changed: false}))
     })
 
+    it('turns a heading of any level back into text from the pressed Heading button', async () => {
+        const {onChange} = renderEditor('# Model title')
+        await screen.findByRole('textbox', {name: 'Note text'})
+        expect(screen.getByRole('button', {name: 'Heading'})).toHaveAttribute('aria-pressed', 'true')
+
+        fireEvent.click(screen.getByRole('button', {name: 'Heading'}))
+
+        await waitFor(() => expect(lastChange(onChange)).toEqual({markdown: 'Model title', changed: true}))
+    })
+
     it('does not count the editor rewriting equivalent Markdown as a change', async () => {
         const {onChange} = renderEditor('* starred item\n* another')
         await screen.findByRole('textbox', {name: 'Note text'})

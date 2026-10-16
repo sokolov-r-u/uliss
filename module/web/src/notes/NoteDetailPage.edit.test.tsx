@@ -2,12 +2,27 @@ import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus, updateNote} from './noteApi'
+import {
+    getNote,
+    type Note,
+    NoteApiError,
+    notifyNotesChanged,
+    renameNote,
+    streamNoteStatus,
+    updateNote,
+} from './noteApi'
 import {NoteDetailPage} from './NoteDetailPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
-    return {...actual, getNote: vi.fn(), streamNoteStatus: vi.fn(), updateNote: vi.fn(), notifyNotesChanged: vi.fn()}
+    return {
+        ...actual,
+        getNote: vi.fn(),
+        streamNoteStatus: vi.fn(),
+        updateNote: vi.fn(),
+        renameNote: vi.fn(),
+        notifyNotesChanged: vi.fn(),
+    }
 })
 
 const mockedGetNote = vi.mocked(getNote)
@@ -90,6 +105,26 @@ describe('NoteDetailPage editing', () => {
 
         expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Idea', content: '- A thought', version: 3})
         expect(await screen.findByRole('listitem')).toHaveTextContent('A thought')
+    })
+
+    it('edits against the version a rename from the menu produced', async () => {
+        mockedGetNote.mockResolvedValue(saved)
+        vi.mocked(renameNote).mockResolvedValue({...saved, title: 'Renamed', version: 4})
+        mockedUpdate.mockResolvedValue({...saved, title: 'Renamed', content: 'Edited', version: 5})
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Idea'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Rename'}))
+        const field = screen.getByRole('textbox', {name: 'Title'})
+        await userEvent.clear(field)
+        await userEvent.type(field, 'Renamed')
+        await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+        await screen.findByRole('heading', {name: 'Renamed'})
+
+        await userEvent.click(screen.getByRole('button', {name: 'Edit note'}))
+        await userEvent.type(screen.getByRole('textbox', {name: 'Title'}), '!')
+        await userEvent.click(screen.getByRole('button', {name: 'Save'}))
+
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Renamed!', content: 'A thought', version: 4})
     })
 
     it('keeps the edits and explains when the note changed elsewhere', async () => {

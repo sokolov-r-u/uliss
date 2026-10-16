@@ -1,6 +1,6 @@
 import {type EditorCommand, EditorToolbar} from '@uliss/design-system'
 import {type Editor, EditorContent, useEditor, useEditorState} from '@tiptap/react'
-import {useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {MarkdownContent} from '../../ui/MarkdownContent'
 import {noteEditorExtensions} from './noteEditorExtensions'
 import './note-editor.css'
@@ -23,7 +23,10 @@ interface NoteEditorProps {
 const COMMANDS: Record<EditorCommand, (editor: Editor) => void> = {
     bold: (editor) => editor.chain().focus().toggleBold().run(),
     italic: (editor) => editor.chain().focus().toggleItalic().run(),
-    heading: (editor) => editor.chain().focus().toggleHeading({level: 2}).run(),
+    // Pressed reads any heading level; pressing it again must return any of them to text, not convert it to h2.
+    heading: (editor) => editor.isActive('heading')
+        ? editor.chain().focus().setParagraph().run()
+        : editor.chain().focus().setHeading({level: 2}).run(),
     bulletList: (editor) => editor.chain().focus().toggleBulletList().run(),
     orderedList: (editor) => editor.chain().focus().toggleOrderedList().run(),
     undo: (editor) => editor.chain().focus().undo().run(),
@@ -40,8 +43,9 @@ export function NoteEditor({content, onChange, locked = false, highlightDateHead
     // What the editor writes for the untouched note: the editor may spell equivalent Markdown differently.
     const baselineRef = useRef<string | null>(null)
 
+    const extensions = useMemo(noteEditorExtensions, [])
     const editor = useEditor({
-        extensions: noteEditorExtensions(),
+        extensions,
         content,
         contentType: 'markdown',
         editable: !locked,

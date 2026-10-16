@@ -7,7 +7,7 @@ import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
-import {NoteEditForm} from './NoteEditForm'
+import {asEditable, NoteEditForm} from './NoteEditForm'
 import './notes.css'
 import {formatFullDate} from '../ui/format'
 
@@ -176,9 +176,9 @@ export function NoteDetailPage() {
 
     const note = 'note' in state ? state.note : null
     const noteTitle = note?.title ?? 'Untitled note'
-    const editable = state.status === 'ready' && state.note.version !== undefined ? state.note : null
-    const edit = editing && editable?.version !== undefined
-        ? <NoteEditForm note={{...editable, version: editable.version}}
+    const editable = state.status === 'ready' ? asEditable(state.note) : null
+    const edit = editing && editable
+        ? <NoteEditForm note={editable}
                         onSaved={(saved) => {
                             setEditing(false)
                             setState({status: 'ready', note: {...saved, content: saved.content ?? editable.content}})
@@ -192,8 +192,8 @@ export function NoteDetailPage() {
         </IconButton>
     const actions = note && <ItemActions
         target={{kind: 'note', id: note.id, title: noteTitle, renamable: note.status === 'READY'}}
-        onRenamed={(title) => setState((current) => 'note' in current
-            ? {...current, note: {...current.note, title}} as DetailState
+        onRenamed={(title, renamed) => setState((current) => 'note' in current
+            ? {...current, note: {...current.note, title, version: renamed?.version ?? current.note.version}} as DetailState
             : current)}
         onDeleted={() => navigate('/notes', {replace: true})}>
         {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitle}`}

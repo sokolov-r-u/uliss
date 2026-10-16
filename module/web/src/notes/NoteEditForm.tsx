@@ -1,24 +1,22 @@
 import {useEffect, useRef, useState} from 'react'
 import {Button, Dialog, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
+import {normalizeTitle, TITLE_LIMIT} from '../lib/titleRule'
 import {NoteEditor, type NoteEditorChange} from './editor/NoteEditor'
 import {type Note, NoteApiError, notifyNotesChanged, updateNote} from './noteApi'
 
-const TITLE_LIMIT = 50
-
 export type EditableNote = Note & { content: string; version: number }
+
+/** A ready note with a version can be edited; anything else cannot. */
+export function asEditable(note: Note): EditableNote | null {
+    if (note.status !== 'READY' || note.content == null || note.version === undefined) return null
+    return {...note, content: note.content, version: note.version}
+}
 
 interface NoteEditFormProps {
     note: EditableNote
     onSaved: (note: Note) => void
     onClose: () => void
-}
-
-/** Mirrors the server rule: trimmed, whitespace runs collapsed, 1–50 code points. */
-function normalizeTitle(raw: string): string | null {
-    const title = raw.trim().replace(/\s+/g, ' ')
-    const length = Array.from(title).length
-    return length > 0 && length <= TITLE_LIMIT ? title : null
 }
 
 function saveFailure(error: unknown): string {
