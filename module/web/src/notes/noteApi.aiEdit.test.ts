@@ -71,6 +71,24 @@ describe('streamNoteAiEdit', () => {
             .resolves.toBe('error')
     })
 
+    it('reports a stop during the stream as an abort, not as a failed rewrite', async () => {
+        const encoder = new TextEncoder()
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(encoder.encode('event:append\ndata:{"text":"par"}\n\n'))
+            },
+        })
+        mockedFetch.mockResolvedValue(new Response(body, {status: 200}))
+        const controller = new AbortController()
+
+        const rewrite = streamNoteAiEdit('n-1', {instruction: 'Fix', content: 'text'}, {
+            signal: controller.signal,
+            onText: () => controller.abort(),
+        })
+
+        await expect(rewrite).rejects.toMatchObject({name: 'AbortError'})
+    })
+
     it('rejects a chunk that is not the JSON text shape as a protocol failure', async () => {
         mockedFetch.mockResolvedValue(sseResponse(['event:append\ndata:plain\n\n', 'event:done\ndata:\n\n']))
 

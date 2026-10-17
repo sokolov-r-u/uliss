@@ -7,6 +7,7 @@ import {NoteEditor, type NoteEditorChange, type NoteEditorHandle} from './editor
 import {
     AI_EDIT_CONTENT_LIMIT,
     AI_EDIT_INSTRUCTION_LIMIT,
+    isAbortError,
     type Note,
     NoteApiError,
     notifyNotesChanged,
@@ -62,10 +63,6 @@ function rewriteFailure(error: unknown): string {
         if (error.kind === 'transport') return 'Uliss is unavailable. Try again.'
     }
     return 'Uliss could not rewrite the text. Try again.'
-}
-
-function isAbort(error: unknown): boolean {
-    return error instanceof DOMException && error.name === 'AbortError'
 }
 
 /** Title and text of a ready note in edit mode: Save sends both with the version the edit started from. */
@@ -143,12 +140,17 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
         setHint(nextHint)
         setPreview('')
         let result = ''
+        // One render per frame: every render re-parses the whole Markdown received so far.
+        let frame: number | null = null
         try {
             const outcome = await streamNoteAiEdit(note.id, {instruction, content}, {
                 signal: controller.signal,
                 onText: (chunk) => {
                     result += chunk
-                    setPreview(result)
+                    frame ??= requestAnimationFrame(() => {
+                        frame = null
+                        setPreview(result)
+                    })
                 },
             })
             if (outcome === 'done' && result.trim() !== '') {
@@ -160,12 +162,13 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
                 setRewriteNotice('Uliss could not rewrite the text. Try again.')
             }
         } catch (e) {
-            if (isAbort(e)) {
+            if (isAbortError(e)) {
                 if (rewriteRef.current === controller) setRewriteNotice('Stopped.')
             } else if (!(e instanceof AuthRequiredError)) {
                 setRewriteNotice(rewriteFailure(e))
             }
         } finally {
+            if (frame !== null) cancelAnimationFrame(frame)
             if (rewriteRef.current === controller) rewriteRef.current = null
             setPreview(null)
         }

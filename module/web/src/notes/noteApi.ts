@@ -54,7 +54,7 @@ export class NoteApiError extends Error {
     }
 }
 
-function isAbortError(error: unknown): boolean {
+export function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
@@ -340,6 +340,8 @@ export async function streamNoteAiEdit(
         else if (frame.event === 'done') return 'done'
         else if (frame.event === 'error') return 'error'
     }
+    // Stop cancels the reader, which can end the loop quietly: report the abort, not a cut stream.
+    if (options.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError')
     // Cut without a terminal event: the text may be incomplete.
     return 'error'
 }

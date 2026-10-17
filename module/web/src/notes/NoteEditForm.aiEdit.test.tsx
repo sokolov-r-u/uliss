@@ -68,7 +68,7 @@ describe('NoteEditForm rewrite with the model', () => {
 
         expect(running[0].request).toEqual({instruction: 'Fix spelling', content: 'A thougth'})
         act(() => running[0].send('A tho'))
-        expect(await screen.findByRole('region', {name: 'Text from Uliss'})).toHaveTextContent('A tho')
+        await waitFor(() => expect(screen.getByRole('region', {name: 'Text from Uliss'})).toHaveTextContent('A tho'))
         expect(form.save).toBeDisabled()
         expect(form.cancel).toBeDisabled()
         expect(screen.getByRole('textbox', {name: 'Title'})).toBeDisabled()
