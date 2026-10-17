@@ -52,6 +52,7 @@
 
 ## Commits
 
+- Never commit to `main`. If the current branch is `main`, stop and ask the user which branch to create or switch to.
 - Work on the current branch. One commit per logical block, containing the block's code and its tests; the touched
   modules' tests are green at every commit. No commits with failing tests.
 - Stage explicit paths, never `git add -A`. Task files are gitignored and never committed.
