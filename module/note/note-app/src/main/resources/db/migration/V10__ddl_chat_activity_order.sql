@@ -7,5 +7,6 @@ FROM (SELECT chat_id, MAX(created_at) AS last_message_at
 WHERE m.chat_id = c.id
   AND m.last_message_at > c.updated_at;
 
--- chat lists, newest activity first.
+-- chat lists, newest activity first; it also serves every lookup by user_id, so the old index goes.
 CREATE INDEX idx_chat_user_id_updated_at ON note.chat (user_id, updated_at DESC, id DESC);
+DROP INDEX note.idx_chat_user_id;
