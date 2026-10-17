@@ -64,6 +64,21 @@ function saveEdit(note: (typeof NOTES)[number], body: string) {
     return note
 }
 
+/** A finished model rewrite: the text gets a heading, sent in two chunks like real tokens. */
+function rewriteStream(body: string): Response {
+    const {content} = JSON.parse(body) as { content: string }
+    const chunks = ['## Tidied\n\n', content]
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+            chunks.forEach((text) => controller.enqueue(encoder.encode(`event:append\ndata:${JSON.stringify({text})}\n\n`)))
+            controller.enqueue(encoder.encode('event:done\ndata:\n\n'))
+            controller.close()
+        },
+    })
+    return new Response(stream, {status: 200, headers: {'Content-Type': 'text/event-stream'}})
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, location.origin)
     const method = init?.method ?? 'GET'
@@ -98,6 +113,10 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (chat) {
         const found = chats.find((item) => item.id === chat[1])
         return found ? json(found) : json({}, 404)
+    }
+
+    if (/^\/note\/notes\/[^/]+\/ai-edit$/.test(url.pathname) && method === 'POST') {
+        return rewriteStream(String(init?.body))
     }
 
     const note = url.pathname.match(/^\/note\/notes\/([^/]+)$/)
