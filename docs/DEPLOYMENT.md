@@ -26,8 +26,8 @@ path below is unchanged and still fully supported** — this is an additional op
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.
 - `auth`/`user`/`note` read `infra/.env` via `env_file`, with two container-only overrides on top:
   `USER_SERVICE_HOST=user` on `auth` (its gRPC client target — `localhost` only makes sense for
-  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `user`/`note` (the OAuth
-  `redirect-uri` `:security` builds — the compose `web` container serves on `:80`, not the Vite dev
+  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `auth`/`user`/`note` (the OAuth
+  `redirect-uri` `:security` builds, and where `auth` sends a login without a saved authorize request — the compose `web` container serves on `:80`, not the Vite dev
   port `:3000`). `auth` also gets a Compose network alias `auth.uliss.home`, so
   `AUTH_PUBLIC_URL`/`AUTH_INTERNAL_URL` need no override — the same hostname resolves from both the
   host browser and sibling containers.

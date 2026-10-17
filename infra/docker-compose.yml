@@ -50,6 +50,8 @@ services:
     environment:
       # auth's own container, not localhost as in host-based bootRun
       USER_SERVICE_HOST: user
+      # web is served on :80 in full-compose mode, not the Vite dev port :3000
+      FRONTEND_URL: http://uliss.home
       <<: *file-logging
       LOGGING_FILE_NAME: /logs/auth.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them

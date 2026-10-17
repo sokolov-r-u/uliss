@@ -24,7 +24,8 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @Configuration
 @EnableWebSecurity
 class SecurityConfig(
-    @param:Value($$"${app.cors.allowed-origins}") private val allowedOrigins: List<String>
+    @param:Value($$"${app.cors.allowed-origins}") private val allowedOrigins: List<String>,
+    @param:Value($$"${app.frontend-url}") private val frontendUrl: String,
 ) {
     private val passwordEncoderStrength = 12
 
@@ -47,7 +48,11 @@ class SecurityConfig(
                 .requestMatchers("/login", "/register", "/ds/**", "/error", "/actuator/health").permitAll()
                 .anyRequest().authenticated()
         }
-        .formLogin { it.loginPage("/login") }
+        .formLogin {
+            // a login without a saved authorize request (the form opened directly or restored) has nowhere to
+            // return in this server; the web app starts its own login, which passes on this session
+            it.loginPage("/login").defaultSuccessUrl(frontendUrl, false)
+        }
         .csrf { csrf ->
             val requestHandler = CsrfTokenRequestAttributeHandler()
             requestHandler.setCsrfRequestAttributeName(null)

@@ -19,3 +19,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** anything added to a client row by hand is removed at the next start. Clients missing from config
   are not touched yet (`docs/TECH_DEBT.md`).
 - **Source:** commits `749a322`, `637d282`.
+
+## 2026-10-17 — A login without a saved request goes to the web app
+
+- **Context:** a login whose session held no saved `/oauth2/authorize` request (form opened directly, restored or
+  resubmitted) was redirected to this server's `/`, which has no handler and answered 404 problem+json.
+- **Decision:** the form-login chain uses `defaultSuccessUrl(app.frontend-url, alwaysUse = false)`: a saved request
+  still wins; otherwise the browser goes to the web app, whose own login passes on the now signed-in session.
+- **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 3.
