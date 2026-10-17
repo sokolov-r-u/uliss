@@ -201,7 +201,8 @@ export function NoteDetailPage() {
         onRenamed={(title, renamed) => setState((current) => 'note' in current
             ? {...current, note: {...current.note, title, version: renamed?.version ?? current.note.version}} as DetailState
             : current)}
-        onDeleted={() => navigate('/notes', {replace: true})}>
+        // Deleted from the chat delete dialog's list: go back to that dialog, which no longer lists it.
+        onDeleted={() => backToDeleteDialog ? navigate(-1) : navigate('/notes', {replace: true})}>
         {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitle}`}
                                    onClick={(event) => openMenu(event.currentTarget)}>
             <Icon name="dots" size={17}/>
