@@ -1,6 +1,7 @@
 import {type EditorCommand, EditorToolbar} from '@uliss/design-system'
 import {type Editor, EditorContent, useEditor, useEditorState} from '@tiptap/react'
 import {type Ref, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import {findScrollParent} from '../../lib/scrollParent'
 import {MarkdownContent} from '../../ui/MarkdownContent'
 import {noteEditorExtensions} from './noteEditorExtensions'
 import './note-editor.css'
@@ -54,6 +55,10 @@ export function NoteEditor({
                                handleRef,
                            }: NoteEditorProps) {
     const [original, setOriginal] = useState(false)
+    const rootRef = useRef<HTMLDivElement>(null)
+    // Where each view was left: switching back returns to it; the original opens at the top the first time.
+    const scrollTopRef = useRef({text: 0, original: 0})
+    const restoreScrollRef = useRef(false)
     const onChangeRef = useRef(onChange)
     useLayoutEffect(() => {
         onChangeRef.current = onChange
@@ -89,8 +94,23 @@ export function NoteEditor({
     // The model's text replaces what the editor shows, so the original must not cover it.
     const previewing = preview !== null
     useEffect(() => {
-        if (previewing) setOriginal(false)
-    }, [previewing])
+        if (previewing) switchView(false)
+    }, [previewing]) // switchView is redefined each render but only reads refs and the current view
+
+    function switchView(showOriginal: boolean) {
+        if (showOriginal === original) return
+        const scroller = findScrollParent(rootRef.current)
+        if (scroller) scrollTopRef.current[original ? 'original' : 'text'] = scroller.scrollTop
+        restoreScrollRef.current = true
+        setOriginal(showOriginal)
+    }
+
+    useLayoutEffect(() => {
+        if (!restoreScrollRef.current) return
+        restoreScrollRef.current = false
+        const scroller = findScrollParent(rootRef.current)
+        if (scroller) scroller.scrollTop = scrollTopRef.current[original ? 'original' : 'text']
+    }, [original])
 
     useImperativeHandle(handleRef, () => ({
         getMarkdown: () => editor?.getMarkdown().trim() ?? '',
@@ -118,13 +138,13 @@ export function NoteEditor({
         },
     })
 
-    return <div className="note-editor">
+    return <div className="note-editor" ref={rootRef}>
         <EditorToolbar
             onCommand={(command) => editor && COMMANDS[command](editor)}
             active={state?.active}
             unavailable={state?.unavailable}
             original={original}
-            onOriginalChange={setOriginal}
+            onOriginalChange={switchView}
             disabled={locked || !editor}
             style={{position: 'sticky', top: 0, zIndex: 1}}
         />
