@@ -2,6 +2,7 @@ package io.uliss.note_service.controller
 
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
+import io.uliss.note_service.dto.internal.NoteAiEditEvent
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.NoteNotReadyException
@@ -9,6 +10,7 @@ import io.uliss.note_service.exception.NoteUpdatingException
 import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.service.NoteAiEditService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.security.config.CorsProperties
@@ -29,6 +31,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
 import reactor.core.publisher.Flux
 import java.time.Instant
@@ -52,6 +55,9 @@ class NoteControllerTest {
 
     @MockitoBean
     lateinit var noteFacade: NoteFacade
+
+    @MockitoBean
+    lateinit var noteAiEditService: NoteAiEditService
 
     @MockitoBean
     lateinit var jwtDecoder: JwtDecoder
@@ -296,5 +302,103 @@ class NoteControllerTest {
         }.andExpect {
             status { isNotFound() }
         }
+    }
+
+    @Test
+    fun `aiEdit streams the rewrite as JSON appends and ends with done`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteAiEditService.streamRewrite(userId, noteId, "Fix spelling", "body")).thenReturn(
+            Flux.just(
+                NoteAiEditEvent.AppendText("line\n  indented"),
+                NoteAiEditEvent.AppendText(" end"),
+                NoteAiEditEvent.Completed,
+            )
+        )
+
+        aiEdit(userId, noteId, """{"instruction":"Fix spelling","content":"body"}""").asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
+                string(Matchers.containsString("event:append\ndata:{\"text\":\"line\\n  indented\"}\n\n"))
+                string(Matchers.containsString("event:append\ndata:{\"text\":\" end\"}\n\n"))
+                string(Matchers.endsWith("event:done\ndata:\n\n"))
+            }
+        }
+    }
+
+    @Test
+    fun `aiEdit reports a failed rewrite as an error event`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteAiEditService.streamRewrite(userId, noteId, "Fix", "body"))
+            .thenReturn(Flux.just(NoteAiEditEvent.AppendText("par"), NoteAiEditEvent.Failed))
+
+        aiEdit(userId, noteId, """{"instruction":"Fix","content":"body"}""").asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                string(Matchers.endsWith("event:error\ndata:FAILED\n\n"))
+                string(Matchers.not(Matchers.containsString("event:done")))
+            }
+        }
+    }
+
+    @Test
+    fun `aiEdit rejects a blank or oversized instruction or content with 400 before calling the service`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val bodies = listOf(
+            """{"instruction":"  ","content":"body"}""",
+            """{"instruction":"${"a".repeat(1_001)}","content":"body"}""",
+            """{"instruction":"Fix","content":" "}""",
+            """{"instruction":"Fix","content":"${"a".repeat(30_001)}"}""",
+            """{"content":"body"}""",
+        )
+        for (body in bodies) {
+            aiEdit(userId, noteId, body).andExpect { status { isBadRequest() } }
+        }
+        Mockito.verifyNoInteractions(noteAiEditService)
+    }
+
+    @Test
+    fun `aiEdit accepts an instruction and content exactly at their limits`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val instruction = "a".repeat(1_000)
+        val content = "b".repeat(30_000)
+        Mockito.`when`(noteAiEditService.streamRewrite(userId, noteId, instruction, content))
+            .thenReturn(Flux.just(NoteAiEditEvent.Completed))
+
+        aiEdit(userId, noteId, """{"instruction":"$instruction","content":"$content"}""").asyncDispatch()
+            .andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `aiEdit maps refusals before the stream to their status and code`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val refusals = listOf(
+            NoteNotReadyException(noteId) to "NOTE_NOT_READY",
+            NoteUpdatingException(noteId) to "NOTE_UPDATING",
+        )
+        for ((refusal, code) in refusals) {
+            Mockito.doThrow(refusal).`when`(noteAiEditService).streamRewrite(userId, noteId, "Fix", "body")
+
+            aiEdit(userId, noteId, """{"instruction":"Fix","content":"body"}""").andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value(code) }
+            }
+        }
+        Mockito.doThrow(NotFoundException("note id=$noteId not found"))
+            .`when`(noteAiEditService).streamRewrite(userId, noteId, "Fix", "body")
+        aiEdit(userId, noteId, """{"instruction":"Fix","content":"body"}""").andExpect { status { isNotFound() } }
+    }
+
+    private fun aiEdit(userId: UUID, noteId: UUID, body: String) = mockMvc.post("/note/notes/$noteId/ai-edit") {
+        with(jwt().jwt { it.claim("userId", userId.toString()) })
+        contentType = MediaType.APPLICATION_JSON
+        // As the web client sends it: refusals before the stream come back as JSON.
+        header("Accept", "text/event-stream, application/json")
+        content = body
     }
 }

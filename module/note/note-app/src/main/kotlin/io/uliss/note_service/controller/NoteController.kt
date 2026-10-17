@@ -1,11 +1,15 @@
 package io.uliss.note_service.controller
 
+import io.uliss.note_service.dto.internal.NoteAiEditEvent
+import io.uliss.note_service.dto.request.AiEditNoteRequest
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.UpdateNoteRequest
+import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.dto.response.toResponse
+import io.uliss.note_service.service.NoteAiEditService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.note_service.util.withHeartbeat
@@ -22,6 +26,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
@@ -34,6 +39,7 @@ import reactor.core.publisher.Flux
 class NoteController(
     private val noteService: NoteService,
     private val noteFacade: NoteFacade,
+    private val noteAiEditService: NoteAiEditService,
 ) {
 
     @GetMapping
@@ -71,6 +77,17 @@ class NoteController(
         checkNotNull(request.version),
     )
 
+    /** Streams a model rewrite of [AiEditNoteRequest.content]; refusals come back as JSON before the stream opens. */
+    @PostMapping("/{noteId}/ai-edit", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun aiEditNote(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: AiEditNoteRequest,
+    ): Flux<ServerSentEvent<Any>> =
+        noteAiEditService.streamRewrite(jwt.getUserId(), noteId, request.instruction, request.content)
+            .map(::toServerSentEvent)
+            .withHeartbeat(STREAM_HEARTBEAT_INTERVAL)
+
     @DeleteMapping("/{noteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteNote(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID) {
@@ -84,9 +101,17 @@ class NoteController(
     ): Flux<ServerSentEvent<NoteStatusResponse>> =
         noteService.streamNoteStatus(jwt.getUserId(), noteId)
             .map { status -> ServerSentEvent.builder(status).event("status").build() }
-            .withHeartbeat(STATUS_HEARTBEAT_INTERVAL)
+            .withHeartbeat(STREAM_HEARTBEAT_INTERVAL)
+
+    private fun toServerSentEvent(event: NoteAiEditEvent): ServerSentEvent<Any> = when (event) {
+        is NoteAiEditEvent.AppendText ->
+            ServerSentEvent.builder<Any>(AssistantTextChunkResponse(event.text)).event("append").build()
+
+        NoteAiEditEvent.Completed -> ServerSentEvent.builder<Any>("").event("done").build()
+        NoteAiEditEvent.Failed -> ServerSentEvent.builder<Any>("FAILED").event("error").build()
+    }
 
     private companion object {
-        val STATUS_HEARTBEAT_INTERVAL: Duration = Duration.ofSeconds(15)
+        val STREAM_HEARTBEAT_INTERVAL: Duration = Duration.ofSeconds(15)
     }
 }

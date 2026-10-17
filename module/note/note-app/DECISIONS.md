@@ -178,3 +178,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   `GET /note/chats` orders by `updated_at DESC, id DESC` (index `idx_chat_user_id_updated_at`); V10 backfills it from
   the latest message.
 - **Source:** task `docs/tasks/2026-10-17-chat-activity-order.md`, block 1.
+
+## 2026-10-17 — Model rewrites of a note are streamed drafts
+
+- **Context:** task 2 of the note-editing epic: the user edits a note with a typed command to the model; the result
+  must be reviewable and revertible before anything is stored.
+- **Decision:** `POST /note/notes/{noteId}/ai-edit` takes the command and the text as the editor holds it (unsaved
+  edits included), checks only that the note is the user's, `READY` and not updating, and streams the model's
+  Markdown as SSE `append` → `done` / `error`. Nothing is persisted and no outbox is used: the user waits for the
+  result, and saving stays the versioned `PUT`. Plain streamed text, not structured output, so tokens can be shown as
+  they come; the system prompt asks for the whole note only and marks the note text as data. The model gets no RAG,
+  history or tools, and never the title. Limits: command 1–1,000 and text 1–30,000 characters. Options
+  `note.ai-edit`: reasoning `low`, verbosity `medium` (low verbosity invites shortening the note).
+- **Consequences:** a version conflict surfaces only on Save; the model may still add a preface or a code fence,
+  which the prompt alone guards against.
+- **Source:** task `docs/tasks/2026-10-17-note-ai-edit.md`, block 1.

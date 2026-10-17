@@ -91,6 +91,7 @@ application services or outbox handlers.
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
 | `PATCH /note/notes/{noteId}`                      | `NoteController -> NoteService`                                                     | Renames a `READY` note and queues reindexing       |
 | `PUT /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Saves a versioned edit and queues reindexing       |
+| `POST /note/notes/{noteId}/ai-edit`               | `NoteController -> NoteAiEditService -> NoteService`                                | Streams a model rewrite; saves nothing             |
 | `DELETE /note/notes/{noteId}`                     | `NoteController -> NoteService`                                                     | Deletes the note; chats survive                    |
 
 ## Paginated chat history

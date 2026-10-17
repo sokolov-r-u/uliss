@@ -136,6 +136,12 @@ to the attempt. Search results are not persisted with the reply.
   otherwise). `version` is the `NoteResponse.version` the edit started from; a newer stored version returns
   `409 NOTE_VERSION_CONFLICT`, a pending summary update `409 NOTE_UPDATING`, any other status `409 NOTE_NOT_READY`.
   A changed note is reindexed; an unchanged edit is a no-op that keeps the version.
+- `POST /note/notes/{noteId}/ai-edit` with `{"instruction", "content"}` (1–1,000 and 1–30,000 characters, `400`
+  otherwise) streams a model rewrite of `content`, the text as the editor holds it, as SSE `append` (`{"text"}`)
+  events ending with `done`, or `error` (`FAILED`) when the provider fails. Nothing is saved; the client saves with
+  `PUT`. A missing or foreign note is `404`, a pending summary update `409 NOTE_UPDATING`, any other status
+  `409 NOTE_NOT_READY`, all before the stream opens. Closing the connection cancels the provider call. Options:
+  `note.ai-edit.reasoning-effort` / `verbosity`.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
   summary request; chats remain.
 

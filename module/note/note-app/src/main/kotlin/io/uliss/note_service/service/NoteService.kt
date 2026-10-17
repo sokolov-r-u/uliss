@@ -270,6 +270,13 @@ class NoteService(
         return note.toResponse(updating = false)
     }
 
+    /** Throws unless the user's note is READY without a pending summary update, as [updateNote] requires. */
+    fun checkNoteEditable(userId: UUID, noteId: UUID) {
+        val note = getOwnedNote(userId, noteId)
+        if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
+        if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
+    }
+
     /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */
     @Transactional
     fun deleteNote(userId: UUID, noteId: UUID) {
