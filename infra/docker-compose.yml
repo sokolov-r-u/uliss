@@ -136,7 +136,8 @@ services:
     ports:
       - "80:80"
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost/ || exit 1" ]
+      # 127.0.0.1: busybox resolves localhost to ::1, where nginx does not listen; any other Host gets a 301
+      test: [ "CMD-SHELL", "wget -q --spider --header \"Host: $$WEB_CANONICAL_HOST\" http://127.0.0.1/ || exit 1" ]
       interval: 5s
       timeout: 3s
       retries: 10

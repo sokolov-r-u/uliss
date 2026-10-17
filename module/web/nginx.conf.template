@@ -1,6 +1,15 @@
+# The nginx image renders this template with envsubst (only WEB_* variables, see the Dockerfile).
+# Login cookies belong to one host and the OAuth callback always returns to the canonical one,
+# so any other Host (an IP, localhost) is sent there before a login can start.
+server {
+    listen 80 default_server;
+    server_name _;
+    return 301 $scheme://${WEB_CANONICAL_HOST}$request_uri;
+}
+
 server {
     listen 80;
-    server_name _;
+    server_name ${WEB_CANONICAL_HOST};
     root /usr/share/nginx/html;
     index index.html;
 

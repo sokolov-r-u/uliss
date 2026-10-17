@@ -30,3 +30,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the serializer may respell equivalent Markdown (for example `*` lists as `-`) in edited notes.
 - **Source:** task `docs/tasks/2026-10-17-note-manual-edit.md`, blocks 3–4.
 
+
+## 2026-10-17 — The web container redirects to one canonical host
+
+- **Context:** the mediator's login cookies are host-only and the OAuth callback always returns to
+  `http://uliss.home/callback`; a login started on another Host (the VPN IP) lost its cookies and failed with 400.
+- **Decision:** `nginx.conf.template` serves only `WEB_CANONICAL_HOST` (default `uliss.home`); the default server
+  answers every other Host with a 301 to it. The Compose healthcheck calls `127.0.0.1` with that Host.
+- **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 1.
