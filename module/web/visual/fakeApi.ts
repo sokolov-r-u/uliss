@@ -15,8 +15,8 @@ export class AuthRequiredError extends Error {
 
 const params = new URLSearchParams(location.search)
 const empty = params.get('data') === 'empty'
-// `?links=on` links chat c1 with notes n1 and n2; without it the panels show their empty states, as in the snapshots.
-const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? [['c1', 'n1'], ['c1', 'n2']] : []
+// `?links=on` links chat c1 with notes n1, n2 and n3 (a long title); without it the panels show their empty states, as in the snapshots.
+const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? [['c1', 'n1'], ['c1', 'n2'], ['c1', 'n3']] : []
 
 function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})

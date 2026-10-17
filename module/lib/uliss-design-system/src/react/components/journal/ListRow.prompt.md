@@ -20,4 +20,5 @@ One line per note or chat. Dense index, not a feed.
   on the first row). `size="wide"` pins them; to switch at a CSS breakpoint, set `--list-row-title-size`,
   `--list-row-title-weight`, `--list-row-height` and `--list-row-rule` on the list container instead.
 - A title cut by the ellipsis shows whole, wrapped over as many lines as it needs, in a panel under the row (above it when
-  there is no room below) after a 350 ms hover (pointer only; touch gets the title on the opened screen).
+  there is no room below) after a 350 ms hover (pointer only; touch gets the title on the opened screen). The panel
+  sits above menus and dialogs, so rows listed inside a `Dialog` show it too.

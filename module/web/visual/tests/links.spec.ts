@@ -22,3 +22,21 @@ async function openPanel(page: Page, toggleLabel: string) {
     await expect(toggle).toBeVisible()
     if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
 }
+
+test('the chat delete dialog is wide on desktop and shows a cut note title whole over itself', async ({page}) => {
+    await openRoute(page, '/chats/c1', 'links=on')
+    await page.getByRole('button', {name: 'Actions for Constraints and the small room'}).first().click()
+    await page.getByRole('menuitem', {name: 'Delete'}).click()
+    const dialog = page.getByRole('dialog', {name: /Delete/})
+
+    expect((await dialog.boundingBox())?.width).toBeGreaterThan(400)
+
+    await dialog.getByRole('button', {name: /Notes on forgetting/}).hover()
+    const tooltip = page.getByRole('tooltip')
+    await expect(tooltip).toHaveText('Notes on forgetting, and why I trust the graph to remember the long thread for me')
+    const above = await tooltip.evaluate((tip) => {
+        const overlay = document.querySelector('[role="dialog"]')?.parentElement
+        return Number(getComputedStyle(tip).zIndex) > Number(overlay ? getComputedStyle(overlay).zIndex : 0)
+    })
+    expect(above).toBe(true)
+})

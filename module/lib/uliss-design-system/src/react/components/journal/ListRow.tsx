@@ -243,7 +243,8 @@ export function ListRow({
                     left: tipPosition?.left ?? 0,
                     width: tipPosition?.width,
                     visibility: tipPosition ? 'visible' : 'hidden',
-                    zIndex: 1040,
+                    // Above menus (1050) and dialogs (1100): a row may sit inside either.
+                    zIndex: 1150,
                     padding: '9px 12px',
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--line-strong)',

@@ -23,6 +23,9 @@ export interface ItemActionsProps {
     children: (openMenu: (anchor: HTMLElement) => void, menuOpen: boolean) => ReactNode
 }
 
+/** Room for a listed note's full title (up to 50 code points) beside its date; the screen narrows it on a phone. */
+const NOTE_LIST_DIALOG_WIDTH = 460
+
 export function deleteChatBody(noteCount: number): string {
     if (noteCount <= 0) return 'No notes were written from it. The conversation does not come back.'
     if (noteCount === 1) {
@@ -177,7 +180,8 @@ export function ItemActions({
             {dialog === 'delete' && <Dialog danger title={`Delete “${target.title}”?`}
                                             body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
                                             confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"
-                                            onConfirm={() => void submitDelete()} onCancel={closeDialog}>
+                                            onConfirm={() => void submitDelete()} onCancel={closeDialog}
+                                            width={target.kind === 'chat' && target.noteCount > 0 ? NOTE_LIST_DIALOG_WIDTH : undefined}>
                 {/* The notes that stay: open one to delete it by hand before (or instead of) the chat. */}
                 {target.kind === 'chat' && target.noteCount > 0
                     && <ChatNotesList chatId={target.id} onOpen={openNote} empty={null}/>}
