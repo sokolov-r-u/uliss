@@ -544,7 +544,7 @@ pagination and a lightweight list DTO; the side navigation and list pages load m
 
 **Status:** not implemented (review item №9, deferred 2026-10-16).
 
-`module/web/nginx.conf` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
+`module/web/nginx.conf.template` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
 `frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
 Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
 Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with
@@ -606,3 +606,17 @@ react-router's `useBlocker` works only under a data router, and the SPA uses `Br
 `createBrowserRouter` (route objects, loaders unused) and blocking navigation while `NoteEditForm` is dirty closes the
 gap; the same guard would serve the later AI-assisted edit. Recorded from `docs/tasks/2026-10-17-note-manual-edit.md`.
 
+
+## A login after opening an auth-server page still lands on its 404 (`auth`)
+
+**Status:** not implemented. A login without a saved request now goes to the web app (`defaultSuccessUrl`), but a
+browser that first opened a protected auth-server path (`http://auth.uliss.home:9000/` or an unknown one) has that path
+saved and returns to it after login, which answers 404 problem+json. A `/` handler on the auth server that redirects to
+`app.frontend-url` (and a friendly 404 page for HTML requests) would close it. Recorded from
+`docs/tasks/2026-10-17-auth-login-glitches.md`.
+
+## `build` and `integrationTest` cannot run in one Gradle invocation
+
+**Status:** not implemented. `./gradlew build :auth:integrationTest` fails task validation: `:auth:jacocoTestReport`
+reads `build/jacoco/integrationTest.exec` without depending on `:auth:integrationTest`. Run them as separate
+invocations until the jacoco report task declares that input (or `mustRunAfter`).

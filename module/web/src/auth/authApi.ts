@@ -8,6 +8,7 @@
 import {clearTokens, setTokens, type Tokens} from './tokenStore'
 
 const RETURN_TO_KEY = 'uliss.returnTo'
+const LOGIN_RETRIED_KEY = 'uliss.loginRetried'
 
 /** Shape returned by the service `/user/oauth2/callback` and `/user/oauth2/refresh` (snake_case). */
 type TokenResponse = {
@@ -38,8 +39,31 @@ async function readTokens(res: Response, what: string): Promise<Tokens> {
  * the user was so `/callback` can return them there.
  */
 export function login(): void {
-  sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname + window.location.search)
+  // a login restarted from /callback keeps the route saved by the login it replaces
+  if (!window.location.pathname.startsWith('/callback')) {
+    sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname + window.location.search)
+  }
   window.location.href = '/user/oauth2/login'
+}
+
+/**
+ * Restarts a rejected login once (its cookies expired or were set on another host). The auth server usually still
+ * holds the signed-in session, so the new login passes without the form. Returns false when this login already is
+ * the retry: the caller shows the error, and the next manual attempt may retry once again.
+ */
+export function retryLoginOnce(): boolean {
+  if (sessionStorage.getItem(LOGIN_RETRIED_KEY)) {
+    sessionStorage.removeItem(LOGIN_RETRIED_KEY)
+    return false
+  }
+  sessionStorage.setItem(LOGIN_RETRIED_KEY, '1')
+  login()
+  return true
+}
+
+/** A completed login ends the retry window. */
+export function clearLoginRetry(): void {
+  sessionStorage.removeItem(LOGIN_RETRIED_KEY)
 }
 
 /** One-shot read of the saved pre-login route; falls back to home and never loops back to /callback. */

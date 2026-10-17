@@ -50,6 +50,8 @@ services:
     environment:
       # auth's own container, not localhost as in host-based bootRun
       USER_SERVICE_HOST: user
+      # web is served on :80 in full-compose mode, not the Vite dev port :3000
+      FRONTEND_URL: http://uliss.home
       <<: *file-logging
       LOGGING_FILE_NAME: /logs/auth.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
@@ -136,7 +138,8 @@ services:
     ports:
       - "80:80"
     healthcheck:
-      test: [ "CMD-SHELL", "wget -q --spider http://localhost/ || exit 1" ]
+      # 127.0.0.1: busybox resolves localhost to ::1, where nginx does not listen; any other Host gets a 302
+      test: [ "CMD-SHELL", "wget -q --spider --header \"Host: $$WEB_CANONICAL_HOST\" http://127.0.0.1/ || exit 1" ]
       interval: 5s
       timeout: 3s
       retries: 10

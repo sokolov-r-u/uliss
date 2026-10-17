@@ -24,6 +24,7 @@ spring:
     cache: false
 
 app:
+  frontend-url: http://localhost:3000
   auth:
     issuer: http://localhost:9000
     authorization-cleanup:

@@ -26,6 +26,8 @@ spring:
     cache: false   #todo dev: always re-render templates; enable in prod
 
 app:
+  # where a login without a saved authorize request goes
+  frontend-url: ${FRONTEND_URL}
   auth:
     issuer: ${AUTH_PUBLIC_URL}
     authorization-cleanup:

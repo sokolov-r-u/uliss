@@ -26,12 +26,12 @@ path below is unchanged and still fully supported** — this is an additional op
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.
 - `auth`/`user`/`note` read `infra/.env` via `env_file`, with two container-only overrides on top:
   `USER_SERVICE_HOST=user` on `auth` (its gRPC client target — `localhost` only makes sense for
-  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `user`/`note` (the OAuth
-  `redirect-uri` `:security` builds — the compose `web` container serves on `:80`, not the Vite dev
+  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `auth`/`user`/`note` (the OAuth
+  `redirect-uri` `:security` builds, and where `auth` sends a login without a saved authorize request — the compose `web` container serves on `:80`, not the Vite dev
   port `:3000`). `auth` also gets a Compose network alias `auth.uliss.home`, so
   `AUTH_PUBLIC_URL`/`AUTH_INTERNAL_URL` need no override — the same hostname resolves from both the
   host browser and sibling containers.
-- Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf`
+- Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf.template`
   proxies those paths itself (see "web" below) — inert under k8s.
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
   and to `infra/volumes/logs/<service>.log` (gitignored). Files roll daily or at 10 MB into `archive/` as plain text,
@@ -74,7 +74,9 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   path under its own name (see the path-prefix convention in the root `CLAUDE.md`) — one rule per service
   instead of one per resource.
 - **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
-  `module/web/nginx.conf` provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
+  `module/web/nginx.conf.template` (rendered by the nginx image with `WEB_CANONICAL_HOST`, default `uliss.home`)
+  answers any other Host (an IP, `localhost`) with a 302 to that host, so the login starts where the OAuth callback
+  returns. It provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
   immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404. It also proxies
   `/user/` and `/note/` to those services — needed for same-origin routing under plain `docker compose`
   (no ingress there); inert under k8s, where Ingress routes those paths before they reach this pod.

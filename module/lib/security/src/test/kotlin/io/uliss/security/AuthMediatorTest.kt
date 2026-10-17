@@ -26,6 +26,9 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 
+// a login form may stay open as long as the auth-server session (30 min) lives
+private const val LOGIN_COOKIE_AGE = 1800
+
 @Tag("integration")
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -50,7 +53,7 @@ class AuthMediatorTest {
                     exists("code_verifier")
                     httpOnly("code_verifier", true)
                     secure("code_verifier", false)
-                    maxAge("code_verifier", 300)
+                    maxAge("code_verifier", LOGIN_COOKIE_AGE)
                 }
             }
             .andReturn().response.redirectedUrl
@@ -69,7 +72,7 @@ class AuthMediatorTest {
                 cookie {
                     exists(OAUTH_STATE)
                     httpOnly(OAUTH_STATE, true)
-                    maxAge(OAUTH_STATE, 300)
+                    maxAge(OAUTH_STATE, LOGIN_COOKIE_AGE)
                 }
             }
             .andReturn().response

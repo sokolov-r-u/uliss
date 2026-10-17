@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { exchangeCode, login, LoginRejectedError, takeReturnTo } from '../auth/authApi'
+import { clearLoginRetry, exchangeCode, login, LoginRejectedError, retryLoginOnce, takeReturnTo } from '../auth/authApi'
 import { useAuth } from '../auth/AuthContext'
 import { Shell } from '../ui/Shell'
 
@@ -20,30 +20,37 @@ export function Callback() {
     // Guard against StrictMode's double-invoke — the authorization code is single-use.
     if (ran.current) return
     ran.current = true
+    // a shown error ends this login: the next manual attempt may be restarted once again
+    const fail = (message: string) => {
+      clearLoginRetry()
+      setError(message)
+    }
 
     // The authorization server reports a refused or cancelled login as `error=...` instead of a code.
     if (params.get('error')) {
-      setError('Sign-in was cancelled or refused.')
+      fail('Sign-in was cancelled or refused.')
       return
     }
     const code = params.get('code')
     const state = params.get('state')
     if (!code || !state) {
-      setError('The sign-in link is incomplete. Start sign-in again.')
+      fail('The sign-in link is incomplete. Start sign-in again.')
       return
     }
     exchangeCode(code, state)
       .then(() => {
+        clearLoginRetry()
         syncFromStore()
         navigate(takeReturnTo(), { replace: true })
       })
-      .catch((e: unknown) =>
-        setError(
-          e instanceof LoginRejectedError
-            ? 'The sign-in session has expired. Start sign-in again.'
-            : 'Could not complete sign-in. Check the connection and try again.',
-        ),
-      )
+      .catch((e: unknown) => {
+        if (e instanceof LoginRejectedError) {
+          if (retryLoginOnce()) return
+          fail('The sign-in session has expired. Start sign-in again.')
+          return
+        }
+        fail('Could not complete sign-in. Check the connection and try again.')
+      })
   }, [params, navigate, syncFromStore])
 
   return (
