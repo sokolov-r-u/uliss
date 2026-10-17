@@ -1,10 +1,11 @@
 import type {ReactNode} from 'react'
 import {ChatDock} from '@uliss/design-system'
+import './chat.css'
 
 /**
  * The composer at the foot of a chat — DS `ChatDock` shape (46px minimum `--bg-panel` field,
  * `--line-strong` edge, inline tiles). Voice and typing share the dock; the mic is disabled
- * (text-only chat).
+ * (text-only chat). Also the command field of note edit mode.
  */
 export function ChatComposer({
                                  value,
@@ -14,6 +15,7 @@ export function ChatComposer({
                                  generationActive,
                                  onStop,
                                  action,
+                                 placeholder = 'Write a thought…',
                              }: {
     value: string
     onChange: (v: string) => void
@@ -22,6 +24,7 @@ export function ChatComposer({
     generationActive?: boolean
     onStop?: () => void
     action?: ReactNode
+    placeholder?: string
 }) {
     return (
         <ChatDock
@@ -32,7 +35,7 @@ export function ChatComposer({
             generationActive={generationActive}
             onStop={onStop}
             voiceDisabled
-            placeholder="Write a thought…"
+            placeholder={placeholder}
             onSubmit={(e) => {
                 e.preventDefault()
                 onSubmit()
