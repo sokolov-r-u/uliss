@@ -17,3 +17,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   400/401 is `RefreshRejectedError` and signs in again; other refresh failures are `SessionRefreshError` and keep the
   tokens.
 - **Source:** commits `e39eef3` (`SessionRefreshError`), `9ff64fe`, `9fe4851`.
+
+## 2026-10-17 — Notes are edited visually with TipTap
+
+- **Context:** users edit notes stored as Markdown and should not see Markdown syntax.
+- **Decision:** `NoteEditor` uses TipTap 3 with the official `@tiptap/markdown` (pinned exactly; its docs are Beta).
+  The toolbar is the design system's `EditorToolbar`; the TipTap engine stays in `web`, out of the design system. The
+  extensions cover more than the toolbar inserts (tables, code, links, quotes, strikethrough), so a pass through the
+  editor renders the same; raw HTML is reduced to known nodes or dropped. "Changed" compares against the editor's own
+  serialization of the untouched note, and an untouched text is saved as stored. Every note's content is now rendered
+  as Markdown, not only chat summaries.
+- **Consequences:** the serializer may respell equivalent Markdown (for example `*` lists as `-`) in edited notes.
+- **Source:** task `docs/tasks/2026-10-17-note-manual-edit.md`, blocks 3–4.
+

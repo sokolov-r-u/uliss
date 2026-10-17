@@ -7,6 +7,7 @@ import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
+import {asEditable, NoteEditForm} from './NoteEditForm'
 import './notes.css'
 import {formatFullDate} from '../ui/format'
 
@@ -27,10 +28,12 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function NoteDetailView({state, onRetry, actions}: {
+export function NoteDetailView({state, onRetry, actions, edit}: {
     state: DetailState
     onRetry?: () => void
     actions?: ReactNode
+    /** The edit form of a ready note; it replaces the note's text while it is open. */
+    edit?: ReactNode
 }) {
     // The note title is the page heading; every other state names itself in the body.
     const title = state.status === 'ready' ? state.note.title || undefined : undefined
@@ -53,12 +56,12 @@ export function NoteDetailView({state, onRetry, actions}: {
             <div className="note-detail-state note-detail-error"><h1>Could not load the note</h1>
                 <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
             </div>}
-        {state.status === 'ready' && state.note.updating &&
+        {state.status === 'ready' && !edit && state.note.updating &&
             <p className="note-update-notice" role="status">Updating this note…</p>}
-        {state.status === 'ready' && <article className="note-content">
-            {state.note.source === 'CHAT_SUMMARY'
-                ? <MarkdownContent content={state.note.content} highlightDateHeadings/>
-                : state.note.content}
+        {state.status === 'ready' && edit && <div className="note-content note-content-editing">{edit}</div>}
+        {state.status === 'ready' && !edit && <article className="note-content">
+            <MarkdownContent content={state.note.content}
+                             highlightDateHeadings={state.note.source === 'CHAT_SUMMARY'}/>
         </article>}
         </div>
     </div>
@@ -78,6 +81,7 @@ export function NoteDetailPage() {
     const {noteId} = useParams<{ noteId: string }>()
     const navigate = useNavigate()
     const [state, setState] = useState<DetailState>({status: 'loading'})
+    const [editing, setEditing] = useState(false)
     const controllerRef = useRef<AbortController | null>(null)
 
     const load = useCallback(async () => {
@@ -85,6 +89,7 @@ export function NoteDetailPage() {
         controllerRef.current?.abort()
         const controller = new AbortController()
         controllerRef.current = controller
+        setEditing(false)
         setState({status: 'loading'})
         try {
             let note = await getNote(noteId, controller.signal)
@@ -171,10 +176,24 @@ export function NoteDetailPage() {
 
     const note = 'note' in state ? state.note : null
     const noteTitle = note?.title ?? 'Untitled note'
+    const editable = state.status === 'ready' ? asEditable(state.note) : null
+    const edit = editing && editable
+        ? <NoteEditForm note={editable}
+                        onSaved={(saved) => {
+                            setEditing(false)
+                            setState({status: 'ready', note: {...saved, content: saved.content ?? editable.content}})
+                        }}
+                        onClose={() => setEditing(false)}/>
+        : undefined
+    const editButton = state.status === 'ready' &&
+        <IconButton s={44} title="Edit note" disabled={editable === null || state.note.updating === true}
+                    onClick={() => setEditing(true)}>
+            <Icon name="edit" size={17}/>
+        </IconButton>
     const actions = note && <ItemActions
         target={{kind: 'note', id: note.id, title: noteTitle, renamable: note.status === 'READY'}}
-        onRenamed={(title) => setState((current) => 'note' in current
-            ? {...current, note: {...current.note, title}} as DetailState
+        onRenamed={(title, renamed) => setState((current) => 'note' in current
+            ? {...current, note: {...current.note, title, version: renamed?.version ?? current.note.version}} as DetailState
             : current)}
         onDeleted={() => navigate('/notes', {replace: true})}>
         {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitle}`}
@@ -183,5 +202,6 @@ export function NoteDetailPage() {
         </IconButton>}
     </ItemActions>
 
-    return <NoteDetailView state={state} onRetry={() => void load()} actions={actions}/>
+    return <NoteDetailView state={state} onRetry={() => void load()} edit={edit}
+                           actions={edit ? undefined : <>{editButton}{actions}</>}/>
 }

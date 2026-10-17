@@ -72,8 +72,15 @@ the route with the persisted chat URL.
 Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
 `FAILED` remains visible. A stored note `title` is shown in the list and above the detail content; notes without
-one fall back to their first content line. Chat-summary content is rendered as Markdown, manual note content as plain
-text. Unsupported rename and delete actions are not shown.
+one fall back to their first content line. Note content is rendered as Markdown (date headings accented only for chat
+summaries). Unsupported rename and delete actions are not shown.
+
+A settled `READY` note has an Edit button (disabled while a summary update runs). Edit mode is `NoteEditForm`: a title
+field and `NoteEditor` — TipTap with `@tiptap/markdown` and the design system's `EditorToolbar` — so the user formats
+without seeing Markdown; the extensions also cover tables, code, links and quotes so an edit keeps them. `Original`
+shows the saved version in place of the editor without losing edits. Save sends `PUT /note/notes/{noteId}` with the
+version the edit started from; an unchanged text goes back as stored. Cancel with edits asks first, and closing the tab
+with edits triggers the browser warning; leaving through an in-app link does not (see `docs/TECH_DEBT.md`).
 
 ## Onboarding
 

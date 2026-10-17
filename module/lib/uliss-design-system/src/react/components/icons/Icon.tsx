@@ -10,6 +10,7 @@ export type IconName =
     | 'plus' | 'star' | 'pulse' | 'noteDoc' | 'chatBubble' | 'filter' | 'tick'
     | 'chevron' | 'caret' | 'search' | 'summary' | 'cal' | 'gear' | 'collapse'
     | 'panelRight' | 'dots' | 'node' | 'constellation' | 'mic' | 'tag'
+    | 'edit' | 'listBullet' | 'listNumbered' | 'undo' | 'redo'
 
 interface Glyph {
     d?: string
@@ -65,6 +66,11 @@ const GLYPHS: Record<IconName, Glyph> = {
     },
     mic: {mic: true, sw: 1.6, cap: 'round', join: 'round'},
     tag: {d: 'M3 3h9l9 9-9 9-9-9z', circle: [7.5, 7.5, 1.4], sw: 1.5, join: 'miter'},
+    edit: {d: 'M4 20h4L19 9l-4-4L4 16z M13 7l4 4', sw: 1.5, join: 'miter'},
+    listBullet: {d: 'M9 6h11M9 12h11M9 18h11', circles: [[4.5, 6, 0.8], [4.5, 12, 0.8], [4.5, 18, 0.8]], sw: 1.5},
+    listNumbered: {d: 'M10 6h10M10 12h10M10 18h10 M4 4.5l1.5-1v5 M3.5 11.5h3l-3 4h3', sw: 1.4},
+    undo: {d: 'M8 13L4 9l4-4 M4 9h10a5 5 0 0 1 0 10h-4', sw: 1.6},
+    redo: {d: 'M16 13l4-4-4-4 M20 9H10a5 5 0 0 0 0 10h4', sw: 1.6},
 }
 
 export interface IconProps {

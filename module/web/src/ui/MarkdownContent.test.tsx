@@ -101,25 +101,26 @@ describe('AI Markdown boundaries', () => {
         expect(screen.getByRole('heading', {name: '2026-10-08', level: 2})).toHaveClass('markdown-date-heading')
     })
 
-    it('renders generated notes as Markdown while preserving manual notes as plain text', () => {
+    it('renders every note as Markdown, accenting date headings only in chat summaries', () => {
         const generated = {
             id: 'generated',
             source: 'CHAT_SUMMARY',
             status: 'READY',
-            content: '# Generated',
+            content: '# Generated\n\n## 2026-10-17\n\nadded',
         } satisfies Note
         const manual = {
             id: 'manual',
             source: 'MANUAL',
             status: 'READY',
-            content: '# Manual',
+            content: '# Manual\n\n## 2026-10-17\n\nwritten',
         } satisfies Note
         const view = render(<MemoryRouter><NoteDetailView state={{status: 'ready', note: generated}}/></MemoryRouter>)
 
         expect(screen.getByRole('heading', {name: 'Generated', level: 1})).toBeInTheDocument()
+        expect(screen.getByRole('heading', {name: '2026-10-17'})).toHaveClass('markdown-date-heading')
 
         view.rerender(<MemoryRouter><NoteDetailView state={{status: 'ready', note: manual}}/></MemoryRouter>)
-        expect(screen.getByText('# Manual')).toBeInTheDocument()
-        expect(screen.queryByRole('heading', {name: 'Manual'})).not.toBeInTheDocument()
+        expect(screen.getByRole('heading', {name: 'Manual', level: 1})).toBeInTheDocument()
+        expect(screen.getByRole('heading', {name: '2026-10-17'})).not.toHaveClass('markdown-date-heading')
     })
 })

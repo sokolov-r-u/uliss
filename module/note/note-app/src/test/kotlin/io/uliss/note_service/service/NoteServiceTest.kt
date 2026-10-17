@@ -7,6 +7,8 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
+import io.uliss.note_service.exception.NoteUpdatingException
+import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -23,6 +25,7 @@ import io.uliss.note_service.repository.SummaryRequestStore
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import reactor.test.StepVerifier
 import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
@@ -549,6 +552,123 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `updateNote stores the edited title and content and requests reindexing`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 3)
+
+        val response = noteService.updateNote(userId, note.id, "  New  title ", "## New\n\nbody\n\n", 3)
+
+        assertEquals("New title", response.title)
+        assertEquals("## New\n\nbody", response.content)
+        Mockito.verify(noteRepository).saveAndFlush(note)
+        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
+        assertTrue(payload.contains(note.id.toString()))
+    }
+
+    @Test
+    fun `updateNote with nothing changed neither saves nor reindexes`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 3)
+
+        val response = noteService.updateNote(userId, note.id, "Title", "body\n", 3)
+
+        assertEquals("body", response.content)
+        Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `updateNote rejects blank content before loading the note`() {
+        assertFailsWith<BadRequestException> {
+            noteService.updateNote(UUID.randomUUID(), UUID.randomUUID(), "Title", " \n\t", 0)
+        }
+        Mockito.verifyNoInteractions(noteRepository)
+    }
+
+    @Test
+    fun `updateNote rejects content over the length limit before loading the note`() {
+        assertFailsWith<BadRequestException> {
+            noteService.updateNote(UUID.randomUUID(), UUID.randomUUID(), "Title", "a".repeat(100_001), 0)
+        }
+        Mockito.verifyNoInteractions(noteRepository)
+    }
+
+    @Test
+    fun `updateNote accepts content exactly at the length limit`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 0)
+
+        val response = noteService.updateNote(userId, note.id, "Title", "a".repeat(100_000), 0)
+
+        assertEquals(100_000, response.content?.length)
+    }
+
+    @Test
+    fun `updateNote rejects a blank title before loading the note`() {
+        assertFailsWith<BadRequestException> {
+            noteService.updateNote(UUID.randomUUID(), UUID.randomUUID(), "   ", "body", 0)
+        }
+        Mockito.verifyNoInteractions(noteRepository)
+    }
+
+    @Test
+    fun `updateNote rejects a note that is not ready`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING).apply { version = 0 }
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertFailsWith<NoteNotReadyException> { noteService.updateNote(userId, note.id, "Title", "body", 0) }
+        Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `updateNote rejects a note whose summary update is still running`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 1)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true)
+
+        assertFailsWith<NoteUpdatingException> { noteService.updateNote(userId, note.id, "Title", "edited", 1) }
+        Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `updateNote rejects an edit made against an older version`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 4)
+
+        assertFailsWith<NoteVersionConflictException> {
+            noteService.updateNote(userId, note.id, "Title", "edited", 3)
+        }
+        assertEquals("body", note.content)
+        Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `updateNote reports a concurrent commit as a version conflict`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 2)
+        Mockito.`when`(noteRepository.saveAndFlush(note))
+            .thenThrow(ObjectOptimisticLockingFailureException(NoteEntity::class.java, note.id))
+
+        assertFailsWith<NoteVersionConflictException> {
+            noteService.updateNote(userId, note.id, "Title", "edited", 2)
+        }
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `updateNote hides a missing or foreign note behind not found`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { noteService.updateNote(userId, noteId, "Title", "body", 0) }
+    }
+
+    @Test
     fun `deleteNote removes an owned note in any status`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
@@ -584,6 +704,13 @@ class NoteServiceTest {
     fun `getNoteCounts skips the query for no chats`() {
         assertEquals(emptyMap(), noteService.getNoteCounts(emptyList()))
         Mockito.verifyNoInteractions(chatNoteRepository)
+    }
+
+    private fun readyNote(userId: UUID, version: Long): NoteEntity {
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Title")
+        note.version = version
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        return note
     }
 
     private fun publishedPayload(expectedType: OutboxEventType): String {

@@ -5,6 +5,8 @@ import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.NoteNotReadyException
+import io.uliss.note_service.exception.NoteUpdatingException
+import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService
@@ -26,6 +28,7 @@ import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
+import org.springframework.test.web.servlet.put
 import reactor.core.publisher.Flux
 import java.time.Instant
 import java.util.UUID
@@ -82,6 +85,7 @@ class NoteControllerTest {
                     createdAt = createdAt,
                     updatedAt = createdAt,
                     updating = false,
+                    version = 0,
                 )
             )
         )
@@ -159,7 +163,7 @@ class NoteControllerTest {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
         Mockito.`when`(noteService.renameNote(userId, noteId, "New"))
-            .thenReturn(NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "body", null, null, false))
+            .thenReturn(NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "body", null, null, false, 1))
 
         mockMvc.patch("/note/notes/$noteId") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
@@ -195,6 +199,72 @@ class NoteControllerTest {
             content = """{"title":"New"}"""
         }.andExpect {
             status { isConflict() }
+        }
+    }
+
+    @Test
+    fun `updateNote returns the saved note with its new version`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteService.updateNote(userId, noteId, "New", "## Body", 3)).thenReturn(
+            NoteResponse(noteId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, "New", "## Body", null, null, false, 4)
+        )
+
+        mockMvc.put("/note/notes/$noteId") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New","content":"## Body","version":3}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.content") { value("## Body") }
+            jsonPath("$.version") { value(4) }
+        }
+    }
+
+    @Test
+    fun `updateNote rejects a body without a version with 400`() {
+        mockMvc.put("/note/notes/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New","content":"body"}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
+    fun `updateNote rejects blank content with 400`() {
+        mockMvc.put("/note/notes/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New","content":"  ","version":0}"""
+        }.andExpect {
+            status { isBadRequest() }
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
+    fun `updateNote maps each refusal to 409 with its own code`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val refusals = listOf(
+            NoteNotReadyException(noteId) to "NOTE_NOT_READY",
+            NoteUpdatingException(noteId) to "NOTE_UPDATING",
+            NoteVersionConflictException(noteId) to "NOTE_VERSION_CONFLICT",
+        )
+        for ((refusal, code) in refusals) {
+            Mockito.doThrow(refusal).`when`(noteService).updateNote(userId, noteId, "New", "body", 1)
+
+            mockMvc.put("/note/notes/$noteId") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+                contentType = MediaType.APPLICATION_JSON
+                content = """{"title":"New","content":"body","version":1}"""
+            }.andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value(code) }
+            }
         }
     }
 
