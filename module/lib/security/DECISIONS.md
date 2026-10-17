@@ -33,3 +33,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   not retried, because the server may have consumed the code or rotated the token. Logout is idempotent and retries
   both.
 - **Source:** commit `761d055`.
+
+## 2026-10-17 — Login cookies live 30 minutes
+
+- **Context:** `code_verifier` and `oauth_state` lived 300 s; a login form left open longer failed at the callback
+  with 400 although the auth-server session was still valid.
+- **Decision:** both cookies live 1800 s, the default auth-server session timeout; they stay single-use and are
+  cleared by the callback.
+- **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 2.
