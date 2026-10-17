@@ -42,6 +42,7 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
 
     fun findByIdAndUserId(id: UUID, userId: UUID): ChatEntity?
     fun findByUserIdOrderByUpdatedAtDescIdDesc(userId: UUID): List<ChatEntity>
+    fun findByUserIdAndIdInOrderByUpdatedAtDescIdDesc(userId: UUID, ids: Collection<UUID>): List<ChatEntity>
 
     /** Marks new chat activity, which lifts the chat in chat lists; the version is left alone for concurrent JPA writes. */
     @Modifying

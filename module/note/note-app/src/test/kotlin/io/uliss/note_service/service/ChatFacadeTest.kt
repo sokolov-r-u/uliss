@@ -306,4 +306,14 @@ class ChatFacadeTest {
         assertEquals(current, chatFacade.getMessages(userId, chatId, null, 50).summary)
         assertNull(chatFacade.getMessages(userId, chatId, before, 50).summary)
     }
+
+    @Test
+    fun `chat notes of a missing or foreign chat are not found without reading notes`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatService.requireOwnedChat(userId, chatId)).thenThrow(NotFoundException("chat not found"))
+
+        assertFailsWith<NotFoundException> { chatFacade.getChatNotes(userId, chatId) }
+        Mockito.verify(noteService, Mockito.never()).getChatNotes(anyValue(), anyValue())
+    }
 }

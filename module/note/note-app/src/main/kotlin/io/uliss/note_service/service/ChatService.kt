@@ -37,6 +37,12 @@ class ChatService(
     fun getChats(userId: UUID): List<ChatEntity> =
         chatRepository.findByUserIdOrderByUpdatedAtDescIdDesc(userId)
 
+    /** The user's chats among [chatIds], by last activity; ids of missing or foreign chats are skipped. */
+    fun getChatsByIds(userId: UUID, chatIds: Collection<UUID>): List<ChatEntity> {
+        if (chatIds.isEmpty()) return emptyList()
+        return chatRepository.findByUserIdAndIdInOrderByUpdatedAtDescIdDesc(userId, chatIds)
+    }
+
     /** Lifts the chat in chat lists; a rename does the same through the entity's last-modified date. */
     @Transactional(propagation = Propagation.MANDATORY)
     fun touchActivity(userId: UUID, chatId: UUID) {

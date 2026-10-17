@@ -80,12 +80,14 @@ application services or outbox handlers.
 | `GET /note/chats/{chatId}`                        | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Returns one owned chat with its note count         |
 | `PATCH /note/chats/{chatId}`                      | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Renames the chat                                   |
 | `DELETE /note/chats/{chatId}`                     | `ChatController -> ChatFacade -> ChatTurnService + ChatService`                     | Deletes the chat; linked notes survive             |
+| `GET /note/chats/{chatId}/notes`                  | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Lists the chat's linked notes                      |
 | `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                                       | Returns an ownership-filtered cursor page          |
 | `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
 | `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or updates the current note asynchronously, or replays |
 | `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
+| `GET /note/notes/{noteId}/chats`                  | `NoteController -> NoteFacade -> NoteService + ChatService`                         | Lists the chats the note was written from          |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
 | `PATCH /note/notes/{noteId}`                      | `NoteController -> NoteService`                                                     | Renames a `READY` note and queues reindexing       |
 | `PUT /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Saves a versioned edit and queues reindexing       |

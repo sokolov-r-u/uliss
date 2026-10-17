@@ -10,6 +10,7 @@ import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
@@ -48,6 +49,9 @@ class NoteControllerTest {
 
     @MockitoBean
     lateinit var noteService: NoteService
+
+    @MockitoBean
+    lateinit var noteFacade: NoteFacade
 
     @MockitoBean
     lateinit var jwtDecoder: JwtDecoder

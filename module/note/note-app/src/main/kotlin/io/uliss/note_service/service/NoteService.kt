@@ -62,6 +62,19 @@ class NoteService(
         return getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it, pending)) }
     }
 
+    /** Notes linked to the chat, newest first. Callers pass an owned chat id. */
+    fun getChatNotes(userId: UUID, chatId: UUID): List<NoteResponse> {
+        val pendingNoteIds = summaryRequestStore.findPendingNoteIds(userId)
+        return chatNoteRepository.findNotesByChatId(userId, chatId)
+            .map { it.toResponse(it.status == NoteStatus.READY && it.id in pendingNoteIds) }
+    }
+
+    /** Ids of the chats the owned note was written from; empty for a hand-written note or once its chats are gone. */
+    fun getLinkedChatIds(userId: UUID, noteId: UUID): List<UUID> {
+        getOwnedNote(userId, noteId)
+        return chatNoteRepository.findChatIdsByNoteId(noteId)
+    }
+
     /** Linked note counts keyed by chat id; chats without notes are absent. Callers pass owned chat ids only. */
     fun getNoteCounts(chatIds: Collection<UUID>): Map<UUID, Int> {
         if (chatIds.isEmpty()) return emptyMap()

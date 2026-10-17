@@ -2,6 +2,7 @@ package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
+import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
@@ -25,6 +26,21 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
         """
     )
     fun countNotesByChatIds(@Param("chatIds") chatIds: Collection<UUID>): List<ChatNoteCount>
+
+    @Query(
+        """
+        SELECT n
+        FROM ChatNoteEntity cn, NoteEntity n
+        WHERE n.id = cn.chatNoteId.noteId
+          AND cn.chatNoteId.chatId = :chatId
+          AND n.userId = :userId
+        ORDER BY n.createdAt DESC, n.id DESC
+        """
+    )
+    fun findNotesByChatId(@Param("userId") userId: UUID, @Param("chatId") chatId: UUID): List<NoteEntity>
+
+    @Query("SELECT cn.chatNoteId.chatId FROM ChatNoteEntity cn WHERE cn.chatNoteId.noteId = :noteId")
+    fun findChatIdsByNoteId(@Param("noteId") noteId: UUID): List<UUID>
 
     @Query(
         """
