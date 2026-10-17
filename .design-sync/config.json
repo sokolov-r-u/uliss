@@ -112,6 +112,9 @@
     },
     "EditorToolbar": {
       "cardMode": "column"
+    },
+    "PendingStatus": {
+      "cardMode": "column"
     }
   },
   "readmeHeader": ".design-sync/conventions.md"
