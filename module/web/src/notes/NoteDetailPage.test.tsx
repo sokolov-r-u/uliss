@@ -367,6 +367,19 @@ describe('NoteDetailPage', () => {
         expect(screen.getByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
     })
 
+    it('deleting a note opened from the chat delete dialog goes back to the dialog', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        renderFromDeleteDialog({backToDeleteDialog: true})
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Idea'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(await screen.findByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
+        expect(deleteNote).toHaveBeenCalledWith('note-1')
+    })
+
     it('offers no Back on a note opened any other way', async () => {
         mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
         renderFromDeleteDialog()
