@@ -54,7 +54,7 @@ export class NoteApiError extends Error {
     }
 }
 
-function isAbortError(error: unknown): boolean {
+export function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
@@ -291,4 +291,57 @@ export async function streamNoteStatus(
     }
     // Ended without READY/FAILED (server time limit or a cut connection): the caller re-reads and reconnects.
     return null
+}
+
+export interface NoteAiEditRequest {
+    instruction: string
+    /** The text as the editor holds it, unsaved edits included. */
+    content: string
+}
+
+/** Server limits of a model rewrite request. */
+export const AI_EDIT_INSTRUCTION_LIMIT = 1_000
+export const AI_EDIT_CONTENT_LIMIT = 30_000
+
+function aiEditChunk(data: string): string {
+    let value: unknown
+    try {
+        value = JSON.parse(data)
+    } catch (error) {
+        throw new NoteApiError('protocol', 'rewrite chunk contains invalid JSON', undefined, {cause: error})
+    }
+    if (!isRecord(value) || typeof value.text !== 'string') {
+        throw new NoteApiError('protocol', 'invalid rewrite chunk')
+    }
+    return value.text
+}
+
+/**
+ * Streams a model rewrite of [request.content] by [request.instruction]; nothing is saved. Resolves `done` after the
+ * whole text arrived through [options.onText], `error` when the model failed or the stream was cut. Refusals before
+ * the stream (409 `NOTE_UPDATING`, `NOTE_NOT_READY`, 404, 400) throw a `NoteApiError` with the service's code.
+ */
+export async function streamNoteAiEdit(
+    noteId: string,
+    request: NoteAiEditRequest,
+    options: { signal?: AbortSignal; onText: (text: string) => void },
+): Promise<'done' | 'error'> {
+    const response = await fetchNotes(`/note/notes/${noteId}/ai-edit`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json'},
+        body: JSON.stringify({instruction: request.instruction, content: request.content}),
+        signal: options.signal,
+    })
+    await requireOk(response, 'note rewrite')
+    if (!response.body) throw new NoteApiError('protocol', 'note rewrite stream has no body')
+
+    for await (const frame of parseSseStream(response.body, options.signal)) {
+        if (frame.event === 'append') options.onText(aiEditChunk(frame.data))
+        else if (frame.event === 'done') return 'done'
+        else if (frame.event === 'error') return 'error'
+    }
+    // Stop cancels the reader, which can end the loop quietly: report the abort, not a cut stream.
+    if (options.signal?.aborted) throw new DOMException('The operation was aborted.', 'AbortError')
+    // Cut without a terminal event: the text may be incomplete.
+    return 'error'
 }

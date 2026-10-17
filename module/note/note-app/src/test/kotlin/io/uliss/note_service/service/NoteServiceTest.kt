@@ -706,6 +706,37 @@ class NoteServiceTest {
         Mockito.verifyNoInteractions(chatNoteRepository)
     }
 
+    @Test
+    fun `checkNoteEditable accepts a ready note without a pending summary update`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 0)
+
+        noteService.checkNoteEditable(userId, note.id)
+    }
+
+    @Test
+    fun `checkNoteEditable treats a foreign note as missing`() {
+        assertFailsWith<NotFoundException> { noteService.checkNoteEditable(UUID.randomUUID(), UUID.randomUUID()) }
+    }
+
+    @Test
+    fun `checkNoteEditable rejects a note that is not ready`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertFailsWith<NoteNotReadyException> { noteService.checkNoteEditable(userId, note.id) }
+    }
+
+    @Test
+    fun `checkNoteEditable rejects a note whose summary update is still running`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 0)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true)
+
+        assertFailsWith<NoteUpdatingException> { noteService.checkNoteEditable(userId, note.id) }
+    }
+
     private fun readyNote(userId: UUID, version: Long): NoteEntity {
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Title")
         note.version = version

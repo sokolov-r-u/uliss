@@ -72,6 +72,10 @@ note:
     retrieval-min-similarity: 0.50
     reasoning-effort: medium
     verbosity: low
+  ai-edit:
+    reasoning-effort: low
+    # low verbosity invites the model to shorten a note it should only edit
+    verbosity: medium
   outbox:
     poll-interval-ms: 1000
     max-attempts: 3

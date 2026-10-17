@@ -54,3 +54,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** replaces the 301 in "The web container redirects to one canonical host": a browser caches a 301, so
   `localhost:80` would keep redirecting to `uliss.home` after another app takes the port or the host changes.
 - **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, code-review fixes.
+
+## 2026-10-17 — A model rewrite is one undo step of the note editor
+
+- **Context:** note edit mode gets a command field for the model (task 2 of the note-editing epic).
+- **Decision:** the command field is the chat's `ChatComposer` at the foot of edit mode, with example commands as a
+  rotating placeholder and no history. The streamed text is shown read-only in place of the editor; on `done` it
+  replaces the editor's text with one `setContent`, so Undo/Redo switch between versions and Original still shows the
+  saved note. There is no separate diff view or accept/reject step. Text from a stopped or failed stream is dropped.
+  Nothing reaches the server until Save.
+- **Source:** task `docs/tasks/2026-10-17-note-ai-edit.md`, block 2.
