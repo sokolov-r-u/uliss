@@ -38,3 +38,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `nginx.conf.template` serves only `WEB_CANONICAL_HOST` (default `uliss.home`); the default server
   answers every other Host with a 301 to it. The Compose healthcheck calls `127.0.0.1` with that Host.
 - **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 1.
+
+## 2026-10-17 — A rejected login is restarted once before the error
+
+- **Context:** replaces the part of "Sign-in errors are typed, not raw messages" (2026-10-15) that showed the
+  `LoginRejectedError` message at once. The auth server usually still holds the signed-in session, so a new login
+  passes without the form.
+- **Decision:** `Callback` restarts the login once (`retryLoginOnce`, flag in `sessionStorage`, cleared on success)
+  and shows "session expired" only when the restart is rejected too. `login()` from `/callback` keeps the saved
+  return route.
+- **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 2.

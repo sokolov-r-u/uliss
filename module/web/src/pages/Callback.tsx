@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { exchangeCode, login, LoginRejectedError, takeReturnTo } from '../auth/authApi'
+import { clearLoginRetry, exchangeCode, login, LoginRejectedError, retryLoginOnce, takeReturnTo } from '../auth/authApi'
 import { useAuth } from '../auth/AuthContext'
 import { Shell } from '../ui/Shell'
 
@@ -34,16 +34,18 @@ export function Callback() {
     }
     exchangeCode(code, state)
       .then(() => {
+        clearLoginRetry()
         syncFromStore()
         navigate(takeReturnTo(), { replace: true })
       })
-      .catch((e: unknown) =>
-        setError(
-          e instanceof LoginRejectedError
-            ? 'The sign-in session has expired. Start sign-in again.'
-            : 'Could not complete sign-in. Check the connection and try again.',
-        ),
-      )
+      .catch((e: unknown) => {
+        if (e instanceof LoginRejectedError) {
+          if (retryLoginOnce()) return
+          setError('The sign-in session has expired. Start sign-in again.')
+          return
+        }
+        setError('Could not complete sign-in. Check the connection and try again.')
+      })
   }, [params, navigate, syncFromStore])
 
   return (

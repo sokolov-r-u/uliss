@@ -2,14 +2,14 @@ import {render, screen, waitFor} from '@testing-library/react'
 import {StrictMode} from 'react'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {exchangeCode, LoginRejectedError, takeReturnTo} from '../auth/authApi'
+import {exchangeCode, LoginRejectedError, retryLoginOnce, takeReturnTo} from '../auth/authApi'
 import {Callback} from './Callback'
 
 const syncFromStore = vi.fn()
 vi.mock('../auth/AuthContext', () => ({useAuth: () => ({syncFromStore, logout: vi.fn()})}))
 vi.mock('../auth/authApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../auth/authApi')>()
-    return {...actual, exchangeCode: vi.fn(), login: vi.fn(), takeReturnTo: vi.fn()}
+    return {...actual, exchangeCode: vi.fn(), login: vi.fn(), retryLoginOnce: vi.fn(), takeReturnTo: vi.fn()}
 })
 
 function renderCallback(query: string) {
@@ -25,6 +25,7 @@ describe('Callback', () => {
     beforeEach(() => {
         vi.mocked(exchangeCode).mockReset()
         vi.mocked(takeReturnTo).mockReset().mockReturnValue('/notes')
+        vi.mocked(retryLoginOnce).mockReset().mockReturnValue(false)
         syncFromStore.mockReset()
     })
 
@@ -57,7 +58,17 @@ describe('Callback', () => {
         expect(exchangeCode).not.toHaveBeenCalled()
     })
 
-    it('asks to start again when the service rejects the login session', async () => {
+    it('restarts a rejected login once instead of showing an error', async () => {
+        vi.mocked(exchangeCode).mockRejectedValue(new LoginRejectedError())
+        vi.mocked(retryLoginOnce).mockReturnValue(true)
+
+        renderCallback('?code=c1&state=s1')
+
+        await waitFor(() => expect(retryLoginOnce).toHaveBeenCalledOnce())
+        expect(screen.queryByText(/sign-in session has expired/i)).not.toBeInTheDocument()
+    })
+
+    it('asks to start again when the restarted login is rejected too', async () => {
         vi.mocked(exchangeCode).mockRejectedValue(new LoginRejectedError())
 
         renderCallback('?code=c1&state=s1')
