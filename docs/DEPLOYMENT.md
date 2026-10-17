@@ -75,7 +75,7 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   instead of one per resource.
 - **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
   `module/web/nginx.conf.template` (rendered by the nginx image with `WEB_CANONICAL_HOST`, default `uliss.home`)
-  answers any other Host (an IP, `localhost`) with a 301 to that host, so the login starts where the OAuth callback
+  answers any other Host (an IP, `localhost`) with a 302 to that host, so the login starts where the OAuth callback
   returns. It provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
   immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404. It also proxies
   `/user/` and `/note/` to those services — needed for same-origin routing under plain `docker compose`

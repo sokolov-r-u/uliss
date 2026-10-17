@@ -48,3 +48,9 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   and shows "session expired" only when the restart is rejected too. `login()` from `/callback` keeps the saved
   return route.
 - **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 2.
+
+## 2026-10-17 — The canonical-host redirect is a 302
+
+- **Decision:** replaces the 301 in "The web container redirects to one canonical host": a browser caches a 301, so
+  `localhost:80` would keep redirecting to `uliss.home` after another app takes the port or the host changes.
+- **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, code-review fixes.

@@ -20,16 +20,21 @@ export function Callback() {
     // Guard against StrictMode's double-invoke — the authorization code is single-use.
     if (ran.current) return
     ran.current = true
+    // a shown error ends this login: the next manual attempt may be restarted once again
+    const fail = (message: string) => {
+      clearLoginRetry()
+      setError(message)
+    }
 
     // The authorization server reports a refused or cancelled login as `error=...` instead of a code.
     if (params.get('error')) {
-      setError('Sign-in was cancelled or refused.')
+      fail('Sign-in was cancelled or refused.')
       return
     }
     const code = params.get('code')
     const state = params.get('state')
     if (!code || !state) {
-      setError('The sign-in link is incomplete. Start sign-in again.')
+      fail('The sign-in link is incomplete. Start sign-in again.')
       return
     }
     exchangeCode(code, state)
@@ -41,10 +46,10 @@ export function Callback() {
       .catch((e: unknown) => {
         if (e instanceof LoginRejectedError) {
           if (retryLoginOnce()) return
-          setError('The sign-in session has expired. Start sign-in again.')
+          fail('The sign-in session has expired. Start sign-in again.')
           return
         }
-        setError('Could not complete sign-in. Check the connection and try again.')
+        fail('Could not complete sign-in. Check the connection and try again.')
       })
   }, [params, navigate, syncFromStore])
 

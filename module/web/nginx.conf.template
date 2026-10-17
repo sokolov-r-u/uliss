@@ -4,7 +4,8 @@
 server {
     listen 80 default_server;
     server_name _;
-    return 301 $scheme://${WEB_CANONICAL_HOST}$request_uri;
+    # 302: a cached 301 would keep sending localhost:80 here after another app takes the port
+    return 302 $scheme://${WEB_CANONICAL_HOST}$request_uri;
 }
 
 server {
