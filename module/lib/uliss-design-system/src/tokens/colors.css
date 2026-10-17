@@ -53,3 +53,10 @@
   --scrim: color-mix(in srgb, var(--bg-deep) 62%, transparent);
   --amb-wash: radial-gradient(120% 90% at 50% 0%, var(--sky-glow-b), transparent 60%);
 }
+
+/* Dark-only: native scrollbars and form controls render dark. Scrollbar colours
+   inherit, so every scroll area gets a line-coloured thumb on a clear track. */
+:root {
+  color-scheme: dark;
+  scrollbar-color: var(--line-strong) transparent;
+}
