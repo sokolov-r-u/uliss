@@ -2,12 +2,17 @@ package io.uliss.note_service.controller
 
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.UpdateNoteRequest
+import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
+import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.note_service.util.withHeartbeat
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
+import java.time.Duration
+import java.util.UUID
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerSentEvent
@@ -23,13 +28,12 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
-import java.time.Duration
-import java.util.UUID
 
 @RestController
 @RequestMapping("/notes")
 class NoteController(
     private val noteService: NoteService,
+    private val noteFacade: NoteFacade,
 ) {
 
     @GetMapping
@@ -41,6 +45,10 @@ class NoteController(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable noteId: UUID,
     ): NoteResponse = noteService.getNote(jwt.getUserId(), noteId)
+
+    @GetMapping("/{noteId}/chats")
+    fun getNoteChats(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): List<ChatResponse> =
+        noteFacade.getNoteChats(jwt.getUserId(), noteId).map { it.toResponse() }
 
     @PatchMapping("/{noteId}")
     fun renameNote(

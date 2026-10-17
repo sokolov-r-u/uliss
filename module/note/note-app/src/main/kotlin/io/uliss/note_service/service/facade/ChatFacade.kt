@@ -3,6 +3,7 @@ package io.uliss.note_service.service.facade
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
+import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
@@ -35,6 +36,11 @@ class ChatFacade(
 
     fun getChat(userId: UUID, chatId: UUID): ChatWithNoteCount =
         withNoteCount(chatService.requireOwnedChat(userId, chatId))
+
+    fun getChatNotes(userId: UUID, chatId: UUID): List<NoteResponse> {
+        chatService.requireOwnedChat(userId, chatId)
+        return noteService.getChatNotes(userId, chatId)
+    }
 
     fun renameChat(userId: UUID, chatId: UUID, title: String): ChatWithNoteCount =
         withNoteCount(chatService.renameChat(userId, chatId, title))

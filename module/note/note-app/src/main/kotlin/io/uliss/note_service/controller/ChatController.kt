@@ -9,6 +9,7 @@ import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.ChatSummaryResponse
+import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.toChatSummaryResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.model.NoteStatus
@@ -50,6 +51,10 @@ class ChatController(
     @GetMapping("/{chatId}")
     fun getChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID): ChatResponse =
         chatFacade.getChat(jwt.getUserId(), chatId).toResponse()
+
+    @GetMapping("/{chatId}/notes")
+    fun getChatNotes(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID): List<NoteResponse> =
+        chatFacade.getChatNotes(jwt.getUserId(), chatId)
 
     @PatchMapping("/{chatId}")
     fun renameChat(

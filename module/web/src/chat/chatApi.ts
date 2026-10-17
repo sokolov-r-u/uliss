@@ -93,6 +93,13 @@ export async function getChat(chatId: string, signal?: AbortSignal): Promise<Cha
     return (await res.json()) as Chat
 }
 
+/** The chats a note was written from, by last activity; empty for a hand-written note. */
+export async function listNoteChats(noteId: string, signal?: AbortSignal): Promise<Chat[]> {
+    const res = await authFetch(`/note/notes/${noteId}/chats`, {signal})
+    if (!res.ok) throw new ChatApiError(`note chats fetch failed (${res.status})`, res.status)
+    return (await res.json()) as Chat[]
+}
+
 export async function renameChat(chatId: string, title: string): Promise<Chat> {
     const res = await authFetch(`/note/chats/${chatId}`, {
         method: 'PATCH',

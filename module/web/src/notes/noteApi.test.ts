@@ -3,6 +3,7 @@ import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {
     deleteNote,
     getNote,
+    listChatNotes,
     listNotes,
     renameNote,
     requestChatSummary,
@@ -35,6 +36,27 @@ function sseResponse(records: string[]): Response {
 
 describe('noteApi', () => {
     beforeEach(() => mockedFetch.mockReset())
+
+    it('lists the notes of a chat with their statuses', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'n-2', source: 'CHAT_SUMMARY', status: 'GENERATING', title: null, content: null},
+            {id: 'n-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Kept', content: 'Body', updating: true},
+        ]))
+        const controller = new AbortController()
+
+        const notes = await listChatNotes('chat-1', controller.signal)
+
+        expect(notes.map((note) => [note.id, note.status, note.updating])).toEqual([
+            ['n-2', 'GENERATING', false], ['n-1', 'READY', true],
+        ])
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/notes', {signal: controller.signal})
+    })
+
+    it('rejects a chat notes response that is not a list', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'n-1'}))
+
+        await expect(listChatNotes('chat-1')).rejects.toMatchObject({kind: 'protocol'})
+    })
 
     it('requests a generating summary without a request body', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({

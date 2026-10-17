@@ -215,6 +215,15 @@ export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
     return value.map(parseNote)
 }
 
+/** The notes written from a chat, newest first. */
+export async function listChatNotes(chatId: string, signal?: AbortSignal): Promise<Note[]> {
+    const response = await fetchNotes(`/note/chats/${chatId}/notes`, {signal})
+    await requireOk(response, 'chat notes fetch')
+    const value = await responseJson(response)
+    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid chat notes response')
+    return value.map(parseNote)
+}
+
 export async function getNote(noteId: string, signal?: AbortSignal): Promise<Note> {
     const response = await fetchNotes(`/note/notes/${noteId}`, {signal})
     await requireOk(response, 'note fetch')

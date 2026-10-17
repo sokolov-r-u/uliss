@@ -3,12 +3,6 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
-## Chat list pagination (`note-service`)
-
-**Status:** not implemented. `GET /note/chats` returns every chat of the user, ordered by last activity
-(`updated_at DESC, id DESC`, already indexed). Add keyset pagination over that order, with the SPA side nav and chat
-list loading further pages, once chat counts make the full list slow.
-
 ## JaCoCo coverage gate
 
 **Status:** reporting exists; enforcement is deferred.
@@ -274,23 +268,9 @@ still show the old copy and should be updated to match. `Dialog.prompt.md` still
 survives; the note delete dialog is an agreed exception.
 
 Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 2): the chat delete dialog lists the notes written
-from the chat as buttons. A button opens the note; the note screen then shows a Back button that returns to the URL
-carrying the open dialog (e.g. `/chats?delete=<id>`). Notes are never deleted with the chat — the list lets the user
-remove what they no longer need by hand. Blocked by `note-service`: no API returns the notes of a chat (`NoteResponse`
-has no `chatId`, no `GET /chats/{id}/notes`), although the link is stored. Update the design now; implement in `web`
-once the endpoint exists.
-
-The same API unlocks the link sections of the right context panel (item 17): "Notes from this chat" on a chat and
-"Written from" on a note. The panel ships frontend-only first (dates, note count, source); add `chatId` (or chat ids)
-to `NoteResponse` and `GET /chats/{id}/notes`, then fill both sections and the delete dialog list.
-
-## Chat `updated_at` follows the user's activity (`note-service`)
-
-Agreed 2026-10-12 (`docs/tasks/2026-10-11-prot-alignment.md`). Chat lists in `web` sort and group by last activity
-(`updatedAt ?? createdAt`), but `note.chat.updated_at` only moves on a chat-row change (rename): new messages do not
-touch it, so an active chat keeps its creation date. Bump `chat.updated_at` when a **user** message is accepted (one
-write per turn; the assistant reply does not touch it), and order `GET /chats` by `updated_at DESC` (index
-`(user_id, updated_at)`). `web` already sorts client-side, so no frontend change is needed.
+from the chat as buttons that open them. Implemented 2026-10-17 (`docs/tasks/2026-10-17-chat-note-links.md`) together
+with both link sections of the context panel. Still open: the note screen has no Back button that returns to the open
+delete dialog (e.g. `/chats?delete=<id>`); a click closes the dialog and opens the note.
 
 ## Session drops: refresh token expires or is not used (`auth`, `web`)
 
@@ -558,6 +538,7 @@ settling → …) that is testable without rendering.
 
 `GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
 pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.
+`GET /note/chats` is ordered by `updated_at DESC, id DESC` and already indexed for it.
 
 ## Security headers in the `web` nginx (`web`, `infra`)
 

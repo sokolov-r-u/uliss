@@ -1,7 +1,7 @@
 /**
  * Test-only stand-in for `src/auth/apiClient.ts` (swapped in by `visual/vite.config.ts`): `authFetch` answers from
  * fixtures by URL, so the harness renders the real `App`. `?data=empty` serves a day-one account;
- * `?onboarding=name|profile` serves pending onboarding steps. Sending a chat message opens a reply stream that reports
+ * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
@@ -15,6 +15,8 @@ export class AuthRequiredError extends Error {
 
 const params = new URLSearchParams(location.search)
 const empty = params.get('data') === 'empty'
+// `?links=on` links chat c1 with notes n1, n2 and n3 (a long title); without it the panels show their empty states, as in the snapshots.
+const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? [['c1', 'n1'], ['c1', 'n2'], ['c1', 'n3']] : []
 
 function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
@@ -80,6 +82,17 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         return openReplyStream(chatMessages[1], ['event:activity\ndata:SEARCHING_NOTES\n\n'])
     }
     if (chatMessages) return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false})
+
+    const chatNotes = url.pathname.match(/^\/note\/chats\/([^/]+)\/notes$/)
+    if (chatNotes) {
+        const ids = CHAT_NOTE_LINKS.filter(([chatId]) => chatId === chatNotes[1]).map(([, noteId]) => noteId)
+        return json(notes.filter((item) => ids.includes(item.id)))
+    }
+    const noteChats = url.pathname.match(/^\/note\/notes\/([^/]+)\/chats$/)
+    if (noteChats) {
+        const ids = CHAT_NOTE_LINKS.filter(([, noteId]) => noteId === noteChats[1]).map(([chatId]) => chatId)
+        return json(chats.filter((item) => ids.includes(item.id)))
+    }
 
     const chat = url.pathname.match(/^\/note\/chats\/([^/]+)$/)
     if (chat) {
