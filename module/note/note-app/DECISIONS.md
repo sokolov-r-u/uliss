@@ -167,3 +167,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   that update was drafted from the content the edit replaces. Content is capped at 100,000 characters. A summary
   update applied after an edit appends to the edited content.
 - **Source:** task `docs/tasks/2026-10-17-note-manual-edit.md`, block 1.
+
+## 2026-10-17 — Chat activity is `chat.updated_at`
+
+- **Context:** chat lists must show the most recently active chat first; `updated_at` changed only on rename, and the
+  server ordered by `created_at`.
+- **Decision:** `chat.updated_at` is the chat's last activity. A rename (JPA last-modified date), a new user message
+  (in the turn-reservation transaction) and a new Summarize request (create or update) set it; replays of the same
+  idempotency key do not. `touchActivity` leaves `version` alone so concurrent JPA writes are not rejected.
+  `GET /note/chats` orders by `updated_at DESC, id DESC` (index `idx_chat_user_id_updated_at`); V10 backfills it from
+  the latest message.
+- **Source:** task `docs/tasks/2026-10-17-chat-activity-order.md`, block 1.

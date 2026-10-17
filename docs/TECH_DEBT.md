@@ -3,6 +3,12 @@
 A list of known tech debt and agreed-upon future work, deliberately deferred — not forgotten, but
 recorded here until implementation.
 
+## Chat list pagination (`note-service`)
+
+**Status:** not implemented. `GET /note/chats` returns every chat of the user, ordered by last activity
+(`updated_at DESC, id DESC`, already indexed). Add keyset pagination over that order, with the SPA side nav and chat
+list loading further pages, once chat counts make the full list slow.
+
 ## JaCoCo coverage gate
 
 **Status:** reporting exists; enforcement is deferred.
