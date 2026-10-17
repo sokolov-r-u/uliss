@@ -27,6 +27,7 @@ describe('Callback', () => {
         vi.mocked(takeReturnTo).mockReset().mockReturnValue('/notes')
         vi.mocked(retryLoginOnce).mockReset().mockReturnValue(false)
         syncFromStore.mockReset()
+        sessionStorage.clear()
     })
 
     it('exchanges the code once, even under StrictMode, and returns to the saved route', async () => {
@@ -83,5 +84,37 @@ describe('Callback', () => {
         renderCallback('?code=c1&state=s1')
 
         await waitFor(() => expect(screen.getByText(/could not complete sign-in/i)).toBeInTheDocument())
+    })
+
+    // the flag allows one automatic restart; a finished login, good or failed, must give the next one its own
+    describe('ends the login retry window', () => {
+        const RETRIED = 'uliss.loginRetried'
+
+        beforeEach(() => sessionStorage.setItem(RETRIED, '1'))
+
+        it('after a completed login', async () => {
+            vi.mocked(exchangeCode).mockResolvedValue({accessToken: 'a', refreshToken: 'r', expiresAt: 1})
+
+            renderCallback('?code=c1&state=s1')
+
+            expect(await screen.findByTestId('return-route')).toBeInTheDocument()
+            expect(sessionStorage.getItem(RETRIED)).toBeNull()
+        })
+
+        it('after a failure that is not a rejected login', async () => {
+            vi.mocked(exchangeCode).mockRejectedValue(new Error('token exchange failed (502)'))
+
+            renderCallback('?code=c1&state=s1')
+
+            expect(await screen.findByText(/could not complete sign-in/i)).toBeInTheDocument()
+            expect(sessionStorage.getItem(RETRIED)).toBeNull()
+        })
+
+        it('after a refused sign-in', async () => {
+            renderCallback('?error=access_denied&state=s1')
+
+            expect(await screen.findByText(/sign-in was cancelled or refused/i)).toBeInTheDocument()
+            expect(sessionStorage.getItem(RETRIED)).toBeNull()
+        })
     })
 })

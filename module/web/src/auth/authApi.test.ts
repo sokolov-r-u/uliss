@@ -1,5 +1,14 @@
-import {afterEach, describe, expect, it, vi} from 'vitest'
-import {exchangeCode, LoginRejectedError, RefreshRejectedError, refreshTokens} from './authApi'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
+import {
+    clearLoginRetry,
+    exchangeCode,
+    login,
+    LoginRejectedError,
+    RefreshRejectedError,
+    refreshTokens,
+    retryLoginOnce,
+    takeReturnTo,
+} from './authApi'
 
 function respondWith(status: number, body = '{}') {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status})))
@@ -63,5 +72,70 @@ describe('exchangeCode', () => {
 
         expect(error).toBeInstanceOf(Error)
         expect(error).not.toBeInstanceOf(LoginRejectedError)
+    })
+})
+
+/** jsdom cannot navigate: a plain location records where `login()` sends the browser. */
+function stubLocation(path: string) {
+    const url = new URL(path, 'http://uliss.home')
+    const location = {pathname: url.pathname, search: url.search, href: url.href}
+    vi.stubGlobal('location', location)
+    return location
+}
+
+describe('login', () => {
+    beforeEach(() => sessionStorage.clear())
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('remembers the current route and hands the login to the service', () => {
+        const location = stubLocation('/notes/n1?tab=chats')
+
+        login()
+
+        expect(location.href).toBe('/user/oauth2/login')
+        expect(takeReturnTo()).toBe('/notes/n1?tab=chats')
+    })
+
+    it('keeps the route of the login it restarts from the callback page', () => {
+        stubLocation('/notes/n1')
+        login()
+        stubLocation('/callback?code=c1&state=s1')
+
+        login()
+
+        expect(takeReturnTo()).toBe('/notes/n1')
+    })
+})
+
+describe('retryLoginOnce', () => {
+    beforeEach(() => sessionStorage.clear())
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('restarts the first rejected login and refuses the second, so a rejected login never loops', () => {
+        const location = stubLocation('/callback?code=c1&state=s1')
+
+        expect(retryLoginOnce()).toBe(true)
+        expect(location.href).toBe('/user/oauth2/login')
+
+        const retried = stubLocation('/callback?code=c2&state=s2')
+        expect(retryLoginOnce()).toBe(false)
+        expect(retried.href).toBe('http://uliss.home/callback?code=c2&state=s2')
+    })
+
+    it('allows one restart again once the refused retry has been reported', () => {
+        stubLocation('/callback?code=c1&state=s1')
+        retryLoginOnce()
+        retryLoginOnce()
+
+        expect(retryLoginOnce()).toBe(true)
+    })
+
+    it('allows one restart again after a completed login', () => {
+        stubLocation('/callback?code=c1&state=s1')
+        retryLoginOnce()
+
+        clearLoginRetry()
+
+        expect(retryLoginOnce()).toBe(true)
     })
 })
