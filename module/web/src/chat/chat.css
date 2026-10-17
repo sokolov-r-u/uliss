@@ -86,6 +86,23 @@
     gap: 12px;
 }
 
+.chat-voice-notice {
+    width: 100%;
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 0 20px;
+    font-family: var(--font-text);
+    font-size: 11px;
+}
+
+.chat-voice-notice-error {
+    color: var(--terracotta);
+}
+
+.chat-voice-notice-info {
+    color: var(--text-muted);
+}
+
 .chat-settling-notice {
     width: 100%;
     max-width: 720px;

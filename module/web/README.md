@@ -59,8 +59,14 @@ reconciliation; Stop aborts the stream and polls for the corresponding `PARTIAL`
 15 seconds. A trailing persisted user message is reconciled after refresh as well. Persisted `COMPLETE`, `PARTIAL`, and
 `FAILED` statuses remain authoritative. Reconciliation refreshes the latest page, replaces overlapping persisted rows,
 and appends new tail rows without discarding older pages already loaded. A failed reconciliation requires an explicit
-retry before another turn. The request and polling are aborted on route changes. Voice input is visibly disabled because
-no speech backend exists.
+retry before another turn. The request and polling are aborted on route changes.
+
+Every `ChatComposer` (chat, new chat, note edit command) dictates through `voice/useDictation`: the mic records one
+file with `MediaRecorder` (WebM/Opus, Ogg or MP4, whichever the browser supports) up to the limit from
+`GET /note/speech/settings`, then posts it to `POST /note/speech/transcriptions`. Stop appends the text to the draft,
+Send submits it at once, and reaching the limit acts as Stop. A failed upload keeps the recording in memory for a
+manual retry; leaving the screen discards it. The mic is disabled where the browser cannot record — including any
+page that is not a secure context, which is why `http://uliss.home` needs HTTPS (`docs/TECH_DEBT.md`).
 
 The new-chat actions open `/chats/new` without calling the backend. On the first non-blank submission, the SPA sends
 only

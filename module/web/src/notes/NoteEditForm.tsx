@@ -116,8 +116,8 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
         }
     }
 
-    async function rewrite() {
-        const instruction = command.trim()
+    async function rewrite(text?: string) {
+        const instruction = (text ?? command).trim()
         const editor = editorRef.current
         if (instruction === '' || busy || editor === null || rewriteRef.current !== null) return
         const content = editor.getMarkdown()
@@ -181,7 +181,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
                     handleRef={editorRef} highlightDateHeadings={note.source === 'CHAT_SUMMARY'}/>
         <div className="note-edit-dock">
             {rewriteNotice && <p className="note-edit-notice" role="status">{rewriteNotice}</p>}
-            <ChatComposer value={command} onChange={setCommand} onSubmit={() => void rewrite()}
+            <ChatComposer value={command} onChange={setCommand} onSubmit={(text) => void rewrite(text)}
                           placeholder={COMMAND_HINTS[hint]} disabled={saving}
                           generationActive={generating} onStop={() => rewriteRef.current?.abort()}/>
             <div className="note-edit-actions">

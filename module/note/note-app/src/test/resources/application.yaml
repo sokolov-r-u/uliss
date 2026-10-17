@@ -17,6 +17,10 @@ spring:
     clients:
       connect-timeout: 10s
       read-timeout: 120s
+  servlet:
+    multipart:
+      max-file-size: 2KB
+      max-request-size: 2KB
   flyway:
     schemas: note
     default-schema: note
@@ -42,6 +46,9 @@ spring:
 # Long enough that the poller never fires during a test's lifetime - it's not what's under test
 # in most full-context tests, and a tick mid-test would add unrelated DB activity/flakiness.
 note:
+  speech:
+    max-duration: 90s
+    max-file-size: 1KB
   outbox:
     poll-interval-ms: 3600000
     max-attempts: 3

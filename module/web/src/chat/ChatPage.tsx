@@ -531,8 +531,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
     }
 
-    async function onSend() {
-        const content = draft.trim()
+    async function onSend(text?: string) {
+        const content = (text ?? draft).trim()
         if (generationPhaseRef.current !== 'idle' || content === '') return
 
         const requestChatId = activeChatIdRef.current
@@ -724,10 +724,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 && <Button size="sm" variant="quiet" onClick={retryReconciliation}>Retry</Button>}</div>}
             {generationPhase === 'settling' &&
                 <p className="chat-settling-notice" aria-live="polite">Saving the reply…</p>}
+            {/* keyed by chat: switching chats drops a recording instead of sending it into the next chat */}
             <ChatComposer
+                key={chatId ?? 'new'}
                 value={draft}
                 onChange={setDraft}
-                onSubmit={() => void onSend()}
+                onSubmit={(text) => void onSend(text)}
                 disabled={generationPhase !== 'idle'}
                 generationActive={generationPhase === 'streaming'
                     || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}

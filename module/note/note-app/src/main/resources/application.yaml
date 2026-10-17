@@ -18,6 +18,11 @@ spring:
     clients:
       connect-timeout: 10s
       read-timeout: 120s
+  servlet:
+    multipart:
+      # backstop above note.speech.max-file-size, which answers with its own code
+      max-file-size: 11MB
+      max-request-size: 11MB
   datasource:
     url: ${POSTGRES_URL}?currentSchema=note
   flyway:
@@ -46,6 +51,11 @@ spring:
         dimensions: 1536
         timeout: 30s
         max-retries: 1
+      audio:
+        transcription:
+          model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
+          timeout: 120s
+          max-retries: 1
 uliss:
   web:
     path-prefix: /note
@@ -76,6 +86,10 @@ note:
     reasoning-effort: low
     # low verbosity invites the model to shorten a note it should only edit
     verbosity: medium
+  speech:
+    # the browser stops recording here; gpt-4o-transcribe truncation on longer files is unverified
+    max-duration: 5m
+    max-file-size: 10MB
   outbox:
     poll-interval-ms: 1000
     max-attempts: 3
