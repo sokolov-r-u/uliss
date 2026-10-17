@@ -1,7 +1,8 @@
-import {render, screen, waitFor} from '@testing-library/react'
+import {act, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes} from 'react-router-dom'
+import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {listNoteChats, notifyChatListChanged} from '../chat/chatApi'
 import {deleteNote, getNote, NoteApiError, renameNote, streamNoteStatus} from './noteApi'
 import {MAX_STATUS_RECONNECTS, NoteDetailPage} from './NoteDetailPage'
 
@@ -10,21 +11,41 @@ vi.mock('./noteApi', async (importOriginal) => {
     return {...actual, getNote: vi.fn(), streamNoteStatus: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn()}
 })
 
+vi.mock('../chat/chatApi', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../chat/chatApi')>()
+    return {...actual, listNoteChats: vi.fn()}
+})
+
 const mockedGetNote = vi.mocked(getNote)
+const mockedNoteChats = vi.mocked(listNoteChats)
 const mockedStatus = vi.mocked(streamNoteStatus)
 
 const generating = {id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null} as const
 const ready = (content: string) => ({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content} as const)
 
+function renderFromDeleteDialog(state?: unknown) {
+    render(<MemoryRouter initialEntries={['/chats?deleteChat=c1&in=list', {pathname: '/notes/note-1', state}]}
+                         initialIndex={1}><Routes>
+        <Route path="/notes/:noteId" element={<NoteDetailPage/>}/>
+        <Route path="/chats" element={<ChatsSearch/>}/>
+    </Routes></MemoryRouter>)
+}
+
+function ChatsSearch() {
+    return <div data-testid="chats-route">{useLocation().search}</div>
+}
+
 function renderPage() {
     render(<MemoryRouter initialEntries={['/notes/note-1']}><Routes>
         <Route path="/notes/:noteId" element={<NoteDetailPage/>}/>
         <Route path="/notes" element={<div data-testid="notes-route"/>}/>
+        <Route path="/chats/:chatId" element={<div data-testid="chat-route"/>}/>
     </Routes></MemoryRouter>)
 }
 
 describe('NoteDetailPage', () => {
     beforeEach(() => {
+        mockedNoteChats.mockReset().mockResolvedValue([])
         mockedGetNote.mockReset()
         mockedStatus.mockReset()
     })
@@ -291,6 +312,80 @@ describe('NoteDetailPage', () => {
         expect(panel).toHaveTextContent('Summary of a chat')
         expect(panel).toHaveTextContent('Written')
         expect(panel).toHaveTextContent('Updated')
+    })
+
+    it('lists the chats a summary was written from and opens one', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        mockedNoteChats.mockResolvedValue([
+            {id: 'c-2', title: 'Morning ritual', noteCount: 1, updatedAt: '2026-06-23T09:00:00Z'},
+            {id: 'c-1', title: 'The small room', noteCount: 2, updatedAt: '2026-06-20T09:00:00Z'},
+        ])
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Note details'}))
+        const panel = screen.getByRole('complementary', {name: 'This note'})
+        const rows = await within(panel).findAllByRole('button', {name: /Morning ritual|The small room/})
+        expect(rows.map((row) => row.textContent)).toEqual([
+            expect.stringContaining('Morning ritual'), expect.stringContaining('The small room'),
+        ])
+        expect(panel).not.toHaveTextContent('Summary of a chat')
+        expect(mockedNoteChats).toHaveBeenCalledWith('note-1', expect.any(AbortSignal))
+
+        await userEvent.click(rows[1])
+        expect(screen.getByTestId('chat-route')).toBeInTheDocument()
+    })
+
+    it('says a note was written by hand when no chat is linked', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'MANUAL', status: 'READY', title: 'Idea', content: 'Body'})
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Note details'}))
+
+        expect(screen.getByRole('complementary', {name: 'This note'})).toHaveTextContent('Written by hand')
+    })
+
+    it('refreshes the source chats when chats change', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        mockedNoteChats
+            .mockResolvedValueOnce([{id: 'c-1', title: 'Old title', noteCount: 1}])
+            .mockResolvedValue([{id: 'c-1', title: 'New title', noteCount: 1}])
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Note details'}))
+        expect(await screen.findByRole('button', {name: /Old title/})).toBeInTheDocument()
+
+        act(() => notifyChatListChanged())
+
+        expect(await screen.findByRole('button', {name: /New title/})).toBeInTheDocument()
+    })
+
+    it('a note opened from the chat delete dialog goes back to it', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderFromDeleteDialog({backToDeleteDialog: true})
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Back'}))
+
+        expect(screen.getByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
+    })
+
+    it('deleting a note opened from the chat delete dialog goes back to the dialog', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        renderFromDeleteDialog({backToDeleteDialog: true})
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Idea'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(await screen.findByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
+        expect(deleteNote).toHaveBeenCalledWith('note-1')
+    })
+
+    it('offers no Back on a note opened any other way', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderFromDeleteDialog()
+
+        expect(await screen.findByRole('heading', {name: 'Idea'})).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Back'})).not.toBeInTheDocument()
     })
 
     it('opens the details panel by default from the tablet breakpoint up', async () => {

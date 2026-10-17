@@ -719,4 +719,28 @@ class NoteServiceTest {
         assertEquals(expectedType, invocation.arguments[0])
         return invocation.arguments[1] as String
     }
+
+    @Test
+    fun `linked chats of a missing or foreign note are not found without reading links`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { noteService.getLinkedChatIds(userId, noteId) }
+        Mockito.verify(chatNoteRepository, Mockito.never()).findChatIdsByNoteId(anyValue())
+    }
+
+    @Test
+    fun `chat notes mark a ready note with a pending summary update as updating`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val updating = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(summaryRequestStore.findPendingNoteIds(userId)).thenReturn(setOf(updating.id, generating.id))
+        Mockito.`when`(chatNoteRepository.findNotesByChatId(userId, chatId)).thenReturn(listOf(updating, generating))
+
+        val result = noteService.getChatNotes(userId, chatId)
+
+        assertEquals(listOf(true, false), result.map { it.updating })
+    }
 }

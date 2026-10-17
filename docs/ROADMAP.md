@@ -46,6 +46,11 @@ Summarize turns a chat into a note asynchronously through the transactional outb
 pgvector embeddings (RAG) as secondary context; the title comes from structured model output. Note status is streamed
 over SSE; the SPA has the notes list and note screen.
 
+### Chats and notes linked — 2026-10-17
+
+Chat lists follow the last activity (message, rename, Summarize). The context panel of a chat lists its notes, the
+panel of a note lists the chats it was written from, and the chat delete dialog lists the notes that stay.
+
 ## Before the MVP
 
 ### 1. Chats and notes
@@ -57,7 +62,6 @@ over SSE; the SPA has the notes list and note screen.
 - Create notes manually.
 - Start a new chat from a note to expand on its topics; the note is the chat's starting context. Design first: how the
   note reaches the model and where notes produced by that chat are placed (for example, as child notes).
-- Notes of a chat: API that links chats and notes, the list in the chat delete dialog, and the context panel sections.
 - Account settings backed by `user-service`.
 
 ### 2. Chat quality

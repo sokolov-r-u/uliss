@@ -5,6 +5,7 @@ import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
+import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
@@ -759,8 +760,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         </div>
             {chatMeta && <ContextPanel label="This chat" open={panelOpen} onClose={closePanel}>
                 <PanelSection label="Notes from this chat" count={chatMeta.noteCount}>
-                    <p className="context-text">Uliss writes a note when the conversation has something worth keeping.
-                        Deleting the chat keeps its notes.</p>
+                    <ChatNotesList chatId={chatMeta.id} onOpen={(noteId) => navigate(`/notes/${noteId}`)}
+                                   empty={<p className="context-text">Uliss writes a note when the conversation has
+                                       something worth keeping. Deleting the chat keeps its notes.</p>}/>
                 </PanelSection>
                 <PanelSection label="Dates">
                     <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt) || '—'}/>

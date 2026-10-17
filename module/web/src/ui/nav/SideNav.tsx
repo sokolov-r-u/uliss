@@ -134,7 +134,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                     <div key={group.label} className="side-nav-group">
                                         <Kicker size={8.5} spacing="2.5px" color="var(--text-faint)">{group.label}</Kicker>
                                         {group.items.map((chat) => (
-                                            <ItemActions key={chat.id}
+                                            <ItemActions key={chat.id} dialogHost="nav"
                                                          target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
                                                          onDeleted={() => {
                                                              if (location.pathname === `/chats/${chat.id}`) {

@@ -1,6 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {Outlet, useLocation} from 'react-router-dom'
 import {OnboardingDriver} from '../onboarding/OnboardingDriver'
+import {returnsToNavDialog} from './actions/deleteDialogReturn'
 import {SideNav} from './nav/SideNav'
 import {ShellNavContext} from './ScreenHeader'
 import './AppShell.css'
@@ -27,9 +28,11 @@ export function AppShell() {
         requestAnimationFrame(() => restoreFocusRef.current?.focus())
     }
 
-    // Auto-close the mobile drawer on every navigation (harmless no-op on desktop).
+    // Auto-close the mobile drawer on every navigation (harmless no-op on desktop), unless the navigation returns to
+    // a delete dialog that lives in the drawer.
     useEffect(() => {
-        setNavOpen(false)
+        setNavOpen(returnsToNavDialog(location.search))
+        // Only a new screen decides; the dialog clears its marker from the search right after it reopens.
     }, [location.pathname])
 
     useEffect(() => {

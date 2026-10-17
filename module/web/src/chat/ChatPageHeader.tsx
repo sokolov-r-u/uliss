@@ -40,7 +40,8 @@ export function ChatPageHeader({chatId, generationActive, panelOpen = false, onT
             title={chat.title}
             meta={noteCountLabel(chat.noteCount)}
             right={<>{onTogglePanel && <PanelToggle label="Chat details" open={panelOpen} onToggle={onTogglePanel}/>}
-                <ItemActions target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
+                <ItemActions dialogHost="header"
+                             target={{kind: 'chat', id: chat.id, title: chat.title, noteCount: chat.noteCount}}
                                 deleteDisabled={generationActive}
                                 onRenamed={(title) => setLoadedChat({...chat, title})}
                                 onDeleted={() => navigate('/chats', {replace: true})}>

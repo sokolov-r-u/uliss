@@ -42,7 +42,11 @@ grouped count query per list). `PATCH /note/chats/{chatId}` with `{"title"}` ren
 trimmed, inner whitespace runs collapse to one space, and 1–50 code points are required, otherwise `400` (no
 truncation). `DELETE /note/chats/{chatId}` returns `204`, or `409` while a turn is generating under a live lease; an
 expired lease does not block. Deletion cascades to turns, messages, summary requests, and note links; linked notes are
-never deleted.
+never deleted. Chats are listed by last activity (`updated_at`: a new message, a rename, or a new Summarize request).
+
+`GET /note/chats/{chatId}/notes` returns the chat's linked notes as `NoteResponse`, newest first;
+`GET /note/notes/{noteId}/chats` returns the chats a note was written from as `ChatResponse`, by last activity (empty
+for a hand-written note or once its chats are deleted). Both are `404` for a missing or foreign chat or note.
 
 `GET /note/chats/{chatId}/messages` uses backward keyset pagination over UUID v7 message IDs. The
 latest page uses `limit=50` by default; callers may request 1 through 100 messages and pass the

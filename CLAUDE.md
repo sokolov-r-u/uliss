@@ -66,6 +66,9 @@
 - Red–Green–Refactor: write the test first, run it and see it fail for the expected reason (record the reason in the
   task file), implement until green, then refactor with the tests still green.
 - A bug fix starts with a regression test that reproduces the bug.
+- Exception — `module/web` (its tests are slow): no TDD and no regression-test-first. Implement, run `typecheck`, deploy
+  for the user's UI check, and write and run the Vitest/Playwright tests only after the user confirms the result in the
+  UI (see `module/web/CLAUDE.md`).
 - Required layers for changed behavior:
   - unit tests for domain and service logic, including error paths and edge cases;
   - integration tests (`integrationTest`, Testcontainers, real Postgres) for repositories and queries, transactions,
