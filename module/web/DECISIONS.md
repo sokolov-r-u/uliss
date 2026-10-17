@@ -64,3 +64,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   saved note. There is no separate diff view or accept/reject step. Text from a stopped or failed stream is dropped.
   Nothing reaches the server until Save.
 - **Source:** task `docs/tasks/2026-10-17-note-ai-edit.md`, block 2.
+
+## 2026-10-17 — Dictation lives in ChatComposer
+
+- **Context:** voice input is wanted in every chat composer at once (chat, new chat, note edit command).
+- **Decision:** `ChatComposer` owns dictation through `useDictation`; the DS `ChatDock` only draws the
+  `recording` / `transcribing` / `failed` states. Recognized text is appended to the draft, and Send passes the new draft
+  to `onSubmit(text)` because the owner's state has not caught up yet. Wording of voice errors sits in a line above the
+  dock. Only the user retries a failed transcription, with the same recording and intent.
+- **Source:** task `docs/tasks/2026-10-17-voice-input.md`, block 3.

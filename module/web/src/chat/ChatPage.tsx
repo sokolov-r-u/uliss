@@ -531,8 +531,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
     }
 
-    async function onSend() {
-        const content = draft.trim()
+    async function onSend(text?: string) {
+        const content = (text ?? draft).trim()
         if (generationPhaseRef.current !== 'idle' || content === '') return
 
         const requestChatId = activeChatIdRef.current
@@ -727,7 +727,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             <ChatComposer
                 value={draft}
                 onChange={setDraft}
-                onSubmit={() => void onSend()}
+                onSubmit={(text) => void onSend(text)}
                 disabled={generationPhase !== 'idle'}
                 generationActive={generationPhase === 'streaming'
                     || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}
