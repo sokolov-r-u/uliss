@@ -504,6 +504,21 @@ describe('ChatPage summary flow', () => {
         expect(input).toBeDisabled()
     })
 
+    it('lifts the chat in the chat lists when the stream broke before the turn id arrived', async () => {
+        mockedGetMessages
+            .mockResolvedValueOnce(messagePage([
+                {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+            ]))
+        mockedStream.mockRejectedValue(new Error('connection lost'))
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Next question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        // The server may have accepted the turn and lifted the chat; the lists refetch once to show the truth.
+        await waitFor(() => expect(notifyChatListChanged).toHaveBeenCalledOnce())
+    })
+
     it('drops the reported activity while a broken stream is being reconciled', async () => {
         mockedGetMessages
             .mockResolvedValueOnce(messagePage([
