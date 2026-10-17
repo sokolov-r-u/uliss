@@ -18,6 +18,7 @@ import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.model.projection.RequestFingerprint
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatMessageRepository
+import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.ChatTurnStore
 import io.uliss.note_service.service.tool.NoteSearch
 import io.uliss.note_service.service.tool.NotesSearchProperties
@@ -387,7 +388,8 @@ class ChatTurnServiceTest {
         Mockito.`when`(it.maxAttempts).thenReturn(3)
         Mockito.`when`(it.lease).thenReturn(Duration.ofSeconds(300))
     }
-    private val service = ChatTurnService(store, messages, executionPolicy)
+    private val chats = Mockito.mock(ChatRepository::class.java)
+    private val service = ChatTurnService(store, messages, chats, executionPolicy)
 
     @Test
     fun `missing or foreign chat is rejected before any turn lookup`() {
@@ -435,6 +437,7 @@ class ChatTurnServiceTest {
         assertEquals(" exact ", result.history.single().content)
         assertEquals(result.turn.id, result.history.single().turnId)
         Mockito.verify(messages, Mockito.times(1)).save(anyValue())
+        Mockito.verify(chats).touchActivity(chatId, userId)
     }
 
     @Test
@@ -455,6 +458,7 @@ class ChatTurnServiceTest {
         }
 
         Mockito.verify(messages, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(chats)
     }
 
     @Test
@@ -482,6 +486,7 @@ class ChatTurnServiceTest {
         Mockito.verify(store, Mockito.times(1))
             .insert(anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), Mockito.anyLong())
         Mockito.verify(messages, Mockito.times(1)).save(anyValue())
+        Mockito.verify(chats, Mockito.times(1)).touchActivity(chatId, userId)
     }
 
     @Test

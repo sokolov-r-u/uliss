@@ -155,6 +155,7 @@ class ChatFacadeTest {
         assertSame(savedNote, result)
         Mockito.verify(chatService).getLatestMessageId(userId, chatId)
         Mockito.verify(noteService).requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
+        Mockito.verify(chatService).touchActivity(userId, chatId)
     }
 
     @Test
@@ -232,6 +233,7 @@ class ChatFacadeTest {
 
         assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, UUID.randomUUID()))
         Mockito.verify(noteService, Mockito.never()).findCurrentChatSummary(anyValue())
+        Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }
 
     @Test
@@ -244,6 +246,7 @@ class ChatFacadeTest {
         assertFailsWith<SummaryNoteConflictException> {
             chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null)
         }
+        Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }
 
     @Test
@@ -287,6 +290,7 @@ class ChatFacadeTest {
         ).thenReturn(note)
 
         assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId))
+        Mockito.verify(chatService).touchActivity(userId, chatId)
     }
 
     @Test

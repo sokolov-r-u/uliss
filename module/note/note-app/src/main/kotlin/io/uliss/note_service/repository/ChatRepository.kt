@@ -41,5 +41,17 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
     ): ChatEntity?
 
     fun findByIdAndUserId(id: UUID, userId: UUID): ChatEntity?
-    fun findByUserIdOrderByCreatedAtDesc(userId: UUID): List<ChatEntity>
+    fun findByUserIdOrderByUpdatedAtDescIdDesc(userId: UUID): List<ChatEntity>
+
+    /** Marks new chat activity, which lifts the chat in chat lists; the version is left alone for concurrent JPA writes. */
+    @Modifying
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.chat
+            SET updated_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND user_id = :userId
+        """,
+    )
+    fun touchActivity(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
 }

@@ -35,7 +35,15 @@ class ChatService(
     }
 
     fun getChats(userId: UUID): List<ChatEntity> =
-        chatRepository.findByUserIdOrderByCreatedAtDesc(userId)
+        chatRepository.findByUserIdOrderByUpdatedAtDescIdDesc(userId)
+
+    /** Lifts the chat in chat lists; a rename does the same through the entity's last-modified date. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun touchActivity(userId: UUID, chatId: UUID) {
+        if (chatRepository.touchActivity(chatId, userId) == 0) {
+            throw NotFoundException("chat id=$chatId not found")
+        }
+    }
 
     @Transactional
     fun renameChat(userId: UUID, chatId: UUID, rawTitle: String): ChatEntity {

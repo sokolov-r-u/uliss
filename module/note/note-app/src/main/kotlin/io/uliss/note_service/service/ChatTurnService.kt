@@ -14,6 +14,7 @@ import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.model.projection.RequestFingerprint
 import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatMessageRepository
+import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.ChatTurnStore
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -39,6 +40,7 @@ import java.util.UUID
 class ChatTurnService(
     private val chatTurnStore: ChatTurnStore,
     private val chatMessageRepository: ChatMessageRepository,
+    private val chatRepository: ChatRepository,
     private val executionPolicy: ChatTurnExecutionPolicy,
 ) {
 
@@ -207,6 +209,7 @@ class ChatTurnService(
         val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
         val turn = reserveNewTurn(userId, chatId, idempotencyKey, requestFingerprint)
         val userMessage = saveUserMessage(chatId, turn.id, content)
+        chatRepository.touchActivity(chatId, userId)
         return ChatTurnRequestResolution.StartGeneration(turn, priorHistory + userMessage)
     }
 
