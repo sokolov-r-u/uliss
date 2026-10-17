@@ -32,6 +32,14 @@ editing the SPA.
 - UI source uses 4-space indentation after formatting. Re-read a file if an external formatter changes it during
   editing.
 
+## Testing workflow
+
+- No TDD here: the web tests are too slow for red–green cycles. Implement the change and check it with `typecheck`,
+  then deploy it (`./gradlew buildAllImages`, `docker compose -f infra/docker-compose.yml --profile full up -d`) for
+  the user's manual UI check.
+- After the user confirms the result in the UI, write the Vitest and Playwright tests for the changed behavior and run
+  `test`, `build`, and the visual suite; commit the tests with the code (or as a follow-up commit of the same task).
+
 ## Verification
 
 - Use `npm run typecheck -w @uliss/web` for TypeScript changes.
