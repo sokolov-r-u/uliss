@@ -40,3 +40,29 @@ test('the chat delete dialog is wide on desktop and shows a cut note title whole
     })
     expect(above).toBe(true)
 })
+
+test('Back on a note opened from the chat delete dialog returns to the dialog', async ({page}) => {
+    await openRoute(page, '/chats/c1', 'links=on')
+    await page.locator('main').getByRole('button', {name: 'Actions for Constraints and the small room'}).click()
+    await page.getByRole('menuitem', {name: 'Delete'}).click()
+    await page.getByRole('dialog').getByRole('button', {name: /A grammar for mornings/}).click()
+    await expect(page.getByRole('heading', {name: 'A grammar for mornings'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Back'}).click()
+
+    await expect(page.getByRole('dialog', {name: /Delete “Constraints and the small room”/})).toBeVisible()
+})
+
+test('on a phone, Back reopens the delete dialog inside the side navigation', async ({page}) => {
+    await page.setViewportSize({width: 375, height: 812})
+    await openRoute(page, '/chats', 'links=on')
+    await page.locator('main').getByRole('button', {name: 'Open navigation'}).click()
+    await page.locator('#app-navigation').getByRole('button', {name: 'Actions for Constraints and the small room'}).click()
+    await page.getByRole('menuitem', {name: 'Delete'}).click()
+    await page.getByRole('dialog').getByRole('button', {name: /The empty room/}).click()
+    await expect(page.getByRole('heading', {name: 'The empty room'})).toBeVisible()
+
+    await page.getByRole('button', {name: 'Back'}).click()
+
+    await expect(page.getByRole('dialog', {name: /Delete “Constraints and the small room”/})).toBeVisible()
+})

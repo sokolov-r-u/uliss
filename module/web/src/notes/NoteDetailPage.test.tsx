@@ -1,6 +1,6 @@
 import {act, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes} from 'react-router-dom'
+import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {listNoteChats, notifyChatListChanged} from '../chat/chatApi'
 import {deleteNote, getNote, NoteApiError, renameNote, streamNoteStatus} from './noteApi'
@@ -22,6 +22,18 @@ const mockedStatus = vi.mocked(streamNoteStatus)
 
 const generating = {id: 'note-1', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null} as const
 const ready = (content: string) => ({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content} as const)
+
+function renderFromDeleteDialog(state?: unknown) {
+    render(<MemoryRouter initialEntries={['/chats?deleteChat=c1&in=list', {pathname: '/notes/note-1', state}]}
+                         initialIndex={1}><Routes>
+        <Route path="/notes/:noteId" element={<NoteDetailPage/>}/>
+        <Route path="/chats" element={<ChatsSearch/>}/>
+    </Routes></MemoryRouter>)
+}
+
+function ChatsSearch() {
+    return <div data-testid="chats-route">{useLocation().search}</div>
+}
 
 function renderPage() {
     render(<MemoryRouter initialEntries={['/notes/note-1']}><Routes>
@@ -344,6 +356,23 @@ describe('NoteDetailPage', () => {
         act(() => notifyChatListChanged())
 
         expect(await screen.findByRole('button', {name: /New title/})).toBeInTheDocument()
+    })
+
+    it('a note opened from the chat delete dialog goes back to it', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderFromDeleteDialog({backToDeleteDialog: true})
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Back'}))
+
+        expect(screen.getByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
+    })
+
+    it('offers no Back on a note opened any other way', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderFromDeleteDialog()
+
+        expect(await screen.findByRole('heading', {name: 'Idea'})).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Back'})).not.toBeInTheDocument()
     })
 
     it('opens the details panel by default from the tablet breakpoint up', async () => {

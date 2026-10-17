@@ -1,7 +1,8 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
-import {useNavigate, useParams} from 'react-router-dom'
+import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
+import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {NoteChatsList} from '../ui/links/NoteChatsList'
@@ -84,6 +85,7 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
 export function NoteDetailPage() {
     const {noteId} = useParams<{ noteId: string }>()
     const navigate = useNavigate()
+    const backToDeleteDialog = isBackToDeleteDialog(useLocation().state)
     const [state, setState] = useState<DetailState>({status: 'loading'})
     const [editing, setEditing] = useState(false)
     const controllerRef = useRef<AbortController | null>(null)
@@ -206,6 +208,9 @@ export function NoteDetailPage() {
         </IconButton>}
     </ItemActions>
 
+    // Opened from the chat delete dialog: the previous history entry is that screen with the dialog open.
+    const backButton = backToDeleteDialog && <Button variant="quiet" size="sm" onClick={() => navigate(-1)}>Back</Button>
+
     return <NoteDetailView state={state} onRetry={() => void load()} edit={edit}
-                           actions={edit ? undefined : <>{editButton}{actions}</>}/>
+                           actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
 }

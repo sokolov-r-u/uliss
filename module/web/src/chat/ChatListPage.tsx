@@ -82,7 +82,7 @@ export function ChatListPage() {
                             {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
                                                                                 color="var(--text-faint)">{group.label}</Kicker></div>}
                         {group.items.map((chat, index) => (
-                            <ItemActions key={chat.id}
+                            <ItemActions key={chat.id} dialogHost="list"
                                          target={{
                                              kind: 'chat',
                                              id: chat.id,

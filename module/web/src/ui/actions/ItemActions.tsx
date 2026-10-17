@@ -1,10 +1,16 @@
-import {type ReactNode, useCallback, useLayoutEffect, useRef, useState} from 'react'
+import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
-import {useNavigate} from 'react-router-dom'
+import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
 import {normalizeTitle, TITLE_LIMIT} from '../../lib/titleRule'
 import {ChatNotesList} from '../links/ChatNotesList'
+import {
+    BACK_TO_DELETE_DIALOG_STATE,
+    DELETE_CHAT_PARAM,
+    DELETE_HOST_PARAM,
+    type DeleteDialogHost,
+} from './deleteDialogReturn'
 import {deleteNote, type Note, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
 
 export type ItemActionTarget =
@@ -18,6 +24,8 @@ export interface ItemActionsProps {
     onDeleted?: () => void
     /** Greys Delete, e.g. while this chat's reply is streaming. */
     deleteDisabled?: boolean
+    /** Where this chat's menu sits; with it, a note opened from the delete dialog can come back to the dialog. */
+    dialogHost?: DeleteDialogHost
     /** Fixture-only: render with the menu already open. */
     initialOpen?: boolean
     children: (openMenu: (anchor: HTMLElement) => void, menuOpen: boolean) => ReactNode
@@ -55,6 +63,7 @@ export function ItemActions({
                                 onRenamed,
                                 onDeleted,
                                 deleteDisabled = false,
+                                dialogHost,
                                 initialOpen = false,
                                 children,
                             }: ItemActionsProps) {
@@ -71,6 +80,21 @@ export function ItemActions({
     }, [initialOpen])
 
     const navigate = useNavigate()
+    const location = useLocation()
+
+    // Back from a note opened in this dialog: reopen it, then drop the marker so closing it leaves a plain URL.
+    useEffect(() => {
+        if (target.kind !== 'chat' || !dialogHost) return
+        const params = new URLSearchParams(location.search)
+        if (params.get(DELETE_CHAT_PARAM) !== target.id || params.get(DELETE_HOST_PARAM) !== dialogHost) return
+        setError(null)
+        setDialog('delete')
+        params.delete(DELETE_CHAT_PARAM)
+        params.delete(DELETE_HOST_PARAM)
+        const search = params.toString()
+        navigate({pathname: location.pathname, search: search ? `?${search}` : ''}, {replace: true})
+    }, [location.pathname, location.search, target.kind, target.id, dialogHost, navigate])
+
     const openMenu = useCallback((element: HTMLElement) => setAnchor(element), [])
     const closeMenu = useCallback(() => setAnchor(null), [])
     const closeDialog = useCallback(() => {
@@ -82,7 +106,16 @@ export function ItemActions({
     function openNote(noteId: string) {
         if (pendingRef.current) return
         setDialog(null)
-        navigate(`/notes/${noteId}`)
+        if (!dialogHost || target.kind !== 'chat') {
+            navigate(`/notes/${noteId}`)
+            return
+        }
+        // Mark this screen's history entry with the open dialog, then leave it for the note.
+        const params = new URLSearchParams(location.search)
+        params.set(DELETE_CHAT_PARAM, target.id)
+        params.set(DELETE_HOST_PARAM, dialogHost)
+        navigate({pathname: location.pathname, search: `?${params}`}, {replace: true})
+        navigate(`/notes/${noteId}`, {state: BACK_TO_DELETE_DIALOG_STATE})
     }
 
     function begin(): boolean {

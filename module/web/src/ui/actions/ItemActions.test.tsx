@@ -2,7 +2,7 @@ import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/
 import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
-import {MemoryRouter, useLocation} from 'react-router-dom'
+import {MemoryRouter, useLocation, useNavigate} from 'react-router-dom'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
 import {deleteNote, listChatNotes, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
@@ -19,9 +19,9 @@ vi.mock('../../notes/noteApi', async (importOriginal) => {
 const chat: ItemActionTarget = {kind: 'chat', id: 'c1', title: 'Trip', noteCount: 2}
 const note: ItemActionTarget = {kind: 'note', id: 'n1', title: 'Idea', renamable: true}
 
-function renderRow(target: ItemActionTarget, props: Partial<ItemActionsProps> = {}) {
+function renderRow(target: ItemActionTarget, props: Partial<ItemActionsProps> = {}, entry = '/chats') {
     const onOpen = vi.fn()
-    render(<MemoryRouter initialEntries={['/chats']}>
+    render(<MemoryRouter initialEntries={[entry]}>
         <ItemActions target={target} {...props}>
             {(openMenu) => <ListRow title={target.title} onClick={onOpen} onMenu={openMenu}
                                     menuLabel={`Actions for ${target.title}`}/>}
@@ -32,7 +32,13 @@ function renderRow(target: ItemActionTarget, props: Partial<ItemActionsProps> = 
 }
 
 function RoutePath() {
-    return <output data-testid="route-path">{useLocation().pathname}</output>
+    const location = useLocation()
+    const navigate = useNavigate()
+    return <>
+        <output data-testid="route-path">{location.pathname}</output>
+        <output data-testid="route-search">{location.search}</output>
+        <button type="button" onClick={() => navigate(-1)}>Go back</button>
+    </>
 }
 
 async function openMenu(title: string) {
@@ -62,6 +68,46 @@ describe('ItemActions', () => {
         expect(screen.getByTestId('route-path')).toHaveTextContent('/notes/n-7')
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
         expect(deleteChat).not.toHaveBeenCalled()
+    })
+
+    it('going back from a note opened in the dialog reopens the dialog of the same host', async () => {
+        vi.mocked(listChatNotes).mockResolvedValue([
+            {id: 'n-7', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon notes', content: 'Body'},
+        ])
+        renderRow(chat, {dialogHost: 'list'})
+        await openMenu('Trip')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(await screen.findByRole('button', {name: /Lisbon notes/}))
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/notes/n-7')
+
+        await userEvent.click(screen.getByRole('button', {name: 'Go back'}))
+
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/chats')
+        expect(await screen.findByRole('dialog', {name: 'Delete “Trip”?'})).toBeInTheDocument()
+        // The reopened dialog clears its marker, so closing it leaves a plain URL.
+        await waitFor(() => expect(screen.getByTestId('route-search')).toBeEmptyDOMElement())
+    })
+
+    it('leaves a delete marker of another host alone', () => {
+        renderRow(chat, {dialogHost: 'list'}, '/chats?deleteChat=c1&in=nav')
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.getByTestId('route-search')).toHaveTextContent('?deleteChat=c1&in=nav')
+    })
+
+    it('opens a note without a way back when the dialog has no host', async () => {
+        vi.mocked(listChatNotes).mockResolvedValue([
+            {id: 'n-7', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon notes', content: 'Body'},
+        ])
+        renderRow(chat)
+        await openMenu('Trip')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(await screen.findByRole('button', {name: /Lisbon notes/}))
+
+        await userEvent.click(screen.getByRole('button', {name: 'Go back'}))
+
+        expect(screen.getByTestId('route-search')).toBeEmptyDOMElement()
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
     it('does not look up notes for a chat without notes', async () => {
