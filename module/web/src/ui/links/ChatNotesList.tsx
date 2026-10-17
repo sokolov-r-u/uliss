@@ -1,41 +1,38 @@
-import {type ReactNode, useEffect, useState} from 'react'
+import {type ReactNode, useEffect} from 'react'
 import {ListRow} from '@uliss/design-system'
-import {subscribeToChatListChanges} from '../../chat/chatApi'
-import {listChatNotes, type Note, subscribeToNotesChanges} from '../../notes/noteApi'
+import {listChatNotes, streamNoteStatus, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
+import {useLinkedItems} from './useLinkedItems'
+
+const SUBSCRIPTIONS = [subscribeToNotesChanges]
 
 /**
  * The notes written from a chat as rows that open them; [empty] while there are none (or none could be loaded yet).
- * Reloads when notes change (summary finished, rename, delete) or chats change (a new summary request).
+ * Reloads when notes change (a summary requested, renamed, deleted) and once a generating or updating note settles.
  */
 export function ChatNotesList({chatId, onOpen, empty}: {
     chatId: string
     onOpen: (noteId: string) => void
     empty: ReactNode
 }) {
-    const [notes, setNotes] = useState<Note[]>([])
-    const [revision, setRevision] = useState(0)
+    const {items: notes, reload} = useLinkedItems(chatId, listChatNotes, SUBSCRIPTIONS)
+    const pendingIds = notes.filter((note) => note.status === 'GENERATING' || note.updating).map((note) => note.id)
+    const pendingKey = pendingIds.join(',')
 
     useEffect(() => {
-        const reload = () => setRevision((value) => value + 1)
-        const unsubscribeNotes = subscribeToNotesChanges(reload)
-        const unsubscribeChats = subscribeToChatListChanges(reload)
-        return () => {
-            unsubscribeNotes()
-            unsubscribeChats()
-        }
-    }, [])
-
-    useEffect(() => {
+        if (pendingIds.length === 0) return
         const controller = new AbortController()
-        listChatNotes(chatId, controller.signal)
-            .then((loaded) => {
-                if (!controller.signal.aborted) setNotes(loaded)
-            })
-            // A failed load keeps what is shown: the empty state, or the rows of the last successful load.
-            .catch(() => undefined)
+        pendingIds.forEach((noteId) => {
+            streamNoteStatus(noteId, {signal: controller.signal, onStatus: () => undefined})
+                .then((terminal) => {
+                    if (terminal && !controller.signal.aborted) reload()
+                })
+                // A cut stream leaves the row as it is; the next notes change reloads it.
+                .catch(() => undefined)
+        })
         return () => controller.abort()
-    }, [chatId, revision])
+        // pendingKey stands for pendingIds.
+    }, [pendingKey, reload])
 
     if (notes.length === 0) return <>{empty}</>
     return (

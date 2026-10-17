@@ -2,12 +2,13 @@ import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {notifyChatListChanged} from '../../chat/chatApi'
-import {listChatNotes, type Note, notifyNotesChanged} from '../../notes/noteApi'
+import {listChatNotes, type Note, notifyNotesChanged, streamNoteStatus} from '../../notes/noteApi'
 import {ChatNotesList} from './ChatNotesList'
 
 vi.mock('../../notes/noteApi', async (importOriginal) => ({
     ...await importOriginal<typeof import('../../notes/noteApi')>(),
     listChatNotes: vi.fn(),
+    streamNoteStatus: vi.fn(),
 }))
 
 const mockedList = vi.mocked(listChatNotes)
@@ -17,7 +18,10 @@ function note(overrides: Partial<Note>): Note {
 }
 
 describe('ChatNotesList', () => {
-    beforeEach(() => mockedList.mockReset())
+    beforeEach(() => {
+        mockedList.mockReset()
+        vi.mocked(streamNoteStatus).mockReset().mockReturnValue(new Promise(() => undefined))
+    })
 
     it('shows each note of the chat and opens the one clicked', async () => {
         mockedList.mockResolvedValue([
@@ -56,7 +60,7 @@ describe('ChatNotesList', () => {
         expect(screen.getByRole('button', {name: /The small room/})).toBeInTheDocument()
     })
 
-    it('reloads when notes or chats change', async () => {
+    it('reloads when notes change but not on chat activity', async () => {
         mockedList.mockResolvedValueOnce([]).mockResolvedValue([note({id: 'n-1', title: 'Fresh note'})])
         render(<ChatNotesList chatId="chat-1" onOpen={vi.fn()} empty={<p>No notes</p>}/>)
         expect(await screen.findByText('No notes')).toBeInTheDocument()
@@ -65,6 +69,31 @@ describe('ChatNotesList', () => {
         expect(await screen.findByRole('button', {name: /Fresh note/})).toBeInTheDocument()
 
         act(() => notifyChatListChanged())
-        await waitFor(() => expect(mockedList).toHaveBeenCalledTimes(3))
+        expect(mockedList).toHaveBeenCalledTimes(2)
+    })
+
+    it('never shows the notes of the previous chat', async () => {
+        mockedList
+            .mockResolvedValueOnce([note({id: 'n-1', title: 'From chat one'})])
+            .mockRejectedValueOnce(new Error('connection lost'))
+        const {rerender} = render(<ChatNotesList chatId="chat-1" onOpen={vi.fn()} empty={<p>No notes</p>}/>)
+        expect(await screen.findByRole('button', {name: /From chat one/})).toBeInTheDocument()
+
+        rerender(<ChatNotesList chatId="chat-2" onOpen={vi.fn()} empty={<p>No notes</p>}/>)
+
+        expect(screen.queryByRole('button', {name: /From chat one/})).not.toBeInTheDocument()
+        await waitFor(() => expect(mockedList).toHaveBeenCalledWith('chat-2', expect.any(AbortSignal)))
+        expect(screen.getByText('No notes')).toBeInTheDocument()
+    })
+
+    it('reloads once a generating note settles', async () => {
+        mockedList
+            .mockResolvedValueOnce([note({id: 'n-1', status: 'GENERATING', content: null})])
+            .mockResolvedValue([note({id: 'n-1', title: 'Finished note'})])
+        vi.mocked(streamNoteStatus).mockResolvedValue('READY')
+        render(<ChatNotesList chatId="chat-1" onOpen={vi.fn()} empty={<p>No notes</p>}/>)
+
+        expect(await screen.findByRole('button', {name: /Finished note/})).toBeInTheDocument()
+        expect(streamNoteStatus).toHaveBeenCalledWith('n-1', expect.objectContaining({signal: expect.any(AbortSignal)}))
     })
 })
