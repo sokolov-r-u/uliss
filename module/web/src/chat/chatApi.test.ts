@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch} from '../auth/apiClient'
-import {deleteChat, getChat, getMessages, listChats, renameChat} from './chatApi'
+import {deleteChat, getChat, getMessages, listChats, listNoteChats, renameChat} from './chatApi'
 
 vi.mock('../auth/apiClient', () => ({authFetch: vi.fn()}))
 
@@ -41,6 +41,23 @@ describe('chatApi', () => {
         mockedFetch.mockResolvedValue(new Response(null, {status: 404}))
 
         await expect(getMessages('missing')).rejects.toThrow('chat messages fetch failed (404)')
+    })
+
+    it('lists the chats a note was written from in the server order', async () => {
+        const chats = [
+            {id: 'c-2', title: 'Active', noteCount: 1, updatedAt: '2026-06-24T10:00:00Z'},
+            {id: 'c-1', title: 'Quiet', noteCount: 2, updatedAt: '2026-06-20T10:00:00Z'},
+        ]
+        mockedFetch.mockResolvedValue(jsonResponse(chats))
+
+        await expect(listNoteChats('note-1')).resolves.toEqual(chats)
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/note-1/chats', {signal: undefined})
+    })
+
+    it('reports a failed note chats request with its status', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({}, 404))
+
+        await expect(listNoteChats('note-1')).rejects.toMatchObject({status: 404})
     })
 
     it('loads one chat with its note count', async () => {

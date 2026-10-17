@@ -1,9 +1,10 @@
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
+import {MemoryRouter, useLocation} from 'react-router-dom'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
+import {deleteNote, listChatNotes, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
 
 vi.mock('../../chat/chatApi', async (importOriginal) => {
@@ -12,7 +13,7 @@ vi.mock('../../chat/chatApi', async (importOriginal) => {
 })
 vi.mock('../../notes/noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../notes/noteApi')>()
-    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn()}
+    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn()}
 })
 
 const chat: ItemActionTarget = {kind: 'chat', id: 'c1', title: 'Trip', noteCount: 2}
@@ -20,11 +21,18 @@ const note: ItemActionTarget = {kind: 'note', id: 'n1', title: 'Idea', renamable
 
 function renderRow(target: ItemActionTarget, props: Partial<ItemActionsProps> = {}) {
     const onOpen = vi.fn()
-    render(<ItemActions target={target} {...props}>
-        {(openMenu) => <ListRow title={target.title} onClick={onOpen} onMenu={openMenu}
-                                menuLabel={`Actions for ${target.title}`}/>}
-    </ItemActions>)
+    render(<MemoryRouter initialEntries={['/chats']}>
+        <ItemActions target={target} {...props}>
+            {(openMenu) => <ListRow title={target.title} onClick={onOpen} onMenu={openMenu}
+                                    menuLabel={`Actions for ${target.title}`}/>}
+        </ItemActions>
+        <RoutePath/>
+    </MemoryRouter>)
     return {onOpen}
+}
+
+function RoutePath() {
+    return <output data-testid="route-path">{useLocation().pathname}</output>
 }
 
 async function openMenu(title: string) {
@@ -37,6 +45,33 @@ describe('ItemActions', () => {
         vi.mocked(deleteNote).mockReset()
         vi.mocked(deleteChat).mockReset()
         vi.mocked(renameChat).mockReset()
+        vi.mocked(listChatNotes).mockReset().mockResolvedValue([])
+    })
+
+    it('lists the notes that survive a chat delete and opens one from the dialog', async () => {
+        vi.mocked(listChatNotes).mockResolvedValue([
+            {id: 'n-7', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon notes', content: 'Body'},
+        ])
+        renderRow(chat)
+
+        await openMenu('Trip')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Trip”?'})
+        await userEvent.click(await within(dialog).findByRole('button', {name: /Lisbon notes/}))
+
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/notes/n-7')
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(deleteChat).not.toHaveBeenCalled()
+    })
+
+    it('does not look up notes for a chat without notes', async () => {
+        renderRow({kind: 'chat', id: 'c2', title: 'Empty', noteCount: 0})
+
+        await openMenu('Empty')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+
+        expect(screen.getByRole('dialog', {name: 'Delete “Empty”?'})).toHaveTextContent('No notes were written from it.')
+        expect(listChatNotes).not.toHaveBeenCalled()
     })
 
     it('words the chat delete warning by note count', () => {

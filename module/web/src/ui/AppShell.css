@@ -371,6 +371,14 @@
     text-wrap: pretty;
 }
 
+/* Rows linking to a chat's notes or a note's chats: in the panel and in the chat delete dialog. */
+.context-links {
+    display: flex;
+    flex-direction: column;
+    max-height: 240px;
+    overflow-y: auto;
+}
+
 .context-fact {
     margin: 0;
     display: flex;

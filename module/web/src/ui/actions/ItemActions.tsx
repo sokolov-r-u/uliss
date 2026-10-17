@@ -1,8 +1,10 @@
 import {type ReactNode, useCallback, useLayoutEffect, useRef, useState} from 'react'
 import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
+import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
 import {normalizeTitle, TITLE_LIMIT} from '../../lib/titleRule'
+import {ChatNotesList} from '../links/ChatNotesList'
 import {deleteNote, type Note, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
 
 export type ItemActionTarget =
@@ -65,6 +67,7 @@ export function ItemActions({
         if (initialOpen && hostRef.current) setAnchor(hostRef.current)
     }, [initialOpen])
 
+    const navigate = useNavigate()
     const openMenu = useCallback((element: HTMLElement) => setAnchor(element), [])
     const closeMenu = useCallback(() => setAnchor(null), [])
     const closeDialog = useCallback(() => {
@@ -72,6 +75,12 @@ export function ItemActions({
         setDialog(null)
         setError(null)
     }, [])
+
+    function openNote(noteId: string) {
+        if (pendingRef.current) return
+        setDialog(null)
+        navigate(`/notes/${noteId}`)
+    }
 
     function begin(): boolean {
         if (pendingRef.current) return false
@@ -168,7 +177,11 @@ export function ItemActions({
             {dialog === 'delete' && <Dialog danger title={`Delete “${target.title}”?`}
                                             body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
                                             confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"
-                                            onConfirm={() => void submitDelete()} onCancel={closeDialog}/>}
+                                            onConfirm={() => void submitDelete()} onCancel={closeDialog}>
+                {/* The notes that stay: open one to delete it by hand before (or instead of) the chat. */}
+                {target.kind === 'chat' && target.noteCount > 0
+                    && <ChatNotesList chatId={target.id} onOpen={openNote} empty={null}/>}
+            </Dialog>}
         </div>
     )
 }
