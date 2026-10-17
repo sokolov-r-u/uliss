@@ -424,12 +424,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         const routeRevision = routeRevisionRef.current
         streamAbortRef.current = controller
         let resolvedChatId = requestChatId
+        // The server touched the existing chat's activity on accepting this turn; a new chat is announced by onChatId.
+        const liftsExistingChat = !request.initial
         let poll = false
         let pollTimeoutMs: number | undefined
         try {
             const callbacks = {
                 signal: controller.signal,
                 onTurnId: (turnId: string) => {
+                    // Chat lists reorder by activity even if the user has already left.
+                    if (liftsExistingChat) notifyChatListChanged()
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                         || pendingChatRequestRef.current !== request) return
                     request.turnId = turnId
@@ -459,7 +463,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     ...callbacks,
                     onChatId: (createdChatId) => {
                         // The server created and named the chat from this first message: chat lists gain it now,
-                        // once, even if the user has already left. Later turns change nothing those lists show.
+                        // once, even if the user has already left. Later turns reorder them through onTurnId.
                         notifyChatListChanged()
                         if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                             || pendingChatRequestRef.current !== request) return

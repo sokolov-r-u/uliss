@@ -2,7 +2,7 @@
  * Test-only stand-in for `src/auth/apiClient.ts` (swapped in by `visual/vite.config.ts`): `authFetch` answers from
  * fixtures by URL, so the harness renders the real `App`. `?data=empty` serves a day-one account;
  * `?onboarding=name|profile` serves pending onboarding steps. Sending a chat message opens a reply stream that reports
- * a notes search and then stays open, so the waiting state can be inspected.
+ * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 
@@ -74,6 +74,9 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
 
     const chatMessages = url.pathname.match(/^\/note\/chats\/([^/]+)\/messages$/)
     if (chatMessages && method === 'POST') {
+        // Like the server, an accepted message lifts its chat in chat lists.
+        const active = chats.find((item) => item.id === chatMessages[1])
+        if (active) active.updatedAt = '2026-06-24T11:00:00Z'
         return openReplyStream(chatMessages[1], ['event:activity\ndata:SEARCHING_NOTES\n\n'])
     }
     if (chatMessages) return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false})

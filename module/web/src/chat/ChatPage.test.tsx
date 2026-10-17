@@ -553,8 +553,8 @@ describe('ChatPage summary flow', () => {
         expect(await screen.findByText('Partial reply')).toBeInTheDocument()
         await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
         expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
-        // A turn in an existing chat changes nothing the chat lists show.
-        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        // An accepted turn lifts the chat in the chat lists once; stopping it does not refetch them again.
+        expect(notifyChatListChanged).toHaveBeenCalledOnce()
         expect(cancelChatTurn).not.toHaveBeenCalled()
     })
 
