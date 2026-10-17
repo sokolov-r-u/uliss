@@ -157,3 +157,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   them from becoming a per-message retelling.
 - **Source:** task `docs/tasks/2026-10-16-chat-notes-search.md` (manual test of a re-summarized Bowie chat).
 
+## 2026-10-17 — Versioned full-note edits
+
+- **Context:** users edit a note's title and Markdown content by hand; a repeated Summarize appends to the same note
+  and another tab may save in between.
+- **Decision:** `PUT /note/notes/{noteId}` replaces title and content and carries the `@Version` value the edit
+  started from (`NoteResponse.version`). A mismatch, or a concurrent commit caught on flush, is
+  `409 NOTE_VERSION_CONFLICT`; an edit is refused with `409 NOTE_UPDATING` while a summary update is pending, because
+  that update was drafted from the content the edit replaces. Content is capped at 100,000 characters. A summary
+  update applied after an edit appends to the edited content.
+- **Source:** task `docs/tasks/2026-10-17-note-manual-edit.md`, block 1.

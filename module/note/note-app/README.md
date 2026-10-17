@@ -127,6 +127,11 @@ to the attempt. Search results are not persisted with the reply.
   a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
+- `PUT /note/notes/{noteId}` with `{"title", "content", "version"}` saves a user edit of a `READY` note: trailing
+  whitespace is trimmed, content must be 1–100,000 characters and the title follows the rename rule (`400`
+  otherwise). `version` is the `NoteResponse.version` the edit started from; a newer stored version returns
+  `409 NOTE_VERSION_CONFLICT`, a pending summary update `409 NOTE_UPDATING`, any other status `409 NOTE_NOT_READY`.
+  A changed note is reindexed; an unchanged edit is a no-op that keeps the version.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
   summary request; chats remain.
 

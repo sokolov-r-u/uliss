@@ -9,6 +9,8 @@ import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.dto.response.toStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
+import io.uliss.note_service.exception.NoteUpdatingException
+import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -24,9 +26,11 @@ import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
+import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
+import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import reactor.core.publisher.Flux
@@ -223,6 +227,34 @@ class NoteService(
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
         return note.toResponse(isUpdating(note, summaryRequestStore.hasPendingForNote(noteId)))
+    }
+
+    /**
+     * Saves a user edit of a READY note made against [version] and reindexes it. An edit is refused while a summary
+     * update is pending, because the update was drafted from the content the edit replaces; an unchanged edit is a
+     * no-op that keeps the version.
+     */
+    @Transactional
+    fun updateNote(userId: UUID, noteId: UUID, rawTitle: String, rawContent: String, version: Long): NoteResponse {
+        val title = TitleNormalizer.normalizeUserTitle(rawTitle)
+            ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
+        val content = NoteContentNormalizer.normalizeUserContent(rawContent)
+            ?: throw BadRequestException(NoteContentNormalizer.USER_CONTENT_RULE)
+        val note = getOwnedNote(userId, noteId)
+        if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
+        if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
+        if (note.version != version) throw NoteVersionConflictException(noteId)
+        if (note.title == title && note.content == content) return note.toResponse(updating = false)
+        note.title = title
+        note.content = content
+        try {
+            noteRepository.saveAndFlush(note)
+        } catch (e: ObjectOptimisticLockingFailureException) {
+            throw NoteVersionConflictException(noteId, e)
+        }
+        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
+        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        return note.toResponse(updating = false)
     }
 
     /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */

@@ -37,3 +37,12 @@ if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage ==
     }
     Object.defineProperty(globalThis, 'localStorage', {configurable: true, value: memoryStorage})
 }
+
+// jsdom does no layout; ProseMirror measures the caret with these when the editor takes focus.
+const emptyRect = () => new DOMRect(0, 0, 0, 0)
+const noRects = () => ({length: 0, item: () => null, [Symbol.iterator]: [][Symbol.iterator]}) as unknown as DOMRectList
+for (const target of [Range.prototype, Element.prototype] as Array<Range | Element>) {
+    if (!('getClientRects' in target)) Object.assign(target, {getClientRects: noRects})
+    if (!('getBoundingClientRect' in target)) Object.assign(target, {getBoundingClientRect: emptyRect})
+}
+if (!document.elementFromPoint) document.elementFromPoint = () => null

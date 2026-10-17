@@ -610,3 +610,12 @@ the tool loop, so `AssistantService` and `NotesSearchTool` stay. It requires Spr
 - not chosen: Spring AI 2.1.0-M1 on Spring Boot 4.2 milestones now, or our own `ChatModel` over `openai-java`'s
   Responses API (throwaway once 2.1 is GA).
 
+## Guard unsaved note edits against in-app navigation (`web`)
+
+**Status:** not implemented. Note edit mode warns on tab close (`beforeunload`) and asks before Cancel, but leaving
+through an in-app link (side navigation, another note) drops unsaved edits silently.
+
+react-router's `useBlocker` works only under a data router, and the SPA uses `BrowserRouter`. Moving to
+`createBrowserRouter` (route objects, loaders unused) and blocking navigation while `NoteEditForm` is dirty closes the
+gap; the same guard would serve the later AI-assisted edit. Recorded from `docs/tasks/2026-10-17-note-manual-edit.md`.
+

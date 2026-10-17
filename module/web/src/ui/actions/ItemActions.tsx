@@ -2,7 +2,8 @@ import {type ReactNode, useCallback, useLayoutEffect, useRef, useState} from 're
 import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
+import {normalizeTitle, TITLE_LIMIT} from '../../lib/titleRule'
+import {deleteNote, type Note, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -10,22 +11,14 @@ export type ItemActionTarget =
 
 export interface ItemActionsProps {
     target: ItemActionTarget
-    onRenamed?: (title: string) => void
+    /** A renamed note also comes back whole: renaming bumps its version. */
+    onRenamed?: (title: string, note?: Note) => void
     onDeleted?: () => void
     /** Greys Delete, e.g. while this chat's reply is streaming. */
     deleteDisabled?: boolean
     /** Fixture-only: render with the menu already open. */
     initialOpen?: boolean
     children: (openMenu: (anchor: HTMLElement) => void, menuOpen: boolean) => ReactNode
-}
-
-const TITLE_LIMIT = 50
-
-/** Mirrors the server rule: trimmed, whitespace runs collapsed, 1–50 code points. */
-function normalizeTitle(raw: string): string | null {
-    const title = raw.trim().replace(/\s+/g, ' ')
-    const length = Array.from(title).length
-    return length > 0 && length <= TITLE_LIMIT ? title : null
 }
 
 export function deleteChatBody(noteCount: number): string {
@@ -97,14 +90,14 @@ export function ItemActions({
         const title = normalizeTitle(draft)
         if (title === null || !begin()) return
         try {
-            const saved = target.kind === 'chat'
-                ? (await renameChat(target.id, title)).title
-                : (await renameNote(target.id, title)).title ?? title
+            const renamedNote = target.kind === 'note' ? await renameNote(target.id, title) : undefined
+            const saved = renamedNote ? renamedNote.title ?? title : (await renameChat(target.id, title)).title
             if (target.kind === 'chat') notifyChatListChanged()
             else notifyNotesChanged()
             finish()
             setDialog(null)
-            onRenamed?.(saved)
+            if (renamedNote) onRenamed?.(saved, renamedNote)
+            else onRenamed?.(saved)
         } catch (e) {
             finish()
             if (!(e instanceof AuthRequiredError)) setError(failureMessage(target, e))

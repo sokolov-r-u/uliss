@@ -53,6 +53,15 @@ function openReplyStream(chatId: string, records: string[]): Response {
     })
 }
 
+/** Applies an edit to the in-memory fixture, so a reload of the page within the harness shows it. */
+function saveEdit(note: (typeof NOTES)[number], body: string) {
+    const edit = JSON.parse(body) as { title: string; content: string }
+    note.title = edit.title
+    note.content = edit.content
+    note.version = (note.version ?? 0) + 1
+    return note
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, location.origin)
     const method = init?.method ?? 'GET'
@@ -79,7 +88,9 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (note) {
         if (note[1] === 'error') return json({}, 500)
         const found = NOTES.find((item) => item.id === note[1])
-        return found ? json(found) : json({}, 404)
+        if (!found) return json({}, 404)
+        if (method === 'PUT') return json(saveEdit(found, String(init?.body)))
+        return json(found)
     }
     return json({}, 404)
 }

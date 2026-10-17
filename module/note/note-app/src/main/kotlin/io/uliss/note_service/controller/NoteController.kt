@@ -1,6 +1,7 @@
 package io.uliss.note_service.controller
 
 import io.uliss.note_service.dto.request.RenameRequest
+import io.uliss.note_service.dto.request.UpdateNoteRequest
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.service.NoteService
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -46,6 +48,20 @@ class NoteController(
         @PathVariable noteId: UUID,
         @Valid @RequestBody request: RenameRequest,
     ): NoteResponse = noteService.renameNote(jwt.getUserId(), noteId, request.title)
+
+    @PutMapping("/{noteId}")
+    fun updateNote(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: UpdateNoteRequest,
+    ): NoteResponse = noteService.updateNote(
+        jwt.getUserId(),
+        noteId,
+        request.title,
+        request.content,
+        // Validated as @NotNull before the call.
+        checkNotNull(request.version),
+    )
 
     @DeleteMapping("/{noteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)

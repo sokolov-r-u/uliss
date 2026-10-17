@@ -43,5 +43,7 @@ export * from './components/feedback/Dialog'
 export * from './components/feedback/ItemMenu'
 export * from './components/feedback/ProgressDots'
 
+export * from './components/editor/EditorToolbar'
+
 export * from './components/constellation/TagDot'
 export * from './components/constellation/ConstellationChip'

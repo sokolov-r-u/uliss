@@ -43,7 +43,7 @@ Chrome labels are `Kicker` (uppercase, tracked), section dividers are `<LabelRow
 
 Each component has `components/<group>/<Name>/<Name>.d.ts` (props) and `<Name>.prompt.md` (usage rules) — read the
 prompt before using it. The `.d.ts` files omit inherited DOM props: `Button`, `IconButton`, `ActionChip`, `MicButton`
-and `SettingsRow` are native buttons and accept `onClick`, `disabled`, `type`, `aria-*`; `TextField` forwards native
+and `SettingsRow` are native buttons (as are the buttons inside `EditorToolbar`) and accept `onClick`, `disabled`, `type`, `aria-*`; `TextField` forwards native
 input props. `Dialog`, `Notice` and `ItemMenu` are overlays — the caller decides when they mount.
 
 ## Example

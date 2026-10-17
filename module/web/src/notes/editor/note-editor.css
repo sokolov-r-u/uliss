@@ -1,0 +1,19 @@
+.note-editor-text .ProseMirror {
+    min-height: 12em;
+    outline: none;
+    white-space: pre-wrap;
+}
+
+.note-editor-text .ProseMirror:focus-visible {
+    outline: 1px solid var(--line-strong);
+    outline-offset: 8px;
+}
+
+.note-editor-text .ProseMirror[contenteditable='false'] {
+    color: var(--text-muted);
+}
+
+.note-editor-text,
+.note-editor-original {
+    padding-top: var(--space-5);
+}
