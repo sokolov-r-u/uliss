@@ -724,7 +724,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 && <Button size="sm" variant="quiet" onClick={retryReconciliation}>Retry</Button>}</div>}
             {generationPhase === 'settling' &&
                 <p className="chat-settling-notice" aria-live="polite">Saving the reply…</p>}
+            {/* keyed by chat: switching chats drops a recording instead of sending it into the next chat */}
             <ChatComposer
+                key={chatId ?? 'new'}
                 value={draft}
                 onChange={setDraft}
                 onSubmit={(text) => void onSend(text)}

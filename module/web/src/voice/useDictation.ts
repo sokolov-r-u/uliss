@@ -67,6 +67,8 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
     const recordingRef = useRef<Recording | null>(null)
     const failedRef = useRef<{ audio: Blob; intent: DictationIntent } | null>(null)
     const uploadRef = useRef<AbortController | null>(null)
+    /** Set while the microphone is being opened, so a second click cannot open another one. */
+    const startingRef = useRef(false)
     const mountedRef = useRef(true)
     const maxSecondsRef = useRef(maxSeconds)
     maxSecondsRef.current = maxSeconds
@@ -114,24 +116,35 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
     }, [])
 
     const start = useCallback(async () => {
-        if (!supported || recordingRef.current !== null || uploadRef.current !== null) return
+        if (!supported || startingRef.current || recordingRef.current !== null || uploadRef.current !== null) return
+        startingRef.current = true
         failedRef.current = null
         setNotice(null)
         let stream: MediaStream
         try {
             stream = await navigator.mediaDevices.getUserMedia({audio: true})
         } catch (error) {
+            startingRef.current = false
             if (!mountedRef.current) return
             setState('idle')
             setNotice({text: isPermissionError(error) ? MICROPHONE_BLOCKED : MICROPHONE_UNAVAILABLE, tone: 'error'})
             return
         }
+        startingRef.current = false
         if (!mountedRef.current) {
             stream.getTracks().forEach((track) => track.stop())
             return
         }
         const type = pickRecordingType()
-        const recorder = new MediaRecorder(stream, type ? {mimeType: type} : undefined)
+        let recorder: MediaRecorder
+        try {
+            recorder = new MediaRecorder(stream, type ? {mimeType: type} : undefined)
+        } catch {
+            stream.getTracks().forEach((track) => track.stop())
+            setState('idle')
+            setNotice({text: MICROPHONE_UNAVAILABLE, tone: 'error'})
+            return
+        }
         const startedAt = Date.now()
         const recording: Recording = {
             recorder,
@@ -161,9 +174,18 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
             const audio = new Blob(recording.chunks, {type: recorder.mimeType || type || 'audio/webm'})
             void upload(audio, recording.intent)
         }
+        try {
+            recorder.start()
+        } catch {
+            clearInterval(recording.timer)
+            recordingRef.current = null
+            stream.getTracks().forEach((track) => track.stop())
+            setState('idle')
+            setNotice({text: MICROPHONE_UNAVAILABLE, tone: 'error'})
+            return
+        }
         setElapsedSeconds(0)
         setState('recording')
-        recorder.start()
     }, [finish, supported, upload])
 
     const retry = useCallback(() => {
@@ -172,6 +194,14 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
         setNotice(null)
         void upload(failed.audio, failed.intent)
     }, [upload])
+
+    /** The user moved on (sent a typed message): a failed recording and its message are dropped. */
+    const dismiss = useCallback(() => {
+        if (uploadRef.current !== null || recordingRef.current !== null) return
+        failedRef.current = null
+        setNotice(null)
+        setState((current) => (current === 'failed' ? 'idle' : current))
+    }, [])
 
     // Leaving the screen throws a recording away, frees the microphone and drops an upload in flight.
     useEffect(() => {
@@ -194,5 +224,6 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
         stop: () => finish('field'),
         send: () => finish('send'),
         retry,
+        dismiss,
     }
 }

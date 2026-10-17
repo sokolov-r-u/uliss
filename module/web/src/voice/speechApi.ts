@@ -33,11 +33,12 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
 
 let settings: Promise<number> | null = null
 
-/** The recording length limit in seconds, read once per page load; falls back to the default on any failure. */
+/** The recording length limit in seconds, read once per page load; a failure falls back to the default and is asked again. */
 export function getMaxRecordingSeconds(): Promise<number> {
     settings ??= send('/note/speech/settings')
         .then(async (response) => {
-            const body: unknown = response.ok ? await response.json() : null
+            if (!response.ok) throw new SpeechApiError('failed', `settings failed with ${response.status}`)
+            const body: unknown = await response.json()
             const seconds = isRecord(body) ? body.maxDurationSeconds : undefined
             return typeof seconds === 'number' && seconds > 0 ? seconds : DEFAULT_MAX_RECORDING_SECONDS
         })

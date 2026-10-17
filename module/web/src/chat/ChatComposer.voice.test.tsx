@@ -1,7 +1,8 @@
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {useState} from 'react'
-import {appendDictation, ChatComposer} from './ChatComposer'
+import {ChatComposer} from './ChatComposer'
+import {appendDictation} from '../voice/appendDictation'
 import {getMaxRecordingSeconds, SpeechApiError, transcribe} from '../voice/speechApi'
 
 vi.mock('../voice/speechApi', async (importActual) => ({
@@ -209,6 +210,51 @@ describe('ChatComposer dictation', () => {
 
         expect(track.stop).toHaveBeenCalled()
         expect(mockedTranscribe).not.toHaveBeenCalled()
+    })
+
+    it('a second click while the microphone opens does not open another one', async () => {
+        let grant: (stream: unknown) => void = () => undefined
+        getUserMedia.mockReturnValue(new Promise((resolve) => (grant = resolve)))
+        render(<Harness/>)
+
+        fireEvent.click(screen.getByRole('button', {name: 'Voice input'}))
+        fireEvent.click(screen.getByRole('button', {name: 'Voice input'}))
+        await act(async () => grant({getTracks: () => [track]}))
+
+        expect(getUserMedia).toHaveBeenCalledOnce()
+        expect(FakeRecorder.instances).toHaveLength(1)
+    })
+
+    it('a recorder the browser cannot start frees the microphone and says so', async () => {
+        vi.stubGlobal('MediaRecorder', class extends FakeRecorder {
+            constructor(stream: MediaStream) {
+                super(stream)
+                throw new DOMException('no encoder', 'NotSupportedError')
+            }
+        })
+        render(<Harness/>)
+
+        fireEvent.click(screen.getByRole('button', {name: 'Voice input'}))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent("Couldn't start the microphone")
+        expect(track.stop).toHaveBeenCalled()
+        expect(screen.getByRole('button', {name: 'Voice input'})).toBeEnabled()
+    })
+
+    it('sending a typed message drops a failed recording and its message', async () => {
+        mockedTranscribe.mockRejectedValueOnce(new SpeechApiError('failed', '502'))
+        const onSubmit = vi.fn()
+        render(<Harness onSubmit={onSubmit}/>)
+        await startRecording()
+        fireEvent.click(screen.getByRole('button', {name: 'Stop recording'}))
+        await screen.findByRole('button', {name: 'Retry transcription'})
+
+        fireEvent.change(screen.getByRole('textbox', {name: 'Message'}), {target: {value: 'typed instead'}})
+        fireEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(onSubmit).toHaveBeenCalledOnce()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Retry transcription'})).not.toBeInTheDocument()
     })
 
     it('the mic waits while the model is answering', () => {

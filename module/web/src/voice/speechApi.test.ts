@@ -94,6 +94,15 @@ describe('getMaxRecordingSeconds', () => {
         await expect(getMaxRecordingSeconds()).resolves.toBe(120)
     })
 
+    it('asks again after an error response instead of keeping the default', async () => {
+        mockedFetch.mockResolvedValueOnce(json({code: 'UNAVAILABLE'}, 503))
+        mockedFetch.mockResolvedValueOnce(json({maxDurationSeconds: 60}))
+        const {getMaxRecordingSeconds} = await import('./speechApi')
+
+        await expect(getMaxRecordingSeconds()).resolves.toBe(300)
+        await expect(getMaxRecordingSeconds()).resolves.toBe(60)
+    })
+
     it('ignores a malformed limit', async () => {
         mockedFetch.mockResolvedValue(json({maxDurationSeconds: 'soon'}))
         const {getMaxRecordingSeconds} = await import('./speechApi')

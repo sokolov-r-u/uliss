@@ -2,6 +2,7 @@ import type {ChangeEventHandler, FormEventHandler, KeyboardEventHandler, ReactNo
 import {useLayoutEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
+import {formatClock} from './formatClock'
 
 const TEXTAREA_MIN_HEIGHT = 34
 const TEXTAREA_MAX_HEIGHT = 144
@@ -42,11 +43,6 @@ export interface ChatDockProps {
 }
 
 const tile = {background: 'var(--bg-muted)'}
-
-function clock(seconds: number): string {
-    const whole = Math.max(0, Math.floor(seconds))
-    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`
-}
 
 /** Native text composer with explicit send, dictation and unavailable-voice states. */
 export function ChatDock({
@@ -118,8 +114,8 @@ export function ChatDock({
                         </span>
                         <span>Recording</span>
                         <span style={{marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)'}}>
-                            {clock(voice?.elapsedSeconds ?? 0)}
-                            {voice?.maxSeconds !== undefined && ` / ${clock(voice.maxSeconds)}`}
+                            {formatClock(voice?.elapsedSeconds ?? 0)}
+                            {voice?.maxSeconds !== undefined && ` / ${formatClock(voice.maxSeconds)}`}
                         </span>
                     </div>
                 ) : (
