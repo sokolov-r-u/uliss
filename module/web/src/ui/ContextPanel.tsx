@@ -17,8 +17,8 @@ export function usePanelOpen(): [boolean, () => void, () => void] {
 
 /**
  * The right-hand panel of an open chat or note (kit "This note" / "Notes from this chat"): a rail beside the content
- * from 768px (drag its left edge to resize, 260–480px), a right drawer over it on the phone. Only shows what the backend provides; link lists wait for the
- * note-service API (see TECH_DEBT).
+ * from 768px (drag its left edge to resize, 260–480px), a right drawer over it on the phone. Only shows what the
+ * backend provides: dates, counts, and the chat ↔ note links (`ui/links`).
  */
 export function ContextPanel({label, open, onClose, children}: {
     label: string

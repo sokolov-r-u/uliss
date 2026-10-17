@@ -4,6 +4,7 @@ import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
+import {NoteChatsList} from '../ui/links/NoteChatsList'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
@@ -38,6 +39,7 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
     // The note title is the page heading; every other state names itself in the body.
     const title = state.status === 'ready' ? state.note.title || undefined : undefined
     const [panelOpen, togglePanel, closePanel] = usePanelOpen()
+    const navigate = useNavigate()
     const note = 'note' in state ? state.note : null
     const right = <>{note && <PanelToggle label="Note details" open={panelOpen}
                                           onToggle={togglePanel}/>}{actions}</>
@@ -67,7 +69,9 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
     </div>
         {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
             <PanelSection label="Written from">
-                <p className="context-text">{note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>
+                <NoteChatsList noteId={note.id} onOpen={(chatId) => navigate(`/chats/${chatId}`)}
+                               empty={<p className="context-text">
+                                   {note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>}/>
             </PanelSection>
             <PanelSection label="Dates">
                 <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
