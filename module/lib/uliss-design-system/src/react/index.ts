@@ -47,3 +47,6 @@ export * from './components/editor/EditorToolbar'
 
 export * from './components/constellation/TagDot'
 export * from './components/constellation/ConstellationChip'
+export * from './components/constellation/constellationColor'
+export * from './components/constellation/ConstellationPicker'
+export * from './components/constellation/ConstellationColorEditor'
