@@ -115,6 +115,16 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         return found ? json(found) : json({}, 404)
     }
 
+    if (url.pathname === '/note/speech/settings') return json({maxDurationSeconds: 300})
+    if (url.pathname === '/note/speech/transcriptions' && method === 'POST') {
+        // Fails once when asked to, so the retry path can be walked; otherwise a fixed dictation.
+        if (sessionStorage.getItem('visual.speech') === 'fail-once') {
+            sessionStorage.removeItem('visual.speech')
+            return json({code: 'TRANSCRIPTION_FAILED'}, 502)
+        }
+        return json({text: 'Dictated by voice'})
+    }
+
     if (/^\/note\/notes\/[^/]+\/ai-edit$/.test(url.pathname) && method === 'POST') {
         return rewriteStream(String(init?.body))
     }

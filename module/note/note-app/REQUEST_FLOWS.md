@@ -93,6 +93,8 @@ application services or outbox handlers.
 | `PUT /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Saves a versioned edit and queues reindexing       |
 | `POST /note/notes/{noteId}/ai-edit`               | `NoteController -> NoteAiEditService -> NoteService`                                | Streams a model rewrite; saves nothing             |
 | `DELETE /note/notes/{noteId}`                     | `NoteController -> NoteService`                                                     | Deletes the note; chats survive                    |
+| `GET /note/speech/settings`                       | `SpeechController -> SpeechTranscriptionService`                                    | Returns the recording length limit                 |
+| `POST /note/speech/transcriptions`                | `SpeechController -> SpeechTranscriptionService -> TranscriptionModel`              | Checks the recording and returns its text          |
 
 ## Paginated chat history
 

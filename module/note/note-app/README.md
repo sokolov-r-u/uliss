@@ -23,6 +23,10 @@ configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
 options from `AssistantService` and `NoteSummaryRequestedHandler`.
 
+Dictation uses Spring AI's `TranscriptionModel` (`OpenAiAudioTranscriptionModel`, auto-configured) with
+`gpt-4o-transcribe`; `OPENAI_TRANSCRIPTION_MODEL` overrides it (for example `gpt-4o-mini-transcribe`). The language is
+not passed, so the model detects it.
+
 `LOG_LEVEL_AI=debug` logs every model request (system prompt, history, RAG chunks, user prompt) and its full response
 untruncated through Spring AI's `SimpleLoggerAdvisor`, a default advisor of the shared `ChatClient`; streamed replies
 are logged once, aggregated.
@@ -150,6 +154,17 @@ Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
 after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
+
+## Speech API
+
+- `GET /note/speech/settings` returns `{"maxDurationSeconds"}` from `note.speech.max-duration` (default 5 minutes);
+  the browser stops a recording there. The server cannot check the length, because it never decodes audio.
+- `POST /note/speech/transcriptions`, `multipart/form-data` with one `audio` part, returns `{"text"}` (trimmed, empty
+  for silence). The part's type must be `audio/webm`, `audio/ogg` or `audio/mp4` (codec parameters allowed) and its
+  first bytes the same container's signature, otherwise `400 UNSUPPORTED_AUDIO`; a missing part is the same refusal.
+  Over `note.speech.max-file-size` (10 MB) → `413 AUDIO_TOO_LARGE`; a body over the multipart backstop (11 MB) is
+  refused by Spring with `413` before the controller. A provider failure is `502 TRANSCRIPTION_FAILED`; the client
+  keeps the recording and offers a manual retry. Audio is not stored or logged.
 
 ## Outbox and RAG storage
 

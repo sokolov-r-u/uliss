@@ -193,3 +193,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a version conflict surfaces only on Save; the model may still add a preface or a code fence,
   which the prompt alone guards against.
 - **Source:** task `docs/tasks/2026-10-17-note-ai-edit.md`, block 1.
+
+## 2026-10-17 — Dictation is transcribed through note-service
+
+- **Context:** voice input in every chat composer (chat, new chat, note edit command); the key and the per-user
+  control must stay on the server.
+- **Decision:** the browser records one file and posts it to `POST /note/speech/transcriptions`; note-service checks
+  the declared type against a whitelist and the container signature (WebM, Ogg, MP4), the size against
+  `note.speech.max-file-size`, and calls Spring AI's auto-configured `OpenAiAudioTranscriptionModel`
+  (`gpt-4o-transcribe`), naming the file by its container so the provider picks the decoder. The recording length is
+  a config value (`note.speech.max-duration`, 5 minutes) that the browser reads from `GET /note/speech/settings` and
+  enforces; the server never decodes, stores or logs audio. No language is passed. A provider failure is
+  `502 TRANSCRIPTION_FAILED` with no server retry: the user retries the kept recording.
+- **Consequences:** the server limits only bytes, not seconds; truncation of long files by `gpt-4o-transcribe` is
+  checked by hand and answered by lowering the config value. The multipart limit (11 MB) is a backstop above the
+  service limit, and nginx allows 12 MB bodies under `/note/`.
+- **Source:** task `docs/tasks/2026-10-17-voice-input.md`, block 1.
