@@ -627,3 +627,15 @@ characters), so a small change to a long note costs a full rewrite and waits for
 
 Sending the selection with surrounding context and replacing only that range in the editor would make edits of long
 notes fast and cheaper. Recorded from `docs/tasks/2026-10-17-note-ai-edit.md`.
+
+## HSTS is stripped in the home deployment (`infra`, `web`, `auth`)
+
+**Status:** deliberate for the home deployment (2026-10-18, task `docs/tasks/2026-10-18-home-https.md`); **must be
+restored before production**.
+
+Spring Security sends `Strict-Transport-Security` once `auth` sees HTTPS through `X-Forwarded-Proto`; the compose
+`web` nginx removes it (`proxy_hide_header`), and `uliss.home` never sends it. With the self-signed local CA, HSTS
+would make certificate errors impossible to click through, and it pins the host on every port, which breaks
+host-based `bootRun` on `http://auth.uliss.home:9000`. In production (public certificate, edge proxy of ROADMAP
+item 11) send HSTS for every public host — `max-age` of at least a year, `includeSubDomains` once all subdomains
+serve HTTPS — and drop the `proxy_hide_header`; keep dev hosts out of the production domain.
