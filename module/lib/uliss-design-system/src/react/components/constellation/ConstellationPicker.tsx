@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react'
+import {useState} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {TagDot} from './TagDot'
@@ -53,7 +53,7 @@ export function ConstellationPicker({
                                         label = 'Search the tree',
                                     }: ConstellationPickerProps) {
     const [query, setQuery] = useState('')
-    const excluded = useMemo(() => new Set(exclude ?? []), [exclude])
+    const excluded = new Set(exclude ?? [])
     const needle = query.trim().replace(/\s+/g, ' ').toLowerCase()
     const hits = items.filter((item) => !excluded.has(item.id)
         && (!needle || [...item.path, item.name].some((name) => name.toLowerCase().includes(needle))))

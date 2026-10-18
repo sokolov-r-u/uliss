@@ -34,15 +34,22 @@ type DialogState =
     | { kind: 'rename'; id: string }
     | { kind: 'delete'; id: string }
 
+/** Which change failed: only a name change can break the name rule. */
+export type ConstellationChange = 'name' | 'colour' | 'move' | 'delete'
+
 /** The user's message for a failed change; 404 means the branch is gone (another tab), 409 carries the reason. */
-export function constellationFailureMessage(error: unknown, name?: string): string {
+export function constellationFailureMessage(error: unknown, change: ConstellationChange, name?: string): string {
     if (error instanceof ConstellationApiError) {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') {
             return name ? `“${name}” is already taken here. Pick another name.` : 'That name is already taken there.'
         }
         if (error.code === 'CONSTELLATION_MOVE_CYCLE') return 'A branch cannot move inside itself.'
         if (error.status === 404) return 'This constellation no longer exists.'
-        if (error.status === 400) return `Use a name of 1 to ${CONSTELLATION_NAME_LIMIT} characters.`
+        if (error.status === 400) {
+            return change === 'name'
+                ? `Use a name of 1 to ${CONSTELLATION_NAME_LIMIT} characters.`
+                : 'The tree changed since it was loaded. Reload the page and try again.'
+        }
         if (error.kind === 'transport') return 'The note service is unavailable. Try again.'
     }
     return 'Could not save the change. Try again.'
@@ -117,7 +124,7 @@ export function ConstellationsPage() {
     }
 
     /** Runs one change at a time; refreshes the tree after it, failures stay in the dialog or the panel. */
-    async function run<T>(change: () => Promise<T>, name?: string): Promise<T | undefined> {
+    async function run<T>(kind: ConstellationChange, change: () => Promise<T>, name?: string): Promise<T | undefined> {
         if (pendingRef.current) return undefined
         pendingRef.current = true
         setPending(true)
@@ -125,8 +132,8 @@ export function ConstellationsPage() {
         try {
             return await change()
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setError(constellationFailureMessage(e, name))
-            if (e instanceof ConstellationApiError && e.status === 404) await reload()
+            // A 404 keeps the stale tree: reloading would close the panel or dialog together with this message.
+            if (!(e instanceof AuthRequiredError)) setError(constellationFailureMessage(e, kind, name))
             return undefined
         } finally {
             pendingRef.current = false
@@ -160,7 +167,7 @@ export function ConstellationsPage() {
         if (!dialog || dialog.kind === 'delete') return
         const name = normalizeConstellationName(draft)
         if (name === null) return
-        const saved = await run(() => dialog.kind === 'create'
+        const saved = await run('name', () => dialog.kind === 'create'
             ? createConstellation(name, dialog.parentId)
             : updateConstellation(dialog.id, {name}), name)
         if (!saved) return
@@ -175,7 +182,7 @@ export function ConstellationsPage() {
     async function submitDelete() {
         if (dialog?.kind !== 'delete') return
         const id = dialog.id
-        const done = await run(async () => {
+        const done = await run('delete', async () => {
             await deleteConstellation(id)
             return true
         })
@@ -186,14 +193,14 @@ export function ConstellationsPage() {
     }
 
     async function recolor(node: ConstellationNode, change: { hue: number } | { lightness: Constellation['lightness'] }) {
-        const saved = await run(() => updateConstellation(node.id, change))
+        const saved = await run('colour', () => updateConstellation(node.id, change))
         if (!saved) return
         await refreshAfter(null)
         setTool(null)
     }
 
     async function move(node: ConstellationNode, parentId: string | null) {
-        const saved = await run(() => moveConstellation(node.id, parentId), node.name)
+        const saved = await run('move', () => moveConstellation(node.id, parentId), node.name)
         if (!saved) return
         await refreshAfter(saved.parentId)
         setTool(null)
