@@ -23,9 +23,35 @@ server {
 }
 
 server {
+    listen 80;
+    server_name ${WEB_AUTH_HOST};
+    return 302 https://${WEB_AUTH_HOST}$request_uri;
+}
+
+server {
     listen 443 ssl default_server;
     server_name _;
     return 302 https://${WEB_CANONICAL_HOST}$request_uri;
+}
+
+# auth (login pages, OAuth endpoints) over TLS for full docker-compose; under k8s Ingress routes this host itself
+server {
+    listen 443 ssl;
+    http2 on;
+    server_name ${WEB_AUTH_HOST};
+
+    location / {
+        proxy_pass http://auth:9000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # auth builds redirects from these (forward-headers-strategy: framework), so overwrite client values
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host $host;
+        proxy_set_header X-Forwarded-Port 443;
+        proxy_set_header X-Forwarded-Prefix "";
+        proxy_set_header Forwarded "";
+    }
 }
 
 server {

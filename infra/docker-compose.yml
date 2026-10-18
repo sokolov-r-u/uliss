@@ -8,6 +8,11 @@ x-file-logging: &file-logging
   LOGGING_LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP: 1GB
   LOGGING_LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START: "true"
 
+# Browser-facing auth goes through the web nginx (TLS); services call auth inside the Compose network.
+x-auth-urls: &auth-urls
+  AUTH_PUBLIC_URL: https://auth.uliss.home
+  AUTH_INTERNAL_URL: http://auth:9000
+
 services:
   postgres:
     image: pgvector/pgvector:0.8.2-pg18-trixie
@@ -53,12 +58,14 @@ services:
       # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
       FRONTEND_URL: https://uliss.home
       AUTH_CLIENT_CALLBACK_URLS: https://uliss.home/callback
-      <<: *file-logging
+      AUTH_SECURE_COOKIE: "true"
+      <<: [ *auth-urls, *file-logging ]
       LOGGING_FILE_NAME: /logs/auth.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/auth-%d{yyyy-MM-dd}.%i.log
     ports:
-      - "9000:9000"
+      # loopback only, for debugging; browsers reach auth through the web nginx
+      - "127.0.0.1:9000:9000"
     volumes:
       - ./volumes/logs:/logs
     healthcheck:
@@ -67,12 +74,6 @@ services:
       timeout: 3s
       retries: 10
       start_period: 30s
-    networks:
-      # same hostname resolves from the host browser (via infra/etc.hosts) and from sibling
-      # containers, so AUTH_PUBLIC_URL/AUTH_INTERNAL_URL need no override here
-      default:
-        aliases:
-          - auth.uliss.home
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,7 +89,7 @@ services:
       # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
       FRONTEND_URL: https://uliss.home
       AUTH_SECURE_COOKIE: "true"
-      <<: *file-logging
+      <<: [ *auth-urls, *file-logging ]
       LOGGING_FILE_NAME: /logs/user.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/user-%d{yyyy-MM-dd}.%i.log
@@ -116,7 +117,7 @@ services:
     environment:
       FRONTEND_URL: https://uliss.home
       AUTH_SECURE_COOKIE: "true"
-      <<: *file-logging
+      <<: [ *auth-urls, *file-logging ]
       LOGGING_FILE_NAME: /logs/note.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/note-%d{yyyy-MM-dd}.%i.log

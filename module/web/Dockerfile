@@ -11,6 +11,7 @@ RUN npm run build -w @uliss/web
 FROM nginx:alpine
 # the image entrypoint renders /etc/nginx/templates/*.template into /etc/nginx/conf.d/
 ENV WEB_CANONICAL_HOST=uliss.home
+ENV WEB_AUTH_HOST=auth.uliss.home
 ENV NGINX_ENVSUBST_FILTER=^WEB_
 COPY module/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=0 /app/module/web/dist /usr/share/nginx/html
