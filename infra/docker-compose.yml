@@ -139,6 +139,9 @@ services:
     image: uliss/web:latest
     #    restart: always
     profiles: [ "full" ]
+    environment:
+      # TLS variant of the nginx config; the image default is plain HTTP (k8s, TLS at the Ingress)
+      NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates-tls
     ports:
       # :80 only redirects to https
       - "80:80"

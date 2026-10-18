@@ -544,7 +544,7 @@ pagination and a lightweight list DTO; the side navigation and list pages load m
 
 **Status:** not implemented (review item №9, deferred 2026-10-16).
 
-`module/web/nginx.conf.template` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
+`module/web/nginx/uliss-app.conf` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
 `frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
 Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
 Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with

@@ -35,8 +35,9 @@ path below is unchanged and still fully supported** — this is an additional op
   `AUTH_INTERNAL_URL=http://auth:9000` (service-to-service inside the Compose network, so containers need not trust
   the local CA); see "HTTPS for the home deployment" below. `auth` publishes `:9000` on `127.0.0.1` only, for
   debugging.
-- Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf.template`
-  proxies those paths itself (see "web" below) — inert under k8s.
+- Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx/uliss-app.conf`
+  proxies those paths itself (see "web" below) — inert under k8s. Compose sets
+  `NGINX_ENVSUBST_TEMPLATE_DIR=/etc/nginx/templates-tls` on `web`, which picks the TLS variant of the nginx config.
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
   and to `infra/volumes/logs/<service>.log` (gitignored). Files roll daily or at 10 MB into `archive/` as plain text,
   kept 7 days (1 GB cap).
@@ -181,9 +182,11 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   the SPA): `/user` → `user:8080`, `/note` → `note:8081`, `/` → `web:80`. Each service serves its whole
   path under its own name (see the path-prefix convention in the root `CLAUDE.md`) — one rule per service
   instead of one per resource.
-- **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`), where
-  `module/web/nginx.conf.template` (rendered by the nginx image with `WEB_CANONICAL_HOST`, default `uliss.home`)
-  answers any other Host (an IP, `localhost`) with a 302 to that host, so the login starts where the OAuth callback
+- **`web`** — image built from `module/web/Dockerfile` (multi-stage: node build → `nginx:alpine`). By default it
+  serves plain HTTP on `:80` from `module/web/nginx/http/default.conf.template` — TLS belongs to the Ingress here;
+  the compose TLS variant (`module/web/nginx/tls/`) is selected only by `NGINX_ENVSUBST_TEMPLATE_DIR`. Both variants
+  include `module/web/nginx/uliss-app.conf`; the template, rendered by the nginx image with `WEB_CANONICAL_HOST`
+  (default `uliss.home`), answers any other Host (an IP, `localhost`) with a 302 to that host, so the login starts where the OAuth callback
   returns. It provides SPA fallback (`try_files $uri /index.html`) + `no-store` on `index.html`,
   immutable on `/assets/`. Without it, client-side routes (`/callback`) would return 404. It also proxies
   `/user/` and `/note/` to those services — needed for same-origin routing under plain `docker compose`

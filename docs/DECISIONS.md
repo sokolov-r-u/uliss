@@ -96,3 +96,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   unreachable from other machines. The issuer changes, so tokens issued under the old one are rejected until refreshed.
   The VPN tunnel and ufw no longer need `:9000`.
 - **Source:** `docs/tasks/2026-10-18-home-https.md`.
+
+## 2026-10-18 — The web image serves HTTP by default; compose opts into TLS
+
+- **Replaces:** the consequence "the `web` image no longer serves plain HTTP" of "Home deployment serves uliss.home
+  over HTTPS from a local CA" (2026-10-18).
+- **Context:** the minikube example mounts no certificate and routes the Ingress to `web:80`, so a TLS-only image
+  failed to start there.
+- **Decision:** the image ships two nginx template sets — `module/web/nginx/http` (default, `/etc/nginx/templates`)
+  and `module/web/nginx/tls` (`/etc/nginx/templates-tls`) — sharing `module/web/nginx/uliss-app.conf`. Compose selects
+  TLS with the nginx image's `NGINX_ENVSUBST_TEMPLATE_DIR`; under k8s TLS would belong to the Ingress.
+- **Consequences:** SPA and `/user`/`/note` routing changes go into `uliss-app.conf` once; host-level changes (redirects,
+  auth proxy) may need both variants.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.
