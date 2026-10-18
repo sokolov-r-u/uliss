@@ -108,7 +108,9 @@ export function ConstellationPicker({
                        aria-label={label} autoFocus
                        onKeyDown={(event) => {
                            if (event.key === 'Escape' && onClose) {
+                               // The picker owns this Escape; a host panel must not close with it.
                                event.preventDefault()
+                               event.stopPropagation()
                                onClose()
                            }
                        }}
