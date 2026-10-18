@@ -1,15 +1,36 @@
 # The nginx image renders this template with envsubst (only WEB_* variables, see the Dockerfile).
 # Login cookies belong to one host and the OAuth callback always returns to the canonical one,
 # so any other Host (an IP, localhost) is sent there before a login can start.
+
+# certificate from infra/tls/generate-certs.sh, mounted by infra/docker-compose.yml
+ssl_certificate /etc/nginx/tls/uliss.home.pem;
+ssl_certificate_key /etc/nginx/tls/uliss.home-key.pem;
+
 server {
     listen 80 default_server;
     server_name _;
+
+    # compose healthcheck; plain HTTP so it needs neither TLS nor the canonical Host
+    location = /healthz {
+        access_log off;
+        return 200;
+    }
+
     # 302: a cached 301 would keep sending localhost:80 here after another app takes the port
-    return 302 $scheme://${WEB_CANONICAL_HOST}$request_uri;
+    location / {
+        return 302 https://${WEB_CANONICAL_HOST}$request_uri;
+    }
 }
 
 server {
-    listen 80;
+    listen 443 ssl default_server;
+    server_name _;
+    return 302 https://${WEB_CANONICAL_HOST}$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    http2 on;
     server_name ${WEB_CANONICAL_HOST};
     root /usr/share/nginx/html;
     index index.html;

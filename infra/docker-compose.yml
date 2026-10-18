@@ -50,8 +50,9 @@ services:
     environment:
       # auth's own container, not localhost as in host-based bootRun
       USER_SERVICE_HOST: user
-      # web is served on :80 in full-compose mode, not the Vite dev port :3000
-      FRONTEND_URL: http://uliss.home
+      # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
+      FRONTEND_URL: https://uliss.home
+      AUTH_CLIENT_CALLBACK_URLS: https://uliss.home/callback
       <<: *file-logging
       LOGGING_FILE_NAME: /logs/auth.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
@@ -84,8 +85,9 @@ services:
     profiles: [ "full" ]
     env_file: .env
     environment:
-      # web is served on :80 in full-compose mode, not the Vite dev port :3000
-      FRONTEND_URL: http://uliss.home
+      # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
+      FRONTEND_URL: https://uliss.home
+      AUTH_SECURE_COOKIE: "true"
       <<: *file-logging
       LOGGING_FILE_NAME: /logs/user.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
@@ -112,7 +114,8 @@ services:
     profiles: [ "full" ]
     env_file: .env
     environment:
-      FRONTEND_URL: http://uliss.home
+      FRONTEND_URL: https://uliss.home
+      AUTH_SECURE_COOKIE: "true"
       <<: *file-logging
       LOGGING_FILE_NAME: /logs/note.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
@@ -136,10 +139,15 @@ services:
     #    restart: always
     profiles: [ "full" ]
     ports:
+      # :80 only redirects to https
       - "80:80"
+      - "443:443"
+    volumes:
+      # TLS certificate from infra/tls/generate-certs.sh (gitignored); nginx does not start without it
+      - ./volumes/tls:/etc/nginx/tls:ro
     healthcheck:
-      # 127.0.0.1: busybox resolves localhost to ::1, where nginx does not listen; any other Host gets a 302
-      test: [ "CMD-SHELL", "wget -q --spider --header \"Host: $$WEB_CANONICAL_HOST\" http://127.0.0.1/ || exit 1" ]
+      # 127.0.0.1: busybox resolves localhost to ::1, where nginx does not listen
+      test: [ "CMD-SHELL", "wget -q --spider http://127.0.0.1/healthz || exit 1" ]
       interval: 5s
       timeout: 3s
       retries: 10
