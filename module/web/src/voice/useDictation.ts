@@ -47,7 +47,7 @@ interface Recording {
     stream: MediaStream
     chunks: Blob[]
     timer: ReturnType<typeof setInterval>
-    /** Set by Stop/Send/the limit; null when the recording is thrown away. */
+    /** Set by Stop/Send/the limit; null until then (the browser may end the recording itself). */
     intent: DictationIntent | null
 }
 
@@ -162,17 +162,20 @@ export function useDictation(onText: (text: string, intent: DictationIntent) => 
         recorder.ondataavailable = (event) => {
             if (event.data.size > 0) recording.chunks.push(event.data)
         }
+        // Also fires when the browser ends the recording itself (device unplugged, permission revoked).
         recorder.onstop = () => {
+            clearInterval(recording.timer)
             stream.getTracks().forEach((track) => track.stop())
-            recordingRef.current = null
+            if (recordingRef.current === recording) recordingRef.current = null
+            // only leaving the screen throws a recording away; an unexpected end keeps what was said, as Stop does
             if (!mountedRef.current) return
             setElapsedSeconds(0)
-            if (recording.intent === null) {
+            if (recording.chunks.length === 0) {
                 setState('idle')
                 return
             }
             const audio = new Blob(recording.chunks, {type: recorder.mimeType || type || 'audio/webm'})
-            void upload(audio, recording.intent)
+            void upload(audio, recording.intent ?? 'field')
         }
         try {
             recorder.start()

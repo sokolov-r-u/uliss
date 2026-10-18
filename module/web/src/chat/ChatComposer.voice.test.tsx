@@ -202,6 +202,38 @@ describe('ChatComposer dictation', () => {
         expect(onSubmit).not.toHaveBeenCalled()
     })
 
+    it('a recording the browser ends by itself is transcribed into the field', async () => {
+        mockedTranscribe.mockResolvedValue('cut short')
+        const onSubmit = vi.fn()
+        render(<Harness onSubmit={onSubmit}/>)
+        await startRecording()
+
+        // the microphone was unplugged or its permission revoked
+        act(() => FakeRecorder.instances[0].stop())
+
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toHaveValue('cut short'))
+        expect(onSubmit).not.toHaveBeenCalled()
+        expect(track.stop).toHaveBeenCalled()
+    })
+
+    it('the clock of a recording that ended by itself does not stop the next one', async () => {
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        mockedLimit.mockResolvedValue(2)
+        mockedTranscribe.mockResolvedValue('first')
+        render(<Harness/>)
+        await waitFor(() => expect(mockedLimit).toHaveBeenCalled())
+        await startRecording()
+        await act(async () => vi.advanceTimersByTime(1_000))
+        act(() => FakeRecorder.instances[0].stop())
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toHaveValue('first'))
+
+        await startRecording()
+        await act(async () => vi.advanceTimersByTime(1_500))
+
+        expect(FakeRecorder.instances[1].state).toBe('recording')
+        expect(screen.getByRole('status')).toHaveTextContent('0:01 / 0:02')
+    })
+
     it('leaving the screen mid-recording throws the recording away', async () => {
         const page = render(<Harness/>)
         await startRecording()
