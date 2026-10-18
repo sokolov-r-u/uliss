@@ -223,3 +223,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the note but not with the constellation: the service moves or drops them. A branch is deleted with a recursive CTE.
 - **Consequences:** existing notes stay without a place; nothing is backfilled.
 - **Source:** task `docs/tasks/2026-10-18-constellations-tree.md`, block 1.
+
+## 2026-10-18 — Constellation tree rules live in `ConstellationService` under a per-user lock
+
+- **Decision:** names are trimmed with whitespace runs collapsed, 1–40 code points. A new root takes the palette tone
+  least used by the user's roots (earliest on a tie); a new sub-constellation is `LIGHT` right under a root and `PALE`
+  deeper. A root moved under another node drops its hue and takes the default lightness of its new depth; a
+  sub-constellation made a root keeps the hue it inherited; other moves keep the lightness. A move into the own branch
+  is `409 CONSTELLATION_MOVE_CYCLE`, a taken name `409 CONSTELLATION_NAME_TAKEN`. Every change takes a transactional
+  advisory lock on the user (`pg_advisory_xact_lock`) and checks against a fresh snapshot of the whole tree: two
+  moves checked separately could close a cycle that the schema cannot see.
+- **Consequences:** one user's tree changes are serialized; reads take no lock. The tree is loaded whole per change,
+  which assumes trees of hundreds of nodes, not millions.
+- **Source:** task `docs/tasks/2026-10-18-constellations-tree.md`, block 2.
