@@ -1,5 +1,12 @@
 server:
   port: ${AUTH_SERVER_PORT:9000}
+  # behind the compose web nginx (TLS): build redirects from X-Forwarded-Proto/Host
+  forward-headers-strategy: framework
+  servlet:
+    session:
+      cookie:
+        # the filter does not reach Tomcat's session cookie, so Secure is set explicitly
+        secure: ${AUTH_SECURE_COOKIE:false}
 
 spring:
   application:

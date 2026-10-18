@@ -127,7 +127,7 @@ The SPA, the `auth` pages, emails, and the language of AI replies and notes.
 - Scalable note-status delivery instead of per-connection polling.
 - Retention cleanup for terminal outbox events and summary requests.
 - Account deletion.
-- Production hygiene from `docs/TECH_DEBT.md` (Thymeleaf cache, non-root containers, onboarding backfill) —
+- Production hygiene from `docs/TECH_DEBT.md` (Thymeleaf cache, non-root containers, onboarding backfill, HSTS) —
   mandatory before the release.
 
 ### 12. Product tour

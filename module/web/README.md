@@ -66,7 +66,7 @@ file with `MediaRecorder` (WebM/Opus, Ogg or MP4, whichever the browser supports
 `GET /note/speech/settings`, then posts it to `POST /note/speech/transcriptions`. Stop appends the text to the draft,
 Send submits it at once, and reaching the limit acts as Stop. A failed upload keeps the recording in memory for a
 manual retry; leaving the screen discards it. The mic is disabled where the browser cannot record — including any
-page that is not a secure context, which is why `http://uliss.home` needs HTTPS (`docs/TECH_DEBT.md`).
+page that is not a secure context, which is why compose serves `https://uliss.home` (`docs/DEPLOYMENT.md`).
 
 The new-chat actions open `/chats/new` without calling the backend. On the first non-blank submission, the SPA sends
 only

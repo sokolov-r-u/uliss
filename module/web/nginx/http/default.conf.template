@@ -1,0 +1,16 @@
+# Default (HTTP) variant, used under k8s where Ingress terminates TLS; compose switches to ../tls.
+# The nginx image renders this template with envsubst (only WEB_* variables, see the Dockerfile).
+# Login cookies belong to one host and the OAuth callback always returns to the canonical one,
+# so any other Host (an IP, localhost) is sent there before a login can start.
+server {
+    listen 80 default_server;
+    server_name _;
+    # 302: a cached 301 would keep sending localhost:80 here after another app takes the port
+    return 302 $scheme://${WEB_CANONICAL_HOST}$request_uri;
+}
+
+server {
+    listen 80;
+    server_name ${WEB_CANONICAL_HOST};
+    include /etc/nginx/snippets/uliss-app.conf;
+}

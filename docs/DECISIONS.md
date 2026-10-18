@@ -66,3 +66,46 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   blocking step is part of the contract. A new endpoint that must work during onboarding needs the annotation. A new
   blocking step needs SPA support, or users of an older SPA are refused until they reload.
 - **Source:** `docs/tasks/2026-10-16-review-remaining-fixes.md`.
+
+## 2026-10-18 — Home deployment serves uliss.home over HTTPS from a local CA
+
+- **Context:** dictation needs a secure context; the compose stack served only `http://uliss.home`, so the microphone
+  was unavailable on phones and tablets over the VPN.
+- **Decision:** the compose `web` nginx terminates TLS for `uliss.home` with a certificate issued by a local `mkcert`
+  root CA (`infra/tls/generate-certs.sh`, files in gitignored `infra/volumes/tls`, mounted read-only — never in the
+  image or git). `:80` and any other Host redirect to `https://uliss.home`; no HSTS. Compose overrides
+  `FRONTEND_URL`, the auth callback and `AUTH_SECURE_COOKIE` for HTTPS; `infra/.env` and host-based `bootRun` stay on
+  HTTP. `auth` stays on `http://auth.uliss.home:9000` (reached only by navigation, so no mixed content). Devices trust
+  the CA root once; renewals need nothing on them.
+- **Consequences:** the `web` image no longer serves plain HTTP and needs the mounted certificate, so the minikube
+  path would have to provide it too (not the deployment target). HTTPS for `auth` and an edge proxy remain in
+  `docs/TECH_DEBT.md` / ROADMAP item 11.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.
+
+## 2026-10-18 — auth.uliss.home is served over HTTPS through the web nginx
+
+- **Replaces:** the "`auth` stays on `http://auth.uliss.home:9000`" part of "Home deployment serves uliss.home over
+  HTTPS from a local CA" (2026-10-18).
+- **Decision:** the compose `web` nginx also terminates TLS for `auth.uliss.home` (same mkcert certificate, extra SAN)
+  and proxies to `auth:9000`, overwriting `X-Forwarded-Proto/Host/Port` and clearing `Forwarded`/`X-Forwarded-Prefix`.
+  `auth` uses `server.forward-headers-strategy: framework` (testable with MockMvc) and sets its session cookie Secure
+  from `AUTH_SECURE_COOKIE`, because the forwarded-header filter does not reach Tomcat's session cookie. Compose sets
+  `AUTH_PUBLIC_URL=https://auth.uliss.home` and `AUTH_INTERNAL_URL=http://auth:9000`, drops the `auth.uliss.home`
+  network alias and publishes `:9000` on loopback only.
+- **Consequences:** `auth` trusts forwarded headers from any client that reaches it directly, so `:9000` must stay
+  unreachable from other machines. The issuer changes, so tokens issued under the old one are rejected until refreshed.
+  The VPN tunnel and ufw no longer need `:9000`.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.
+
+## 2026-10-18 — The web image serves HTTP by default; compose opts into TLS
+
+- **Replaces:** the consequence "the `web` image no longer serves plain HTTP" of "Home deployment serves uliss.home
+  over HTTPS from a local CA" (2026-10-18).
+- **Context:** the minikube example mounts no certificate and routes the Ingress to `web:80`, so a TLS-only image
+  failed to start there.
+- **Decision:** the image ships two nginx template sets — `module/web/nginx/http` (default, `/etc/nginx/templates`)
+  and `module/web/nginx/tls` (`/etc/nginx/templates-tls`) — sharing `module/web/nginx/uliss-app.conf`. Compose selects
+  TLS with the nginx image's `NGINX_ENVSUBST_TEMPLATE_DIR`; under k8s TLS would belong to the Ingress.
+- **Consequences:** SPA and `/user`/`/note` routing changes go into `uliss-app.conf` once; host-level changes (redirects,
+  auth proxy) may need both variants.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.

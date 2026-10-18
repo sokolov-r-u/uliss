@@ -415,9 +415,9 @@ without limit, and every call is paid to OpenAI.
 **Status:** not implemented. Login and registration accept unlimited attempts. Production runs on Docker Compose,
 not Kubernetes, so Ingress annotations do not apply.
 
-- In Compose, `auth` is published directly on `:9000`; only `/user` and `/note` pass through the `web` nginx. Put an
-  edge reverse proxy in front of every published service (extend the `web` nginx with an `auth` server block, or a
-  dedicated edge container that also terminates TLS) and stop publishing service ports to the host.
+- In Compose, browsers reach `auth`, `/user` and `/note` through the TLS `web` nginx (since 2026-10-18; `auth`
+  `:9000` is published on loopback only). `user` `:8080` and `note` `:8081` are still published to the host — stop
+  publishing them.
 - Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
   `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
   Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
@@ -544,7 +544,7 @@ pagination and a lightweight list DTO; the side navigation and list pages load m
 
 **Status:** not implemented (review item №9, deferred 2026-10-16).
 
-`module/web/nginx.conf.template` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
+`module/web/nginx/uliss-app.conf` sends no `Content-Security-Policy`, `X-Content-Type-Options`, `Referrer-Policy` or
 `frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
 Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
 Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with
@@ -628,13 +628,14 @@ characters), so a small change to a long note costs a full rewrite and waits for
 Sending the selection with surrounding context and replacing only that range in the editor would make edits of long
 notes fast and cheaper. Recorded from `docs/tasks/2026-10-17-note-ai-edit.md`.
 
-## HTTPS for the home deployment (`infra`, `web`, `auth`)
+## HSTS is stripped in the home deployment (`infra`, `web`, `auth`)
 
-**Status:** deferred 2026-10-17 (task `docs/tasks/2026-10-17-voice-input.md`).
+**Status:** deliberate for the home deployment (2026-10-18, task `docs/tasks/2026-10-18-home-https.md`); **must be
+restored before production**.
 
-Browsers expose the microphone only to secure contexts, and the Compose stack serves `http://uliss.home` and
-`auth.uliss.home` over plain HTTP, so dictation works only in desktop Chrome with
-`unsafely-treat-insecure-origin-as-secure` for `http://uliss.home` and not at all on phones over the VPN. Plan: issue
-certificates from a local CA (`mkcert`) for both hosts, terminate TLS in the web nginx and for auth, switch
-`FRONTEND_URL`, OAuth redirect URIs and cookie flags to `https`, and install the CA root on the Mac and the phone.
-Production TLS at an edge proxy stays ROADMAP item 11.
+Spring Security sends `Strict-Transport-Security` once `auth` sees HTTPS through `X-Forwarded-Proto`; the compose
+`web` nginx removes it (`proxy_hide_header`), and `uliss.home` never sends it. With the self-signed local CA, HSTS
+would make certificate errors impossible to click through, and it pins the host on every port, which breaks
+host-based `bootRun` on `http://auth.uliss.home:9000`. In production (public certificate, edge proxy of ROADMAP
+item 11) send HSTS for every public host — `max-age` of at least a year, `includeSubDomains` once all subdomains
+serve HTTPS — and drop the `proxy_hide_header`; keep dev hosts out of the production domain.
