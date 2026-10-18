@@ -21,14 +21,17 @@ path below is unchanged and still fully supported** — this is an additional op
   onto the new image, leaving the previous one dangling (`<none>:<none>`) — clean those up with
   `docker image prune -f`; a genuinely old version tag (after a deliberate version bump) has to
   be removed by hand (`docker rmi uliss/<service>:<old-version>`).
+- Issue the TLS certificate once (`web` does not start without it): see "HTTPS for the home deployment" below.
 - `docker compose -f infra/docker-compose.yml --profile full up -d` — brings up `postgres` plus
   `auth`/`user`/`note`/`web`. Plain `docker compose -f infra/docker-compose.yml up -d` (no
   `--profile full`) keeps starting only `postgres`, for the host-based `bootRun` flow above.
-- `auth`/`user`/`note` read `infra/.env` via `env_file`, with two container-only overrides on top:
+- `auth`/`user`/`note` read `infra/.env` via `env_file`, with container-only overrides on top:
   `USER_SERVICE_HOST=user` on `auth` (its gRPC client target — `localhost` only makes sense for
-  host-based `bootRun`) and `FRONTEND_URL=http://uliss.home` on `auth`/`user`/`note` (the OAuth
-  `redirect-uri` `:security` builds, and where `auth` sends a login without a saved authorize request — the compose `web` container serves on `:80`, not the Vite dev
-  port `:3000`). `auth` also gets a Compose network alias `auth.uliss.home`, so
+  host-based `bootRun`) and `FRONTEND_URL=https://uliss.home` on `auth`/`user`/`note` (the OAuth
+  `redirect-uri` `:security` builds, and where `auth` sends a login without a saved authorize request — the compose
+  `web` container serves HTTPS, not the Vite dev port `:3000`). `auth` also gets
+  `AUTH_CLIENT_CALLBACK_URLS=https://uliss.home/callback`, `user`/`note` get `AUTH_SECURE_COOKIE=true`; see
+  "HTTPS for the home deployment" below. `auth` also gets a Compose network alias `auth.uliss.home`, so
   `AUTH_PUBLIC_URL`/`AUTH_INTERNAL_URL` need no override — the same hostname resolves from both the
   host browser and sibling containers.
 - Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf.template`
@@ -42,6 +45,85 @@ path below is unchanged and still fully supported** — this is an additional op
   `http://localhost:8888`.
 - Rebuild + `docker compose -f infra/docker-compose.yml --profile full up -d` again to pick up new
   images (`:latest` + Compose recreates a service when its image content changes).
+
+## HTTPS for the home deployment
+
+Browsers expose the microphone (dictation) only to secure contexts, so the compose `web` nginx serves
+`https://uliss.home` with a certificate from a local CA ([mkcert](https://github.com/FiloSottile/mkcert)). `:80`
+answers every request with a 302 to `https://uliss.home` (and `GET /healthz` for the compose healthcheck); `:443`
+redirects any other Host (`localhost`, an IP) to the canonical one. No HSTS: with a self-signed CA it would block
+falling back to HTTP. `auth` stays on `http://auth.uliss.home:9000` — the SPA reaches it only by page navigation, so
+there is no mixed content. Host-based `bootRun` + Vite `:3000` stays on HTTP (dictation there needs the Chrome flag
+`unsafely-treat-insecure-origin-as-secure`).
+
+### Certificate
+
+- One-time on the Mac: `brew install mkcert`, then `mkcert -install` (asks for the Mac password; adds the CA to the
+  system keychain, which Chrome and Safari use). The CA key stays in `$(mkcert -CAROOT)`
+  (`~/Library/Application Support/mkcert`), outside the repository — never share `rootCA-key.pem`.
+- `infra/tls/generate-certs.sh` writes `infra/volumes/tls/uliss.home.pem` and `uliss.home-key.pem` (gitignored; SAN
+  `uliss.home`, `localhost`, `127.0.0.1`; about 825 days, the most iOS accepts). Compose mounts that folder read-only
+  into `web`; the image contains no certificate.
+- Renewal: run the script again and recreate `web`
+  (`docker compose -f infra/docker-compose.yml --profile full up -d --force-recreate web`). Devices keep trusting the
+  same CA and need nothing.
+
+### Trusting the CA on other devices
+
+Send `$(mkcert -CAROOT)/rootCA.pem` (the public CA certificate, not the key) to the device: AirDrop for an iPhone or
+iPad, a messenger, email or cloud drive for Android. Turn off the browser's secure DNS (DoH) on the device, or
+`uliss.home` will not resolve over the VPN.
+
+- **iPhone / iPad:** open the file → Settings → "Profile Downloaded" → Install. Then — mandatory, otherwise Safari
+  still rejects the certificate — Settings → General → About → Certificate Trust Settings → enable full trust for
+  "mkcert …".
+- **Android:** Settings → Security (and privacy) → More security settings → Encryption & credentials → Install a
+  certificate → CA certificate → Install anyway → pick the file (menu names vary by vendor; search Settings for
+  "CA certificate"; if the file is not offered, rename it to `rootCA.crt`). Chrome trusts user-installed CAs; Firefox
+  for Android does not by default.
+- **Firefox on the Mac** (optional): `brew install nss`, then `mkcert -install` again.
+
+Check: `https://uliss.home` opens with a padlock and no warning, and the microphone in a chat is enabled.
+
+### VPN access (Amnezia VPS)
+
+The VPS reaches the Mac through the reverse SSH tunnel (launchd agent `io.uliss.tunnel`, `-R 172.29.172.1:<port>`),
+so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect and `:9000` for `auth`.
+
+1. Tunnel, on the Mac:
+
+   ```bash
+   cp ~/Library/LaunchAgents/io.uliss.tunnel.plist ~/Library/LaunchAgents/io.uliss.tunnel.plist.bak
+   /usr/libexec/PlistBuddy -c "Add :ProgramArguments:10 string -R" \
+       -c "Add :ProgramArguments:11 string 172.29.172.1:443:localhost:443" \
+       ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   plutil -p ~/Library/LaunchAgents/io.uliss.tunnel.plist   # the last argument must still be uliss-vps
+   launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   ```
+
+   Rollback: move the `.bak` back over the plist and repeat `bootout`/`bootstrap`.
+2. Firewall, on the VPS:
+
+   ```bash
+   ufw allow in on amn0 from 172.29.172.0/24 to any port 443 proto tcp
+   ```
+
+   Rollback: `ufw delete allow in on amn0 from 172.29.172.0/24 to any port 443 proto tcp`.
+3. DNS for every VPN client, on the VPS. The DNAT that sends DNS to CoreDNS (`uliss-dns`, `172.29.172.53`) matches
+   only the phone (`10.8.1.4`); another device (iPad, Android) is a separate VPN client and does not resolve
+   `uliss.home`. Inspect first with `docker exec amnezia-awg2 iptables -t nat -S PREROUTING`, then widen it to the
+   whole client subnet:
+
+   ```bash
+   for proto in udp tcp; do
+     docker exec amnezia-awg2 iptables -t nat -I PREROUTING -s 10.8.1.0/24 -p $proto --dport 53 \
+         -j DNAT --to-destination 172.29.172.53
+   done
+   ```
+
+   Rollback: the same commands with `-D` instead of `-I`. Like the existing rule, it is lost when the container or
+   the server restarts.
 
 ## Note-service AI credentials and background work
 

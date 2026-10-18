@@ -628,13 +628,13 @@ characters), so a small change to a long note costs a full rewrite and waits for
 Sending the selection with surrounding context and replacing only that range in the editor would make edits of long
 notes fast and cheaper. Recorded from `docs/tasks/2026-10-17-note-ai-edit.md`.
 
-## HTTPS for the home deployment (`infra`, `web`, `auth`)
+## HTTPS for `auth` in the home deployment (`infra`, `auth`)
 
-**Status:** deferred 2026-10-17 (task `docs/tasks/2026-10-17-voice-input.md`).
+**Status:** partly done 2026-10-18 (task `docs/tasks/2026-10-18-home-https.md`): the compose `web` nginx serves
+`https://uliss.home` with a local `mkcert` CA (`docs/DEPLOYMENT.md`, "HTTPS for the home deployment").
 
-Browsers expose the microphone only to secure contexts, and the Compose stack serves `http://uliss.home` and
-`auth.uliss.home` over plain HTTP, so dictation works only in desktop Chrome with
-`unsafely-treat-insecure-origin-as-secure` for `http://uliss.home` and not at all on phones over the VPN. Plan: issue
-certificates from a local CA (`mkcert`) for both hosts, terminate TLS in the web nginx and for auth, switch
-`FRONTEND_URL`, OAuth redirect URIs and cookie flags to `https`, and install the CA root on the Mac and the phone.
-Production TLS at an edge proxy stays ROADMAP item 11.
+`auth` is still `http://auth.uliss.home:9000`, so the login form and its session cookie travel over plain HTTP inside
+the VPN. Put `auth.uliss.home` behind TLS as well (a `web` nginx server block or the edge proxy of ROADMAP item 11):
+add the name to the certificate, switch `AUTH_PUBLIC_URL` to `https://auth.uliss.home` while `AUTH_INTERNAL_URL`
+stays `http://auth:9000`, let `auth` honour `X-Forwarded-*` (`server.forward-headers-strategy`), open 443 instead of
+9000 in the tunnel and ufw, and stop publishing `:9000`.

@@ -66,3 +66,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   blocking step is part of the contract. A new endpoint that must work during onboarding needs the annotation. A new
   blocking step needs SPA support, or users of an older SPA are refused until they reload.
 - **Source:** `docs/tasks/2026-10-16-review-remaining-fixes.md`.
+
+## 2026-10-18 — Home deployment serves uliss.home over HTTPS from a local CA
+
+- **Context:** dictation needs a secure context; the compose stack served only `http://uliss.home`, so the microphone
+  was unavailable on phones and tablets over the VPN.
+- **Decision:** the compose `web` nginx terminates TLS for `uliss.home` with a certificate issued by a local `mkcert`
+  root CA (`infra/tls/generate-certs.sh`, files in gitignored `infra/volumes/tls`, mounted read-only — never in the
+  image or git). `:80` and any other Host redirect to `https://uliss.home`; no HSTS. Compose overrides
+  `FRONTEND_URL`, the auth callback and `AUTH_SECURE_COOKIE` for HTTPS; `infra/.env` and host-based `bootRun` stay on
+  HTTP. `auth` stays on `http://auth.uliss.home:9000` (reached only by navigation, so no mixed content). Devices trust
+  the CA root once; renewals need nothing on them.
+- **Consequences:** the `web` image no longer serves plain HTTP and needs the mounted certificate, so the minikube
+  path would have to provide it too (not the deployment target). HTTPS for `auth` and an edge proxy remain in
+  `docs/TECH_DEBT.md` / ROADMAP item 11.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.
