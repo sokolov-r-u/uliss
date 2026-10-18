@@ -51,6 +51,8 @@ server {
         proxy_set_header X-Forwarded-Port 443;
         proxy_set_header X-Forwarded-Prefix "";
         proxy_set_header Forwarded "";
+        # Spring Security adds HSTS on https; it would pin auth.uliss.home (any port, so bootRun :9000 too) to TLS
+        proxy_hide_header Strict-Transport-Security;
     }
 }
 
