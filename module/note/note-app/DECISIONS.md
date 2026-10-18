@@ -209,3 +209,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   checked by hand and answered by lowering the config value. The multipart limit (11 MB) is a backstop above the
   service limit, and nginx allows 12 MB bodies under `/note/`.
 - **Source:** task `docs/tasks/2026-10-17-voice-input.md`, block 1.
+
+## 2026-10-18 — Constellations are their own tree table; the epic's schema lands at once
+
+- **Context:** the constellations epic needs a tree of places, multi-membership of notes with one main, and sub-notes.
+- **Decision:** V11 creates `note.constellations` (a tree via `parent_id`), `note.note_constellation` and
+  `notes.parent_note_id` together; the last two are unused until later tasks. Constellations are not notes with a
+  type: notes carry status, versions, RAG, outbox and chats that a shared table would have to filter everywhere.
+  Composite FKs on `(id, user_id)` keep parents and memberships within one user. A root stores `hue` (0–359) and no
+  `lightness`; a sub-constellation stores a `lightness` step (`DEEP`, `BASE`, `LIGHT`, `PALE`) and inherits the root's
+  hue; a `CHECK` on `parent_id IS NULL` enforces it. Names are unique regardless of case among roots and among
+  siblings through one unique index `(user_id, parent_id, lower(name)) NULLS NOT DISTINCT`. Memberships cascade with
+  the note but not with the constellation: the service moves or drops them. A branch is deleted with a recursive CTE.
+- **Consequences:** existing notes stay without a place; nothing is backfilled.
+- **Source:** task `docs/tasks/2026-10-18-constellations-tree.md`, block 1.

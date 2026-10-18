@@ -80,9 +80,12 @@ panel of a note lists the chats it was written from, and the chat delete dialog 
 
 ### 3. Constellations
 
-A tree of constellations growing from the user, with any depth. Every note has exactly one parent: a constellation or
-another note. The user picks the place before Summarize; one chat can produce several notes. The data model must allow
-several constellations per note later (see After the MVP).
+A tree of constellations growing from the user, with any depth. A note lives in one or more constellations, one of
+them main, or under another note; it may also have no place yet. The user picks the place before Summarize (or skips
+it) and adds more constellations in the note's panel. One chat can produce several notes.
+
+- Suggest a place: a button on a note asks the model which constellations fit it; the user accepts or rejects each
+  suggestion.
 
 ### 4. Structured thoughts
 
@@ -101,6 +104,10 @@ finished) and system proposals to review (move a note to a more precise constell
 ### 7. Sky
 
 The graph view: the user in the centre, constellations, and notes as stars, with structural and link edges.
+
+- Sky setting: a star in several constellations takes the colour of its main constellation or mixes the colours of
+  all of them.
+- Sky setting: how edges to secondary constellations are drawn (dashed or like the main one).
 
 ### 8. Search
 
@@ -140,7 +147,7 @@ Squash Flyway migrations, deploy to production, and switch migrations to append-
 
 ## After the MVP
 
-- A note in several constellations at once (multi-tagging), proposed by the system through Updates.
+- The system proposes additional constellations for a note through Updates.
 - Sources of a chat reply (to think over; may move before the MVP): the notes found by the chat's notes search are
   shown under the reply and link to the notes. Needs a many-to-many link between an assistant message and notes
   (fragments of one note collapse into one link; removed with the note or the chat).
