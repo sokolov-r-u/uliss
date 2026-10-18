@@ -81,3 +81,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   path would have to provide it too (not the deployment target). HTTPS for `auth` and an edge proxy remain in
   `docs/TECH_DEBT.md` / ROADMAP item 11.
 - **Source:** `docs/tasks/2026-10-18-home-https.md`.
+
+## 2026-10-18 — auth.uliss.home is served over HTTPS through the web nginx
+
+- **Replaces:** the "`auth` stays on `http://auth.uliss.home:9000`" part of "Home deployment serves uliss.home over
+  HTTPS from a local CA" (2026-10-18).
+- **Decision:** the compose `web` nginx also terminates TLS for `auth.uliss.home` (same mkcert certificate, extra SAN)
+  and proxies to `auth:9000`, overwriting `X-Forwarded-Proto/Host/Port` and clearing `Forwarded`/`X-Forwarded-Prefix`.
+  `auth` uses `server.forward-headers-strategy: framework` (testable with MockMvc) and sets its session cookie Secure
+  from `AUTH_SECURE_COOKIE`, because the forwarded-header filter does not reach Tomcat's session cookie. Compose sets
+  `AUTH_PUBLIC_URL=https://auth.uliss.home` and `AUTH_INTERNAL_URL=http://auth:9000`, drops the `auth.uliss.home`
+  network alias and publishes `:9000` on loopback only.
+- **Consequences:** `auth` trusts forwarded headers from any client that reaches it directly, so `:9000` must stay
+  unreachable from other machines. The issuer changes, so tokens issued under the old one are rejected until refreshed.
+  The VPN tunnel and ufw no longer need `:9000`.
+- **Source:** `docs/tasks/2026-10-18-home-https.md`.

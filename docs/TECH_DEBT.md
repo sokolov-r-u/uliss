@@ -415,9 +415,9 @@ without limit, and every call is paid to OpenAI.
 **Status:** not implemented. Login and registration accept unlimited attempts. Production runs on Docker Compose,
 not Kubernetes, so Ingress annotations do not apply.
 
-- In Compose, `auth` is published directly on `:9000`; only `/user` and `/note` pass through the `web` nginx. Put an
-  edge reverse proxy in front of every published service (extend the `web` nginx with an `auth` server block, or a
-  dedicated edge container that also terminates TLS) and stop publishing service ports to the host.
+- In Compose, browsers reach `auth`, `/user` and `/note` through the TLS `web` nginx (since 2026-10-18; `auth`
+  `:9000` is published on loopback only). `user` `:8080` and `note` `:8081` are still published to the host — stop
+  publishing them.
 - Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
   `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
   Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
@@ -627,14 +627,3 @@ characters), so a small change to a long note costs a full rewrite and waits for
 
 Sending the selection with surrounding context and replacing only that range in the editor would make edits of long
 notes fast and cheaper. Recorded from `docs/tasks/2026-10-17-note-ai-edit.md`.
-
-## HTTPS for `auth` in the home deployment (`infra`, `auth`)
-
-**Status:** partly done 2026-10-18 (task `docs/tasks/2026-10-18-home-https.md`): the compose `web` nginx serves
-`https://uliss.home` with a local `mkcert` CA (`docs/DEPLOYMENT.md`, "HTTPS for the home deployment").
-
-`auth` is still `http://auth.uliss.home:9000`, so the login form and its session cookie travel over plain HTTP inside
-the VPN. Put `auth.uliss.home` behind TLS as well (a `web` nginx server block or the edge proxy of ROADMAP item 11):
-add the name to the certificate, switch `AUTH_PUBLIC_URL` to `https://auth.uliss.home` while `AUTH_INTERNAL_URL`
-stays `http://auth:9000`, let `auth` honour `X-Forwarded-*` (`server.forward-headers-strategy`), open 443 instead of
-9000 in the tunnel and ufw, and stop publishing `:9000`.

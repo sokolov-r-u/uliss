@@ -30,10 +30,11 @@ path below is unchanged and still fully supported** — this is an additional op
   host-based `bootRun`) and `FRONTEND_URL=https://uliss.home` on `auth`/`user`/`note` (the OAuth
   `redirect-uri` `:security` builds, and where `auth` sends a login without a saved authorize request — the compose
   `web` container serves HTTPS, not the Vite dev port `:3000`). `auth` also gets
-  `AUTH_CLIENT_CALLBACK_URLS=https://uliss.home/callback`, `user`/`note` get `AUTH_SECURE_COOKIE=true`; see
-  "HTTPS for the home deployment" below. `auth` also gets a Compose network alias `auth.uliss.home`, so
-  `AUTH_PUBLIC_URL`/`AUTH_INTERNAL_URL` need no override — the same hostname resolves from both the
-  host browser and sibling containers.
+  `AUTH_CLIENT_CALLBACK_URLS=https://uliss.home/callback`; all three get `AUTH_SECURE_COOKIE=true`,
+  `AUTH_PUBLIC_URL=https://auth.uliss.home` (browser-facing, through the `web` nginx) and
+  `AUTH_INTERNAL_URL=http://auth:9000` (service-to-service inside the Compose network, so containers need not trust
+  the local CA); see "HTTPS for the home deployment" below. `auth` publishes `:9000` on `127.0.0.1` only, for
+  debugging.
 - Same-origin SPA routing (`/user`, `/note`) has no Ingress to do it here, so `module/web/nginx.conf.template`
   proxies those paths itself (see "web" below) — inert under k8s.
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
@@ -49,12 +50,16 @@ path below is unchanged and still fully supported** — this is an additional op
 ## HTTPS for the home deployment
 
 Browsers expose the microphone (dictation) only to secure contexts, so the compose `web` nginx serves
-`https://uliss.home` with a certificate from a local CA ([mkcert](https://github.com/FiloSottile/mkcert)). `:80`
-answers every request with a 302 to `https://uliss.home` (and `GET /healthz` for the compose healthcheck); `:443`
-redirects any other Host (`localhost`, an IP) to the canonical one. No HSTS: with a self-signed CA it would block
-falling back to HTTP. `auth` stays on `http://auth.uliss.home:9000` — the SPA reaches it only by page navigation, so
-there is no mixed content. Host-based `bootRun` + Vite `:3000` stays on HTTP (dictation there needs the Chrome flag
-`unsafely-treat-insecure-origin-as-secure`).
+`https://uliss.home` and `https://auth.uliss.home` with a certificate from a local CA
+([mkcert](https://github.com/FiloSottile/mkcert)). `:80` answers with a 302 to the HTTPS address of the same app
+(`GET /healthz` excepted, for the compose healthcheck); `:443` redirects any other Host (`localhost`, an IP) to
+`https://uliss.home`. `auth.uliss.home` is proxied to `auth:9000` with `X-Forwarded-Proto/Host/Port` set by nginx
+(client values overwritten, `Forwarded` cleared); `auth` builds its redirects from them
+(`server.forward-headers-strategy: framework`) and marks its session cookie Secure from `AUTH_SECURE_COOKIE`. No HSTS:
+with a self-signed CA it would block falling back to HTTP. Host-based `bootRun` + Vite `:3000` stays on HTTP
+(`http://auth.uliss.home:9000`; dictation there needs the Chrome flag `unsafely-treat-insecure-origin-as-secure`).
+Switching the issuer invalidates access tokens issued under the old `http://…:9000` one; the SPA refreshes them, or
+the user signs in again.
 
 ### Certificate
 
@@ -62,7 +67,7 @@ there is no mixed content. Host-based `bootRun` + Vite `:3000` stays on HTTP (di
   system keychain, which Chrome and Safari use). The CA key stays in `$(mkcert -CAROOT)`
   (`~/Library/Application Support/mkcert`), outside the repository — never share `rootCA-key.pem`.
 - `infra/tls/generate-certs.sh` writes `infra/volumes/tls/uliss.home.pem` and `uliss.home-key.pem` (gitignored; SAN
-  `uliss.home`, `localhost`, `127.0.0.1`; about 825 days, the most iOS accepts). Compose mounts that folder read-only
+  `uliss.home`, `auth.uliss.home`, `localhost`, `127.0.0.1`; about 825 days, the most iOS accepts). Compose mounts that folder read-only
   into `web`; the image contains no certificate.
 - Renewal: run the script again and recreate `web`
   (`docker compose -f infra/docker-compose.yml --profile full up -d --force-recreate web`). Devices keep trusting the
@@ -83,12 +88,14 @@ iPad, a messenger, email or cloud drive for Android. Turn off the browser's secu
   for Android does not by default.
 - **Firefox on the Mac** (optional): `brew install nss`, then `mkcert -install` again.
 
-Check: `https://uliss.home` opens with a padlock and no warning, and the microphone in a chat is enabled.
+Check: `https://uliss.home` and the login page on `https://auth.uliss.home` open with a padlock and no warning, and
+the microphone in a chat is enabled.
 
 ### VPN access (Amnezia VPS)
 
 The VPS reaches the Mac through the reverse SSH tunnel (launchd agent `io.uliss.tunnel`, `-R 172.29.172.1:<port>`),
-so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect and `:9000` for `auth`.
+so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect; `:9000` is no longer needed, since
+`auth` is reached through `:443`.
 
 1. Tunnel, on the Mac:
 
@@ -102,14 +109,33 @@ so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect an
    launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.uliss.tunnel.plist
    ```
 
-   Rollback: move the `.bak` back over the plist and repeat `bootout`/`bootstrap`.
-2. Firewall, on the VPS:
+   Then drop the `:9000` forward (indices 8 and 9 — `-R` and `172.29.172.1:9000:localhost:9000` — whether or not
+   443 was added already):
+
+   ```bash
+   cp ~/Library/LaunchAgents/io.uliss.tunnel.plist ~/Library/LaunchAgents/io.uliss.tunnel.plist.bak9000
+   /usr/libexec/PlistBuddy -c "Print :ProgramArguments:9" ~/Library/LaunchAgents/io.uliss.tunnel.plist   # must be the 9000 forward
+   /usr/libexec/PlistBuddy -c "Delete :ProgramArguments:9" -c "Delete :ProgramArguments:8" \
+       ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   plutil -p ~/Library/LaunchAgents/io.uliss.tunnel.plist   # -R 80, -R 443, uliss-vps
+   launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/io.uliss.tunnel.plist
+   ```
+
+   Rollback: move the matching `.bak`/`.bak9000` back over the plist and repeat `bootout`/`bootstrap`.
+2. Firewall, on the VPS — allow 443, then close 9000:
 
    ```bash
    ufw allow in on amn0 from 172.29.172.0/24 to any port 443 proto tcp
+   ufw status numbered
    ```
 
-   Rollback: `ufw delete allow in on amn0 from 172.29.172.0/24 to any port 443 proto tcp`.
+   If 9000 shares a rule with 80 (`80,9000/tcp`), first add
+   `ufw allow in on amn0 from 172.29.172.0/24 to any port 80 proto tcp`; then remove the 9000 rule by its number
+   (`ufw delete <n>`, run `ufw status numbered` again before each delete, numbers shift).
+   Rollback: `ufw delete allow in on amn0 from 172.29.172.0/24 to any port 443 proto tcp` and re-add the 9000 rule
+   (`ufw allow in on amn0 from 172.29.172.0/24 to any port 80,9000 proto tcp`, or its original form from
+   `/root/uliss-backup/`).
 3. DNS for every VPN client, on the VPS. The DNAT that sends DNS to CoreDNS (`uliss-dns`, `172.29.172.53`) matches
    only the phone (`10.8.1.4`); another device (iPad, Android) is a separate VPN client and does not resolve
    `uliss.home`. Inspect first with `docker exec amnezia-awg2 iptables -t nat -S PREROUTING`, then widen it to the
