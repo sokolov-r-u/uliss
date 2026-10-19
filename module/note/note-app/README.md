@@ -160,8 +160,9 @@ bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 The user's tree of constellations (`ConstellationService`); every change takes a per-user advisory lock.
 
 - `GET /note/constellations` returns the whole tree as a flat list of `{id, parentId, name, hue, lightness,
-  noteCount}`; the client builds the tree. `hue` is the root's (0–359), `lightness` is `BASE` for a root and
-  `DEEP | BASE | LIGHT | PALE` for a sub-constellation; `noteCount` is 0 until notes join constellations.
+  noteCount, ownNoteCount}`; the client builds the tree. `hue` is the root's (0–359), `lightness` is `BASE` for a root
+  and `DEEP | BASE | LIGHT | PALE` for a sub-constellation. `noteCount` counts distinct notes of the subtree (a note in
+  Jazz and Miles counts once in Music), `ownNoteCount` the notes of the node itself.
 - `POST /note/constellations` with `{name, parentId?}` returns `201`. A new root takes the palette tone least used by
   the user's roots; a new sub-constellation is `LIGHT` right under a root and `PALE` deeper.
 - `PATCH /note/constellations/{id}` with `{name?, hue?, lightness?}`: `hue` only for a root, `lightness` only for a
@@ -169,7 +170,25 @@ The user's tree of constellations (`ConstellationService`); every change takes a
 - `POST /note/constellations/{id}/move` with `{parentId}` (null makes a root) moves the whole branch. A root moved
   under another node drops its hue and takes the default lightness of its depth; a sub-constellation made a root keeps
   its inherited hue.
-- `DELETE /note/constellations/{id}` returns `204` and deletes the branch with its sub-constellations.
+- `GET /note/constellations/{id}/notes` returns the notes of the constellation itself as `NoteResponse`, newest first.
+- `GET /note/constellations/{id}/deletion` returns `{notesToMove}`: the notes placed only inside the branch.
+- `DELETE /note/constellations/{id}?moveTo=<id>` returns `204` and deletes the branch with its sub-constellations in one
+  transaction. Notes are never deleted: a note with places outside the branch loses only those inside it (promoting a
+  new main if needed); a note placed only inside moves to `moveTo` as its main place, or without `moveTo` is left
+  without a constellation. A `moveTo` inside the branch is `400`, a missing or foreign one `404`.
+
+Notes belong to constellations through `note_constellation` (`NotePlacementService`, under the same per-user lock):
+
+- `GET /note/notes/{noteId}/constellations` returns `[{constellationId, main}]`, main first, then by joining time.
+- `POST /note/notes/{noteId}/constellations` with `{constellationId}` adds a membership; the first one is main, an
+  existing one is unchanged.
+- `PUT /note/notes/{noteId}/constellations/main` with `{constellationId, replace}` makes the constellation main
+  (joining it if needed); `replace: true` drops the previous main, `false` keeps it as a secondary membership.
+- `DELETE /note/notes/{noteId}/constellations/{constellationId}` removes a membership; a removed main promotes the
+  oldest remaining one.
+- All three changes return the new list. A note with a parent note inherits its place:
+  `409 NOTE_PLACE_INHERITED`. A missing or foreign note or constellation is `404`.
+- `GET /note/notes/without-constellation` returns notes with no constellation and no parent note, newest first.
 
 Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` otherwise), unique regardless of case among
 roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own branch is

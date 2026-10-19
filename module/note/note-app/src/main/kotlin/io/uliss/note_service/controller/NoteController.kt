@@ -1,15 +1,19 @@
 package io.uliss.note_service.controller
 
 import io.uliss.note_service.dto.internal.NoteAiEditEvent
+import io.uliss.note_service.dto.request.AddNoteConstellationRequest
 import io.uliss.note_service.dto.request.AiEditNoteRequest
+import io.uliss.note_service.dto.request.MainNoteConstellationRequest
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.UpdateNoteRequest
 import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatResponse
+import io.uliss.note_service.dto.response.NoteConstellationResponse
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.service.NoteAiEditService
+import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.note_service.util.withHeartbeat
@@ -40,11 +44,17 @@ class NoteController(
     private val noteService: NoteService,
     private val noteFacade: NoteFacade,
     private val noteAiEditService: NoteAiEditService,
+    private val notePlacementService: NotePlacementService,
 ) {
 
     @GetMapping
     fun getNotes(@AuthenticationPrincipal jwt: Jwt): List<NoteResponse> =
         noteService.getNotes(jwt.getUserId())
+
+    /** Notes with no constellation and no parent note, newest first. */
+    @GetMapping("/without-constellation")
+    fun getNotesWithoutConstellation(@AuthenticationPrincipal jwt: Jwt): List<NoteResponse> =
+        noteService.getNotesWithoutConstellation(jwt.getUserId())
 
     @GetMapping("/{noteId}")
     fun getNote(
@@ -55,6 +65,43 @@ class NoteController(
     @GetMapping("/{noteId}/chats")
     fun getNoteChats(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): List<ChatResponse> =
         noteFacade.getNoteChats(jwt.getUserId(), noteId).map { it.toResponse() }
+
+    @GetMapping("/{noteId}/constellations")
+    fun getNoteConstellations(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+    ): List<NoteConstellationResponse> =
+        notePlacementService.getMemberships(jwt.getUserId(), noteId).map { it.toResponse() }
+
+    /** Adds the note to a constellation; the first one becomes main. Returns the note's constellations. */
+    @PostMapping("/{noteId}/constellations")
+    fun addNoteConstellation(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: AddNoteConstellationRequest,
+    ): List<NoteConstellationResponse> =
+        // Validated as @NotNull before the call.
+        notePlacementService.add(jwt.getUserId(), noteId, checkNotNull(request.constellationId))
+            .map { it.toResponse() }
+
+    @PutMapping("/{noteId}/constellations/main")
+    fun setMainNoteConstellation(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: MainNoteConstellationRequest,
+    ): List<NoteConstellationResponse> =
+        // Validated as @NotNull before the call.
+        notePlacementService.makeMain(jwt.getUserId(), noteId, checkNotNull(request.constellationId), request.replace)
+            .map { it.toResponse() }
+
+    /** Removes the note from a constellation; a removed main promotes the oldest remaining one. */
+    @DeleteMapping("/{noteId}/constellations/{constellationId}")
+    fun removeNoteConstellation(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @PathVariable constellationId: UUID,
+    ): List<NoteConstellationResponse> =
+        notePlacementService.remove(jwt.getUserId(), noteId, constellationId).map { it.toResponse() }
 
     @PatchMapping("/{noteId}")
     fun renameNote(
