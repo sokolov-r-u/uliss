@@ -91,6 +91,7 @@ export function plural(count: number, one: string, many: string): string {
 export function pickerItems(tree: ConstellationTree): ConstellationPickerItem[] {
     return tree.flat.map((node) => ({
         id: node.id,
+        parentId: node.parentId,
         name: node.name,
         depth: node.depth,
         path: node.ancestors.map((ancestor) => ancestor.name),

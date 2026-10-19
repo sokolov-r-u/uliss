@@ -74,7 +74,7 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
                 </button>
                 {picking && <>
                     <ConstellationPicker items={pickerItems(tree)} exclude={[node.id, ...inside]}
-                                         label="Move the notes to…"
+                                         label="Move the notes to…" action={(name) => `Move them to ${name}`}
                                          onPick={(id) => {
                                              setTarget(id)
                                              setPicking(false)

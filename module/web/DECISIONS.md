@@ -84,3 +84,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (the client no longer sums children), lists "Notes here" per branch, ends the tree with a muted "Without
   constellation" row when such notes exist, and asks where to move the notes before deleting a branch that holds some.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 4.
+
+## 2026-10-19 — The place-picker walks the tree; panels drop their visible title
+
+- **Context:** the manual test of task 2: the picker listed the whole tree unfolded, and the note panel spent space on
+  a title and a hint that said nothing.
+- **Decision:** `ConstellationPicker` (DS) opens on the roots; a click selects a branch and unfolds it, the chevron
+  only folds, and an action button ("Add to Jazz", "Move to Jazz", "Make Jazz main") confirms. Search shows flat hits
+  with their path. `onCreate(name, parentId)` creates under the selection ("+ New in …", "Create “…” in …") or a root
+  and selects the new branch; the note is placed only by the action button. The note section shows the main place,
+  Change and × in one line, chips with a "Make … main" tooltip, no hint. `ContextPanel` keeps its label for assistive
+  tech only and shows just the close button.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, blocks 6–7.

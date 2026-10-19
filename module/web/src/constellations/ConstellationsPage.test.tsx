@@ -193,7 +193,9 @@ describe('ConstellationsPage', () => {
 
         await userEvent.click(within(panel).getByRole('button', {name: 'Move'}))
         await userEvent.click(within(panel).getByRole('button', {name: /^Films/}))
+        await userEvent.click(within(panel).getByRole('button', {name: 'Move to Films'}))
 
+        expect(moveConstellation).toHaveBeenCalledWith('music', 'films')
         expect(await within(panel).findByRole('alert')).toHaveTextContent('“Music” is already taken here.')
     })
 

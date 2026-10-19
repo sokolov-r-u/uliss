@@ -56,8 +56,8 @@ export function ContextPanel({label, open, onClose, children}: {
             <aside ref={panelRef} className="context-panel" aria-label={label}
                    style={{'--context-panel-width': `${width}px`} as CSSProperties}>
                 <div className="context-panel-resize" {...handleProps}/>
+                {/* The label names the panel for assistive tech only: on screen its first section says what it is. */}
                 <header className="context-panel-head">
-                    <Kicker size={9.5} spacing="2.5px" color="var(--text-faint)">{label}</Kicker>
                     <IconButton s={30} title="Close panel" onClick={onClose}><Icon name="close" size={14}/></IconButton>
                 </header>
                 <div className="context-panel-body">{children}</div>

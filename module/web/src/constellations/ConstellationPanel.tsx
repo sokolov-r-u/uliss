@@ -91,7 +91,7 @@ export function ConstellationPanel({
                                             onClose={() => onTool(null)}/>)}
             {tool === 'move' && <div className="constellation-panel-move">
                 <ConstellationPicker key={node.id} items={pickerItems(tree)} exclude={[node.id, ...descendantIds(node)]}
-                                     label="Move to…"
+                                     label="Move to…" action={(name) => `Move to ${name}`} busy={busy}
                                      lead={isRoot ? undefined : {label: 'Make it a root', onSelect: () => onMove(null)}}
                                      onPick={(id) => onMove(id)} onClose={() => onTool(null)}/>
             </div>}

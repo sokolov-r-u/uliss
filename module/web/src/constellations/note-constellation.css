@@ -2,7 +2,7 @@
 .note-places {
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 6px;
 }
 
 .note-places-state {
@@ -14,15 +14,19 @@
 
 .note-places-main {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 4px 12px;
+    gap: 10px;
+    min-width: 0;
+}
+
+.note-places-main .context-text {
+    flex: 1;
 }
 
 .note-places-path,
 .note-places-action,
 .note-places-add {
-    min-height: 44px;
+    min-height: 36px;
     padding: 0 2px;
     border: 0;
     background: transparent;
@@ -32,6 +36,7 @@
 }
 
 .note-places-path {
+    flex: 0 1 auto;
     display: inline-flex;
     flex-wrap: wrap;
     align-items: center;
@@ -76,7 +81,7 @@
 .note-places-also {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 2px;
 }
 
 .note-places-chips {
@@ -86,8 +91,12 @@
     gap: 4px 14px;
 }
 
-.note-places-chips > span button {
-    min-height: 36px;
+.note-places-chips button {
+    min-height: 32px;
+}
+
+.note-places-picker {
+    margin-top: 4px;
 }
 
 .note-places-error {
