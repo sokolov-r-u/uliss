@@ -8,12 +8,10 @@ export interface ConstellationChipProps {
     /** Shows a × — only where the user owns the membership. */
     onRemove?: () => void
     onClick?: () => void
-    /** Tooltip of the label action, e.g. "Make Jazz main"; the remove button keeps its own name. */
-    actionTitle?: string
 }
 
 /** Secondary membership with independent native label and remove actions. */
-export function ConstellationChip({label, color, size = 'md', onRemove, onClick, actionTitle}: ConstellationChipProps) {
+export function ConstellationChip({label, color, size = 'md', onRemove, onClick}: ConstellationChipProps) {
     const sm = size === 'sm'
     const content = <><TagDot color={color} size={sm ? 5 : 7}/><span style={{
         fontFamily: 'var(--font-text)',
@@ -24,7 +22,7 @@ export function ConstellationChip({label, color, size = 'md', onRemove, onClick,
     return (
         <span style={{display: 'inline-flex', alignItems: 'center', gap: sm ? 5 : 6}}>
             {onClick ? (
-                <button type="button" onClick={onClick} title={actionTitle} style={{
+                <button type="button" onClick={onClick} style={{
                     display: 'inline-flex',
                     alignItems: 'center',
                     gap: sm ? 5 : 6,
