@@ -8,7 +8,10 @@ import {MAX_STATUS_RECONNECTS, NoteDetailPage} from './NoteDetailPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
-    return {...actual, getNote: vi.fn(), streamNoteStatus: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn()}
+    return {
+        ...actual, getNote: vi.fn(), streamNoteStatus: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn(),
+        listSubNotes: vi.fn(() => Promise.resolve([])),
+    }
 })
 
 vi.mock('../chat/chatApi', async (importOriginal) => {
@@ -274,7 +277,7 @@ describe('NoteDetailPage', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
 
         expect(await screen.findByTestId('notes-route')).toBeInTheDocument()
-        expect(deleteNote).toHaveBeenCalledWith('note-1')
+        expect(deleteNote).toHaveBeenCalledWith('note-1', undefined)
     })
 
     it('shows the new heading after renaming the open note', async () => {
@@ -377,7 +380,7 @@ describe('NoteDetailPage', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
 
         expect(await screen.findByTestId('chats-route')).toHaveTextContent('?deleteChat=c1&in=list')
-        expect(deleteNote).toHaveBeenCalledWith('note-1')
+        expect(deleteNote).toHaveBeenCalledWith('note-1', undefined)
     })
 
     it('offers no Back on a note opened any other way', async () => {

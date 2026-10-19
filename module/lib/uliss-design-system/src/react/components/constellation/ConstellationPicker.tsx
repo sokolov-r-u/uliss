@@ -1,4 +1,4 @@
-import {type CSSProperties, type ReactNode, useState} from 'react'
+import {type CSSProperties, type ReactNode, useEffect, useRef, useState} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {Button} from '../actions/Button'
@@ -10,6 +10,8 @@ import {TagDot} from './TagDot'
 // confirms the selected branch. A search swaps the tree for a flat list of
 // hits with their path. Creating happens where the user stands: "+ New in
 // <selected>" adds a sub-constellation, "+ New constellation" a root.
+// Where a note can be a target too (`notes`), the search also asks the host
+// for notes and lists them under the constellations.
 
 export interface ConstellationPickerItem {
     id: string
@@ -24,6 +26,25 @@ export interface ConstellationPickerItem {
     color: string
     /** Stars in the subtree; omitted hides the count. */
     count?: number
+}
+
+/** A note found by `notes.search`; picked notes become parents (Summarize under it, Move under a note). */
+export interface ConstellationPickerNote {
+    id: string
+    title: string
+    /** Where the note lives: constellation names, then parent note titles; empty without a place. */
+    path: string[]
+    /** Colour of the constellation it lives in; omitted without one. */
+    color?: string
+}
+
+export interface ConstellationPickerNotes {
+    /** Finds notes for the typed text; the picker waits a moment after typing and aborts stale searches. */
+    search: (query: string, signal: AbortSignal) => Promise<ConstellationPickerNote[]>
+    /** Label of the confirm button for the selected note, e.g. `(title) => \`Move under ${title}\``. */
+    action: (title: string) => string
+    /** Confirms the selected note. */
+    onPick: (id: string) => void
 }
 
 export interface ConstellationPickerProps {
@@ -47,6 +68,8 @@ export interface ConstellationPickerProps {
     busy?: boolean
     /** Accessible name of the search field. */
     label?: string
+    /** Notes as targets too: typing also searches them, listed under the constellations. */
+    notes?: ConstellationPickerNotes
 }
 
 const ROW_TEXT = {
@@ -69,6 +92,15 @@ const ROW_BUTTON: CSSProperties = {
 
 const STEP = 14
 
+/** Typing pause before the picker asks the host for notes. */
+const NOTE_SEARCH_DELAY = 250
+
+type NoteSearch =
+    | { status: 'idle' }
+    | { status: 'loading'; query: string }
+    | { status: 'ready'; query: string; hits: ConstellationPickerNote[] }
+    | { status: 'error'; query: string }
+
 /** Trimmed with whitespace runs collapsed, as the service stores names. */
 const normalize = (raw: string) => raw.trim().replace(/\s+/g, ' ')
 
@@ -82,9 +114,13 @@ export function ConstellationPicker({
                                         onCreate,
                                         busy = false,
                                         label = 'Search the tree',
+                                        notes,
                                     }: ConstellationPickerProps) {
     const [query, setQuery] = useState('')
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    /** A picked note; it stays selected while the search changes, so its action stays at hand. */
+    const [selectedNote, setSelectedNote] = useState<ConstellationPickerNote | null>(null)
+    const [noteSearch, setNoteSearch] = useState<NoteSearch>({status: 'idle'})
     const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
     /** The parent a new constellation is being named under; undefined while not creating. */
     const [creatingIn, setCreatingIn] = useState<string | null | undefined>(undefined)
@@ -111,9 +147,39 @@ export function ConstellationPicker({
     const nameTaken = (name: string, parentId: string | null) =>
         items.some((item) => item.parentId === parentId && item.name.toLowerCase() === name.toLowerCase())
     const canCreateTyped = onCreate != null && needle !== '' && !nameTaken(typed, createParent)
+    // The latest search function, so a host passing a fresh closure each render does not restart the search.
+    const searchRef = useRef(notes?.search)
+    searchRef.current = notes?.search
+    const searchesNotes = notes != null
+
+    useEffect(() => {
+        const search = searchRef.current
+        if (!searchesNotes || !search || !typed) {
+            setNoteSearch({status: 'idle'})
+            return
+        }
+        const controller = new AbortController()
+        setNoteSearch({status: 'loading', query: typed})
+        const timer = setTimeout(() => {
+            search(typed, controller.signal)
+                .then((hits) => {
+                    if (!controller.signal.aborted) setNoteSearch({status: 'ready', query: typed, hits})
+                })
+                .catch(() => {
+                    if (!controller.signal.aborted) setNoteSearch({status: 'error', query: typed})
+                })
+        }, NOTE_SEARCH_DELAY)
+        return () => {
+            clearTimeout(timer)
+            controller.abort()
+        }
+    }, [searchesNotes, typed])
+
+    const noteHits = noteSearch.status === 'ready' && noteSearch.query === typed ? noteSearch.hits : []
 
     const select = (item: ConstellationPickerItem) => {
         setSelectedId(item.id)
+        setSelectedNote(null)
         setCreatingIn(undefined)
         // The selection unfolds, and stays reachable once the search is cleared.
         setOpen((current) => new Set([...current, item.id, ...ancestorsOf(item)]))
@@ -136,6 +202,7 @@ export function ConstellationPicker({
             setQuery('')
             if (id) {
                 setSelectedId(id)
+                setSelectedNote(null)
                 setOpen((current) => {
                     const next = new Set(current)
                     if (parentId) next.add(parentId)
@@ -264,6 +331,58 @@ export function ConstellationPicker({
                 () => startCreating(branch.id), busy)
     }
 
+    if (notes && needle && (noteHits.length > 0 || noteSearch.status !== 'ready')) {
+        rows.push(
+            <div role="listitem" key="notes-head" style={{
+                padding: '10px 11px 6px',
+                borderTop: rows.length === 0 ? 'none' : '1px solid var(--line)',
+                ...ROW_TEXT,
+                fontSize: 8.5,
+                letterSpacing: '2.2px',
+                color: 'var(--text-faint)',
+            }}>{noteSearch.status === 'error' ? 'Could not search the notes'
+                : noteSearch.status === 'ready' ? 'Notes' : 'Searching the notes…'}</div>,
+        )
+        noteHits.forEach((note) => {
+            const isSelected = note.id === selectedNote?.id
+            rows.push(
+                <div role="listitem" key={`note-${note.id}`} style={{
+                    borderTop: '1px solid var(--line)',
+                    background: isSelected ? 'var(--bg-surface)' : 'transparent',
+                    boxShadow: isSelected ? `inset 2px 0 0 ${note.color ?? 'var(--accent-2)'}` : 'none',
+                }}>
+                    <button type="button" aria-pressed={isSelected} onClick={() => {
+                        setSelectedNote(note)
+                        setSelectedId(null)
+                        setCreatingIn(undefined)
+                    }} style={{...ROW_BUTTON, width: '100%', padding: '8px 11px'}}>
+                        <span style={{display: 'flex', color: note.color ?? 'var(--text-faint)'}}>
+                            <Icon name="noteDoc" size={12}/>
+                        </span>
+                        <span style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3}}>
+                            <span style={{
+                                fontFamily: 'var(--font-text)',
+                                fontSize: 13,
+                                color: isSelected ? 'var(--accent-2)' : 'var(--cream)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}>{note.title}</span>
+                            {note.path.length > 0 && <span style={{
+                                ...ROW_TEXT,
+                                fontSize: 8.5,
+                                letterSpacing: '1.4px',
+                                color: 'var(--text-faint)',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                            }}>{note.path.join(' › ')}</span>}
+                        </span>
+                    </button>
+                </div>,
+            )
+        })
+    }
     if (canCreateTyped) {
         rows.push(quietRow('create', 0, selected ? `Create “${typed}” in ${selected.name}` : `Create “${typed}”`,
             () => void create(typed, createParent), creating || busy))
@@ -298,18 +417,31 @@ export function ConstellationPicker({
             </div>
             <div role="list" style={{maxHeight: 300, overflowY: 'auto'}}>
                 {rows}
-                {needle && hits.length === 0 && !canCreateTyped && <p style={{
+                {notes && items.length === 0 && !needle && <p style={{
                     margin: 0,
                     padding: '14px 11px',
                     fontFamily: 'var(--font-text)',
                     fontSize: 12,
                     color: 'var(--text-faint)',
-                }}>Nothing in the tree matches.</p>}
+                }}>Type to find a note.</p>}
+                {needle && hits.length === 0 && !canCreateTyped
+                    && (!notes || (noteSearch.status === 'ready' && noteHits.length === 0)) && <p style={{
+                    margin: 0,
+                    padding: '14px 11px',
+                    fontFamily: 'var(--font-text)',
+                    fontSize: 12,
+                    color: 'var(--text-faint)',
+                }}>{notes ? 'Nothing matches.' : 'Nothing in the tree matches.'}</p>}
             </div>
             <div style={{display: 'flex', padding: 8, borderTop: '1px solid var(--line)'}}>
-                <Button size="sm" variant="primary" disabled={!selected || busy}
-                        onClick={() => selected && onPick(selected.id)}>
-                    {selected ? action(selected.name) : 'Select a constellation'}
+                <Button size="sm" variant="primary" disabled={(!selected && !selectedNote) || busy}
+                        onClick={() => {
+                            if (selected) onPick(selected.id)
+                            else if (selectedNote && notes) notes.onPick(selectedNote.id)
+                        }}>
+                    {selected ? action(selected.name)
+                        : selectedNote && notes ? notes.action(selectedNote.title)
+                            : !notes ? 'Select a constellation' : items.length === 0 ? 'Select a note' : 'Select a place'}
                 </Button>
             </div>
         </div>

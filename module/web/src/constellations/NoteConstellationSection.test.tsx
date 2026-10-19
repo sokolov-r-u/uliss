@@ -6,8 +6,8 @@ import {
     type Constellation,
     ConstellationApiError,
     createConstellation,
+    getNotePlace,
     listConstellations,
-    listNoteConstellations,
     type NoteMembership,
     removeNoteConstellation,
     setMainNoteConstellation,
@@ -19,7 +19,7 @@ vi.mock('./constellationApi', async (importOriginal) => {
     return {
         ...actual,
         listConstellations: vi.fn(),
-        listNoteConstellations: vi.fn(),
+        getNotePlace: vi.fn(),
         addNoteConstellation: vi.fn(),
         setMainNoteConstellation: vi.fn(),
         removeNoteConstellation: vi.fn(),
@@ -37,7 +37,7 @@ const place = (constellationId: string, main: boolean): NoteMembership => ({cons
 
 async function renderSection(places: NoteMembership[], tree: Constellation[] = TREE) {
     vi.mocked(listConstellations).mockResolvedValue(tree)
-    vi.mocked(listNoteConstellations).mockResolvedValue(places)
+    vi.mocked(getNotePlace).mockResolvedValue({ancestors: [], constellations: places})
     render(<NoteConstellationSection noteId="n1"/>)
     await screen.findByRole('button', {name: /^\+ Add/})
 }
@@ -152,8 +152,8 @@ describe('NoteConstellationSection', () => {
 
     it('offers a retry when the places cannot be loaded', async () => {
         vi.mocked(listConstellations).mockResolvedValue(TREE)
-        vi.mocked(listNoteConstellations).mockRejectedValueOnce(new ConstellationApiError('transport', 'down'))
-            .mockResolvedValue([place('films', true)])
+        vi.mocked(getNotePlace).mockRejectedValueOnce(new ConstellationApiError('transport', 'down'))
+            .mockResolvedValue({ancestors: [], constellations: [place('films', true)]})
         render(<NoteConstellationSection noteId="n1"/>)
 
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))

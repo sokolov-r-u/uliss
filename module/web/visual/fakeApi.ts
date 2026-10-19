@@ -74,6 +74,11 @@ function constellationResponse(path: string, method: string, body: string, searc
     const notePlaces = path.match(/^\/note\/notes\/([^/]+)\/constellations$/)
     if (notePlaces && method === 'POST') return answer(constellations.addPlace(notePlaces[1], JSON.parse(body).constellationId))
     if (notePlaces) return answer(constellations.placesOf(notePlaces[1]))
+    // Sub-notes: the visual notes are all top notes.
+    const notePlace = path.match(/^\/note\/notes\/([^/]+)\/place$/)
+    if (notePlace) return json({ancestors: [], constellations: constellations.placesOf(notePlace[1]).body})
+    if (/^\/note\/notes\/[^/]+\/sub-notes$/.test(path)) return json([])
+    if (path === '/note/notes/search') return json([])
     const move = path.match(/^\/note\/constellations\/([^/]+)\/move$/)
     if (move && method === 'POST') return answer(constellations.move(move[1], JSON.parse(body).parentId ?? null))
     const one = path.match(/^\/note\/constellations\/([^/]+)$/)

@@ -13,7 +13,7 @@ vi.mock('../../chat/chatApi', async (importOriginal) => {
 })
 vi.mock('../../notes/noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../notes/noteApi')>()
-    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn()}
+    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([]))}
 })
 
 const chat: ItemActionTarget = {kind: 'chat', id: 'c1', title: 'Trip', noteCount: 2}

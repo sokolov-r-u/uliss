@@ -23,3 +23,30 @@ export const PlaceWithCreate = () => (
                              onCreate={async () => undefined} onClose={() => undefined}/>
     </Ground>
 )
+
+const NOTES = [
+    {id: 'bowie', title: 'Bowie', path: ['Music', 'Rock'], color: constellationColor(264, 'LIGHT')},
+    {id: 'low', title: 'Low', path: ['Music', 'Rock', 'Bowie'], color: constellationColor(264, 'LIGHT')},
+    {id: 'loose', title: 'A loose thought', path: []},
+]
+
+const searchNotes = async (query: string) =>
+    NOTES.filter((note) => note.title.toLowerCase().includes(query.toLowerCase()))
+
+export const SummarizeIntoPlaceOrNote = () => (
+    <Ground width={320}>
+        <ConstellationPicker items={ITEMS} action={(name) => `Summarize into ${name}`} onPick={() => undefined}
+                             notes={{search: searchNotes, action: (title) => `Summarize under ${title}`,
+                                 onPick: () => undefined}}
+                             onCreate={async () => undefined} onClose={() => undefined}/>
+    </Ground>
+)
+
+export const MoveUnderANote = () => (
+    <Ground width={320}>
+        <ConstellationPicker items={[]} label="Find a note…" action={(name) => name} onPick={() => undefined}
+                             notes={{search: searchNotes, action: (title) => `Move under ${title}`,
+                                 onPick: () => undefined}}
+                             onClose={() => undefined}/>
+    </Ground>
+)

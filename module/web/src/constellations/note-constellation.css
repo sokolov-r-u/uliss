@@ -136,3 +136,23 @@
 .note-places-choice > * + * button {
     border-top: 1px solid var(--line);
 }
+
+/* A sub-note's path: constellations, then its parent notes as links (constellations/NoteConstellationSection.tsx). */
+.note-places-subpath {
+    margin: 0;
+    padding: 8px 2px;
+    cursor: default;
+    line-height: 1.6;
+}
+
+.note-places-note {
+    color: var(--cream-dim);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
+}
+
+.note-places-note:hover,
+.note-places-note:focus-visible {
+    color: var(--accent-2);
+}

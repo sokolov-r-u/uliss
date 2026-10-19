@@ -103,3 +103,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   other places and makes the chosen one main (the old main stays a place); with a single place the path is inactive.
   Chips only show a place and remove it; there is no "Also in" label. Adding stays with the tree picker.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, manual test of round 2.
+
+## 2026-10-19 — Sub-notes in the web app
+
+- **Context:** task 4 of the constellations epic nests notes under notes; the prototype has no screens for it.
+- **Decision:** `ConstellationPicker` takes optional `notes` (`search`, `action`, `onPick`): typing also asks the
+  server for notes (after a 250 ms pause, stale searches aborted) and lists them under the constellations with their
+  path. Summarize uses both ("Summarize into Jazz" / "Summarize under Bowie"); "Move under a note" uses the same picker
+  with no constellations; Add, Move of a branch and the delete dialog stay constellation-only, since a note cannot be
+  their target. The note panel shows a sub-note's path through its parent notes (links) with "Lives where … lives.",
+  "Move out" (tree picker with "Leave without a place") and "Move under another note"; "Sub-notes" lists the direct
+  children. "Notes here" and "Without constellation" nest by `parentNoteId`, folded, a chevron per level. Deleting a
+  note first counts its sub-notes; with any, the dialog offers Keep sub-notes (default) or Delete all, and a
+  `NOTE_HAS_SUB_NOTES` refusal recounts and asks.
+- **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 3.

@@ -20,6 +20,27 @@ export interface NoteMembership {
     main: boolean
 }
 
+/** A note named in a path: a parent note of a place or of a search hit. */
+export interface NoteRef {
+    id: string
+    /** Absent for a note still being written. */
+    title?: string
+}
+
+/** Where a note lives: parent notes from the top one down, and the top note's constellations, main first. */
+export interface NotePlace {
+    ancestors: NoteRef[]
+    constellations: NoteMembership[]
+}
+
+/** A note found for the place picker, with its parent notes and the main constellation it lives in. */
+export interface NoteHit {
+    id: string
+    title: string
+    ancestors: NoteRef[]
+    constellationId: string | null
+}
+
 export interface ConstellationPatch {
     name?: string
     hue?: number
@@ -88,6 +109,33 @@ function parseMemberships(value: unknown): NoteMembership[] {
     })
     if (memberships.length > 0 && memberships.filter((item) => item.main).length !== 1) throw protocolError('main')
     return memberships
+}
+
+function parseNoteRef(value: unknown): NoteRef {
+    if (!isRecord(value) || typeof value.id !== 'string' || value.id === '') throw protocolError('note ref')
+    if (value.title != null && typeof value.title !== 'string') throw protocolError('note title')
+    return value.title ? {id: value.id, title: value.title} : {id: value.id}
+}
+
+function parseRefs(value: unknown): NoteRef[] {
+    if (!Array.isArray(value)) throw protocolError('ancestors')
+    return value.map(parseNoteRef)
+}
+
+function parsePlace(value: unknown): NotePlace {
+    if (!isRecord(value)) throw protocolError('place')
+    return {ancestors: parseRefs(value.ancestors), constellations: parseMemberships(value.constellations)}
+}
+
+function parseHit(value: unknown): NoteHit {
+    if (!isRecord(value) || typeof value.title !== 'string' || value.title === '') throw protocolError('note hit')
+    if (value.constellationId != null && typeof value.constellationId !== 'string') throw protocolError('constellationId')
+    return {
+        id: parseNoteRef(value).id,
+        title: value.title,
+        ancestors: parseRefs(value.ancestors),
+        constellationId: value.constellationId ?? null,
+    }
 }
 
 async function send(path: string, init?: RequestInit): Promise<Response> {
@@ -191,4 +239,32 @@ export async function setMainNoteConstellation(
 export async function removeNoteConstellation(noteId: string, constellationId: string): Promise<NoteMembership[]> {
     return parseMemberships(await readJson(await send(`/note/notes/${noteId}/constellations/${constellationId}`,
         {method: 'DELETE'})))
+}
+
+/** Where the note lives; a sub-note's constellations are its top note's. */
+export async function getNotePlace(noteId: string, signal?: AbortSignal): Promise<NotePlace> {
+    return parsePlace(await readJson(await send(`/note/notes/${noteId}/place`, {signal})))
+}
+
+/**
+ * Moves the note under [parentNoteId]: it drops its own constellations and lives where the parent lives. Under itself
+ * or its sub-notes fails with code `NOTE_MOVE_CYCLE`, a missing parent with `PARENT_NOTE_NOT_FOUND`.
+ */
+export async function moveNoteUnder(noteId: string, parentNoteId: string): Promise<NotePlace> {
+    return parsePlace(await readJson(await send(`/note/notes/${noteId}/parent`, jsonInit('PUT', {parentNoteId}))))
+}
+
+/** Takes a sub-note out from under its parent: into [moveTo] as its only, main place, or without a place. */
+export async function moveNoteOut(noteId: string, moveTo: string | null): Promise<NotePlace> {
+    const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''
+    return parsePlace(await readJson(await send(`/note/notes/${noteId}/parent${query}`, {method: 'DELETE'})))
+}
+
+/** Titled notes whose title contains [query]; [exclude] leaves out a moving note and its sub-notes. */
+export async function searchNotes(query: string, exclude: string | null, signal?: AbortSignal): Promise<NoteHit[]> {
+    const params = new URLSearchParams({q: query})
+    if (exclude) params.set('exclude', exclude)
+    const value = await readJson(await send(`/note/notes/search?${params}`, {signal}))
+    if (!Array.isArray(value)) throw protocolError('search')
+    return value.map(parseHit)
 }

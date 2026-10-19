@@ -1,4 +1,5 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {Link} from 'react-router-dom'
 import {
     Button,
     ConstellationChip,
@@ -14,27 +15,42 @@ import {
     type Constellation,
     ConstellationApiError,
     createConstellation,
+    getNotePlace,
     listConstellations,
-    listNoteConstellations,
+    moveNoteOut,
+    moveNoteUnder,
     type NoteMembership,
+    type NotePlace,
+    type NoteRef,
     removeNoteConstellation,
+    searchNotes,
     setMainNoteConstellation,
 } from './constellationApi'
-import {buildConstellationTree, type ConstellationNode, type ConstellationTree, pickerItems} from './constellationTree'
+import {
+    buildConstellationTree,
+    type ConstellationNode,
+    type ConstellationTree,
+    pickerItems,
+    pickerNote,
+} from './constellationTree'
+import {notifyNotesChanged} from '../notes/noteApi'
 import './note-constellation.css'
 
-type Picker = 'main' | 'add' | null
+/** main: choose among the note's places; add: a new place; under: a parent note; out: out from under the parent. */
+type Picker = 'main' | 'add' | 'under' | 'out' | null
 
 type LoadState =
     | { status: 'loading' }
     | { status: 'error' }
-    | { status: 'ready'; items: Constellation[]; tree: ConstellationTree; memberships: NoteMembership[] }
+    | { status: 'ready'; items: Constellation[]; tree: ConstellationTree; place: NotePlace }
 
 /** The user's message for a failed change of the note's places. */
 export function placementFailureMessage(error: unknown, name?: string): string {
     if (error instanceof ConstellationApiError) {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') return `“${name}” is already taken. Pick it from the list.`
         if (error.code === 'NOTE_PLACE_INHERITED') return 'This note lives where its parent note lives.'
+        if (error.code === 'NOTE_MOVE_CYCLE') return 'A note cannot go under itself or its own sub-notes.'
+        if (error.code === 'PARENT_NOTE_NOT_FOUND') return 'That note no longer exists. Pick another one.'
         if (error.status === 404) return 'This note or constellation no longer exists. Reload the page.'
         if (error.status === 400 && name !== undefined) return 'Use a name of 1 to 40 characters.'
         if (error.kind === 'transport') return 'The note service is unavailable. Try again.'
@@ -45,9 +61,11 @@ export function placementFailureMessage(error: unknown, name?: string): string {
 /**
  * The "Constellation" section of a note's panel: the main place as a path with ×, the other places as chips (× removes
  * one) and "+ Add constellation". A click on the main place offers the note's other places to make one main; adding
- * goes through the shared tree picker, which can also create a constellation where the user stands.
+ * goes through the shared tree picker, which can also create a constellation where the user stands. "Move under a
+ * note" hangs the note under another one. A sub-note shows its path through its parent notes instead, explains that
+ * its place is inherited and offers "Move out" and "Move under another note".
  */
-export function NoteConstellationSection({noteId}: { noteId: string }) {
+export function NoteConstellationSection({noteId, noteTitle}: { noteId: string; noteTitle?: string }) {
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
     const [picker, setPicker] = useState<Picker>(null)
     const [pending, setPending] = useState(false)
@@ -56,11 +74,11 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
 
     const reload = useCallback(async (signal?: AbortSignal) => {
         try {
-            const [items, memberships] = await Promise.all([
+            const [items, place] = await Promise.all([
                 listConstellations(signal),
-                listNoteConstellations(noteId, signal),
+                getNotePlace(noteId, signal),
             ])
-            setLoad({status: 'ready', items, tree: buildConstellationTree(items), memberships})
+            setLoad({status: 'ready', items, tree: buildConstellationTree(items), place})
         } catch (e) {
             if (e instanceof AuthRequiredError || signal?.aborted) return
             setLoad({status: 'error'})
@@ -76,15 +94,22 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         return () => controller.abort()
     }, [reload])
 
-    /** Runs one change at a time; the service answers with the note's new places. */
-    async function run(change: () => Promise<NoteMembership[]>) {
+    /**
+     * Runs one change at a time; the service answers with the note's new places, or with its whole new place after a
+     * move under or out from under a note, which also changes the sub-note lists.
+     */
+    async function run(change: () => Promise<NoteMembership[] | NotePlace>) {
         if (pendingRef.current) return
         pendingRef.current = true
         setPending(true)
         setError(null)
         try {
-            const memberships = await change()
-            setLoad((current) => current.status === 'ready' ? {...current, memberships} : current)
+            const result = await change()
+            const place: (current: NotePlace) => NotePlace = Array.isArray(result)
+                ? (current) => ({...current, constellations: result})
+                : () => result
+            setLoad((current) => current.status === 'ready' ? {...current, place: place(current.place)} : current)
+            if (!Array.isArray(result)) notifyNotesChanged()
             setPicker(null)
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e))
@@ -97,7 +122,7 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
     function add(constellationId: string) {
         if (load.status !== 'ready') return
         // A pick that changes nothing says so instead of closing the picker as if it worked.
-        if (load.memberships.some((membership) => membership.constellationId === constellationId)) {
+        if (load.place.constellations.some((membership) => membership.constellationId === constellationId)) {
             setError(`The note is already in ${load.tree.byId.get(constellationId)?.name}.`)
             return
         }
@@ -124,6 +149,21 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
     }
 
     const items = useMemo(() => load.status === 'ready' ? pickerItems(load.tree) : [], [load])
+    const tree = load.status === 'ready' ? load.tree : null
+    /** Notes the picker offers as a parent: never this note or its sub-notes (the service leaves them out). */
+    const findParents = useCallback(async (query: string, signal: AbortSignal) => {
+        const hits = await searchNotes(query, noteId, signal)
+        return tree ? hits.map((hit) => pickerNote(hit, tree)) : []
+    }, [noteId, tree])
+    const underPicker = (label: string) => <div className="note-places-picker">
+        <ConstellationPicker items={[]} label={label} action={(name) => name} busy={pending}
+                             onPick={() => undefined} onClose={() => setPicker(null)}
+                             notes={{
+                                 search: findParents,
+                                 action: (title) => `Move under ${title}`,
+                                 onPick: (parentId) => void run(() => moveNoteUnder(noteId, parentId)),
+                             }}/>
+    </div>
 
     if (load.status === 'loading') return <p className="context-text">Loading…</p>
     if (load.status === 'error') {
@@ -136,10 +176,10 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         </div>
     }
 
-    const {tree, memberships} = load
+    const {place} = load
     // A place deleted meanwhile in another tab is left out until the next load.
-    const placed = memberships
-        .map((membership) => ({membership, node: tree.byId.get(membership.constellationId)}))
+    const placed = place.constellations
+        .map((membership) => ({membership, node: load.tree.byId.get(membership.constellationId)}))
         .filter((item): item is { membership: NoteMembership; node: ConstellationNode } => item.node != null)
     const main = placed.find((item) => item.membership.main)?.node ?? null
     const others = placed.filter((item) => !item.membership.main).map((item) => item.node)
@@ -147,6 +187,39 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         setError(null)
         setPicker((current) => current === next ? null : next)
     }
+
+    if (place.ancestors.length > 0) {
+        const parent = place.ancestors[place.ancestors.length - 1]
+        return (
+            <div className="note-places" aria-busy={pending || undefined}>
+                <SubNotePath main={main} ancestors={place.ancestors} title={noteTitle}/>
+                <p className="context-text">Lives where {parent.title || 'its parent note'} lives.</p>
+                <div className="note-places-chips">
+                    <button type="button" className="note-places-add" disabled={pending}
+                            aria-expanded={picker === 'out'} onClick={() => toggle('out')}>Move out
+                    </button>
+                    <button type="button" className="note-places-add" disabled={pending}
+                            aria-expanded={picker === 'under'} onClick={() => toggle('under')}>Move under another note
+                    </button>
+                </div>
+                {picker === 'out' && <div className="note-places-picker">
+                    <ConstellationPicker items={items} label="Move this note to…" action={(name) => `Move to ${name}`}
+                                         busy={pending} onCreate={createIn} onClose={() => setPicker(null)}
+                                         lead={{
+                                             label: 'Leave without a place',
+                                             onSelect: () => void run(() => moveNoteOut(noteId, null)),
+                                         }}
+                                         onPick={(id) => void run(() => moveNoteOut(noteId, id))}/>
+                </div>}
+                {picker === 'under' && underPicker('Find a note…')}
+                {error && <p className="note-places-error" role="alert">{error}</p>}
+            </div>
+        )
+    }
+
+    const moveUnder = <button type="button" className="note-places-add" disabled={pending}
+                              aria-expanded={picker === 'under'} onClick={() => toggle('under')}>Move under a note
+    </button>
 
     const pickerBlock = picker === 'add' && <div className="note-places-picker">
         <ConstellationPicker items={items} label="Add this note to…" action={(name) => `Add to ${name}`}
@@ -184,6 +257,7 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                     <button type="button" className="note-places-add" disabled={pending}
                             aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add constellation
                     </button>
+                    {moveUnder}
                 </div>
                 {picker === 'add' && pickerBlock}
             </> : <>
@@ -193,8 +267,10 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                             aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add
                     </button>
                 </div>
+                <div className="note-places-chips">{moveUnder}</div>
                 {pickerBlock}
             </>}
+            {picker === 'under' && underPicker('Move this note under…')}
             {error && <p className="note-places-error" role="alert">{error}</p>}
         </div>
     )
@@ -221,5 +297,30 @@ function MainPath({node, disabled, open, onClick}: {
             {deep && <span className="note-places-crumb">… ›</span>}
             <span className="note-places-leaf">{node.name}</span>
         </button>
+    )
+}
+
+/**
+ * A sub-note's place: the main constellation of its top note (if any), then its parent notes as links, then the note
+ * itself in accent.
+ */
+function SubNotePath({main, ancestors, title}: {
+    main: ConstellationNode | null
+    ancestors: NoteRef[]
+    title?: string
+}) {
+    const constellations = main ? [...main.ancestors, main] : []
+    const deep = constellations.length > 2
+    const shown = deep ? [constellations[0], constellations[constellations.length - 1]] : constellations
+    return (
+        <p className="note-places-path note-places-subpath">
+            {main && <TagDot color={constellationColor(main.hue, main.lightness)} size={8}/>}
+            {shown.map((node, index) => <span key={node.id} className="note-places-crumb">
+                {deep && index === 1 && '… › '}{node.name} ›</span>)}
+            {ancestors.map((ancestor) => <span key={ancestor.id} className="note-places-crumb">
+                <Link to={`/notes/${ancestor.id}`} className="note-places-note">{ancestor.title || 'Untitled note'}</Link> ›
+            </span>)}
+            <span className="note-places-leaf">{title || 'This note'}</span>
+        </p>
     )
 }

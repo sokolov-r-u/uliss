@@ -380,7 +380,7 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         // Skipped place, no update target: the create request carries neither a note nor a constellation.
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
@@ -1017,14 +1017,14 @@ describe('ChatPage summary place picker', () => {
 
     it('summarizes into the branch picked in the tree', async () => {
         const dialog = await openPicker()
-        expect(await within(dialog).findByRole('button', {name: 'Select a constellation'})).toBeDisabled()
+        expect(await within(dialog).findByRole('button', {name: 'Select a place'})).toBeDisabled()
 
         await userEvent.click(within(dialog).getByRole('button', {name: /^Music/}))
         await userEvent.click(within(dialog).getByRole('button', {name: /^Jazz/}))
         await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize into Jazz'}))
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz'))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -1045,7 +1045,7 @@ describe('ChatPage summary place picker', () => {
         expect(mockedSummary).not.toHaveBeenCalled()
         await userEvent.click(await within(dialog).findByRole('button', {name: 'Summarize into Rock'}))
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock'))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined))
     })
 
     it('explains a deleted constellation, reloads the tree and starts nothing', async () => {
@@ -1087,7 +1087,7 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.click(within(dialog).getByRole('button', {name: 'Skip for now'}))
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined))
     })
 
     it('updates a summarized chat without the place picker', async () => {
