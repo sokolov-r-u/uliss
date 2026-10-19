@@ -1,119 +1,190 @@
-import {useMemo, useRef, useState} from 'react'
-import {EmptyState, Icon, IconButton, Kicker, Select, StepControl} from '@uliss/design-system'
-import type {SkyGraphModel, SkyGraphNode} from '../views/models'
+import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useNavigate} from 'react-router-dom'
+import {Button, ConstellationPicker, EmptyState, Icon} from '@uliss/design-system'
+import {AuthRequiredError} from '../auth/apiClient'
+import {getSky, type Sky} from '../constellations/constellationApi'
+import {pickerItems} from '../constellations/constellationTree'
+import {subscribeToNotesChanges} from '../notes/noteApi'
 import {ScreenHeader} from '../ui/ScreenHeader'
+import {SkyCanvas} from './SkyCanvas'
+import {buildSkyGraph, defaultView, inBranch, type SkyView, subgraph} from './skyModel'
+import {skyPhysics} from './skySettings'
+import {SkyStarPanel} from './SkyStarPanel'
+import {useSkySettings} from './useSkySettings'
+import './sky.css'
+
+type Load = { status: 'loading' } | { status: 'error' } | { status: 'ready'; sky: Sky }
 
 const SEEDS = [{left: '34%', top: '33%', r: 4, on: true}, {left: '63%', top: '24%', r: 3, on: false}]
 
-export function SkyView({model, disabled = false}: { model: SkyGraphModel | null; disabled?: boolean }) {
-    const [scale, setScale] = useState(1)
-    const [pan, setPan] = useState({x: 0, y: 0})
-    const [mode, setMode] = useState('skeleton')
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+/**
+ * Sky: the constellation tree and every note as one live graph around YOU. Skeleton shows the constellations, a click
+ * on one focuses it (Focus, depth 1–3), Full shows everything and is only looked at. Stars open a panel with the note.
+ */
+export function SkyPage() {
+    const navigate = useNavigate()
+    const [load, setLoad] = useState<Load>({status: 'loading'})
+    const [settings, patchSettings] = useSkySettings()
+    const physics = useMemo(() => skyPhysics(settings), [settings])
+    const [view, setView] = useState<SkyView | null>(null)
+    const [focusId, setFocusId] = useState<string | null>(null)
+    const [lastFocus, setLastFocus] = useState<string | null>(null)
+    const [depth, setDepth] = useState(2)
     const [filter, setFilter] = useState<string | null>(null)
-    const drag = useRef<{ x: number; y: number; panX: number; panY: number } | null>(null)
-    const byId = useMemo(() => new Map(model?.nodes.map((node) => [node.id, node]) ?? []), [model])
-    const selected = selectedId ? byId.get(selectedId) ?? null : null
-    const constellations = model?.nodes.filter((node) => node.kind === 'constellation') ?? []
+    const [filterOpen, setFilterOpen] = useState(false)
+    const [starId, setStarId] = useState<string | null>(null)
 
-    if (!model || model.nodes.length < 3) return <div className="product-view sky-empty-view">
-        <ScreenHeader kicker="Sky"/>
-        <div className="product-body sky-stage"><div className="product-empty">
-        {SEEDS.map((seed, index) => <span key={index} className="sky-seed" style={{
-            left: seed.left,
-            top: seed.top,
-            width: seed.r * 2,
-            height: seed.r * 2,
-            background: seed.on ? 'var(--accent)' : 'var(--cream-dim)',
-            boxShadow: seed.on ? '0 0 20px 2px var(--accent-glow)' : '0 0 14px color-mix(in srgb, var(--cream-dim) 40%, transparent)'
-        }}/>)}
-        <EmptyState title="Two stars are not a sky"
-                    body="Uliss draws the map once you have three notes. Start a few chats, then press Summarize — it turns them into notes right away."/>
-        </div></div>
+    const reload = useCallback(async (signal?: AbortSignal) => {
+        try {
+            const sky = await getSky(signal)
+            setLoad({status: 'ready', sky})
+        } catch (error) {
+            if (error instanceof AuthRequiredError || signal?.aborted) return
+            setLoad((current) => current.status === 'ready' ? current : {status: 'error'})
+        }
+    }, [])
+
+    useEffect(() => {
+        const controller = new AbortController()
+        void reload(controller.signal)
+        // A note written, renamed, moved or deleted in this tab joins the sky without a reload of the page.
+        const unsubscribe = subscribeToNotesChanges(() => void reload())
+        return () => {
+            controller.abort()
+            unsubscribe()
+        }
+    }, [reload])
+
+    const sky = load.status === 'ready' ? load.sky : null
+    const graph = useMemo(() => sky ? buildSkyGraph(sky) : null, [sky])
+
+    // The first mode follows the density of the sky on this screen; after that it is the user's.
+    useEffect(() => {
+        if (graph && view == null) setView(defaultView(graph.nodes.length, window.innerWidth, window.innerHeight))
+    }, [graph, view])
+
+    // a focused constellation, the filter or the open star may vanish with a reload
+    useEffect(() => {
+        if (!graph) return
+        if (focusId && !graph.byId.has(focusId)) {
+            setFocusId(null)
+            setView('skeleton')
+        }
+        if (lastFocus && !graph.byId.has(lastFocus)) setLastFocus(null)
+        if (filter && !graph.byId.has(filter)) setFilter(null)
+        if (starId && !graph.byId.has(starId)) setStarId(null)
+    }, [graph, focusId, lastFocus, filter, starId])
+
+    const shownView: SkyView = !graph || graph.starCount === 0 ? 'skeleton' : view ?? 'skeleton'
+    const sub = useMemo(() => graph ? subgraph(graph, shownView, focusId, depth) : null, [graph, shownView, focusId, depth])
+
+    const focus = (id: string) => {
+        setFocusId(id)
+        setLastFocus(id)
+        setView('focus')
+        setStarId(null)
+    }
+    const pickView = (next: SkyView) => {
+        setView(next)
+        if (next === 'full') setStarId(null)
+    }
+
+    const branch = filter && graph ? graph.tree.byId.get(filter) : undefined
+    const inFilter = graph && filter ? graph.nodes.filter((n) => n.kind === 'star' && inBranch(graph, n, filter)).length : 0
+
+    const header = <ScreenHeader kicker="Sky" count={graph?.starCount}
+                                 right={graph && graph.tree.flat.length > 0 ? <span className="sky-head-actions">
+                                     {branch && <button type="button" className="sky-filter-chip"
+                                                        title="Show every constellation"
+                                                        onClick={() => setFilter(null)}>
+                                         {inFilter} of {graph.starCount} · {branch.name}<span aria-hidden> ×</span>
+                                     </button>}
+                                     <button type="button" className={filterOpen || filter ? 'sky-head-button on' : 'sky-head-button'}
+                                             title="Filter by constellation" aria-expanded={filterOpen}
+                                             onClick={() => setFilterOpen((open) => !open)}>
+                                         <Icon name="filter" size={15}/>
+                                     </button>
+                                 </span> : undefined}/>
+
+    if (load.status === 'loading') return <div className="product-view sky-view">{header}
+        <div className="sky-stage"/>
     </div>
 
-    const visible = (node: SkyGraphNode) => !filter || node.id === filter || node.kind === 'you' || model.edges.some((edge) => (edge.from === filter && edge.to === node.id) || (edge.to === filter && edge.from === node.id))
-    const zoom = (delta: number) => setScale((value) => Math.min(2.5, Math.max(0.6, value + delta)))
+    if (load.status === 'error') return <div className="product-view sky-view">{header}
+        <div className="sky-stage sky-state" role="alert">
+            <p>Could not load the sky.</p>
+            <Button size="sm" variant="quiet" onClick={() => {
+                setLoad({status: 'loading'})
+                void reload()
+            }}>Retry</Button>
+        </div>
+    </div>
+
+    if (!graph || !sub) return null
+
+    if (graph.nodes.length === 1) return <div className="product-view sky-view">{header}
+        <div className="product-body sky-stage">
+            <div className="product-empty">
+                {SEEDS.map((seed, index) => <span key={index} className={seed.on ? 'sky-seed on' : 'sky-seed'} style={{
+                    left: seed.left, top: seed.top, width: seed.r * 2, height: seed.r * 2,
+                }}/>)}
+                <EmptyState title="Two stars are not a sky yet"
+                            body="Every note you keep becomes a star here. Start a chat, then press Summarize — or grow a few constellations first."/>
+            </div>
+        </div>
+    </div>
+
+    const inFocus = shownView === 'focus'
+    const footer = <>
+        <div className="sky-modes" role="group" aria-label="Sky mode">
+            {(['skeleton', 'full'] as const).map((id) => <button key={id} type="button" aria-pressed={shownView === id}
+                                                                 className={shownView === id ? 'sky-mode on' : 'sky-mode'}
+                                                                 disabled={graph.starCount === 0 && id === 'full'}
+                                                                 onClick={() => pickView(id)}>
+                {id === 'skeleton' ? 'Skeleton' : 'Full'}</button>)}
+        </div>
+        {inFocus && <div className="sky-depth" role="group" aria-label="Depth">
+            <span>Depth</span>
+            {[1, 2, 3].map((d) => <button key={d} type="button" aria-pressed={d === depth}
+                                          className={d === depth ? 'on' : undefined}
+                                          onClick={() => setDepth(d)}>{d}</button>)}
+        </div>}
+        <button type="button" className={inFocus ? 'sky-mode sky-focus on' : 'sky-mode sky-focus'}
+                disabled={!inFocus && !lastFocus}
+                title={inFocus ? 'Back to the whole sky' : 'Back to the last focus'}
+                onClick={() => inFocus ? setView('skeleton') : lastFocus && focus(lastFocus)}>
+            {inFocus ? 'Exit focus' : 'Focus'}</button>
+    </>
 
     return <div className="product-view sky-view">
-        <ScreenHeader kicker="Sky"/>
+        {header}
         <div className="sky-stage">
-        <div className="sky-toolbar">
-            <Select aria-label="Filter by constellation" value={filter} onChange={setFilter} disabled={disabled}
-                    placeholder="All constellations"
-                    options={constellations.map((node) => ({value: node.id, label: node.label}))}/>
-            <StepControl label="Sky mode" value={mode} disabled={disabled} onPick={setMode}
-                         steps={[{id: 'skeleton', label: 'Skeleton'}, {id: 'focus', label: 'Focus'}, {
-                             id: 'full',
-                             label: 'Full'
-                         }]}/>
+            <SkyCanvas graph={graph} sub={sub} view={shownView} focusId={focusId} depth={depth} filter={filter}
+                       settings={settings} physics={physics} selectedId={starId}
+                       onPickStar={shownView === 'full' ? undefined : setStarId} onFocus={focus}
+                       onSettings={patchSettings} panelOpen={starId != null} footer={footer}/>
+            {graph.starCount === 0 && <p className="sky-note">
+                Notes you keep appear as stars in their constellations. Start a chat and press Summarize.</p>}
+            {filterOpen && <>
+                <div className="sky-menu-scrim" onClick={() => setFilterOpen(false)}/>
+                <div className="sky-filter" data-sky-ui="">
+                    <ConstellationPicker items={pickerItems(graph.tree)} label="Find a constellation"
+                                         action={(name) => `Show ${name}`}
+                                         lead={filter ? {
+                                             label: 'All constellations', onSelect: () => {
+                                                 setFilter(null)
+                                                 setFilterOpen(false)
+                                             },
+                                         } : undefined}
+                                         onPick={(id) => {
+                                             setFilter(id)
+                                             setFilterOpen(false)
+                                         }}
+                                         onClose={() => setFilterOpen(false)}/>
+                </div>
+            </>}
+            {starId && <SkyStarPanel graph={graph} starId={starId} onClose={() => setStarId(null)}
+                                     onOpen={(id) => navigate(`/notes/${id}`)}/>}
         </div>
-        <div className="sky-canvas">
-            <svg viewBox="0 0 1000 700" role="img" aria-label="Constellation map"
-                 onWheel={(event) => {
-                     event.preventDefault();
-                     zoom(event.deltaY < 0 ? 0.1 : -0.1)
-                 }}
-                 onPointerDown={(event) => {
-                     if (!disabled) {
-                         drag.current = {x: event.clientX, y: event.clientY, panX: pan.x, panY: pan.y};
-                         event.currentTarget.setPointerCapture(event.pointerId)
-                     }
-                 }}
-                 onPointerMove={(event) => {
-                     if (drag.current) setPan({
-                         x: drag.current.panX + event.clientX - drag.current.x,
-                         y: drag.current.panY + event.clientY - drag.current.y
-                     })
-                 }}
-                 onPointerUp={() => {
-                     drag.current = null
-                 }}>
-                <g transform={`translate(${pan.x} ${pan.y}) scale(${scale})`}>
-                    {model.edges.map((edge, index) => {
-                        const from = byId.get(edge.from);
-                        const to = byId.get(edge.to);
-                        return from && to ?
-                            <line key={`${edge.from}-${edge.to}-${index}`} x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-                                  className={edge.secondary ? 'sky-edge secondary' : 'sky-edge'}/> : null
-                    })}
-                    {model.nodes.map((node) => <g key={node.id} role="button" tabIndex={0} aria-label={node.label}
-                                                  className={visible(node) ? `sky-node ${node.kind}` : `sky-node ${node.kind} muted`}
-                                                  onClick={() => !disabled && setSelectedId(node.id)}
-                                                  onKeyDown={(event) => {
-                                                      if (!disabled && (event.key === 'Enter' || event.key === ' ')) {
-                                                          event.preventDefault();
-                                                          setSelectedId(node.id)
-                                                      }
-                                                  }}>
-                        <circle cx={node.x} cy={node.y} r={node.radius}
-                                fill={node.color ?? (node.kind === 'you' ? 'var(--accent-2)' : 'var(--cream)')}/>
-                        {mode !== 'full' && <text x={node.x + node.radius + 7} y={node.y + 4}>{node.label}</text>}
-                    </g>)}
-                </g>
-            </svg>
-            <div className="sky-controls">
-                <IconButton title="Zoom out" disabled={disabled || scale <= 0.6} onClick={() => zoom(-0.2)}><span
-                    aria-hidden>−</span></IconButton>
-                <Kicker size={9} spacing="1px" color="var(--text-faint)">{Math.round(scale * 100)}%</Kicker>
-                <IconButton title="Zoom in" disabled={disabled || scale >= 2.5} onClick={() => zoom(0.2)}><span
-                    aria-hidden>+</span></IconButton>
-                <IconButton title="Reset view" disabled={disabled} onClick={() => {
-                    setScale(1);
-                    setPan({x: 0, y: 0})
-                }}><Icon name="collapse" size={15}/></IconButton>
-            </div>
-            {selected && <aside className="sky-node-panel">
-                <header><Kicker size={9} spacing="2.5px" color="var(--accent)">{selected.kind}</Kicker><IconButton
-                    title="Close details" onClick={() => setSelectedId(null)}><Icon name="close"
-                                                                                    size={15}/></IconButton></header>
-                <h2>{selected.label}</h2><p>This panel presents graph context only. Runtime actions remain unavailable
-                until graph data has a backend contract.</p></aside>}
-        </div>
-    </div></div>
-}
-
-/** Production adapter: graph data has no backend contract, so the renderer receives no model. */
-export function SkyPage() {
-    return <SkyView model={null} disabled/>
+    </div>
 }

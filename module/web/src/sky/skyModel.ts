@@ -1,6 +1,6 @@
 import {constellationColor} from '@uliss/design-system'
 import type {Sky} from '../constellations/constellationApi'
-import {buildConstellationTree, type ConstellationNode} from '../constellations/constellationTree'
+import {buildConstellationTree, type ConstellationTree} from '../constellations/constellationTree'
 
 /**
  * The sky is the constellation tree drawn from the user outwards: YOU → root → sub-constellation → star (by the star's
@@ -42,8 +42,7 @@ export interface SkyGraph {
     edges: SkyEdge[]
     byId: Map<string, SkyNode>
     starCount: number
-    /** Every constellation, ancestors listed root first. */
-    constellations: Map<string, ConstellationNode>
+    tree: ConstellationTree
 }
 
 /** Builds the full graph from the snapshot; every view is a subset of it. */
@@ -123,7 +122,7 @@ export function buildSkyGraph(sky: Sky): SkyGraph {
         edges,
         byId: new Map(nodes.map((node) => [node.id, node])),
         starCount: nodes.length - 1 - tree.flat.length,
-        constellations: tree.byId,
+        tree,
     }
 }
 
@@ -171,7 +170,7 @@ export function subgraph(graph: SkyGraph, view: SkyView, focusId: string | null 
 export function inBranch(graph: SkyGraph, node: SkyNode, constellationId: string): boolean {
     if (node.kind === 'you') return true
     return node.constellationIds.some((id) =>
-        id === constellationId || (graph.constellations.get(id)?.ancestors.some((a) => a.id === constellationId) ?? false))
+        id === constellationId || (graph.tree.byId.get(id)?.ancestors.some((a) => a.id === constellationId) ?? false))
 }
 
 /**

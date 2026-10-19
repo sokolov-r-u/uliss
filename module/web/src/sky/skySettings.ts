@@ -103,21 +103,25 @@ export function parseSkySettings(raw: unknown): SkySettings {
     }
 }
 
+/** The last written settings, for a browser without storage: they last until the page reloads. */
+let lastWritten: SkySettings | null = null
+
 export function readSkySettings(): SkySettings {
     try {
         const raw = localStorage.getItem(KEY)
-        if (!raw) return DEFAULT_SKY_SETTINGS
+        if (!raw) return lastWritten ?? DEFAULT_SKY_SETTINGS
         const stored: unknown = JSON.parse(raw)
         // A future version may rename fields; values this version still knows are kept.
         const values = typeof stored === 'object' && stored !== null && 'values' in stored
             ? (stored as { values: unknown }).values : stored
         return parseSkySettings(values)
     } catch {
-        return DEFAULT_SKY_SETTINGS
+        return lastWritten ?? DEFAULT_SKY_SETTINGS
     }
 }
 
 export function writeSkySettings(settings: SkySettings): void {
+    lastWritten = settings
     try {
         localStorage.setItem(KEY, JSON.stringify({version: VERSION, values: settings}))
     } catch {

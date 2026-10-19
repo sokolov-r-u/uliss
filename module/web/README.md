@@ -25,7 +25,7 @@ uses a mobile screen TopBar and drawer below 768px, a permanent compact rail fro
 collapsible/resizable sidebar from 1024px. Routes cover chats, notes,
 constellations, sky, updates, search, and settings; unknown routes return to chats.
 
-Sky, updates, and search currently have no complete backend. Their screens use design-system empty
+Updates and search currently have no complete backend. Their screens use design-system empty
 states instead of simulated data. Notes use the note-service list, detail, and authenticated status-stream contracts. A status stream that ends
 without `READY`/`FAILED` (the service closes it after 10 minutes) is re-read and reconnected while the note is still
 generating, up to `MAX_STATUS_RECONNECTS` times per load. A `READY` note with `updating: true` keeps its content
@@ -34,10 +34,18 @@ Appearance settings are functional and persisted locally; other settings remain 
 current APIs.
 
 Those backend-less areas are split into typed, data-independent view components and production adapters.
-`NoteViewModel`,
-`SkyGraphModel`, and `UpdateViewModel` are frontend-only composition models, not future DTOs.
-The views include populated list/menu/dialog, search, graph pan/zoom/panel, and update queue/filter/Undo
+`NoteViewModel` and `UpdateViewModel` are frontend-only composition models, not future DTOs.
+The views include populated list/menu/dialog, search, and update queue/filter/Undo
 presentation; production adapters pass empty collections or no graph model until real endpoints exist.
+
+## Sky
+
+`sky/` draws `GET /note/sky` as one live graph around YOU: `skyModel` builds the full graph (YOU → root →
+sub-constellation → star by its main constellation → sub-star; secondary edges to a star's other constellations) and
+the view subsets (Skeleton, Focus with depth 1–3, Full); `skyLayout` runs the `d3-force` layout, where stars with no
+place are pushed to a rim that grows with the number of stars; `SkyCanvas` paints it in screen space with zoom, pan,
+pinch, star dragging, Names, the replay (`run`) and the branch filter dimming. Sky settings (`skySettings`) are words
+translated to coefficients in one table and are stored per device under `uliss.sky`.
 
 ## Constellations
 

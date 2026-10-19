@@ -117,3 +117,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   note first counts its sub-notes; with any, the dialog offers Keep sub-notes (default) or Delete all, and a
   `NOTE_HAS_SUB_NOTES` refusal recounts and asks.
 - **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 3.
+
+## 2026-10-20 — The sky renderer
+
+- **Context:** the Sky screen draws the user's constellations and notes as a live force graph (PROT Sky, board 17).
+- **Decision:** the renderer lives in `module/web/src/sky`, not the design system: it is one screen bound to the sky
+  snapshot. Physics is `d3-force` alone (not all of `d3`), pinned to an exact version. Every view is a subset of one
+  graph built from `GET /note/sky`; each view keeps its own last positions, so a reload or a mode switch does not
+  throw the layout away, and a fresh view is solved to rest synchronously before its first frame. The canvas paints
+  in screen space from world positions, so marks and names keep their size at any zoom. Stars with no place get no
+  edge and a radial rim force: the rim lies beyond the farthest placed node by a gap growing with √(stars), with a
+  floor for an almost empty sky; its coefficients live in `skyModel.rimRadius` and are not a setting. A star in
+  several constellations is split into sectors when the user turns Mix colours on. Sky settings are per device
+  (`localStorage`, versioned, merged with defaults).
+- **Consequences:** SVG plus a React render per tick is enough for hundreds of stars; thousands need Canvas or a
+  worker (`docs/TECH_DEBT.md`). Positions are not kept between visits, so the sky can open slightly differently
+  after notes change.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 3.

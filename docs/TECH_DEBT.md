@@ -645,3 +645,11 @@ serve HTTPS — and drop the `proxy_hide_header`; keep dev hosts out of the prod
 - `NoteHierarchyService.search` and `getPlace` load every note of the user (id, parent, title, age) per call; the
   picker searches after each typing pause. Fine for thousands of notes; at scale, search in SQL (`ILIKE … LIMIT`)
   and read ancestors of the hits with a recursive query. Source: `docs/tasks/2026-10-19-constellations-subnotes.md`.
+
+## Sky performance and stable layout (`web`)
+
+**Status:** deferred from `docs/tasks/2026-10-20-sky.md`. The sky is SVG with a React render per simulation tick and
+a synchronous pre-solve of a fresh view: fine for hundreds of stars, slow from about a thousand. Move painting to
+Canvas and the layout to a Web Worker when real skies get there. Positions are not kept between visits either, so a
+sky can open a little differently after its notes change; cache the last positions per device (next to the sky
+settings) if users miss their bearings.

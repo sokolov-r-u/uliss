@@ -25,27 +25,6 @@ export interface SearchViewModel {
     chats: SearchChatViewModel[]
 }
 
-export interface SkyGraphNode {
-    id: string
-    label: string
-    x: number
-    y: number
-    radius: number
-    color?: string
-    kind: 'you' | 'constellation' | 'note'
-}
-
-export interface SkyGraphEdge {
-    from: string
-    to: string
-    secondary?: boolean
-}
-
-export interface SkyGraphModel {
-    nodes: SkyGraphNode[]
-    edges: SkyGraphEdge[]
-}
-
 export interface UpdateViewModel {
     id: string
     category: 'link' | 'note' | 'pattern'

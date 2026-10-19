@@ -1,6 +1,5 @@
 import type {Chat, ChatMessage} from '../src/chat/chatApi'
 import type {Note} from '../src/notes/noteApi'
-import type {SkyGraphModel} from '../src/views/models'
 
 // Fixed clock in the specs: 2026-06-24 12:00 UTC. Dates below land in Today / Yesterday / This week / June / May.
 const at = (day: string) => `2026-${day}T09:00:00Z`
@@ -36,32 +35,6 @@ export const NOTES: Note[] = [
         content: 'Old fear: a smaller box means a smaller self. Untrue, mostly.'},
     {id: 'failed', source: 'CHAT_SUMMARY', status: 'FAILED', content: null, createdAt: at('05-02')},
 ]
-
-export const SKY: SkyGraphModel = {
-    nodes: [
-        {id: 'you', label: 'You', x: 500, y: 350, radius: 10, kind: 'you'},
-        {
-            id: 'creative',
-            label: 'Creative constraint',
-            x: 300,
-            y: 210,
-            radius: 8,
-            color: '#d99a4e',
-            kind: 'constellation'
-        },
-        {id: 'attention', label: 'Attention', x: 730, y: 240, radius: 8, color: '#5c8a72', kind: 'constellation'},
-        {id: 'n142', label: 'The empty room', x: 180, y: 120, radius: 5, kind: 'note'},
-        {id: 'n141', label: 'A grammar for mornings', x: 260, y: 390, radius: 5, kind: 'note'},
-        {id: 'n139', label: 'Notes on forgetting', x: 820, y: 150, radius: 5, kind: 'note'},
-        {id: 'n137', label: 'Why I resisted it', x: 760, y: 470, radius: 5, kind: 'note'},
-    ],
-    edges: [
-        {from: 'you', to: 'creative'}, {from: 'you', to: 'attention'},
-        {from: 'creative', to: 'n142'}, {from: 'creative', to: 'n141'},
-        {from: 'attention', to: 'n139'}, {from: 'attention', to: 'n137'},
-        {from: 'n141', to: 'attention', secondary: true},
-    ],
-}
 
 /** A stored constellation as the note service keeps it: a root has a hue, a sub-constellation a lightness. */
 export interface StoredConstellation {

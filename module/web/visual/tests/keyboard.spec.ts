@@ -13,8 +13,8 @@ test('disabled onboarding primary cannot activate and native field accepts input
 })
 
 test('listbox supports arrows, Enter, Escape and focus restoration', async ({page}) => {
-    await page.goto('/visual/index.html?scenario=sky-populated')
-    const trigger = page.getByRole('button', {name: 'Filter by constellation'})
+    await page.goto('/visual/index.html?scenario=select')
+    const trigger = page.getByRole('button', {name: 'Pick a constellation'})
     await trigger.focus()
     await trigger.press('ArrowDown')
     const listbox = page.getByRole('listbox')
