@@ -26,7 +26,20 @@ const scenarios: Scenario[] = [
         act: (page) => page.getByRole('button', {name: 'Actions for The empty room'}).click(),
     },
     {name: 'note', route: '/notes/n1'},
-    {name: 'constellations-empty', route: '/constellations'},
+    {name: 'constellations-empty', route: '/constellations', query: 'data=empty'},
+    {name: 'constellations-tree', route: '/constellations'},
+    {
+        name: 'constellations-branch', route: '/constellations',
+        act: (page) => page.getByRole('button', {name: /^Music/}).click(),
+    },
+    {
+        name: 'constellations-colour', route: '/constellations', only: 'desktop',
+        act: async (page) => {
+            await page.getByRole('button', {name: /^Music/}).click()
+            await page.getByRole('button', {name: /^Jazz/}).click()
+            await page.getByRole('button', {name: 'Change colour'}).click()
+        },
+    },
     {name: 'sky-empty', route: '/sky'},
     {name: 'updates-empty', route: '/updates'},
     {name: 'search-empty', route: '/search'},

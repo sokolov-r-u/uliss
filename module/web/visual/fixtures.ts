@@ -62,3 +62,22 @@ export const SKY: SkyGraphModel = {
         {from: 'n141', to: 'attention', secondary: true},
     ],
 }
+
+/** A stored constellation as the note service keeps it: a root has a hue, a sub-constellation a lightness. */
+export interface StoredConstellation {
+    id: string
+    parentId: string | null
+    name: string
+    hue: number | null
+    lightness: 'DEEP' | 'BASE' | 'LIGHT' | 'PALE' | null
+}
+
+export const CONSTELLATIONS: StoredConstellation[] = [
+    {id: 'k-music', parentId: null, name: 'Music', hue: 264, lightness: null},
+    {id: 'k-jazz', parentId: 'k-music', name: 'Jazz', hue: null, lightness: 'LIGHT'},
+    {id: 'k-miles', parentId: 'k-jazz', name: 'Miles', hue: null, lightness: 'PALE'},
+    {id: 'k-ambient', parentId: 'k-music', name: 'Ambient', hue: null, lightness: 'LIGHT'},
+    {id: 'k-films', parentId: null, name: 'Films', hue: 22, lightness: null},
+    {id: 'k-noir', parentId: 'k-films', name: 'Noir', hue: null, lightness: 'DEEP'},
+    {id: 'k-fear', parentId: null, name: 'Fear', hue: 152, lightness: null},
+]

@@ -54,7 +54,8 @@ export function ConstellationPicker({
                                     }: ConstellationPickerProps) {
     const [query, setQuery] = useState('')
     const excluded = new Set(exclude ?? [])
-    const needle = query.trim().replace(/\s+/g, ' ').toLowerCase()
+    const typed = query.trim().replace(/\s+/g, ' ')
+    const needle = typed.toLowerCase()
     const hits = items.filter((item) => !excluded.has(item.id)
         && (!needle || [...item.path, item.name].some((name) => name.toLowerCase().includes(needle))))
     const canCreate = onCreate != null && needle !== '' && !items.some((item) => item.name.toLowerCase() === needle)
@@ -90,8 +91,8 @@ export function ConstellationPicker({
         })),
         ...(canCreate ? [{
             key: 'create',
-            node: <span style={{...ROW_TEXT, color: 'var(--accent-2)'}}>Create “{query.trim()}”</span>,
-            onSelect: () => onCreate(query.trim().replace(/\s+/g, ' ')),
+            node: <span style={{...ROW_TEXT, color: 'var(--accent-2)'}}>Create “{typed}”</span>,
+            onSelect: () => onCreate(typed),
         }] : []),
     ]
 
