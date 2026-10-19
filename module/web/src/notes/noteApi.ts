@@ -184,16 +184,24 @@ export function notifyNotesChanged() {
 }
 
 /** Creates the chat's first note, or with [updateNoteId] appends to its current note. */
+/**
+ * Starts a summary: an update of [updateNoteId], or a new note placed in [constellationId] as its main constellation
+ * (a new note without one has no place). A missing constellation fails with code `CONSTELLATION_NOT_FOUND`.
+ */
 export async function requestChatSummary(
     chatId: string,
     idempotencyKey: string,
     updateNoteId?: string,
+    constellationId?: string,
 ): Promise<ChatSummaryResponse> {
-    const init: RequestInit = updateNoteId
+    const body = updateNoteId
+        ? {mode: 'UPDATE', targetNoteId: updateNoteId}
+        : constellationId ? {mode: 'CREATE', constellationId} : null
+    const init: RequestInit = body
         ? {
             method: 'POST',
             headers: {'Idempotency-Key': idempotencyKey, 'Content-Type': 'application/json'},
-            body: JSON.stringify({mode: 'UPDATE', targetNoteId: updateNoteId}),
+            body: JSON.stringify(body),
         }
         : {method: 'POST', headers: {'Idempotency-Key': idempotencyKey}}
     const response = await fetchNotes(`/note/chats/${chatId}/summarize`, init)

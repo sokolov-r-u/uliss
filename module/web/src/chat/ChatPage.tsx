@@ -7,6 +7,7 @@ import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
+import {SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
     type Chat,
@@ -143,6 +144,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
+    /** Bumped when a picked constellation turned out deleted, so the place picker reloads the tree. */
+    const [placeRevision, setPlaceRevision] = useState(0)
     const [acceptedSummary, setAcceptedSummary] = useState<{ noteId: string, update: boolean } | null>(null)
     const streamAbortRef = useRef<AbortController | null>(null)
     const olderAbortRef = useRef<AbortController | null>(null)
@@ -607,7 +610,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         void executeChatRequest(pendingRequest, target, placeholderId)
     }
 
-    async function confirmSummary() {
+    /** [constellationId] places a new note; an update keeps the note's place. */
+    async function confirmSummary(constellationId?: string) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const target = summaryState
         const requestId = summaryRequestIdRef.current + 1
@@ -626,7 +630,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setSummaryPending(true)
         setSummaryError(null)
         try {
-            const summary = await requestChatSummary(chatId, idempotencyKey, target?.noteId)
+            const summary = target
+                ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
+                : await requestChatSummary(chatId, idempotencyKey, undefined, constellationId)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -655,6 +661,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             }
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
+            if (error instanceof NoteApiError && error.code === 'CONSTELLATION_NOT_FOUND') {
+                setSummaryError('That constellation no longer exists. Pick another one or skip for now.')
+                setPlaceRevision((value) => value + 1)
+                return
+            }
             if (error instanceof NoteApiError && error.status === 409) {
                 setSummaryError(target
                     ? 'The note changed or is already being updated. Try again in a moment.'
@@ -743,21 +754,36 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     : undefined}/>
             {summaryDialog && <NoticeOverlay blocking={summaryPending}
                                              onBackdropClick={() => setSummaryDialog(false)}>
-                <Notice
+                {updateTarget ? <Notice
                     title={summaryTitle}
-                    body={<>{summaryError
+                    body={summaryError
                         ? <span className="chat-summary-error">{summaryError}</span>
-                        : updateTarget
-                            ? 'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.'
-                            : 'Uliss will create a permanent note in the background from the conversation saved so far.'}</>}
-                    primary={summaryPending
-                        ? (updateTarget ? 'Updating…' : 'Creating…')
-                        : (updateTarget ? 'Update note' : 'Create summary')}
+                        : 'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.'}
+                    primary={summaryPending ? 'Updating…' : 'Update note'}
                     secondary={summaryPending ? undefined : 'Cancel'}
                     busy={summaryPending}
                     primaryDisabled={summaryPending}
                     onPrimary={() => void confirmSummary()}
                     onSecondary={() => setSummaryDialog(false)}/>
+                    // The picker's own action starts the summary, so the notice shows no primary button of its own.
+                    : <Notice
+                        title={summaryTitle}
+                        width={360}
+                        body={summaryError
+                            ? <span className="chat-summary-error">{summaryError}</span>
+                            : summaryPending
+                                ? 'Starting the summary…'
+                                : 'Choose where the note will live. Uliss writes it in the background from the conversation saved so far.'}
+                        primary=""
+                        secondary={summaryPending ? undefined : 'Skip for now'}
+                        busy={summaryPending}
+                        onSecondary={() => void confirmSummary()}>
+                        <SummaryPlacePicker busy={summaryPending} revision={placeRevision}
+                                            onPick={(id) => void confirmSummary(id)}
+                                            onClose={() => {
+                                                if (!summaryPendingRef.current) setSummaryDialog(false)
+                                            }}/>
+                    </Notice>}
             </NoticeOverlay>}
         </div>
             {chatMeta && <ContextPanel label="This chat" open={panelOpen} onClose={closePanel}>
