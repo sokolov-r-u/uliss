@@ -4,6 +4,8 @@
  * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes; the
  * constellation tree lives in memory (`constellationsFake.ts`) and is empty with `?data=empty`. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
+ * Summarize creates a generating note in the picked place; `?summary=old` gives chat c1 a note that covers only its
+ * first answer, so Summarize offers an update.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -26,6 +28,26 @@ function json(body: unknown, status = 200): Response {
 }
 
 const constellations = createConstellationStore(empty)
+
+/** Chat id → its current summary note, as the latest message page reports it. */
+const summaries = new Map<string, { throughMessageId: string; noteId: string; noteTitle: string }>(
+    params.get('summary') === 'old' ? [['c1', {throughMessageId: 'm2', noteId: 'n1', noteTitle: 'The empty room'}]] : [])
+
+/** Starts a summary like the service: a new note is generating at once, in the picked place if any. */
+function summarize(chatId: string, body: string): Response {
+    const request = body ? JSON.parse(body) as { mode: string; targetNoteId?: string; constellationId?: string } : null
+    if (request?.mode === 'UPDATE') return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
+    const noteId = `summary-${chatId}`
+    if (request?.constellationId && constellations.addPlace(noteId, request.constellationId).status === 404) {
+        return json({code: 'CONSTELLATION_NOT_FOUND'}, 404)
+    }
+    const title = CHATS.find((item) => item.id === chatId)?.title ?? 'Summary'
+    NOTES.unshift({id: noteId, source: 'CHAT_SUMMARY', status: 'GENERATING', title, content: null,
+        createdAt: '2026-06-24T11:30:00Z'})
+    const messages = CHAT_MESSAGES[chatId] ?? []
+    summaries.set(chatId, {throughMessageId: messages[messages.length - 1]?.id ?? '', noteId, noteTitle: title})
+    return json({noteId, chatId, status: 'GENERATING'}, 202)
+}
 
 function constellationResponse(path: string, method: string, body: string, search: URLSearchParams): Response | null {
     const answer = (result: { status: number; body: unknown }) => json(result.body, result.status)
@@ -136,7 +158,12 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         if (active) active.updatedAt = '2026-06-24T11:00:00Z'
         return openReplyStream(chatMessages[1], ['event:activity\ndata:SEARCHING_NOTES\n\n'])
     }
-    if (chatMessages) return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false})
+    if (chatMessages) {
+        return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false,
+            summary: summaries.get(chatMessages[1]) ?? null})
+    }
+    const summary = url.pathname.match(/^\/note\/chats\/([^/]+)\/summarize$/)
+    if (summary && method === 'POST') return summarize(summary[1], String(init?.body ?? ''))
 
     const chatNotes = url.pathname.match(/^\/note\/chats\/([^/]+)\/notes$/)
     if (chatNotes) {

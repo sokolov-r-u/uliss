@@ -81,6 +81,25 @@ describe('noteApi', () => {
         })
     })
 
+    it('creates a placed note with the chosen constellation in a CREATE body', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', undefined, 'jazz'))
+            .resolves.toMatchObject({noteId: 'note-1'})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1', 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'CREATE', constellationId: 'jazz'}),
+        })
+    })
+
+    it('carries the error code of a refused placed summary', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({code: 'CONSTELLATION_NOT_FOUND'}, 404))
+
+        await expect(requestChatSummary('chat-1', 'request-1', undefined, 'gone'))
+            .rejects.toMatchObject({kind: 'http', status: 404, code: 'CONSTELLATION_NOT_FOUND'})
+    })
+
     it('rejects an update response for another note', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-2', chatId: 'chat-1', status: 'READY'}, 202))
 
