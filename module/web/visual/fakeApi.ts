@@ -4,8 +4,9 @@
  * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes; the
  * constellation tree lives in memory (`constellationsFake.ts`) and is empty with `?data=empty`. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
- * Summarize creates a generating note in the picked place; `?summary=old` gives chat c1 a note that covers only its
- * first answer, so Summarize offers an update.
+ * Summarize creates a generating note in the picked place or under a picked note; `?summary=old` gives chat c1 a note
+ * that covers only its first answer, so Summarize offers an update. Notes can move under notes and back, and a note
+ * with sub-notes is deleted with a choice, as in the note service.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -27,7 +28,88 @@ function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
 }
 
-const constellations = createConstellationStore(empty)
+/** Sub-note → parent note; the fixture notes start as top notes. */
+const parents = new Map<string, string>()
+const childrenOf = (noteId: string) => [...parents].filter(([, parent]) => parent === noteId).map(([child]) => child)
+const subtreeOf = (noteId: string): string[] => [noteId, ...childrenOf(noteId).flatMap(subtreeOf)]
+const ancestorsOf = (noteId: string): string[] => {
+    const parent = parents.get(noteId)
+    return parent ? [...ancestorsOf(parent), parent] : []
+}
+const rootOf = (noteId: string) => ancestorsOf(noteId)[0] ?? noteId
+const withParent = <T extends { id: string }>(note: T) => ({...note, parentNoteId: parents.get(note.id) ?? null})
+const ref = (noteId: string) => ({id: noteId, title: NOTES.find((note) => note.id === noteId)?.title ?? null})
+
+const constellations = createConstellationStore(empty, subtreeOf)
+
+/** The place answer: parent notes from the top one down, and the top note's places. */
+function placeOf(noteId: string) {
+    return {ancestors: ancestorsOf(noteId).map(ref), constellations: constellations.placesOf(rootOf(noteId)).body}
+}
+
+/** Sub-note moves, search and deletes with a choice, as the note service answers them. */
+function hierarchyResponse(path: string, method: string, body: string, search: URLSearchParams): Response | null {
+    const notes = empty ? [] : NOTES
+    if (path === '/note/notes/search') {
+        const needle = (search.get('q') ?? '').trim().toLowerCase()
+        const excluded = search.get('exclude') ? subtreeOf(search.get('exclude')!) : []
+        return json(notes.filter((note) => needle && note.title?.toLowerCase().includes(needle) && !excluded.includes(note.id))
+            .map((note) => {
+                const main = constellations.placesOf(rootOf(note.id)).body.find((place) => place.main)
+                return {id: note.id, title: note.title, ancestors: ancestorsOf(note.id).map(ref),
+                    constellationId: main?.constellationId ?? null}
+            }))
+    }
+    const subNotes = path.match(/^\/note\/notes\/([^/]+)\/sub-notes$/)
+    if (subNotes) return json(notes.filter((note) => parents.get(note.id) === subNotes[1]).map(withParent))
+    const notePlace = path.match(/^\/note\/notes\/([^/]+)\/place$/)
+    if (notePlace) return json(placeOf(notePlace[1]))
+    const parent = path.match(/^\/note\/notes\/([^/]+)\/parent$/)
+    if (parent && method === 'PUT') {
+        const parentNoteId = JSON.parse(body).parentNoteId as string
+        if (!notes.some((note) => note.id === parentNoteId)) return json({code: 'PARENT_NOTE_NOT_FOUND'}, 404)
+        if (subtreeOf(parent[1]).includes(parentNoteId)) return json({code: 'NOTE_MOVE_CYCLE'}, 409)
+        constellations.setPlaces(parent[1], [])
+        parents.set(parent[1], parentNoteId)
+        return json(placeOf(parent[1]))
+    }
+    if (parent && method === 'DELETE') {
+        if (!parents.has(parent[1])) return json(placeOf(parent[1]))
+        const moveTo = search.get('moveTo')
+        if (moveTo && constellations.setPlaces(parent[1], [{constellationId: moveTo, main: true}]).status === 404) {
+            return json({code: 'CONSTELLATION_NOT_FOUND'}, 404)
+        }
+        parents.delete(parent[1])
+        return json(placeOf(parent[1]))
+    }
+    const note = path.match(/^\/note\/notes\/([^/]+)$/)
+    if (note && method === 'DELETE') {
+        const index = NOTES.findIndex((item) => item.id === note[1])
+        if (index < 0) return json({}, 404)
+        const children = childrenOf(note[1])
+        const fate = search.get('subNotes')
+        if (children.length > 0 && !fate) return json({code: 'NOTE_HAS_SUB_NOTES'}, 409)
+        const gone = fate === 'DELETE' ? subtreeOf(note[1]) : [note[1]]
+        if (fate === 'KEEP') {
+            const grandparent = parents.get(note[1])
+            const copied = constellations.placesOf(note[1]).body
+            children.forEach((child) => {
+                if (grandparent) parents.set(child, grandparent)
+                else {
+                    parents.delete(child)
+                    constellations.setPlaces(child, copied)
+                }
+            })
+        }
+        gone.forEach((id) => {
+            constellations.setPlaces(id, [])
+            parents.delete(id)
+            NOTES.splice(NOTES.findIndex((item) => item.id === id), 1)
+        })
+        return json(null, 204)
+    }
+    return null
+}
 
 /** Chat id → its current summary note, as the latest message page reports it. */
 const summaries = new Map<string, { throughMessageId: string; noteId: string; noteTitle: string }>(
@@ -35,11 +117,17 @@ const summaries = new Map<string, { throughMessageId: string; noteId: string; no
 
 /** Starts a summary like the service: a new note is generating at once, in the picked place if any. */
 function summarize(chatId: string, body: string): Response {
-    const request = body ? JSON.parse(body) as { mode: string; targetNoteId?: string; constellationId?: string } : null
+    const request = body
+        ? JSON.parse(body) as { mode: string; targetNoteId?: string; constellationId?: string; parentNoteId?: string }
+        : null
     if (request?.mode === 'UPDATE') return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
     const noteId = `summary-${chatId}`
     if (request?.constellationId && constellations.addPlace(noteId, request.constellationId).status === 404) {
         return json({code: 'CONSTELLATION_NOT_FOUND'}, 404)
+    }
+    if (request?.parentNoteId) {
+        if (!NOTES.some((note) => note.id === request.parentNoteId)) return json({code: 'PARENT_NOTE_NOT_FOUND'}, 404)
+        parents.set(noteId, request.parentNoteId)
     }
     const title = CHATS.find((item) => item.id === chatId)?.title ?? 'Summary'
     NOTES.unshift({id: noteId, source: 'CHAT_SUMMARY', status: 'GENERATING', title, content: null,
@@ -58,12 +146,14 @@ function constellationResponse(path: string, method: string, body: string, searc
     // Note places: the visual notes start without a constellation.
     const notes = empty ? [] : NOTES
     if (path === '/note/notes/without-constellation') {
-        return json(notes.filter((note) => !constellations.isPlaced(note.id)))
+        const loose = notes.filter((note) => !parents.has(note.id) && !constellations.isPlaced(note.id))
+            .flatMap((note) => subtreeOf(note.id))
+        return json(notes.filter((note) => loose.includes(note.id)).map(withParent))
     }
     const noteNotes = path.match(/^\/note\/constellations\/([^/]+)\/notes$/)
     if (noteNotes) {
         const ids = constellations.notesIn(noteNotes[1])
-        return json(notes.filter((note) => ids.includes(note.id)))
+        return json(notes.filter((note) => ids.includes(note.id)).map(withParent))
     }
     const deletion = path.match(/^\/note\/constellations\/([^/]+)\/deletion$/)
     if (deletion) return answer(constellations.deletion(deletion[1]))
@@ -74,11 +164,7 @@ function constellationResponse(path: string, method: string, body: string, searc
     const notePlaces = path.match(/^\/note\/notes\/([^/]+)\/constellations$/)
     if (notePlaces && method === 'POST') return answer(constellations.addPlace(notePlaces[1], JSON.parse(body).constellationId))
     if (notePlaces) return answer(constellations.placesOf(notePlaces[1]))
-    // Sub-notes: the visual notes are all top notes.
-    const notePlace = path.match(/^\/note\/notes\/([^/]+)\/place$/)
-    if (notePlace) return json({ancestors: [], constellations: constellations.placesOf(notePlace[1]).body})
-    if (/^\/note\/notes\/[^/]+\/sub-notes$/.test(path)) return json([])
-    if (path === '/note/notes/search') return json([])
+
     const move = path.match(/^\/note\/constellations\/([^/]+)\/move$/)
     if (move && method === 'POST') return answer(constellations.move(move[1], JSON.parse(body).parentId ?? null))
     const one = path.match(/^\/note\/constellations\/([^/]+)$/)
@@ -153,6 +239,8 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/user/users/me/onboarding') return method === 'GET' ? json(onboarding()) : json({})
     if (url.pathname === '/note/chats') return json(chats)
     if (url.pathname === '/note/notes') return json(notes)
+    const hierarchy = hierarchyResponse(url.pathname, method, String(init?.body ?? ''), url.searchParams)
+    if (hierarchy) return hierarchy
     const constellation = constellationResponse(url.pathname, method, String(init?.body ?? ''), url.searchParams)
     if (constellation) return constellation
 
@@ -207,7 +295,7 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         const found = NOTES.find((item) => item.id === note[1])
         if (!found) return json({}, 404)
         if (method === 'PUT') return json(saveEdit(found, String(init?.body)))
-        return json(found)
+        return json(withParent(found))
     }
     return json({}, 404)
 }

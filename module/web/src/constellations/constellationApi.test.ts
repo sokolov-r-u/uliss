@@ -6,10 +6,14 @@ import {
     createConstellation,
     deleteConstellation,
     getConstellationDeletion,
+    getNotePlace,
     listConstellations,
     listNoteConstellations,
     moveConstellation,
+    moveNoteOut,
+    moveNoteUnder,
     removeNoteConstellation,
+    searchNotes,
     setMainNoteConstellation,
     updateConstellation,
 } from './constellationApi'
@@ -137,5 +141,54 @@ describe('constellationApi', () => {
 
         expect(mockedFetch.mock.calls.slice(1).map(([path]) => path))
             .toEqual(['/note/constellations/m?moveTo=f', '/note/constellations/m'])
+    })
+
+    it('reads a note place and sends the moves under and out from under a note', async () => {
+        const place = {ancestors: [{id: 'bowie', title: 'Bowie'}, {id: 'draft', title: null}],
+            constellations: [{constellationId: 'rock', main: true}]}
+        mockedFetch.mockImplementation(async () => jsonResponse(place))
+
+        await expect(getNotePlace('low')).resolves.toEqual({
+            ancestors: [{id: 'bowie', title: 'Bowie'}, {id: 'draft'}],
+            constellations: [{constellationId: 'rock', main: true}],
+        })
+        await moveNoteUnder('low', 'bowie')
+        await moveNoteOut('low', 'films')
+        await moveNoteOut('low', null)
+
+        expect(mockedFetch.mock.calls.map(([path, init]) => [path, init?.method ?? 'GET', init?.body])).toEqual([
+            ['/note/notes/low/place', 'GET', undefined],
+            ['/note/notes/low/parent', 'PUT', JSON.stringify({parentNoteId: 'bowie'})],
+            ['/note/notes/low/parent?moveTo=films', 'DELETE', undefined],
+            ['/note/notes/low/parent', 'DELETE', undefined],
+        ])
+    })
+
+    it('carries the code of a refused move', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({code: 'NOTE_MOVE_CYCLE'}, 409))
+
+        await expect(moveNoteUnder('bowie', 'low')).rejects.toMatchObject({status: 409, code: 'NOTE_MOVE_CYCLE'})
+    })
+
+    it('searches notes without the moving one and reads their paths', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'low', title: 'Low', ancestors: [{id: 'bowie', title: 'Bowie'}], constellationId: 'rock'},
+            {id: 'loose', title: 'Loose & free', ancestors: [], constellationId: null},
+        ]))
+
+        const hits = await searchNotes('lo & fr', 'heroes')
+
+        expect(hits).toEqual([
+            {id: 'low', title: 'Low', ancestors: [{id: 'bowie', title: 'Bowie'}], constellationId: 'rock'},
+            {id: 'loose', title: 'Loose & free', ancestors: [], constellationId: null},
+        ])
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/search?q=lo+%26+fr&exclude=heroes', {signal: undefined})
+    })
+
+    it('rejects a malformed place or hit', async () => {
+        mockedFetch.mockResolvedValueOnce(jsonResponse({ancestors: [{title: 'No id'}], constellations: []}))
+        await expect(getNotePlace('low')).rejects.toMatchObject({kind: 'protocol'})
+        mockedFetch.mockResolvedValueOnce(jsonResponse([{id: 'low', title: '', ancestors: []}]))
+        await expect(searchNotes('low', null)).rejects.toMatchObject({kind: 'protocol'})
     })
 })

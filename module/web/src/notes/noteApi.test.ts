@@ -5,6 +5,7 @@ import {
     getNote,
     listChatNotes,
     listNotes,
+    listSubNotes,
     renameNote,
     requestChatSummary,
     streamNoteStatus,
@@ -98,6 +99,39 @@ describe('noteApi', () => {
 
         await expect(requestChatSummary('chat-1', 'request-1', undefined, 'gone'))
             .rejects.toMatchObject({kind: 'http', status: 404, code: 'CONSTELLATION_NOT_FOUND'})
+    })
+
+    it('creates a sub-note under the chosen parent note in a CREATE body', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'}, 202))
+
+        await requestChatSummary('chat-1', 'request-1', undefined, undefined, 'bowie')
+
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/summarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1', 'Content-Type': 'application/json'},
+            body: JSON.stringify({mode: 'CREATE', parentNoteId: 'bowie'}),
+        })
+    })
+
+    it('lists sub-notes with their parent and deletes a parent with the chosen fate of its sub-notes', async () => {
+        mockedFetch.mockResolvedValueOnce(jsonResponse([
+            {id: 'low', source: 'MANUAL', status: 'READY', title: 'Low', content: 'x', parentNoteId: 'bowie'},
+        ]))
+        const subNotes = await listSubNotes('bowie')
+        expect(subNotes.map((note) => [note.id, note.parentNoteId])).toEqual([['low', 'bowie']])
+        expect(mockedFetch).toHaveBeenLastCalledWith('/note/notes/bowie/sub-notes', {signal: undefined})
+
+        mockedFetch.mockResolvedValue(new Response(null, {status: 204}))
+        await deleteNote('bowie', 'KEEP')
+        expect(mockedFetch).toHaveBeenLastCalledWith('/note/notes/bowie?subNotes=KEEP', {method: 'DELETE'})
+        await deleteNote('loose')
+        expect(mockedFetch).toHaveBeenLastCalledWith('/note/notes/loose', {method: 'DELETE'})
+    })
+
+    it('carries the code of a delete that needs a choice for sub-notes', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({code: 'NOTE_HAS_SUB_NOTES'}, 409))
+
+        await expect(deleteNote('bowie')).rejects.toMatchObject({status: 409, code: 'NOTE_HAS_SUB_NOTES'})
     })
 
     it('rejects an update response for another note', async () => {

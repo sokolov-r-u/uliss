@@ -128,4 +128,62 @@ describe('ConstellationPicker', () => {
         expect(onPageKey).not.toHaveBeenCalled()
         document.removeEventListener('keydown', onPageKey)
     })
+
+    it('searches notes with the typed text and confirms a picked note with its own action', async () => {
+        const search = vi.fn(async (query: string) => query.toLowerCase().startsWith('lo')
+            ? [{id: 'low', title: 'Low', path: ['Music', 'Bowie'], color: 'red'}]
+            : [])
+        const onPick = vi.fn()
+        const onPickNote = vi.fn()
+        render(<ConstellationPicker items={ITEMS} action={add} onPick={onPick}
+                                    notes={{search, action: (title) => `Summarize under ${title}`, onPick: onPickNote}}/>)
+
+        expect(screen.getByRole('button', {name: 'Select a place'})).toBeDisabled()
+        await userEvent.type(screen.getByRole('textbox'), 'lo')
+
+        expect(await screen.findByRole('button', {name: /^Low/})).toHaveTextContent('Music › Bowie')
+        // The search waits for the typing to pause: one call for the final text only.
+        expect(search).toHaveBeenCalledTimes(1)
+        expect(search).toHaveBeenCalledWith('lo', expect.any(AbortSignal))
+        await userEvent.click(screen.getByRole('button', {name: /^Low/}))
+        await userEvent.click(screen.getByRole('button', {name: 'Summarize under Low'}))
+
+        expect(onPickNote).toHaveBeenCalledWith('low')
+        expect(onPick).not.toHaveBeenCalled()
+    })
+
+    it('swaps a picked note for a picked constellation', async () => {
+        const search = vi.fn(async () => [{id: 'jazz-note', title: 'Jazz night', path: []}])
+        render(<ConstellationPicker items={ITEMS} action={add} onPick={vi.fn()}
+                                    notes={{search, action: (title) => `Under ${title}`, onPick: vi.fn()}}/>)
+
+        await userEvent.type(screen.getByRole('textbox'), 'jazz')
+        await userEvent.click(await screen.findByRole('button', {name: /^Jazz night/}))
+        expect(screen.getByRole('button', {name: 'Under Jazz night'})).toBeEnabled()
+
+        await userEvent.click(screen.getByRole('button', {name: /^Jazz(?! night)/}))
+        expect(screen.getByRole('button', {name: 'Add to Jazz'})).toBeEnabled()
+        expect(screen.getByRole('button', {name: /^Jazz night/})).toHaveAttribute('aria-pressed', 'false')
+    })
+
+    it('is a note finder without constellations and reports a failed search', async () => {
+        const search = vi.fn(async () => {
+            throw new Error('down')
+        })
+        render(<ConstellationPicker items={[]} action={add} onPick={vi.fn()}
+                                    notes={{search, action: (title) => `Move under ${title}`, onPick: vi.fn()}}/>)
+
+        expect(screen.getByText('Type to find a note.')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Select a note'})).toBeDisabled()
+        await userEvent.type(screen.getByRole('textbox'), 'x')
+        expect(await screen.findByText('Could not search the notes')).toBeInTheDocument()
+    })
+
+    it('says nothing matches when neither constellations nor notes do', async () => {
+        render(<ConstellationPicker items={ITEMS} action={add} onPick={vi.fn()}
+                                    notes={{search: async () => [], action: (title) => title, onPick: vi.fn()}}/>)
+
+        await userEvent.type(screen.getByRole('textbox'), 'zzz')
+        expect(await screen.findByText('Nothing matches.')).toBeInTheDocument()
+    })
 })

@@ -15,7 +15,8 @@ interface Place {
 
 const PALETTE = [22, 42, 70, 88, 112, 152, 176, 200, 232, 264, 292, 316, 348]
 
-export function createConstellationStore(empty: boolean) {
+/** [subtreeOf] gives a note with all its sub-notes, which live where it lives and count with it. */
+export function createConstellationStore(empty: boolean, subtreeOf: (noteId: string) => string[] = (id) => [id]) {
     const rows: StoredConstellation[] = empty ? [] : CONSTELLATIONS.map((row) => ({...row}))
     let sequence = 0
     let clock = 0
@@ -39,7 +40,7 @@ export function createConstellationStore(empty: boolean) {
     const branchOf = (rootId: string): string[] =>
         [rootId, ...rows.filter((row) => row.parentId === rootId).flatMap((row) => branchOf(row.id))]
     const notesOf = (id: string) => [...places].filter(([, list]) => list.some((place) => place.id === id))
-        .map(([noteId]) => noteId)
+        .flatMap(([noteId]) => subtreeOf(noteId))
     const notesUnder = (id: string) => new Set(branchOf(id).flatMap(notesOf))
     const isAncestor = (above: string, below: string) => {
         const row = find(below)
@@ -163,5 +164,11 @@ export function createConstellationStore(empty: boolean) {
         notesIn: (id: string) => notesOf(id),
 
         isPlaced: (noteId: string) => places.has(noteId),
+
+        /** Replaces a note's places as they are (a sub-note moving out, kept sub-notes taking a copy). */
+        setPlaces(noteId: string, list: { constellationId: string; main: boolean }[]) {
+            if (list.some((place) => !find(place.constellationId))) return refusal(404, 'CONSTELLATION_NOT_FOUND')
+            return store(noteId, list.map((place) => ({id: place.constellationId, main: place.main, at: ++clock})))
+        },
     }
 }

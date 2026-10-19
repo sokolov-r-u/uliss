@@ -1,6 +1,8 @@
 import {render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {notifyNotesChanged} from '../notes/noteApi'
 import {
     addNoteConstellation,
     type Constellation,
@@ -8,8 +10,11 @@ import {
     createConstellation,
     getNotePlace,
     listConstellations,
+    moveNoteOut,
+    moveNoteUnder,
     type NoteMembership,
     removeNoteConstellation,
+    searchNotes,
     setMainNoteConstellation,
 } from './constellationApi'
 import {NoteConstellationSection} from './NoteConstellationSection'
@@ -24,7 +29,14 @@ vi.mock('./constellationApi', async (importOriginal) => {
         setMainNoteConstellation: vi.fn(),
         removeNoteConstellation: vi.fn(),
         createConstellation: vi.fn(),
+        moveNoteUnder: vi.fn(),
+        moveNoteOut: vi.fn(),
+        searchNotes: vi.fn(),
     }
+})
+vi.mock('../notes/noteApi', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../notes/noteApi')>()
+    return {...actual, notifyNotesChanged: vi.fn()}
 })
 
 function node(id: string, parentId: string | null, name: string): Constellation {
@@ -159,5 +171,90 @@ describe('NoteConstellationSection', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
 
         expect(await screen.findByRole('button', {name: /^Films/})).toBeInTheDocument()
+    })
+
+    describe('sub-notes', () => {
+        const SUB_TREE = [node('music', null, 'Music'), node('rock', 'music', 'Rock'), node('films', null, 'Films')]
+
+        async function renderSubNote() {
+            vi.mocked(listConstellations).mockResolvedValue(SUB_TREE)
+            vi.mocked(getNotePlace).mockResolvedValue({
+                ancestors: [{id: 'bowie', title: 'Bowie'}, {id: 'low', title: 'Low'}],
+                constellations: [place('rock', true)],
+            })
+            render(<MemoryRouter><NoteConstellationSection noteId="n1" noteTitle="Warszawa"/></MemoryRouter>)
+            await screen.findByRole('button', {name: 'Move out'})
+        }
+
+        it('shows the path through the parent notes and says the place is inherited', async () => {
+            await renderSubNote()
+
+            expect(screen.getByText(/Music ›/)).toBeInTheDocument()
+            expect(screen.getByRole('link', {name: 'Bowie'})).toHaveAttribute('href', '/notes/bowie')
+            expect(screen.getByRole('link', {name: 'Low'})).toHaveAttribute('href', '/notes/low')
+            expect(screen.getByText('Warszawa')).toBeInTheDocument()
+            expect(screen.getByText('Lives where Low lives.')).toBeInTheDocument()
+            expect(screen.queryByRole('button', {name: /^\+ Add/})).not.toBeInTheDocument()
+        })
+
+        it('moves out without a place through the lead row, and lists of notes refresh', async () => {
+            await renderSubNote()
+            vi.mocked(moveNoteOut).mockResolvedValue({ancestors: [], constellations: []})
+
+            await userEvent.click(screen.getByRole('button', {name: 'Move out'}))
+            await userEvent.click(screen.getByRole('button', {name: 'Leave without a place'}))
+
+            expect(moveNoteOut).toHaveBeenCalledWith('n1', null)
+            expect(await screen.findByText('Not in a constellation yet.')).toBeInTheDocument()
+            expect(notifyNotesChanged).toHaveBeenCalled()
+        })
+
+        it('moves out into a picked constellation', async () => {
+            await renderSubNote()
+            vi.mocked(moveNoteOut).mockResolvedValue({ancestors: [], constellations: [place('films', true)]})
+
+            await userEvent.click(screen.getByRole('button', {name: 'Move out'}))
+            await userEvent.click(screen.getByRole('button', {name: /^Films/}))
+            await userEvent.click(screen.getByRole('button', {name: 'Move to Films'}))
+
+            expect(moveNoteOut).toHaveBeenCalledWith('n1', 'films')
+            expect(await screen.findByRole('button', {name: 'Remove from Films'})).toBeInTheDocument()
+        })
+
+        it('moves a top note under a found note, which is never the note itself', async () => {
+            vi.mocked(listConstellations).mockResolvedValue(SUB_TREE)
+            vi.mocked(getNotePlace).mockResolvedValue({ancestors: [], constellations: [place('films', true)]})
+            vi.mocked(searchNotes).mockResolvedValue(
+                [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'rock'}])
+            vi.mocked(moveNoteUnder).mockResolvedValue(
+                {ancestors: [{id: 'bowie', title: 'Bowie'}], constellations: [place('rock', true)]})
+            render(<MemoryRouter><NoteConstellationSection noteId="n1" noteTitle="Low"/></MemoryRouter>)
+
+            await userEvent.click(await screen.findByRole('button', {name: 'Move under a note'}))
+            await userEvent.type(screen.getByRole('textbox', {name: 'Move this note under…'}), 'bo')
+            const hit = await screen.findByRole('button', {name: /^Bowie/})
+            expect(hit).toHaveTextContent('Music › Rock')
+            expect(searchNotes).toHaveBeenCalledWith('bo', 'n1', expect.any(AbortSignal))
+            await userEvent.click(hit)
+            await userEvent.click(screen.getByRole('button', {name: 'Move under Bowie'}))
+
+            expect(moveNoteUnder).toHaveBeenCalledWith('n1', 'bowie')
+            expect(await screen.findByRole('link', {name: 'Bowie'})).toBeInTheDocument()
+            expect(screen.getByText('Lives where Bowie lives.')).toBeInTheDocument()
+        })
+
+        it('explains a refused move', async () => {
+            await renderSubNote()
+            vi.mocked(searchNotes).mockResolvedValue([{id: 'x', title: 'Xtra', ancestors: [], constellationId: null}])
+            vi.mocked(moveNoteUnder).mockRejectedValue(
+                new ConstellationApiError('http', 'cycle', 409, undefined, 'NOTE_MOVE_CYCLE'))
+
+            await userEvent.click(screen.getByRole('button', {name: 'Move under another note'}))
+            await userEvent.type(screen.getByRole('textbox', {name: 'Find a note…'}), 'x')
+            await userEvent.click(await screen.findByRole('button', {name: /^Xtra/}))
+            await userEvent.click(screen.getByRole('button', {name: 'Move under Xtra'}))
+
+            expect(await screen.findByRole('alert')).toHaveTextContent('A note cannot go under itself or its own sub-notes.')
+        })
     })
 })

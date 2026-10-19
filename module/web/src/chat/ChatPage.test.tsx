@@ -24,6 +24,7 @@ import {
     ConstellationApiError,
     createConstellation,
     listConstellations,
+    searchNotes,
 } from '../constellations/constellationApi'
 
 vi.mock('./chatApi', () => ({
@@ -52,6 +53,7 @@ vi.mock('./streamChatReply', () => ({
 vi.mock('../constellations/constellationApi', () => ({
     listConstellations: vi.fn(() => Promise.resolve([])),
     createConstellation: vi.fn(),
+    searchNotes: vi.fn(() => Promise.resolve([])),
     ConstellationApiError: class ConstellationApiError extends Error {
         constructor(
             public readonly kind: string,
@@ -1088,6 +1090,37 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(within(dialog).getByRole('button', {name: 'Skip for now'}))
         await waitFor(() => expect(mockedSummary)
             .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined))
+    })
+
+    it('summarizes under a note found by its title', async () => {
+        vi.mocked(searchNotes).mockResolvedValue(
+            [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'music'}])
+        const dialog = await openPicker()
+
+        await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'bow')
+        const hit = await within(dialog).findByRole('button', {name: /^Bowie/})
+        expect(hit).toHaveTextContent('Music')
+        await userEvent.click(hit)
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Bowie'}))
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie'))
+        expect(searchNotes).toHaveBeenCalledWith('bow', null, expect.any(AbortSignal))
+    })
+
+    it('explains a deleted parent note and reloads the picker', async () => {
+        vi.mocked(searchNotes).mockResolvedValue([{id: 'gone', title: 'Gone', ancestors: [], constellationId: null}])
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
+            'PARENT_NOTE_NOT_FOUND'))
+        const dialog = await openPicker()
+
+        await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'gone')
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Gone/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Gone'}))
+
+        expect(await within(dialog).findByText('That note no longer exists. Pick another place or skip for now.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
     })
 
     it('updates a summarized chat without the place picker', async () => {
