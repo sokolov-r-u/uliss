@@ -86,7 +86,9 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 `202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status. An optional `constellationId`
 (CREATE only, otherwise `400`) makes that constellation the new note's main place in the same transaction, so the
 note lies in the branch while it is still `GENERATING` and keeps the place if generation fails. A missing or foreign
-constellation is `404 CONSTELLATION_NOT_FOUND` and nothing is reserved. A replayed key returns the original note with
+constellation is `404 CONSTELLATION_NOT_FOUND` and nothing is reserved. Instead of it (both at once are `400`), an
+optional `parentNoteId` makes the new note a sub-note of that note in the same transaction; a missing or foreign
+parent is `404 PARENT_NOTE_NOT_FOUND`. A replayed key returns the original note with
 its original place, whatever constellation the retry sends.
 
 A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
@@ -151,10 +153,12 @@ to the attempt. Search results are not persisted with the reply.
   `409 NOTE_NOT_READY`, all before the stream opens. Closing the connection cancels the provider call. Options:
   `note.ai-edit.reasoning-effort` / `verbosity`.
 - `DELETE /note/notes/{noteId}` returns `204` and deletes a note in any status with its RAG chunks, chat links, and
-  summary request; chats remain.
+  summary request; chats remain. A note with sub-notes needs `?subNotes=KEEP|DELETE` (`409 NOTE_HAS_SUB_NOTES`
+  without it): `KEEP` moves its direct sub-notes to its parent, or makes them top notes with a copy of its
+  constellations (main and joining times included); `DELETE` deletes the whole subtree the same way.
 
-Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, `updatedAt`, and
-`updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
+Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, `updatedAt`,
+nullable `parentNoteId`, and `updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
 after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
@@ -196,7 +200,25 @@ Notes belong to constellations through `note_constellation` (`NotePlacementServi
 - All three changes return the new list. A note with a parent note inherits its place:
   `409 NOTE_PLACE_INHERITED`. A missing or foreign note is `404`, a missing or foreign constellation
   `404 CONSTELLATION_NOT_FOUND`.
-- `GET /note/notes/without-constellation` returns notes with no constellation and no parent note, newest first.
+- `GET /note/notes/without-constellation` returns top notes with no constellation together with all their sub-notes,
+  newest first.
+
+Sub-notes (`NoteHierarchyService`, under the same per-user lock): a note has either constellations of its own or a
+parent note (`parentNoteId`), at any depth; it lives where its top note lives, so tree counts and "Notes here"
+(`GET /note/constellations/{id}/notes` returns the node's notes with all their sub-notes) include sub-notes, and a
+client nests them by `parentNoteId`.
+
+- `PUT /note/notes/{noteId}/parent` with `{parentNoteId}` moves the note under that note and drops its own
+  constellations; its sub-notes follow. Under itself or one of its descendants is `409 NOTE_MOVE_CYCLE`, a missing or
+  foreign parent `404 PARENT_NOTE_NOT_FOUND`. Returns the note's place.
+- `DELETE /note/notes/{noteId}/parent?moveTo=<constellationId>` moves a sub-note out: `moveTo` becomes its only, main
+  constellation; without it the note has no place. A top note is left as it is. Returns the place.
+- `GET /note/notes/{noteId}/place` returns `{ancestors: [{id, title}], constellations: [{constellationId, main}]}`:
+  parent notes from the top one down and the top note's constellations, main first.
+- `GET /note/notes/{noteId}/sub-notes` returns the direct sub-notes as `NoteResponse`, newest first.
+- `GET /note/notes/search?q=<text>&exclude=<noteId>` returns up to 20 titled notes whose title contains `q` regardless
+  of case (prefix matches first, then the newest), without `exclude` and its sub-notes, each as
+  `{id, title, ancestors, constellationId}` with the main constellation of its top note.
 
 Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` otherwise), unique regardless of case among
 roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own branch is

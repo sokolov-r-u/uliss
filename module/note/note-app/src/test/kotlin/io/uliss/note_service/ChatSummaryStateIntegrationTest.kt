@@ -15,6 +15,7 @@ import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteService
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -35,6 +36,9 @@ class ChatSummaryStateIntegrationTest {
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteHierarchyService: NoteHierarchyService
 
     @Autowired
     lateinit var chatRepository: ChatRepository
@@ -77,7 +81,7 @@ class ChatSummaryStateIntegrationTest {
         val older = linkNote(chat, NoteStatus.READY, "Older", first.id)
         val latest = linkNote(chat, NoteStatus.READY, "Latest", message(chat, "second").id)
 
-        noteService.deleteNote(userId, latest.id)
+        noteHierarchyService.delete(userId, latest.id, null)
 
         assertEquals(older.id, noteService.findCurrentChatSummary(chat.id)?.noteId)
     }

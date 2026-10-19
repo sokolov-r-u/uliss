@@ -4,15 +4,20 @@ import io.uliss.note_service.dto.internal.NoteAiEditEvent
 import io.uliss.note_service.dto.request.AddNoteConstellationRequest
 import io.uliss.note_service.dto.request.AiEditNoteRequest
 import io.uliss.note_service.dto.request.MainNoteConstellationRequest
+import io.uliss.note_service.dto.request.MoveUnderNoteRequest
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.UpdateNoteRequest
 import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.NoteConstellationResponse
+import io.uliss.note_service.dto.response.NotePlaceResponse
 import io.uliss.note_service.dto.response.NoteResponse
+import io.uliss.note_service.dto.response.NoteSearchHitResponse
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.dto.response.toResponse
+import io.uliss.note_service.model.SubNoteFate
 import io.uliss.note_service.service.NoteAiEditService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.NoteFacade
@@ -34,6 +39,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
@@ -45,6 +51,7 @@ class NoteController(
     private val noteFacade: NoteFacade,
     private val noteAiEditService: NoteAiEditService,
     private val notePlacementService: NotePlacementService,
+    private val noteHierarchyService: NoteHierarchyService,
 ) {
 
     @GetMapping
@@ -55,6 +62,15 @@ class NoteController(
     @GetMapping("/without-constellation")
     fun getNotesWithoutConstellation(@AuthenticationPrincipal jwt: Jwt): List<NoteResponse> =
         noteService.getNotesWithoutConstellation(jwt.getUserId())
+
+    /** Titled notes for the place picker; [exclude] leaves out the moving note and its sub-notes. */
+    @GetMapping("/search")
+    fun searchNotes(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam q: String,
+        @RequestParam(required = false) exclude: UUID?,
+    ): List<NoteSearchHitResponse> =
+        noteHierarchyService.search(jwt.getUserId(), q, exclude).map { it.toResponse() }
 
     @GetMapping("/{noteId}")
     fun getNote(
@@ -72,6 +88,34 @@ class NoteController(
         @PathVariable noteId: UUID,
     ): List<NoteConstellationResponse> =
         notePlacementService.getMemberships(jwt.getUserId(), noteId).map { it.toResponse() }
+
+    /** Where the note lives: its parent notes and the constellations of its top note. */
+    @GetMapping("/{noteId}/place")
+    fun getNotePlace(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): NotePlaceResponse =
+        noteHierarchyService.getPlace(jwt.getUserId(), noteId).toResponse()
+
+    /** The note's direct sub-notes, newest first. */
+    @GetMapping("/{noteId}/sub-notes")
+    fun getSubNotes(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): List<NoteResponse> =
+        noteService.getSubNotes(jwt.getUserId(), noteId)
+
+    /** Moves the note under another note; it drops its own constellations and lives where the parent lives. */
+    @PutMapping("/{noteId}/parent")
+    fun moveNoteUnder(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: MoveUnderNoteRequest,
+    ): NotePlaceResponse =
+        // Validated as @NotNull before the call.
+        noteHierarchyService.moveUnder(jwt.getUserId(), noteId, checkNotNull(request.parentNoteId)).toResponse()
+
+    /** Moves a sub-note out: into [moveTo] as its only, main constellation, or without a place. */
+    @DeleteMapping("/{noteId}/parent")
+    fun moveNoteOut(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @RequestParam(required = false) moveTo: UUID?,
+    ): NotePlaceResponse = noteHierarchyService.moveOut(jwt.getUserId(), noteId, moveTo).toResponse()
 
     /** Adds the note to a constellation; the first one becomes main. Returns the note's constellations. */
     @PostMapping("/{noteId}/constellations")
@@ -135,10 +179,15 @@ class NoteController(
             .map(::toServerSentEvent)
             .withHeartbeat(STREAM_HEARTBEAT_INTERVAL)
 
+    /** A note with sub-notes needs [subNotes]: keep them in its place or delete the whole subtree. */
     @DeleteMapping("/{noteId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun deleteNote(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID) {
-        noteService.deleteNote(jwt.getUserId(), noteId)
+    fun deleteNote(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @RequestParam(required = false) subNotes: SubNoteFate?,
+    ) {
+        noteHierarchyService.delete(jwt.getUserId(), noteId, subNotes)
     }
 
     @GetMapping("/{noteId}/status/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])

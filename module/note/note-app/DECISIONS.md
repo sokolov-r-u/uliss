@@ -297,3 +297,21 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** like the constellation tree, the hierarchy is loaded whole per change or search, which assumes
   thousands of notes per user, not millions.
 - **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 1.
+
+## 2026-10-19 — Moving notes under notes, and deleting a parent with a choice
+
+- **Decision:** `NoteHierarchyService` changes parent links under the user's tree lock, the same lock as
+  constellations and memberships, against a fresh snapshot: two opposite moves cannot close a cycle and a parent
+  cannot be deleted under a new sub-note. `PUT /notes/{id}/parent` drops the note's own memberships;
+  `DELETE /notes/{id}/parent?moveTo=` ("Move out") makes `moveTo` the only, main place or leaves the note without one,
+  and does nothing for a top note, so a retry is harmless. A cycle is `409 NOTE_MOVE_CYCLE`; a missing parent is
+  `404 PARENT_NOTE_NOT_FOUND`, a code of its own so the client tells it from the missing note. Summarize takes
+  `parentNoteId` as an alternative to `constellationId` (both: `400`) and hangs the `GENERATING` note in the request's
+  transaction, like a constellation. Deleting a note with sub-notes needs `?subNotes=KEEP|DELETE`; without it
+  `409 NOTE_HAS_SUB_NOTES`, so a sub-note created after the dialog opened is never lost silently. `KEEP` moves the
+  direct sub-notes to the note's parent, or makes them top notes with a copy of its memberships with their joining
+  times, so later promotions follow the same order (`NoteRemoval.keepSubNotes`). `DELETE` removes the whole subtree in
+  one statement; FK cascades take chat links, summary requests, memberships and RAG chunks, and chats stay.
+- **Consequences:** deleting a note moved from `NoteService` to `NoteHierarchyService`. The picker's note search is
+  server-side over the same snapshot (up to 20 hits, prefix matches first), each hit with its path.
+- **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 2.

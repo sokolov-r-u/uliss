@@ -51,6 +51,7 @@ class NoteService(
     private val objectMapper: ObjectMapper,
     private val constellationRepository: ConstellationRepository,
     private val notePlacementService: NotePlacementService,
+    private val noteHierarchyService: NoteHierarchyService,
 ) {
 
     fun getNotes(userId: UUID): List<NoteResponse> {
@@ -121,8 +122,8 @@ class NoteService(
     /**
      * Persists the user-visible placeholder and its durable generation request together. The
      * summary worker later replaces the placeholder content and queues indexing after success.
-     * A [constellationId] becomes the new note's main place in the same transaction; a replayed key keeps the place
-     * of its original request.
+     * A [constellationId] becomes the new note's main place, or a [parentNoteId] its parent, in the same transaction;
+     * a replayed key keeps the place of its original request.
      */
     @Transactional
     fun requestChatSummary(
@@ -131,6 +132,7 @@ class NoteService(
         throughMessageId: UUID,
         idempotencyKey: UUID,
         constellationId: UUID? = null,
+        parentNoteId: UUID? = null,
     ): NoteEntity {
         val candidateNote = NoteEntity(
             userId = userId,
@@ -151,6 +153,7 @@ class NoteService(
         noteRepository.saveAndFlush(candidateNote)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
+        parentNoteId?.let { noteHierarchyService.moveUnder(userId, candidateNote.id, it) }
         val payload = objectMapper.writeValueAsString(
             NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
         )
@@ -296,10 +299,10 @@ class NoteService(
         if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
     }
 
-    /** FK cascades remove the note's RAG chunks, chat links and summary request; chats survive. */
-    @Transactional
-    fun deleteNote(userId: UUID, noteId: UUID) {
-        noteRepository.delete(getOwnedNote(userId, noteId))
+    /** The owned note's direct sub-notes, newest first. */
+    fun getSubNotes(userId: UUID, noteId: UUID): List<NoteResponse> {
+        getOwnedNote(userId, noteId)
+        return toResponses(userId) { noteRepository.findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId, noteId) }
     }
 
     /** Pending requests are read before the notes, as in [isUpdating]. */

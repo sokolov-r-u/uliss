@@ -8,4 +8,6 @@ data class SummarizeRequest(
     val targetNoteId: UUID? = null,
     /** The main constellation of the new note (CREATE only); null leaves it without a place. */
     val constellationId: UUID? = null,
+    /** The parent note of the new note (CREATE only, not with [constellationId]); it lives where the parent lives. */
+    val parentNoteId: UUID? = null,
 )

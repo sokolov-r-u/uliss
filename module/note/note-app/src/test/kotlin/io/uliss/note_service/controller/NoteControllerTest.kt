@@ -1,5 +1,13 @@
 package io.uliss.note_service.controller
 
+import io.uliss.note_service.dto.internal.NotePlace
+import io.uliss.note_service.dto.internal.NoteSearchHit
+import io.uliss.note_service.exception.NoteHasSubNotesException
+import io.uliss.note_service.exception.NoteMoveCycleException
+import io.uliss.note_service.model.SubNoteFate
+import io.uliss.note_service.model.projection.NoteMembership
+import io.uliss.note_service.model.projection.NoteNode
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.exception.common.NotFoundException
 import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.note_service.dto.internal.NoteAiEditEvent
@@ -62,6 +70,9 @@ class NoteControllerTest {
 
     @MockitoBean
     lateinit var notePlacementService: NotePlacementService
+
+    @MockitoBean
+    lateinit var noteHierarchyService: NoteHierarchyService
 
     @MockitoBean
     lateinit var jwtDecoder: JwtDecoder
@@ -283,28 +294,144 @@ class NoteControllerTest {
     }
 
     @Test
-    fun `deleteNote returns 204`() {
+    fun `deleteNote returns 204 and passes the choice for sub-notes`() {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
 
         mockMvc.delete("/note/notes/$noteId") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
-        }.andExpect {
-            status { isNoContent() }
-        }
-        Mockito.verify(noteService).deleteNote(userId, noteId)
+        }.andExpect { status { isNoContent() } }
+        mockMvc.delete("/note/notes/$noteId?subNotes=KEEP") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { status { isNoContent() } }
+
+        Mockito.verify(noteHierarchyService).delete(userId, noteId, null)
+        Mockito.verify(noteHierarchyService).delete(userId, noteId, SubNoteFate.KEEP)
     }
 
     @Test
-    fun `deleteNote maps a missing note to 404`() {
+    fun `deleteNote maps a missing note to 404, sub-notes without a choice to 409, an unknown choice to 400`() {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
-        Mockito.doThrow(NotFoundException("note id=$noteId not found")).`when`(noteService).deleteNote(userId, noteId)
+        val other = UUID.randomUUID()
+        Mockito.doThrow(NotFoundException("note id=$noteId not found")).`when`(noteHierarchyService)
+            .delete(userId, noteId, null)
+        Mockito.doThrow(NoteHasSubNotesException(other)).`when`(noteHierarchyService).delete(userId, other, null)
 
         mockMvc.delete("/note/notes/$noteId") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { status { isNotFound() } }
+        mockMvc.delete("/note/notes/$other") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
-            status { isNotFound() }
+            status { isConflict() }
+            jsonPath("$.code") { value("NOTE_HAS_SUB_NOTES") }
+        }
+        mockMvc.delete("/note/notes/$other?subNotes=MAYBE") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `moving under a note returns the note's place, a cycle is 409`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val parent = NoteNode(UUID.randomUUID(), null, "Bowie", Instant.EPOCH)
+        val constellationId = UUID.randomUUID()
+        Mockito.`when`(noteHierarchyService.moveUnder(userId, noteId, parent.id)).thenReturn(
+            NotePlace(listOf(parent), listOf(NoteMembership(constellationId, true, Instant.EPOCH))),
+        )
+        Mockito.`when`(noteHierarchyService.moveUnder(userId, noteId, noteId)).thenThrow(NoteMoveCycleException(noteId, noteId))
+
+        mockMvc.put("/note/notes/$noteId/parent") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"parentNoteId":"${parent.id}"}"""
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.ancestors[0].id") { value(parent.id.toString()) }
+            jsonPath("$.ancestors[0].title") { value("Bowie") }
+            jsonPath("$.constellations[0].constellationId") { value(constellationId.toString()) }
+            jsonPath("$.constellations[0].main") { value(true) }
+        }
+        mockMvc.put("/note/notes/$noteId/parent") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"parentNoteId":"$noteId"}"""
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("NOTE_MOVE_CYCLE") }
+        }
+        mockMvc.put("/note/notes/$noteId/parent") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = "{}"
+        }.andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `moving out passes the optional target constellation`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val target = UUID.randomUUID()
+        Mockito.`when`(noteHierarchyService.moveOut(userId, noteId, target)).thenReturn(NotePlace(emptyList(), emptyList()))
+        Mockito.`when`(noteHierarchyService.moveOut(userId, noteId, null)).thenReturn(NotePlace(emptyList(), emptyList()))
+
+        mockMvc.delete("/note/notes/$noteId/parent?moveTo=$target") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.ancestors") { isEmpty() }
+        }
+        mockMvc.delete("/note/notes/$noteId/parent") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { status { isOk() } }
+
+        Mockito.verify(noteHierarchyService).moveOut(userId, noteId, target)
+        Mockito.verify(noteHierarchyService).moveOut(userId, noteId, null)
+    }
+
+    @Test
+    fun `search returns note hits with their path and main constellation`() {
+        val userId = UUID.randomUUID()
+        val bowie = NoteNode(UUID.randomUUID(), null, "Bowie", Instant.EPOCH)
+        val low = NoteNode(UUID.randomUUID(), bowie.id, "Low", Instant.EPOCH)
+        val exclude = UUID.randomUUID()
+        val constellationId = UUID.randomUUID()
+        Mockito.`when`(noteHierarchyService.search(userId, "lo", exclude))
+            .thenReturn(listOf(NoteSearchHit(low, listOf(bowie), constellationId)))
+
+        mockMvc.get("/note/notes/search?q=lo&exclude=$exclude") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].id") { value(low.id.toString()) }
+            jsonPath("$[0].title") { value("Low") }
+            jsonPath("$[0].ancestors[0].title") { value("Bowie") }
+            jsonPath("$[0].constellationId") { value(constellationId.toString()) }
+        }
+    }
+
+    @Test
+    fun `a note's place and sub-notes are readable`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val child = NoteResponse(UUID.randomUUID(), NoteSource.MANUAL, NoteStatus.READY, "Low", "body", null, null, false, 1, noteId)
+        Mockito.`when`(noteHierarchyService.getPlace(userId, noteId)).thenReturn(NotePlace(emptyList(), emptyList()))
+        Mockito.`when`(noteService.getSubNotes(userId, noteId)).thenReturn(listOf(child))
+
+        mockMvc.get("/note/notes/$noteId/place") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.constellations") { isEmpty() }
+        }
+        mockMvc.get("/note/notes/$noteId/sub-notes") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].id") { value(child.id.toString()) }
+            jsonPath("$[0].parentNoteId") { value(noteId.toString()) }
         }
     }
 

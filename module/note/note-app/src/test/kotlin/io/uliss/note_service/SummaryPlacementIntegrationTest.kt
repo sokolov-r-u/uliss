@@ -5,9 +5,11 @@ import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
+import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
 import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
 import org.junit.jupiter.api.Tag
@@ -57,6 +59,9 @@ class SummaryPlacementIntegrationTest {
 
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
+
+    @Autowired
+    lateinit var noteRepository: NoteRepository
 
     @MockitoBean
     lateinit var chatClient: ChatClient
@@ -160,6 +165,45 @@ class SummaryPlacementIntegrationTest {
     }
 
     @Test
+    fun `a new summary note is a sub-note of the chosen parent at once and lives in its place`() {
+        val music = constellation("""{"name":"Music"}""")
+        val parent = parentNote("Bowie")
+        mockMvc.post("/note/notes/$parent/constellations") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"constellationId":"$music"}"""
+        }.andExpect { status { isOk() } }
+
+        val noteId = noteIdOf(summarize(chat(), """{"parentNoteId":"$parent"}""").andExpect {
+            status { isAccepted() }
+        })
+
+        mockMvc.get("/note/notes/$noteId/place") { auth() }.andExpect {
+            jsonPath("$.ancestors[0].id") { value(parent.toString()) }
+            jsonPath("$.constellations[0].constellationId") { value(music.toString()) }
+        }
+        mockMvc.get("/note/constellations") { auth() }.andExpect {
+            jsonPath("$[?(@.name == 'Music')].noteCount") { value(2) }
+        }
+    }
+
+    @Test
+    fun `a deleted or foreign parent note is refused before anything is reserved, and both places at once are 400`() {
+        val foreign = savedNote(UUID.randomUUID())
+        val chatId = chat()
+
+        summarize(chatId, """{"parentNoteId":"$foreign"}""").andExpect {
+            status { isNotFound() }
+            jsonPath("$.code") { value("PARENT_NOTE_NOT_FOUND") }
+        }
+        summarize(chatId, """{"parentNoteId":"${parentNote("Bowie")}","constellationId":"${constellation("""{"name":"Music"}""")}"}""")
+            .andExpect { status { isBadRequest() } }
+        assertEquals(1, count("SELECT count(*) FROM note.notes WHERE user_id = ?"))
+        assertEquals(0, count("SELECT count(*) FROM note.summary_request WHERE user_id = ?"))
+        assertEquals(0, summaryEvents(chatId))
+    }
+
+    @Test
     fun `an update refuses a place`() {
         val music = constellation("""{"name":"Music"}""")
         val chatId = chat()
@@ -168,6 +212,11 @@ class SummaryPlacementIntegrationTest {
             .andExpect { status { isBadRequest() } }
         assertEquals(0, summaryEvents(chatId))
     }
+
+    private fun parentNote(title: String): UUID = savedNote(userId, title)
+
+    private fun savedNote(owner: UUID, title: String = "Theirs"): UUID =
+        noteRepository.saveAndFlush(NoteEntity(owner, "body", title = title)).id
 
     private fun chat(): UUID {
         val chat = chatRepository.save(ChatEntity(userId, "Summary chat"))
