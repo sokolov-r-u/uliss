@@ -257,6 +257,18 @@ class ConstellationServiceTest {
     }
 
     @Test
+    fun `a change counts notes once, for the returned view only, and a no-op move still returns real counts`() {
+        val music = root("Music", 264)
+        val films = root("Films", 42)
+        Mockito.`when`(memberships.store.countNotes(userId)).thenReturn(listOf(ConstellationNoteCount(films.id, 2, 2)))
+
+        service.update(userId, music.id, "Songs", null, null)
+        Mockito.verify(memberships.store, Mockito.times(1)).countNotes(userId)
+
+        assertEquals(2, service.move(userId, films.id, null).noteCount)
+    }
+
+    @Test
     fun `deleting a branch with notes keeps every note, dropping branch places or moving the note to the target`() {
         val music = root("Music", 264)
         val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)

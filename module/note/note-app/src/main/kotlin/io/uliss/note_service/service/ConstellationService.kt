@@ -35,7 +35,7 @@ class ConstellationService(
 
     /** The number of notes that would lose their only places with the branch, so deleting it has to move them. */
     fun getDeletionImpact(userId: UUID, id: UUID): Int {
-        val tree = loadTree(userId)
+        val tree = loadTree(userId, withCounts = false)
         getOwned(tree, id)
         val branchIds = tree.branchIds(id)
         return noteConstellationStore.findByNotesInConstellations(userId, branchIds).values
@@ -93,7 +93,7 @@ class ConstellationService(
     fun move(userId: UUID, id: UUID, parentId: UUID?): ConstellationView {
         val tree = lockAndLoadTree(userId)
         val entity = getOwned(tree, id)
-        if (parentId == entity.parentId) return tree.view(id)
+        if (parentId == entity.parentId) return loadTree(userId).view(id)
         if (parentId != null) {
             getOwned(tree, parentId)
             if (tree.isInBranch(parentId, id)) throw ConstellationMoveCycleException(id, parentId)
@@ -141,12 +141,13 @@ class ConstellationService(
 
     private fun lockAndLoadTree(userId: UUID): ConstellationTree {
         repository.lockUserTree(userId)
-        return loadTree(userId)
+        return loadTree(userId, withCounts = false)
     }
 
-    private fun loadTree(userId: UUID) = ConstellationTree(
+    /** Note counts only matter for views; checks under the lock skip the counting query. */
+    private fun loadTree(userId: UUID, withCounts: Boolean = true) = ConstellationTree(
         repository.findByUserIdOrderByCreatedAtAscIdAsc(userId),
-        noteConstellationStore.countNotes(userId),
+        if (withCounts) noteConstellationStore.countNotes(userId) else emptyList(),
     )
 
     private fun getOwned(tree: ConstellationTree, id: UUID): ConstellationEntity = tree.find(id) ?: throw notFound(id)
