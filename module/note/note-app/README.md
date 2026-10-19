@@ -224,6 +224,14 @@ Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` othe
 roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own branch is
 `409 CONSTELLATION_MOVE_CYCLE`. A missing or foreign constellation or parent is `404`.
 
+## Sky API
+
+`GET /note/sky` (`SkyService`) returns everything the sky draws in one read-only, repeatable-read snapshot:
+`{constellations, notes}`. `constellations` is the same flat tree as `GET /note/constellations`. `notes` are the stars,
+oldest first, without their text: `{id, title, parentNoteId, createdAt, memberships: [{constellationId, main}]}`. A star
+is a `READY` note with a title. `parentNoteId` is the nearest ancestor that is itself a star; a star without one
+carries its top note's memberships, main first, and every other star has none (it lives where its parent lives).
+
 ## Speech API
 
 - `GET /note/speech/settings` returns `{"maxDurationSeconds"}` from `note.speech.max-duration` (default 5 minutes);

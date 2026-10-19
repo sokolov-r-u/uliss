@@ -315,3 +315,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** deleting a note moved from `NoteService` to `NoteHierarchyService`. The picker's note search is
   server-side over the same snapshot (up to 20 hits, prefix matches first), each hit with its path.
 - **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 2.
+
+## 2026-10-20 — The sky is one snapshot
+
+- **Context:** the Sky screen draws the whole constellation tree and every note at once; reading them through the
+  existing endpoints would take a request per constellation and could mix two moments.
+- **Decision:** `GET /sky` returns the tree and the stars in one read-only `REPEATABLE_READ` transaction. `SkyStore`
+  reads all notes of the user (no text) and all memberships in two queries; `SkyNotes` decides the stars as a pure
+  function: only `READY` titled notes are stars, a star hangs under its nearest star ancestor, and a star with no star
+  above it carries its top note's memberships, so a note being written never hides its sub-notes or their place.
+- **Consequences:** the client builds the sky without further requests and fetches a note's text only when a star is
+  opened. Like the trees, the snapshot is loaded whole, which assumes thousands of notes per user.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 1.
