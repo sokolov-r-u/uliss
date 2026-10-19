@@ -247,3 +247,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   JPA would flush the new main's update before the old main's delete and trip the one-main partial index. Tree counts
   come from one recursive query: distinct notes per subtree and per node itself.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 1.
+
+## 2026-10-19 — Note places change under the tree lock; deleting a branch moves only notes that need it
+
+- **Decision:** `NotePlacementService` adds, removes and promotes memberships under the same per-user advisory lock as
+  tree changes, so a membership cannot race the deletion of its branch and two first additions cannot both become
+  main. A note with `parent_note_id` refuses memberships (`409 NOTE_PLACE_INHERITED`). Any note status may be placed.
+  `ConstellationService.delete` takes an optional target: in one transaction it drops the branch's memberships
+  (promoting a main where one was lost), moves notes placed only inside the branch to the target as main (or leaves them
+  without a place), and deletes the branch. The target must be the user's and outside the branch (`404` / `400`).
+  `getDeletionImpact` counts the notes that need the move.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 2.

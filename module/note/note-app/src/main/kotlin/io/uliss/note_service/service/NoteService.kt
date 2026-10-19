@@ -24,6 +24,7 @@ import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
+import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.NoteContentNormalizer
@@ -48,6 +49,7 @@ class NoteService(
     private val summaryRequestStore: SummaryRequestStore,
     private val outboxService: OutboxService,
     private val objectMapper: ObjectMapper,
+    private val constellationRepository: ConstellationRepository,
 ) {
 
     fun getNotes(userId: UUID): List<NoteResponse> {
@@ -61,6 +63,18 @@ class NoteService(
         val pending = summaryRequestStore.hasPendingForNote(noteId)
         return getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it, pending)) }
     }
+
+    /** Notes of the user's constellation itself (not of its sub-constellations), newest first. */
+    fun getNotesInConstellation(userId: UUID, constellationId: UUID): List<NoteResponse> {
+        if (!constellationRepository.existsByIdAndUserId(constellationId, userId)) {
+            throw NotFoundException("constellation id=$constellationId not found")
+        }
+        return toResponses(userId) { noteRepository.findInConstellation(userId, constellationId) }
+    }
+
+    /** Notes with no constellation and no parent note, newest first. */
+    fun getNotesWithoutConstellation(userId: UUID): List<NoteResponse> =
+        toResponses(userId) { noteRepository.findWithoutConstellation(userId) }
 
     /** Notes linked to the chat, newest first. Callers pass an owned chat id. */
     fun getChatNotes(userId: UUID, chatId: UUID): List<NoteResponse> {
@@ -281,6 +295,12 @@ class NoteService(
     @Transactional
     fun deleteNote(userId: UUID, noteId: UUID) {
         noteRepository.delete(getOwnedNote(userId, noteId))
+    }
+
+    /** Pending requests are read before the notes, as in [isUpdating]. */
+    private fun toResponses(userId: UUID, load: () -> List<NoteEntity>): List<NoteResponse> {
+        val pendingNoteIds = summaryRequestStore.findPendingNoteIds(userId)
+        return load().map { it.toResponse(it.status == NoteStatus.READY && it.id in pendingNoteIds) }
     }
 
     private fun getReplayedSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity =

@@ -3,12 +3,18 @@ package io.uliss.note_service.util
 import io.uliss.note_service.dto.internal.ConstellationView
 import io.uliss.note_service.model.ConstellationEntity
 import io.uliss.note_service.model.ConstellationLightness
+import io.uliss.note_service.model.projection.ConstellationNoteCount
 import java.util.Locale
 import java.util.UUID
 
 /** Read-only view of one user's constellations as a tree; built from a consistent snapshot. */
-class ConstellationTree(private val nodes: Collection<ConstellationEntity>) {
+class ConstellationTree(
+    private val nodes: Collection<ConstellationEntity>,
+    /** Note counts by constellation id; a node without notes is absent. */
+    noteCounts: Collection<ConstellationNoteCount> = emptyList(),
+) {
     private val byId = nodes.associateBy { it.id }
+    private val countsById = noteCounts.associateBy { it.constellationId }
 
     fun find(id: UUID): ConstellationEntity? = byId[id]
 
@@ -18,6 +24,9 @@ class ConstellationTree(private val nodes: Collection<ConstellationEntity>) {
     fun depthOf(id: UUID): Int = pathOf(id).size - 1
 
     fun rootOf(id: UUID): ConstellationEntity = pathOf(id).first()
+
+    /** [id] with all its descendants. */
+    fun branchIds(id: UUID): Set<UUID> = nodes.filter { isInBranch(it.id, id) }.map { it.id }.toSet()
 
     /** True when [id] is [branchId] or one of its descendants. */
     fun isInBranch(id: UUID, branchId: UUID): Boolean = pathOf(id).any { it.id == branchId }
@@ -39,7 +48,8 @@ class ConstellationTree(private val nodes: Collection<ConstellationEntity>) {
             name = node.name,
             hue = checkNotNull(root.hue) { "root id=${root.id} has no hue" },
             lightness = node.lightness ?: ConstellationLightness.BASE,
-            noteCount = 0,
+            noteCount = countsById[id]?.noteCount ?: 0,
+            ownNoteCount = countsById[id]?.ownNoteCount ?: 0,
         )
     }
 

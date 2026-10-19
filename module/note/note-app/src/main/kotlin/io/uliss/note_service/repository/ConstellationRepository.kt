@@ -15,6 +15,8 @@ interface ConstellationRepository : JpaRepository<ConstellationEntity, UUID> {
 
     fun findByUserIdOrderByCreatedAtAscIdAsc(userId: UUID): List<ConstellationEntity>
 
+    fun existsByIdAndUserId(id: UUID, userId: UUID): Boolean
+
     /**
      * Serializes structural changes of one user's tree until the transaction ends: two moves checked
      * separately could otherwise close a cycle together.

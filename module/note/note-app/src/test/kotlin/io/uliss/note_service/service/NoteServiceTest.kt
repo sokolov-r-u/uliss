@@ -19,6 +19,7 @@ import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
+import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequest
 import io.uliss.note_service.repository.SummaryRequestStore
@@ -45,13 +46,46 @@ class NoteServiceTest {
     private val summaryRequestStore = Mockito.mock(SummaryRequestStore::class.java)
     private val outboxService = Mockito.mock(OutboxService::class.java)
     private val objectMapper = JsonMapper.builder().build()
+    private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val noteService = NoteService(
         noteRepository,
         chatNoteRepository,
         summaryRequestStore,
         outboxService,
         objectMapper,
+        constellationRepository,
     )
+
+    @Test
+    fun `notes of an owned constellation come in repository order with their update state`() {
+        val userId = UUID.randomUUID()
+        val constellationId = UUID.randomUUID()
+        val updating = NoteEntity(userId, "a", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val settled = NoteEntity(userId, "b", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(constellationRepository.existsByIdAndUserId(constellationId, userId)).thenReturn(true)
+        Mockito.`when`(noteRepository.findInConstellation(userId, constellationId)).thenReturn(listOf(updating, settled))
+        Mockito.`when`(summaryRequestStore.findPendingNoteIds(userId)).thenReturn(setOf(updating.id))
+
+        val notes = noteService.getNotesInConstellation(userId, constellationId)
+
+        assertEquals(listOf(updating.id to true, settled.id to false), notes.map { it.id to it.updating })
+    }
+
+    @Test
+    fun `notes of a missing or foreign constellation are not found`() {
+        val userId = UUID.randomUUID()
+
+        assertFailsWith<NotFoundException> { noteService.getNotesInConstellation(userId, UUID.randomUUID()) }
+    }
+
+    @Test
+    fun `notes without a constellation come from the repository`() {
+        val userId = UUID.randomUUID()
+        val loose = NoteEntity(userId, "loose", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findWithoutConstellation(userId)).thenReturn(listOf(loose))
+
+        assertEquals(listOf(loose.id), noteService.getNotesWithoutConstellation(userId).map { it.id })
+    }
 
     @Test
     fun `getNotes returns only repository-owned notes in repository order`() {

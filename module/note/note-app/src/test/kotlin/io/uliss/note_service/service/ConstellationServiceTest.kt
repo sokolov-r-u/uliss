@@ -7,7 +7,12 @@ import io.uliss.note_service.exception.ConstellationNameTakenException
 import io.uliss.note_service.model.ConstellationEntity
 import io.uliss.note_service.model.ConstellationLightness
 import org.junit.jupiter.api.Test
+import io.uliss.note_service.model.projection.ConstellationNoteCount
+import io.uliss.note_service.model.projection.NoteMembership
 import org.mockito.Mockito
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -17,7 +22,10 @@ import kotlin.test.assertTrue
 class ConstellationServiceTest {
 
     private val store = InMemoryConstellationStore()
-    private val service = ConstellationService(store.repository)
+    private val memberships = InMemoryNoteConstellationStore()
+    private val now: Instant = Instant.parse("2026-10-19T12:00:00Z")
+    private val earlier: Instant = Instant.parse("2026-10-19T10:00:00Z")
+    private val service = ConstellationService(store.repository, memberships.store, Clock.fixed(now, ZoneOffset.UTC))
     private val userId = UUID.randomUUID()
 
     @Test
@@ -34,6 +42,21 @@ class ConstellationServiceTest {
         assertEquals(ConstellationLightness.DEEP, tree.getValue("Miles").lightness)
         assertEquals(jazz.id, tree.getValue("Miles").parentId)
         assertEquals(0, tree.getValue("Music").noteCount)
+        assertEquals(0, tree.getValue("Music").ownNoteCount)
+    }
+
+    @Test
+    fun `the tree carries the stored note counts of every node`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        Mockito.`when`(memberships.store.countNotes(userId)).thenReturn(
+            listOf(ConstellationNoteCount(music.id, 3, 1), ConstellationNoteCount(jazz.id, 2, 2))
+        )
+
+        val tree = service.getTree(userId).associateBy { it.name }
+
+        assertEquals(3 to 1, tree.getValue("Music").let { it.noteCount to it.ownNoteCount })
+        assertEquals(2 to 2, tree.getValue("Jazz").let { it.noteCount to it.ownNoteCount })
     }
 
     @Test
@@ -133,8 +156,8 @@ class ConstellationServiceTest {
 
         assertFailsWith<NotFoundException> { service.update(userId, foreign.id, "Mine", null, null) }
         assertFailsWith<NotFoundException> { service.move(userId, foreign.id, null) }
-        assertFailsWith<NotFoundException> { service.delete(userId, foreign.id) }
-        assertFailsWith<NotFoundException> { service.delete(userId, UUID.randomUUID()) }
+        assertFailsWith<NotFoundException> { service.delete(userId, foreign.id, null) }
+        assertFailsWith<NotFoundException> { service.delete(userId, UUID.randomUUID(), null) }
     }
 
     @Test
@@ -227,10 +250,62 @@ class ConstellationServiceTest {
         val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
         child(jazz, "Miles", ConstellationLightness.PALE)
 
-        service.delete(userId, jazz.id)
+        service.delete(userId, jazz.id, null)
 
         assertEquals(listOf("Music"), service.getTree(userId).map { it.name })
         assertTrue(store.rows.containsKey(music.id))
+    }
+
+    @Test
+    fun `deleting a branch with notes keeps every note, dropping branch places or moving the note to the target`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val miles = child(jazz, "Miles", ConstellationLightness.PALE)
+        val films = root("Films", 42)
+        val onlyInside = UUID.randomUUID()
+        val alsoOutside = UUID.randomUUID()
+        val elsewhere = UUID.randomUUID()
+        memberships.put(userId, onlyInside, listOf(NoteMembership(jazz.id, true, earlier), NoteMembership(miles.id, false, earlier)))
+        memberships.put(userId, alsoOutside, listOf(NoteMembership(miles.id, true, earlier), NoteMembership(films.id, false, earlier)))
+        memberships.put(userId, elsewhere, listOf(NoteMembership(films.id, true, earlier)))
+
+        assertEquals(1, service.getDeletionImpact(userId, jazz.id))
+        service.delete(userId, jazz.id, music.id)
+
+        assertEquals(listOf(NoteMembership(music.id, true, now)), memberships.rows[onlyInside])
+        assertEquals(listOf(NoteMembership(films.id, true, earlier)), memberships.rows[alsoOutside])
+        assertEquals(listOf(NoteMembership(films.id, true, earlier)), memberships.rows[elsewhere])
+        assertEquals(setOf("Music", "Films"), service.getTree(userId).map { it.name }.toSet())
+        Mockito.verify(store.repository).lockUserTree(userId)
+    }
+
+    @Test
+    fun `deleting a branch without a target leaves its own notes without a place`() {
+        val music = root("Music", 264)
+        val note = UUID.randomUUID()
+        memberships.put(userId, note, listOf(NoteMembership(music.id, true, earlier)))
+
+        service.delete(userId, music.id, null)
+
+        assertTrue(memberships.rows[note] == null)
+        assertTrue(service.getTree(userId).isEmpty())
+    }
+
+    @Test
+    fun `a delete target inside the branch is a bad request, a missing one is not found, and nothing changes`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val foreign = store.add(ConstellationEntity(UUID.randomUUID(), null, "Theirs", 42, null))
+        val note = UUID.randomUUID()
+        memberships.put(userId, note, listOf(NoteMembership(jazz.id, true, earlier)))
+
+        assertFailsWith<BadRequestException> { service.delete(userId, music.id, jazz.id) }
+        assertFailsWith<BadRequestException> { service.delete(userId, music.id, music.id) }
+        assertFailsWith<NotFoundException> { service.delete(userId, music.id, foreign.id) }
+        assertFailsWith<NotFoundException> { service.delete(userId, UUID.randomUUID(), null) }
+        assertFailsWith<NotFoundException> { service.getDeletionImpact(userId, foreign.id) }
+        assertEquals(2, store.rows.values.count { it.userId == userId })
+        assertEquals(listOf(NoteMembership(jazz.id, true, earlier)), memberships.rows[note])
     }
 
     private fun root(name: String, hue: Int): ConstellationEntity =

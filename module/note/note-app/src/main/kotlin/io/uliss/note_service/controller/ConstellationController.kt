@@ -59,6 +59,6 @@ class ConstellationController(private val constellationService: ConstellationSer
     @DeleteMapping("/{constellationId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun deleteConstellation(@AuthenticationPrincipal jwt: Jwt, @PathVariable constellationId: UUID) {
-        constellationService.delete(jwt.getUserId(), constellationId)
+        constellationService.delete(jwt.getUserId(), constellationId, null)
     }
 }

@@ -8,13 +8,16 @@ import io.uliss.note_service.exception.ConstellationNameTakenException
 import io.uliss.note_service.model.ConstellationEntity
 import io.uliss.note_service.model.ConstellationLightness
 import io.uliss.note_service.repository.ConstellationRepository
+import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.util.ConstellationColors
 import io.uliss.note_service.util.ConstellationNameNormalizer
 import io.uliss.note_service.util.ConstellationTree
+import io.uliss.note_service.util.NotePlacement
 import org.hibernate.exception.ConstraintViolationException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.util.UUID
 
 /**
@@ -22,9 +25,22 @@ import java.util.UUID
  * fresh snapshot, so concurrent changes cannot close a cycle or slip past the name check.
  */
 @Service
-class ConstellationService(private val repository: ConstellationRepository) {
+class ConstellationService(
+    private val repository: ConstellationRepository,
+    private val noteConstellationStore: NoteConstellationStore,
+    private val clock: Clock = Clock.systemUTC(),
+) {
 
     fun getTree(userId: UUID): List<ConstellationView> = loadTree(userId).views()
+
+    /** The number of notes that would lose their only places with the branch, so deleting it has to move them. */
+    fun getDeletionImpact(userId: UUID, id: UUID): Int {
+        val tree = loadTree(userId)
+        getOwned(tree, id)
+        val branchIds = tree.branchIds(id)
+        return noteConstellationStore.findByNotesInConstellations(userId, branchIds).values
+            .count { NotePlacement.needsMove(it, branchIds) }
+    }
 
     @Transactional
     fun create(userId: UUID, rawName: String, parentId: UUID?): ConstellationView {
@@ -100,11 +116,27 @@ class ConstellationService(private val repository: ConstellationRepository) {
         return saveAndView(userId, entity)
     }
 
-    /** Deletes the branch with all its sub-constellations. */
+    /**
+     * Deletes the branch with all its sub-constellations; notes are never deleted. A note with places outside the
+     * branch only loses those inside it; a note placed only inside moves to [moveTo] as its main place, or is left
+     * without a constellation when [moveTo] is null.
+     */
     @Transactional
-    fun delete(userId: UUID, id: UUID) {
-        repository.lockUserTree(userId)
-        if (repository.deleteBranch(userId, id) == 0) throw notFound(id)
+    fun delete(userId: UUID, id: UUID, moveTo: UUID?) {
+        val tree = lockAndLoadTree(userId)
+        getOwned(tree, id)
+        val branchIds = tree.branchIds(id)
+        if (moveTo != null) {
+            getOwned(tree, moveTo)
+            if (moveTo in branchIds) throw BadRequestException("notes cannot move into the deleted branch")
+        }
+        val now = clock.instant()
+        val touched = noteConstellationStore.findByNotesInConstellations(userId, branchIds)
+        noteConstellationStore.replace(
+            userId,
+            touched.mapValues { (_, memberships) -> NotePlacement.withoutBranch(memberships, branchIds, moveTo, now) },
+        )
+        repository.deleteBranch(userId, id)
     }
 
     private fun lockAndLoadTree(userId: UUID): ConstellationTree {
@@ -112,7 +144,10 @@ class ConstellationService(private val repository: ConstellationRepository) {
         return loadTree(userId)
     }
 
-    private fun loadTree(userId: UUID) = ConstellationTree(repository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
+    private fun loadTree(userId: UUID) = ConstellationTree(
+        repository.findByUserIdOrderByCreatedAtAscIdAsc(userId),
+        noteConstellationStore.countNotes(userId),
+    )
 
     private fun getOwned(tree: ConstellationTree, id: UUID): ConstellationEntity = tree.find(id) ?: throw notFound(id)
 
