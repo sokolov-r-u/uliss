@@ -41,6 +41,21 @@ export interface NoteHit {
     constellationId: string | null
 }
 
+/** A star of the sky; [memberships] are set only on a star with no parent star, main first. */
+export interface SkyStar {
+    id: string
+    title: string
+    parentNoteId: string | null
+    createdAt: string
+    memberships: NoteMembership[]
+}
+
+/** The whole sky read at one moment: the constellation tree and the stars, oldest first. */
+export interface Sky {
+    constellations: Constellation[]
+    notes: SkyStar[]
+}
+
 export interface ConstellationPatch {
     name?: string
     hue?: number
@@ -109,6 +124,16 @@ function parseMemberships(value: unknown): NoteMembership[] {
     })
     if (memberships.length > 0 && memberships.filter((item) => item.main).length !== 1) throw protocolError('main')
     return memberships
+}
+
+function parseStar(value: unknown): SkyStar {
+    if (!isRecord(value)) throw protocolError('star')
+    const {id, title, parentNoteId, createdAt, memberships} = value
+    if (typeof id !== 'string' || id === '') throw protocolError('star id')
+    if (typeof title !== 'string' || title === '') throw protocolError('star title')
+    if (parentNoteId != null && typeof parentNoteId !== 'string') throw protocolError('star parentNoteId')
+    if (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt))) throw protocolError('star createdAt')
+    return {id, title, parentNoteId: parentNoteId ?? null, createdAt, memberships: parseMemberships(memberships)}
 }
 
 function parseNoteRef(value: unknown): NoteRef {
@@ -267,4 +292,13 @@ export async function searchNotes(query: string, exclude: string | null, signal?
     const value = await readJson(await send(`/note/notes/search?${params}`, {signal}))
     if (!Array.isArray(value)) throw protocolError('search')
     return value.map(parseHit)
+}
+
+/** The tree and every star in one snapshot, for the Sky screen. */
+export async function getSky(signal?: AbortSignal): Promise<Sky> {
+    const value = await readJson(await send('/note/sky', {signal}))
+    if (!isRecord(value) || !Array.isArray(value.constellations) || !Array.isArray(value.notes)) {
+        throw protocolError('sky')
+    }
+    return {constellations: value.constellations.map(parseConstellation), notes: value.notes.map(parseStar)}
 }
