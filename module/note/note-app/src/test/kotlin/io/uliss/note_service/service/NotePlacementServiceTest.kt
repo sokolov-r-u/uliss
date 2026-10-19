@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.exception.ConstellationNotFoundException
 import io.uliss.note_service.exception.NotePlaceInheritedException
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.NoteMembership
@@ -10,6 +11,7 @@ import io.uliss.note_service.model.ConstellationLightness
 import io.uliss.note_service.repository.NoteRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import org.springframework.http.HttpStatus
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
@@ -118,8 +120,12 @@ class NotePlacementServiceTest {
     fun `a missing or foreign constellation is not found and nothing is written`() {
         val foreign = UUID.randomUUID()
 
-        assertFailsWith<NotFoundException> { service.add(userId, note.id, foreign) }
-        assertFailsWith<NotFoundException> { service.makeMain(userId, note.id, foreign, replace = false) }
+        val added = assertFailsWith<ConstellationNotFoundException> { service.add(userId, note.id, foreign) }
+        assertFailsWith<ConstellationNotFoundException> {
+            service.makeMain(userId, note.id, foreign, replace = false)
+        }
+        assertEquals(HttpStatus.NOT_FOUND, added.httpStatus)
+        assertEquals("CONSTELLATION_NOT_FOUND", added.code)
         Mockito.verify(memberships.store, Mockito.never()).replace(anyValue(), anyValue())
     }
 

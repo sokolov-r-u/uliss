@@ -90,8 +90,9 @@ class ChatFacade(
 
     /**
      * A known key replays its earlier result before the mode rules, so a retry after the boundary moved still gets
-     * its note. CREATE needs a chat without a current note; UPDATE must target the current note and have new messages.
-     * A new request, not a replay, lifts the chat in chat lists.
+     * its note. CREATE needs a chat without a current note and may place the new note in [constellationId]; UPDATE
+     * must target the current note and have new messages, and takes no place. A new request, not a replay, lifts the
+     * chat in chat lists.
      */
     @Transactional
     fun requestSummary(
@@ -100,7 +101,11 @@ class ChatFacade(
         idempotencyKey: UUID,
         mode: SummaryMode,
         targetNoteId: UUID?,
+        constellationId: UUID? = null,
     ): NoteEntity {
+        if (mode == SummaryMode.UPDATE && constellationId != null) {
+            throw BadRequestException("an update keeps the note's place; change it on the note")
+        }
         val latestMessageId = chatService.getLatestMessageId(userId, chatId)
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
         noteService.findSummaryReplay(userId, chatId, idempotencyKey)?.let { return it }
@@ -110,7 +115,7 @@ class ChatFacade(
                 if (current != null) {
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
-                noteService.requestChatSummary(userId, chatId, latestMessageId, idempotencyKey)
+                noteService.requestChatSummary(userId, chatId, latestMessageId, idempotencyKey, constellationId)
             }
 
             SummaryMode.UPDATE -> {

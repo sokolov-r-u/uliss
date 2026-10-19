@@ -83,7 +83,11 @@ turn's current outcome: `error` with `CANCELED`, or `pending`; never `done`.
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a
 `NOTE_SUMMARY_REQUESTED` outbox event containing the immutable last-message boundary. It returns
-`202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status.
+`202 Accepted`, echoes `Idempotency-Key`, and returns the placeholder identity/status. An optional `constellationId`
+(CREATE only, otherwise `400`) makes that constellation the new note's main place in the same transaction, so the
+note lies in the branch while it is still `GENERATING` and keeps the place if generation fails. A missing or foreign
+constellation is `404 CONSTELLATION_NOT_FOUND` and nothing is reserved. A replayed key returns the original note with
+its original place, whatever constellation the retry sends.
 
 A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
 `chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
@@ -190,7 +194,8 @@ Notes belong to constellations through `note_constellation` (`NotePlacementServi
   existing place replaces that place (its main flag passes on). Moving a branch so that two places of a note share a
   line keeps the deeper one; a lost main passes to the oldest remaining descendant place.
 - All three changes return the new list. A note with a parent note inherits its place:
-  `409 NOTE_PLACE_INHERITED`. A missing or foreign note or constellation is `404`.
+  `409 NOTE_PLACE_INHERITED`. A missing or foreign note is `404`, a missing or foreign constellation
+  `404 CONSTELLATION_NOT_FOUND`.
 - `GET /note/notes/without-constellation` returns notes with no constellation and no parent note, newest first.
 
 Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` otherwise), unique regardless of case among
