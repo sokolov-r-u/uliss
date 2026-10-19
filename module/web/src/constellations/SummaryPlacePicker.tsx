@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {Button, ConstellationPicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {type Constellation, createConstellation, listConstellations} from './constellationApi'
+import {type Constellation, ConstellationApiError, createConstellation, listConstellations} from './constellationApi'
 import {buildConstellationTree, pickerItems} from './constellationTree'
 import {placementFailureMessage} from './NoteConstellationSection'
 
@@ -47,7 +47,13 @@ export function SummaryPlacePicker({busy, revision, onPick, onClose}: {
                 : current)
             return created.id
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name))
+            if (e instanceof ConstellationApiError && e.status === 404) {
+                // The branch to create in was deleted elsewhere: there is no note yet, so say so and refresh the tree.
+                setError('That constellation no longer exists. Pick another place.')
+                void reload()
+            } else if (!(e instanceof AuthRequiredError)) {
+                setError(placementFailureMessage(e, name))
+            }
             throw e
         }
     }

@@ -183,7 +183,6 @@ export function notifyNotesChanged() {
     notesListeners.forEach((listener) => listener())
 }
 
-/** Creates the chat's first note, or with [updateNoteId] appends to its current note. */
 /**
  * Starts a summary: an update of [updateNoteId], or a new note placed in [constellationId] as its main constellation
  * (a new note without one has no place). A missing constellation fails with code `CONSTELLATION_NOT_FOUND`.
