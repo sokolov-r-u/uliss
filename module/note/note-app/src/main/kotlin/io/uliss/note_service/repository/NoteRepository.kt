@@ -12,16 +12,28 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
     fun findByIdAndUserId(id: UUID, userId: UUID): NoteEntity?
     fun findByUserIdOrderByCreatedAtDescIdDesc(userId: UUID): List<NoteEntity>
 
-    /** The user's notes that belong to the constellation itself (not to its sub-constellations), newest first. */
+    /**
+     * The user's notes that belong to the constellation itself (not to its sub-constellations) with all their
+     * sub-notes, newest first; a sub-note names its parent, so the caller can nest them.
+     */
     @Query(
         nativeQuery = true,
         value = """
+            WITH RECURSIVE here AS (
+                SELECT nc.note_id AS id
+                FROM note.note_constellation nc
+                WHERE nc.constellation_id = :constellationId
+                  AND nc.user_id = :userId
+                UNION
+                SELECT n.id
+                FROM here h
+                         JOIN note.notes n ON n.parent_note_id = h.id
+                WHERE n.user_id = :userId
+            )
             SELECT n.*
             FROM note.notes n
-                     JOIN note.note_constellation nc ON nc.note_id = n.id
-            WHERE nc.constellation_id = :constellationId
-              AND nc.user_id = :userId
-              AND n.user_id = :userId
+                     JOIN here h ON h.id = n.id
+            WHERE n.user_id = :userId
             ORDER BY n.created_at DESC, n.id DESC
         """,
     )
@@ -30,17 +42,31 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
         @Param("constellationId") constellationId: UUID,
     ): List<NoteEntity>
 
-    /** The user's notes with no constellation and no parent note, newest first. */
+    /** The user's top notes with no constellation, with all their sub-notes, newest first. */
     @Query(
         nativeQuery = true,
         value = """
+            WITH RECURSIVE loose AS (
+                SELECT n.id
+                FROM note.notes n
+                WHERE n.user_id = :userId
+                  AND n.parent_note_id IS NULL
+                  AND NOT EXISTS (SELECT 1 FROM note.note_constellation nc WHERE nc.note_id = n.id)
+                UNION
+                SELECT n.id
+                FROM loose l
+                         JOIN note.notes n ON n.parent_note_id = l.id
+                WHERE n.user_id = :userId
+            )
             SELECT n.*
             FROM note.notes n
+                     JOIN loose l ON l.id = n.id
             WHERE n.user_id = :userId
-              AND n.parent_note_id IS NULL
-              AND NOT EXISTS (SELECT 1 FROM note.note_constellation nc WHERE nc.note_id = n.id)
             ORDER BY n.created_at DESC, n.id DESC
         """,
     )
     fun findWithoutConstellation(@Param("userId") userId: UUID): List<NoteEntity>
+
+    /** The note's direct sub-notes, newest first. */
+    fun findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId: UUID, parentNoteId: UUID): List<NoteEntity>
 }

@@ -282,3 +282,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   duplicate loses the reservation. A missing or foreign constellation rolls the whole request back with
   `404 CONSTELLATION_NOT_FOUND`, now the code of every placement change, so the client tells it from a missing chat.
 - **Source:** task `docs/tasks/2026-10-19-constellations-summarize.md`, block 1.
+
+## 2026-10-19 — Sub-notes live where their top note lives; the hierarchy is read whole
+
+- **Context:** task 4 of the constellations epic nests notes under notes at any depth (`notes.parent_note_id` from
+  V11); a sub-note has no memberships of its own.
+- **Decision:** `NoteHierarchy` holds the rules as pure functions over a snapshot of the user's notes (id, parent,
+  title, age) that `NoteHierarchyStore` reads in one query: ancestors, subtree, the top note whose place a sub-note
+  inherits, the cycle check (a note never moves under itself or its descendant) and the title search for the picker.
+  Tree counts treat a sub-note as placed wherever its top note is placed (a recursive CTE with `UNION`, so even
+  corrupted cyclic data terminates); `ownNoteCount` includes the sub-notes of the node's own notes. "Notes here" and
+  "Without constellation" return the place's notes with all their descendants, and `NoteResponse.parentNoteId` lets
+  the client nest them. A subtree is deleted in one statement, so the parent FK (no cascade) is checked at its end.
+- **Consequences:** like the constellation tree, the hierarchy is loaded whole per change or search, which assumes
+  thousands of notes per user, not millions.
+- **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 1.
