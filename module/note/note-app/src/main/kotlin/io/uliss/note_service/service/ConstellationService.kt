@@ -1,0 +1,140 @@
+package io.uliss.note_service.service
+
+import io.uliss.exception.common.BadRequestException
+import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.dto.internal.ConstellationView
+import io.uliss.note_service.exception.ConstellationMoveCycleException
+import io.uliss.note_service.exception.ConstellationNameTakenException
+import io.uliss.note_service.model.ConstellationEntity
+import io.uliss.note_service.model.ConstellationLightness
+import io.uliss.note_service.repository.ConstellationRepository
+import io.uliss.note_service.util.ConstellationColors
+import io.uliss.note_service.util.ConstellationNameNormalizer
+import io.uliss.note_service.util.ConstellationTree
+import org.hibernate.exception.ConstraintViolationException
+import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.util.UUID
+
+/**
+ * The user's constellation tree. Every change takes the user's tree lock first and then checks the change against a
+ * fresh snapshot, so concurrent changes cannot close a cycle or slip past the name check.
+ */
+@Service
+class ConstellationService(private val repository: ConstellationRepository) {
+
+    fun getTree(userId: UUID): List<ConstellationView> = loadTree(userId).views()
+
+    @Transactional
+    fun create(userId: UUID, rawName: String, parentId: UUID?): ConstellationView {
+        val tree = lockAndLoadTree(userId)
+        val name = normalizeName(rawName)
+        val entity = if (parentId == null) {
+            ConstellationEntity(userId, null, name, ConstellationColors.pickRootHue(tree.roots().mapNotNull { it.hue }), null)
+        } else {
+            val parent = getOwned(tree, parentId)
+            ConstellationEntity(userId, parent.id, name, null, ConstellationColors.lightnessForDepth(tree.depthOf(parent.id) + 1))
+        }
+        if (tree.isNameTaken(parentId, name, exceptId = null)) throw ConstellationNameTakenException(name)
+        return saveAndView(userId, entity)
+    }
+
+    /** Renames and/or recolours: [hue] applies only to a root, [lightness] only to a sub-constellation. */
+    @Transactional
+    fun update(
+        userId: UUID,
+        id: UUID,
+        rawName: String?,
+        hue: Int?,
+        lightness: ConstellationLightness?,
+    ): ConstellationView {
+        if (rawName == null && hue == null && lightness == null) throw BadRequestException("nothing to update")
+        val tree = lockAndLoadTree(userId)
+        val entity = getOwned(tree, id)
+        if (hue != null) {
+            if (entity.parentId != null) throw BadRequestException("only a root constellation has a hue")
+            if (hue !in HUE_RANGE) throw BadRequestException("hue must be 0 to 359")
+        }
+        if (lightness != null && entity.parentId == null) {
+            throw BadRequestException("a root constellation has no lightness")
+        }
+        if (rawName != null) {
+            val name = normalizeName(rawName)
+            if (tree.isNameTaken(entity.parentId, name, exceptId = entity.id)) throw ConstellationNameTakenException(name)
+            entity.name = name
+        }
+        hue?.let { entity.hue = it }
+        lightness?.let { entity.lightness = it }
+        return saveAndView(userId, entity)
+    }
+
+    /**
+     * Moves the branch under [parentId], or makes it a root when null. A root moved under another node drops its hue
+     * and takes the default lightness of its new depth; a sub-constellation made a root keeps its inherited hue.
+     */
+    @Transactional
+    fun move(userId: UUID, id: UUID, parentId: UUID?): ConstellationView {
+        val tree = lockAndLoadTree(userId)
+        val entity = getOwned(tree, id)
+        if (parentId == entity.parentId) return tree.view(id)
+        if (parentId != null) {
+            getOwned(tree, parentId)
+            if (tree.isInBranch(parentId, id)) throw ConstellationMoveCycleException(id, parentId)
+        }
+        if (tree.isNameTaken(parentId, entity.name, exceptId = entity.id)) {
+            throw ConstellationNameTakenException(entity.name)
+        }
+        when {
+            parentId == null -> {
+                entity.hue = tree.rootOf(id).hue
+                entity.lightness = null
+            }
+
+            entity.parentId == null -> {
+                entity.hue = null
+                entity.lightness = ConstellationColors.lightnessForDepth(tree.depthOf(parentId) + 1)
+            }
+        }
+        entity.parentId = parentId
+        return saveAndView(userId, entity)
+    }
+
+    /** Deletes the branch with all its sub-constellations. */
+    @Transactional
+    fun delete(userId: UUID, id: UUID) {
+        repository.lockUserTree(userId)
+        if (repository.deleteBranch(userId, id) == 0) throw notFound(id)
+    }
+
+    private fun lockAndLoadTree(userId: UUID): ConstellationTree {
+        repository.lockUserTree(userId)
+        return loadTree(userId)
+    }
+
+    private fun loadTree(userId: UUID) = ConstellationTree(repository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
+
+    private fun getOwned(tree: ConstellationTree, id: UUID): ConstellationEntity = tree.find(id) ?: throw notFound(id)
+
+    private fun normalizeName(rawName: String): String =
+        ConstellationNameNormalizer.normalize(rawName) ?: throw BadRequestException(ConstellationNameNormalizer.RULE)
+
+    /** Saves under the tree lock; the unique index stays the backstop when collations disagree on case. */
+    private fun saveAndView(userId: UUID, entity: ConstellationEntity): ConstellationView {
+        try {
+            repository.saveAndFlush(entity)
+        } catch (e: DataIntegrityViolationException) {
+            val constraint = (e.cause as? ConstraintViolationException)?.constraintName
+            if (constraint == NAME_INDEX) throw ConstellationNameTakenException(entity.name, e)
+            throw e
+        }
+        return loadTree(userId).view(entity.id)
+    }
+
+    private fun notFound(id: UUID) = NotFoundException("constellation id=$id not found")
+
+    private companion object {
+        val HUE_RANGE = 0..359
+        const val NAME_INDEX = "uq_constellations_user_parent_name"
+    }
+}

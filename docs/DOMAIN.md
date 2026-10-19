@@ -34,3 +34,18 @@ outcomes) and system proposals to review.
 
 **Decision:** The MVP is a closed beta reachable from the public internet. Registration requires an invitation;
 existing users can invite others.
+
+## 2026-10-18 — A note lives in several constellations, one of them main
+
+**Context:** replaces the tree and place-choice entries of 2026-10-16 ("Constellations form a tree of places for notes",
+"The user chooses the place, the system proposes refinements") where they say a note has exactly one parent and that
+the place is always picked.
+
+**Decision:** Root constellations grow from the user and have sub-constellations at any depth. Colour belongs to a root;
+sub-constellations take the root's hue and choose a lightness step. A note lives in one or more constellations, exactly
+one of them main, or under a parent note, never both; a sub-note lives where its parent lives. A note without a place is
+valid. The user picks a place before the first Summarize or skips it, and adds or changes constellations in the note's
+panel. Deleting a constellation never deletes notes.
+
+**Consequences:** the sky colours a star by its main constellation. System proposals of a place stay as decided on
+2026-10-16.

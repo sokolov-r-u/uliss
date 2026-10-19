@@ -1,10 +1,12 @@
 /**
  * Test-only stand-in for `src/auth/apiClient.ts` (swapped in by `visual/vite.config.ts`): `authFetch` answers from
  * fixtures by URL, so the harness renders the real `App`. `?data=empty` serves a day-one account;
- * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes. Sending a chat message opens a reply stream that reports
+ * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes; the
+ * constellation tree lives in memory (`constellationsFake.ts`) and is empty with `?data=empty`. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
+import {createConstellationStore} from './constellationsFake'
 
 export class AuthRequiredError extends Error {
     constructor() {
@@ -19,7 +21,24 @@ const empty = params.get('data') === 'empty'
 const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? [['c1', 'n1'], ['c1', 'n2'], ['c1', 'n3']] : []
 
 function json(body: unknown, status = 200): Response {
+    if (status === 204) return new Response(null, {status})
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
+}
+
+const constellations = createConstellationStore(empty)
+
+function constellationResponse(path: string, method: string, body: string): Response | null {
+    const answer = (result: { status: number; body: unknown }) => json(result.body, result.status)
+    if (path === '/note/constellations') {
+        if (method === 'POST') return answer(constellations.create(JSON.parse(body)))
+        return answer(constellations.list())
+    }
+    const move = path.match(/^\/note\/constellations\/([^/]+)\/move$/)
+    if (move && method === 'POST') return answer(constellations.move(move[1], JSON.parse(body).parentId ?? null))
+    const one = path.match(/^\/note\/constellations\/([^/]+)$/)
+    if (one && method === 'PATCH') return answer(constellations.update(one[1], JSON.parse(body)))
+    if (one && method === 'DELETE') return answer(constellations.remove(one[1]))
+    return null
 }
 
 function onboarding() {
@@ -88,6 +107,8 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/user/users/me/onboarding') return method === 'GET' ? json(onboarding()) : json({})
     if (url.pathname === '/note/chats') return json(chats)
     if (url.pathname === '/note/notes') return json(notes)
+    const constellation = constellationResponse(url.pathname, method, String(init?.body ?? ''))
+    if (constellation) return constellation
 
     const chatMessages = url.pathname.match(/^\/note\/chats\/([^/]+)\/messages$/)
     if (chatMessages && method === 'POST') {

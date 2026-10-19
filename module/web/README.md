@@ -25,7 +25,7 @@ uses a mobile screen TopBar and drawer below 768px, a permanent compact rail fro
 collapsible/resizable sidebar from 1024px. Routes cover chats, notes,
 constellations, sky, updates, search, and settings; unknown routes return to chats.
 
-Constellations, sky, updates, and search currently have no complete backend. Their screens use design-system empty
+Sky, updates, and search currently have no complete backend. Their screens use design-system empty
 states instead of simulated data. Notes use the note-service list, detail, and authenticated status-stream contracts. A status stream that ends
 without `READY`/`FAILED` (the service closes it after 10 minutes) is re-read and reconnected while the note is still
 generating, up to `MAX_STATUS_RECONNECTS` times per load. A `READY` note with `updating: true` keeps its content
@@ -35,9 +35,19 @@ current APIs.
 
 Those backend-less areas are split into typed, data-independent view components and production adapters.
 `NoteViewModel`,
-`ConstellationTreeNode`, `SkyGraphModel`, and `UpdateViewModel` are frontend-only composition models, not future DTOs.
-The views include populated list/menu/dialog, search, tree/branch, graph pan/zoom/panel, and update queue/filter/Undo
+`SkyGraphModel`, and `UpdateViewModel` are frontend-only composition models, not future DTOs.
+The views include populated list/menu/dialog, search, graph pan/zoom/panel, and update queue/filter/Undo
 presentation; production adapters pass empty collections or no graph model until real endpoints exist.
+
+## Constellations
+
+`constellationApi.ts` wraps the note-service tree API (`/note/constellations`); `constellationTree.ts` builds the tree
+from the flat list (siblings by name, subtree counts) and mirrors the 1–40 code point name rule. The screen shows the
+tree collapsed to its roots; selecting a branch unfolds it and opens the branch panel (`ContextPanel`: a rail from
+768px, a right drawer on the phone) with Rename, Change colour (`ConstellationColorEditor`: hue for a root, lightness
+for a sub-constellation), New sub-constellation, Move (`ConstellationPicker` without the branch and its descendants,
+"Make it a root" first) and Delete (the branch with its sub-constellations). Every change re-reads the tree; a refusal
+(taken name, cycle, gone) stays in the dialog or the panel. "Notes here" stays empty until notes join constellations.
 
 ## Chat
 

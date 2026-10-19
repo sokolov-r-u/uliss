@@ -25,16 +25,6 @@ export interface SearchViewModel {
     chats: SearchChatViewModel[]
 }
 
-export interface ConstellationTreeNode {
-    id: string
-    label: string
-    count: number
-    hue: number
-    lightness?: number
-    children?: ConstellationTreeNode[]
-    notes?: NoteViewModel[]
-}
-
 export interface SkyGraphNode {
     id: string
     label: string

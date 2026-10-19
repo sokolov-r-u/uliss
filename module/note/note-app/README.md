@@ -155,6 +155,26 @@ Missing and foreign note IDs both return 404. SSE contains status only; clients 
 after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
 
+## Constellation API
+
+The user's tree of constellations (`ConstellationService`); every change takes a per-user advisory lock.
+
+- `GET /note/constellations` returns the whole tree as a flat list of `{id, parentId, name, hue, lightness,
+  noteCount}`; the client builds the tree. `hue` is the root's (0–359), `lightness` is `BASE` for a root and
+  `DEEP | BASE | LIGHT | PALE` for a sub-constellation; `noteCount` is 0 until notes join constellations.
+- `POST /note/constellations` with `{name, parentId?}` returns `201`. A new root takes the palette tone least used by
+  the user's roots; a new sub-constellation is `LIGHT` right under a root and `PALE` deeper.
+- `PATCH /note/constellations/{id}` with `{name?, hue?, lightness?}`: `hue` only for a root, `lightness` only for a
+  sub-constellation, at least one field, otherwise `400`.
+- `POST /note/constellations/{id}/move` with `{parentId}` (null makes a root) moves the whole branch. A root moved
+  under another node drops its hue and takes the default lightness of its depth; a sub-constellation made a root keeps
+  its inherited hue.
+- `DELETE /note/constellations/{id}` returns `204` and deletes the branch with its sub-constellations.
+
+Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` otherwise), unique regardless of case among
+roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own branch is
+`409 CONSTELLATION_MOVE_CYCLE`. A missing or foreign constellation or parent is `404`.
+
 ## Speech API
 
 - `GET /note/speech/settings` returns `{"maxDurationSeconds"}` from `note.speech.max-duration` (default 5 minutes);
