@@ -3,6 +3,7 @@ import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteConstellationSection} from '../constellations/NoteConstellationSection'
+import {SubNotesSection} from '../constellations/SubNotesSection'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
@@ -71,8 +72,9 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
     </div>
         {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
             <PanelSection label="Constellation">
-                <NoteConstellationSection noteId={note.id}/>
+                <NoteConstellationSection noteId={note.id} noteTitle={note.title}/>
             </PanelSection>
+            <SubNotesSection noteId={note.id} onOpen={(noteId) => navigate(`/notes/${noteId}`)}/>
             <PanelSection label="Written from">
                 <NoteChatsList noteId={note.id} onOpen={(chatId) => navigate(`/chats/${chatId}`)}
                                empty={<p className="context-text">

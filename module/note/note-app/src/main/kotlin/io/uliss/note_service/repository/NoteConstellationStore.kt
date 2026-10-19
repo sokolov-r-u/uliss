@@ -19,6 +19,18 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
     fun findByNote(userId: UUID, noteId: UUID): List<NoteMembership> =
         NotePlacement.ordered(jdbcTemplate.query(FIND_BY_NOTE_SQL, { rs, _ -> mapMembership(rs) }, noteId, userId))
 
+    /** The memberships of each of [noteIds], main first; notes without a place are absent. */
+    fun findByNotes(userId: UUID, noteIds: Collection<UUID>): Map<UUID, List<NoteMembership>> {
+        if (noteIds.isEmpty()) return emptyMap()
+        val rows = jdbcTemplate.query(
+            FIND_BY_NOTES_SQL,
+            { rs, _ -> rs.getObject("note_id", UUID::class.java) to mapMembership(rs) },
+            noteIds.toTypedArray(),
+            userId,
+        )
+        return rows.groupBy({ it.first }, { it.second }).mapValues { NotePlacement.ordered(it.value) }
+    }
+
     /** Every membership of the notes that belong to any of [constellationIds], keyed by note id. */
     fun findByNotesInConstellations(
         userId: UUID,
@@ -53,7 +65,10 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
         }
     }
 
-    /** Note counts of every constellation of the user that holds notes in its subtree; empty ones are absent. */
+    /**
+     * Note counts of every constellation of the user that holds notes in its subtree, sub-notes included (they live
+     * where their top note lives); empty ones are absent.
+     */
     fun countNotes(userId: UUID): List<ConstellationNoteCount> =
         jdbcTemplate.query(
             COUNT_NOTES_SQL,
@@ -64,6 +79,7 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
                     ownNoteCount = rs.getInt("own_note_count"),
                 )
             },
+            userId,
             userId,
             userId,
             userId,
@@ -80,6 +96,12 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
             SELECT constellation_id, is_main, added_at
             FROM note.note_constellation
             WHERE note_id = ? AND user_id = ?
+        """
+
+        const val FIND_BY_NOTES_SQL = """
+            SELECT note_id, constellation_id, is_main, added_at
+            FROM note.note_constellation
+            WHERE note_id = ANY (?) AND user_id = ?
         """
 
         const val FIND_BY_NOTES_IN_CONSTELLATIONS_SQL = """
@@ -101,9 +123,21 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
             VALUES (?, ?, ?, ?, ?)
         """
 
-        // Every constellation paired with itself and each of its ancestors; a note counts once per ancestor.
+        // Placed notes are the memberships plus every sub-note of a placed note with the same constellation (UNION
+        // stops even on corrupted cyclic data). Every constellation is paired with itself and each of its ancestors;
+        // a note counts once per ancestor.
         const val COUNT_NOTES_SQL = """
-            WITH RECURSIVE ancestry AS (
+            WITH RECURSIVE placed AS (
+                SELECT note_id, constellation_id
+                FROM note.note_constellation
+                WHERE user_id = ?
+                UNION
+                SELECT n.id, p.constellation_id
+                FROM placed p
+                         JOIN note.notes n ON n.parent_note_id = p.note_id
+                WHERE n.user_id = ?
+            ),
+            ancestry AS (
                 SELECT id, id AS ancestor_id, parent_id
                 FROM note.constellations
                 WHERE user_id = ?
@@ -113,12 +147,11 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
                          JOIN note.constellations c ON c.id = a.parent_id
                 WHERE c.user_id = ?
             )
-            SELECT a.ancestor_id                                           AS constellation_id,
-                   COUNT(DISTINCT nc.note_id)                              AS note_count,
-                   COUNT(DISTINCT nc.note_id) FILTER (WHERE a.id = a.ancestor_id) AS own_note_count
+            SELECT a.ancestor_id                                                 AS constellation_id,
+                   COUNT(DISTINCT p.note_id)                                     AS note_count,
+                   COUNT(DISTINCT p.note_id) FILTER (WHERE a.id = a.ancestor_id) AS own_note_count
             FROM ancestry a
-                     JOIN note.note_constellation nc ON nc.constellation_id = a.id
-            WHERE nc.user_id = ?
+                     JOIN placed p ON p.constellation_id = a.id
             GROUP BY a.ancestor_id
         """
     }

@@ -1,5 +1,5 @@
 import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Dialog, ItemMenu, type ItemMenuAction, TextField} from '@uliss/design-system'
+import {Dialog, ItemMenu, type ItemMenuAction, OptionList, TextField} from '@uliss/design-system'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
@@ -11,7 +11,15 @@ import {
     DELETE_HOST_PARAM,
     type DeleteDialogHost,
 } from './deleteDialogReturn'
-import {deleteNote, type Note, NoteApiError, notifyNotesChanged, renameNote} from '../../notes/noteApi'
+import {
+    deleteNote,
+    listSubNotes,
+    type Note,
+    NoteApiError,
+    notifyNotesChanged,
+    renameNote,
+    type SubNoteFate,
+} from '../../notes/noteApi'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -33,6 +41,19 @@ export interface ItemActionsProps {
 
 /** Room for a listed note's full title (up to 50 code points) beside its date; the screen narrows it on a phone. */
 const NOTE_LIST_DIALOG_WIDTH = 460
+
+/** The sub-notes a deleted note would leave: counted when its dialog opens. */
+type SubNotes = { status: 'loading' } | { status: 'error' } | { status: 'ready'; count: number }
+
+const FATES: { fate: SubNoteFate; label: string; note: string }[] = [
+    {fate: 'KEEP', label: 'Keep sub-notes', note: 'They take its place'},
+    {fate: 'DELETE', label: 'Delete all', note: 'The note with all its sub-notes'},
+]
+
+export function deleteNoteBody(title: string, count: number): string {
+    const subNotes = count === 1 ? 'a sub-note' : `${count} sub-notes`
+    return `“${title}” has ${subNotes}. Kept sub-notes move up to its place; chats are never deleted.`
+}
 
 export function deleteChatBody(noteCount: number): string {
     if (noteCount <= 0) return 'No notes were written from it. The conversation does not come back.'
@@ -74,6 +95,22 @@ export function ItemActions({
     const [draft, setDraft] = useState(target.title)
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
+    const [subNotes, setSubNotes] = useState<SubNotes>({status: 'loading'})
+    const [fate, setFate] = useState<SubNoteFate>('KEEP')
+    const [subNotesRevision, setSubNotesRevision] = useState(0)
+
+    // A note's delete dialog asks about its sub-notes, so it counts them first.
+    useEffect(() => {
+        if (dialog !== 'delete' || target.kind !== 'note') return
+        const controller = new AbortController()
+        setSubNotes({status: 'loading'})
+        listSubNotes(target.id, controller.signal)
+            .then((notes) => setSubNotes({status: 'ready', count: notes.length}))
+            .catch((e) => {
+                if (!controller.signal.aborted && !(e instanceof AuthRequiredError)) setSubNotes({status: 'error'})
+            })
+        return () => controller.abort()
+    }, [dialog, target.kind, target.id, subNotesRevision])
 
     useLayoutEffect(() => {
         if (initialOpen && hostRef.current) setAnchor(hostRef.current)
@@ -153,8 +190,15 @@ export function ItemActions({
         if (!begin()) return
         try {
             if (target.kind === 'chat') await deleteChat(target.id)
-            else await deleteNote(target.id)
+            else await deleteNote(target.id, subNotes.status === 'ready' && subNotes.count > 0 ? fate : undefined)
         } catch (e) {
+            if (e instanceof NoteApiError && e.code === 'NOTE_HAS_SUB_NOTES') {
+                // A sub-note appeared after the dialog counted them: count again and ask.
+                finish()
+                setFate('KEEP')
+                setSubNotesRevision((value) => value + 1)
+                return
+            }
             // Already gone (e.g. deleted in another tab) is the outcome the user asked for.
             if (failureStatus(e) !== 404) {
                 finish()
@@ -189,6 +233,7 @@ export function ItemActions({
         onSelect: () => {
             setAnchor(null)
             setError(null)
+            setFate('KEEP')
             setDialog('delete')
         },
     })
@@ -210,9 +255,22 @@ export function ItemActions({
                                if (event.key === 'Enter') void submitRename()
                            }}/>
             </Dialog>}
-            {dialog === 'delete' && <Dialog danger title={`Delete “${target.title}”?`}
+            {dialog === 'delete' && target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0
+                && <Dialog danger title={`Delete “${target.title}”?`} width={340}
+                           body={error ?? deleteNoteBody(target.title, subNotes.count)}
+                           confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={pending}
+                           confirmDisabled={pending}
+                           onConfirm={() => void submitDelete()} onCancel={closeDialog}>
+                    <OptionList label="Sub-notes" marker="dot" disabled={pending}
+                                selected={FATES.findIndex((item) => item.fate === fate)}
+                                options={FATES.map((item) => ({label: item.label, note: item.note}))}
+                                onPick={(index) => setFate(FATES[index]!.fate)}/>
+                </Dialog>}
+            {dialog === 'delete' && !(target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0)
+                && <Dialog danger title={`Delete “${target.title}”?`}
                                             body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
                                             confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"
+                                            confirmDisabled={target.kind === 'note' && subNotes.status === 'loading'}
                                             onConfirm={() => void submitDelete()} onCancel={closeDialog}
                                             width={target.kind === 'chat' && target.noteCount > 0 ? NOTE_LIST_DIALOG_WIDTH : undefined}>
                 {/* The notes that stay: open one to delete it by hand before (or instead of) the chat. */}

@@ -16,7 +16,12 @@ export interface Note {
     updating?: boolean
     /** Stored version; an edit sends it back so the service refuses to overwrite a newer one. */
     version?: number
+    /** The note this sub-note lives under; absent for a top note. */
+    parentNoteId?: string
 }
+
+/** What happens to the sub-notes of a deleted note. */
+export type SubNoteFate = 'KEEP' | 'DELETE'
 
 export interface NoteEdit {
     title: string
@@ -104,6 +109,7 @@ function parseNote(value: unknown): Note {
     if (value.content !== null && typeof value.content !== 'string') {
         throw new NoteApiError('protocol', 'invalid content in note response')
     }
+    const parentNoteId = optionalString(value.parentNoteId, 'parentNoteId')
     return {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
@@ -114,6 +120,7 @@ function parseNote(value: unknown): Note {
         updatedAt: optionalString(value.updatedAt, 'updatedAt'),
         updating: optionalFlag(value.updating, 'updating'),
         version: optionalVersion(value.version),
+        ...(parentNoteId ? {parentNoteId} : {}),
     }
 }
 
@@ -185,17 +192,20 @@ export function notifyNotesChanged() {
 
 /**
  * Starts a summary: an update of [updateNoteId], or a new note placed in [constellationId] as its main constellation
- * (a new note without one has no place). A missing constellation fails with code `CONSTELLATION_NOT_FOUND`.
+ * or under [parentNoteId] as its sub-note (a new note without either has no place). A missing constellation fails with
+ * code `CONSTELLATION_NOT_FOUND`, a missing parent note with `PARENT_NOTE_NOT_FOUND`.
  */
 export async function requestChatSummary(
     chatId: string,
     idempotencyKey: string,
     updateNoteId?: string,
     constellationId?: string,
+    parentNoteId?: string,
 ): Promise<ChatSummaryResponse> {
     const body = updateNoteId
         ? {mode: 'UPDATE', targetNoteId: updateNoteId}
-        : constellationId ? {mode: 'CREATE', constellationId} : null
+        : constellationId ? {mode: 'CREATE', constellationId}
+            : parentNoteId ? {mode: 'CREATE', parentNoteId} : null
     const init: RequestInit = body
         ? {
             method: 'POST',
@@ -231,7 +241,10 @@ export async function listChatNotes(chatId: string, signal?: AbortSignal): Promi
     return value.map(parseNote)
 }
 
-/** The notes of a constellation itself (not of its sub-constellations), newest first. */
+/**
+ * The notes of a constellation itself (not of its sub-constellations) with all their sub-notes, newest first; nest
+ * them by `parentNoteId`.
+ */
 export async function listConstellationNotes(constellationId: string, signal?: AbortSignal): Promise<Note[]> {
     const response = await fetchNotes(`/note/constellations/${constellationId}/notes`, {signal})
     await requireOk(response, 'constellation notes fetch')
@@ -240,7 +253,16 @@ export async function listConstellationNotes(constellationId: string, signal?: A
     return value.map(parseNote)
 }
 
-/** Notes with no constellation and no parent note, newest first. */
+/** The note's direct sub-notes, newest first. */
+export async function listSubNotes(noteId: string, signal?: AbortSignal): Promise<Note[]> {
+    const response = await fetchNotes(`/note/notes/${noteId}/sub-notes`, {signal})
+    await requireOk(response, 'sub-notes fetch')
+    const value = await responseJson(response)
+    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid sub-notes response')
+    return value.map(parseNote)
+}
+
+/** Top notes with no constellation together with all their sub-notes (nest them by `parentNoteId`), newest first. */
 export async function listNotesWithoutConstellation(signal?: AbortSignal): Promise<Note[]> {
     const response = await fetchNotes('/note/notes/without-constellation', {signal})
     await requireOk(response, 'unplaced notes fetch')
@@ -283,8 +305,13 @@ export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> 
     return note
 }
 
-export async function deleteNote(noteId: string): Promise<void> {
-    const response = await fetchNotes(`/note/notes/${noteId}`, {method: 'DELETE'})
+/**
+ * Deletes the note. A note with sub-notes needs [subNotes]: `KEEP` gives them its place, `DELETE` takes them too;
+ * without it such a note fails with code `NOTE_HAS_SUB_NOTES`.
+ */
+export async function deleteNote(noteId: string, subNotes?: SubNoteFate): Promise<void> {
+    const query = subNotes ? `?subNotes=${subNotes}` : ''
+    const response = await fetchNotes(`/note/notes/${noteId}${query}`, {method: 'DELETE'})
     await requireOk(response, 'note delete')
 }
 

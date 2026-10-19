@@ -4,7 +4,15 @@ import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
 import {MemoryRouter, useLocation, useNavigate} from 'react-router-dom'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
-import {deleteNote, listChatNotes, NoteApiError, renameNote, subscribeToNotesChanges} from '../../notes/noteApi'
+import {
+    deleteNote,
+    listChatNotes,
+    listSubNotes,
+    type Note,
+    NoteApiError,
+    renameNote,
+    subscribeToNotesChanges,
+} from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
 
 vi.mock('../../chat/chatApi', async (importOriginal) => {
@@ -13,7 +21,7 @@ vi.mock('../../chat/chatApi', async (importOriginal) => {
 })
 vi.mock('../../notes/noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../notes/noteApi')>()
-    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn()}
+    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([]))}
 })
 
 const chat: ItemActionTarget = {kind: 'chat', id: 'c1', title: 'Trip', noteCount: 2}
@@ -52,6 +60,7 @@ describe('ItemActions', () => {
         vi.mocked(deleteChat).mockReset()
         vi.mocked(renameChat).mockReset()
         vi.mocked(listChatNotes).mockReset().mockResolvedValue([])
+        vi.mocked(listSubNotes).mockReset().mockResolvedValue([])
     })
 
     it('lists the notes that survive a chat delete and opens one from the dialog', async () => {
@@ -169,6 +178,57 @@ describe('ItemActions', () => {
 
         await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1))
         expect(notifyChatListChanged).toHaveBeenCalled()
+    })
+
+    const subNote = (id: string): Note =>
+        ({id, source: 'MANUAL', status: 'READY', title: id, content: 'x', parentNoteId: 'n1'})
+
+    it('asks what happens to the sub-notes of a note, keeping them by default', async () => {
+        vi.mocked(listSubNotes).mockResolvedValue([subNote('low'), subNote('heroes')])
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        const onDeleted = vi.fn()
+        renderRow(note, {onDeleted})
+
+        await openMenu('Idea')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        const dialog = await screen.findByRole('dialog', {name: 'Delete “Idea”?'})
+        await waitFor(() => expect(dialog).toHaveTextContent('“Idea” has 2 sub-notes.'))
+        expect(within(dialog).getByRole('radio', {name: /Keep sub-notes/})).toHaveAttribute('aria-checked', 'true')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        expect(deleteNote).toHaveBeenCalledWith('n1', 'KEEP')
+        await waitFor(() => expect(onDeleted).toHaveBeenCalledTimes(1))
+    })
+
+    it('deletes a note with all its sub-notes when asked to', async () => {
+        vi.mocked(listSubNotes).mockResolvedValue([subNote('low')])
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        renderRow(note)
+
+        await openMenu('Idea')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(await screen.findByRole('radio', {name: /Delete all/}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(deleteNote).toHaveBeenCalledWith('n1', 'DELETE')
+    })
+
+    it('recounts and asks when a sub-note appeared after the dialog opened', async () => {
+        vi.mocked(listSubNotes).mockResolvedValueOnce([]).mockResolvedValue([subNote('low')])
+        vi.mocked(deleteNote).mockRejectedValueOnce(
+            new NoteApiError('http', 'note delete failed (409)', 409, undefined, 'NOTE_HAS_SUB_NOTES'))
+        const onDeleted = vi.fn()
+        renderRow(note, {onDeleted})
+
+        await openMenu('Idea')
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await waitFor(() => expect(listSubNotes).toHaveBeenCalledTimes(1))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(deleteNote).toHaveBeenCalledWith('n1', undefined)
+        expect(await screen.findByRole('radio', {name: /Keep sub-notes/})).toBeInTheDocument()
+        expect(screen.getByRole('dialog')).toHaveTextContent('“Idea” has a sub-note.')
+        expect(onDeleted).not.toHaveBeenCalled()
     })
 
     it('sends one delete request when confirm is pressed again while pending', async () => {

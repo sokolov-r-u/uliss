@@ -92,7 +92,12 @@ application services or outbox handlers.
 | `PATCH /note/notes/{noteId}`                      | `NoteController -> NoteService`                                                     | Renames a `READY` note and queues reindexing       |
 | `PUT /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Saves a versioned edit and queues reindexing       |
 | `POST /note/notes/{noteId}/ai-edit`               | `NoteController -> NoteAiEditService -> NoteService`                                | Streams a model rewrite; saves nothing             |
-| `DELETE /note/notes/{noteId}`                     | `NoteController -> NoteService`                                                     | Deletes the note; chats survive                    |
+| `DELETE /note/notes/{noteId}`                     | `NoteController -> NoteHierarchyService`                                            | Deletes the note (sub-notes kept or deleted by choice); chats survive |
+| `GET /note/notes/search`                          | `NoteController -> NoteHierarchyService`                                            | Finds titled notes for the place picker            |
+| `GET /note/notes/{noteId}/place`                  | `NoteController -> NoteHierarchyService`                                            | Returns parent notes and the top note's places     |
+| `GET /note/notes/{noteId}/sub-notes`              | `NoteController -> NoteService`                                                     | Lists the note's direct sub-notes                  |
+| `PUT /note/notes/{noteId}/parent`                 | `NoteController -> NoteHierarchyService`                                            | Moves the note under another note                  |
+| `DELETE /note/notes/{noteId}/parent`              | `NoteController -> NoteHierarchyService`                                            | Moves a sub-note out, into a constellation or none |
 | `GET /note/speech/settings`                       | `SpeechController -> SpeechTranscriptionService`                                    | Returns the recording length limit                 |
 | `POST /note/speech/transcriptions`                | `SpeechController -> SpeechTranscriptionService -> TranscriptionModel`              | Checks the recording and returns its text          |
 
@@ -303,12 +308,13 @@ sequenceDiagram
     participant NR as NoteRepository
     participant CR as ChatNoteRepository
     participant PS as NotePlacementService
+    participant HS as NoteHierarchyService
     participant OS as OutboxService
     C ->> HC: POST chats/{chatId}/summarize<br/>Idempotency-Key
     HC ->> F: requestSummary(userId, chatId, key)
     F ->> CS: getLatestMessageId(userId, chatId)
     CS -->> F: owned latest-message boundary
-    F ->> NS: requestChatSummary(..., throughMessageId, key, constellationId?)
+    F ->> NS: requestChatSummary(..., throughMessageId, key, constellationId? or parentNoteId?)
 
     rect rgb(235, 245, 255)
         Note over NS, OS: One transaction
@@ -320,6 +326,10 @@ sequenceDiagram
             opt constellationId given
                 NS ->> PS: add(userId, noteId, constellationId) under the tree lock
                 PS -->> NS: main place, or CONSTELLATION_NOT_FOUND rolls everything back
+            end
+            opt parentNoteId given
+                NS ->> HS: moveUnder(userId, noteId, parentNoteId) under the tree lock
+                HS -->> NS: sub-note, or PARENT_NOTE_NOT_FOUND rolls everything back
             end
             NS ->> OS: publish NOTE_SUMMARY_REQUESTED
         else Key already exists for this user

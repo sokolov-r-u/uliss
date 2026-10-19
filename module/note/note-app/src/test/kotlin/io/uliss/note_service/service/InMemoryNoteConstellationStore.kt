@@ -32,6 +32,12 @@ class InMemoryNoteConstellationStore {
                 put(userId, noteId, memberships)
             }
         }
+        Mockito.`when`(store.findByNotes(anyValue(), anyValue())).thenAnswer { invocation ->
+            val userId = invocation.getArgument<UUID>(0)
+            val ids = invocation.getArgument<Collection<UUID>>(1).toSet()
+            rows.filter { (noteId, _) -> noteId in ids && owners[noteId] == userId }
+                .mapValues { NotePlacement.ordered(it.value) }
+        }
         Mockito.`when`(store.countNotes(anyValue())).thenReturn(emptyList())
     }
 

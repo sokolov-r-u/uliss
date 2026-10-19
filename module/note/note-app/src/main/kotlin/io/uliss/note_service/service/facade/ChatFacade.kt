@@ -90,9 +90,9 @@ class ChatFacade(
 
     /**
      * A known key replays its earlier result before the mode rules, so a retry after the boundary moved still gets
-     * its note. CREATE needs a chat without a current note and may place the new note in [constellationId]; UPDATE
-     * must target the current note and have new messages, and takes no place. A new request, not a replay, lifts the
-     * chat in chat lists.
+     * its note. CREATE needs a chat without a current note and may place the new note in [constellationId] or under
+     * [parentNoteId] (not both); UPDATE must target the current note and have new messages, and takes no place. A new
+     * request, not a replay, lifts the chat in chat lists.
      */
     @Transactional
     fun requestSummary(
@@ -102,9 +102,13 @@ class ChatFacade(
         mode: SummaryMode,
         targetNoteId: UUID?,
         constellationId: UUID? = null,
+        parentNoteId: UUID? = null,
     ): NoteEntity {
-        if (mode == SummaryMode.UPDATE && constellationId != null) {
+        if (mode == SummaryMode.UPDATE && (constellationId != null || parentNoteId != null)) {
             throw BadRequestException("an update keeps the note's place; change it on the note")
+        }
+        if (constellationId != null && parentNoteId != null) {
+            throw BadRequestException("a new note takes one place: a constellation or a parent note")
         }
         val latestMessageId = chatService.getLatestMessageId(userId, chatId)
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
@@ -115,7 +119,9 @@ class ChatFacade(
                 if (current != null) {
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
-                noteService.requestChatSummary(userId, chatId, latestMessageId, idempotencyKey, constellationId)
+                noteService.requestChatSummary(
+                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId,
+                )
             }
 
             SummaryMode.UPDATE -> {

@@ -1,13 +1,13 @@
-import {Kicker, ListRow} from '@uliss/design-system'
+import {Kicker} from '@uliss/design-system'
 import {type Note, subscribeToNotesChanges} from '../notes/noteApi'
-import {formatShortDate} from '../ui/format'
 import {useLinkedItems} from '../ui/links/useLinkedItems'
+import {NoteTreeList} from './NoteTreeList'
 
 const SUBSCRIPTIONS = [subscribeToNotesChanges]
 
 /**
- * "Notes here" of a constellation panel: the notes [load] returns for [id] as rows that open them, reloaded when notes
- * change. [deeper] is the line about notes further down the branch.
+ * "Notes here" of a constellation panel: the notes [load] returns for [id] as rows that open them, sub-notes folded
+ * under their parents, reloaded when notes change. [deeper] is the line about notes further down the branch.
  */
 export function NotesHere({id, load, onOpen, empty, deeper = null}: {
     id: string
@@ -22,12 +22,7 @@ export function NotesHere({id, load, onOpen, empty, deeper = null}: {
             <Kicker size={9} spacing="3px" color="var(--text-faint)">Notes here</Kicker>
             {notes.length === 0
                 ? <p>{status === 'loading' ? 'Loading…' : status === 'failed' ? 'Could not load the notes.' : empty}</p>
-                : <div className="constellation-panel-note-list">
-                    {notes.map((note) => (
-                        <ListRow key={note.id} title={note.title || 'Untitled note'}
-                                 date={formatShortDate(note.createdAt)} dots={false} onClick={() => onOpen(note.id)}/>
-                    ))}
-                </div>}
+                : <NoteTreeList notes={notes} onOpen={onOpen}/>}
             {deeper && <p className="constellation-panel-deeper">{deeper}</p>}
         </section>
     )

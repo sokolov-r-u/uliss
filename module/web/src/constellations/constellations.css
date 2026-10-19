@@ -403,3 +403,21 @@
     line-height: 1.5;
     color: var(--text-faint);
 }
+
+/* Notes with their sub-notes folded under them (constellations/NoteTreeList.tsx). */
+.note-tree-row {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.note-tree-toggle {
+    flex: 0 0 32px;
+    display: flex;
+    justify-content: center;
+}
+
+.note-tree-row > :last-child {
+    flex: 1;
+    min-width: 0;
+}

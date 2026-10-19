@@ -639,3 +639,9 @@ would make certificate errors impossible to click through, and it pins the host 
 host-based `bootRun` on `http://auth.uliss.home:9000`. In production (public certificate, edge proxy of ROADMAP
 item 11) send HSTS for every public host — `max-age` of at least a year, `includeSubDomains` once all subdomains
 serve HTTPS — and drop the `proxy_hide_header`; keep dev hosts out of the production domain.
+
+## Note search and place read the whole note hierarchy
+
+- `NoteHierarchyService.search` and `getPlace` load every note of the user (id, parent, title, age) per call; the
+  picker searches after each typing pause. Fine for thousands of notes; at scale, search in SQL (`ILIKE … LIMIT`)
+  and read ancestors of the hits with a recursive query. Source: `docs/tasks/2026-10-19-constellations-subnotes.md`.

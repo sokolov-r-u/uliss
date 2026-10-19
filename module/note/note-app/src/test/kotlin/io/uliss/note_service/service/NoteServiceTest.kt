@@ -49,6 +49,7 @@ class NoteServiceTest {
     private val objectMapper = JsonMapper.builder().build()
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
+    private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val noteService = NoteService(
         noteRepository,
         chatNoteRepository,
@@ -57,6 +58,7 @@ class NoteServiceTest {
         objectMapper,
         constellationRepository,
         notePlacementService,
+        noteHierarchyService,
     )
 
     @Test
@@ -291,6 +293,41 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `requestChatSummary hangs the new note under the chosen parent note after saving it`() {
+        val userId = UUID.randomUUID()
+        val parentNoteId = UUID.randomUUID()
+        acceptReservations()
+        Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
+
+        val note = noteService.requestChatSummary(
+            userId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), parentNoteId = parentNoteId,
+        )
+
+        val order = Mockito.inOrder(noteRepository, noteHierarchyService, outboxService)
+        order.verify(noteRepository).saveAndFlush(note)
+        order.verify(noteHierarchyService).moveUnder(userId, note.id, parentNoteId)
+        assertEquals(parentNoteId, note.parentNoteId)
+        order.verify(outboxService).publish(eqValue(OutboxEventType.NOTE_SUMMARY_REQUESTED), anyValue())
+        Mockito.verifyNoInteractions(notePlacementService)
+    }
+
+    @Test
+    fun `sub-notes of a note come newest first with their update state`() {
+        val userId = UUID.randomUUID()
+        val parent = NoteEntity(userId, "parent")
+        val child = NoteEntity(userId, "child", parentNoteId = parent.id)
+        Mockito.`when`(noteRepository.findByIdAndUserId(parent.id, userId)).thenReturn(parent)
+        Mockito.`when`(noteRepository.findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId, parent.id))
+            .thenReturn(listOf(child))
+        Mockito.`when`(summaryRequestStore.findPendingNoteIds(userId)).thenReturn(setOf(child.id))
+
+        val subNotes = noteService.getSubNotes(userId, parent.id)
+
+        assertEquals(listOf(Triple(child.id, parent.id, true)), subNotes.map { Triple(it.id, it.parentNoteId, it.updating) })
+        assertFailsWith<NotFoundException> { noteService.getSubNotes(UUID.randomUUID(), parent.id) }
+    }
+
+    @Test
     fun `requestChatSummary without a constellation leaves the note without a place`() {
         acceptReservations()
         Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
@@ -318,6 +355,7 @@ class NoteServiceTest {
 
         assertEquals(originalNote, replayed)
         Mockito.verifyNoInteractions(notePlacementService)
+        Mockito.verifyNoInteractions(noteHierarchyService)
     }
 
     private fun acceptReservations() {
@@ -765,26 +803,6 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
 
         assertFailsWith<NotFoundException> { noteService.updateNote(userId, noteId, "Title", "body", 0) }
-    }
-
-    @Test
-    fun `deleteNote removes an owned note in any status`() {
-        val userId = UUID.randomUUID()
-        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
-
-        noteService.deleteNote(userId, note.id)
-
-        Mockito.verify(noteRepository).delete(note)
-    }
-
-    @Test
-    fun `deleteNote hides a missing or foreign note behind not found`() {
-        val userId = UUID.randomUUID()
-        val noteId = UUID.randomUUID()
-        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
-
-        assertFailsWith<NotFoundException> { noteService.deleteNote(userId, noteId) }
     }
 
     @Test

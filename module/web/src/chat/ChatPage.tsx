@@ -7,7 +7,7 @@ import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
+import {type SummaryPlace, SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
     type Chat,
@@ -610,8 +610,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         void executeChatRequest(pendingRequest, target, placeholderId)
     }
 
-    /** [constellationId] places a new note; an update keeps the note's place. */
-    async function confirmSummary(constellationId?: string) {
+    /** [place] puts a new note in a constellation or under a note; an update keeps the note's place. */
+    async function confirmSummary(place?: SummaryPlace) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const target = summaryState
         const requestId = summaryRequestIdRef.current + 1
@@ -632,7 +632,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         try {
             const summary = target
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
-                : await requestChatSummary(chatId, idempotencyKey, undefined, constellationId)
+                : await requestChatSummary(chatId, idempotencyKey, undefined,
+                    place && 'constellationId' in place ? place.constellationId : undefined,
+                    place && 'parentNoteId' in place ? place.parentNoteId : undefined)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -663,6 +665,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 || error instanceof AuthRequiredError || isAbortError(error)) return
             if (error instanceof NoteApiError && error.code === 'CONSTELLATION_NOT_FOUND') {
                 setSummaryError('That constellation no longer exists. Pick another one or skip for now.')
+                setPlaceRevision((value) => value + 1)
+                return
+            }
+            if (error instanceof NoteApiError && error.code === 'PARENT_NOTE_NOT_FOUND') {
+                setSummaryError('That note no longer exists. Pick another place or skip for now.')
                 setPlaceRevision((value) => value + 1)
                 return
             }
@@ -779,7 +786,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         busy={summaryPending}
                         onSecondary={() => void confirmSummary()}>
                         <SummaryPlacePicker busy={summaryPending} revision={placeRevision}
-                                            onPick={(id) => void confirmSummary(id)}
+                                            onPick={(place) => void confirmSummary(place)}
                                             onClose={() => {
                                                 if (!summaryPendingRef.current) setSummaryDialog(false)
                                             }}/>

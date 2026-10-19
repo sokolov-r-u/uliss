@@ -18,6 +18,8 @@ data class NoteResponse(
     val updating: Boolean,
     /** Optimistic-lock version; an edit sends it back so a newer stored version rejects the edit. */
     val version: Long?,
+    /** The note this sub-note lives under; null for a top note. */
+    val parentNoteId: UUID? = null,
 )
 
 data class NoteStatusResponse(
@@ -37,6 +39,7 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     updatedAt = updatedAt,
     updating = updating,
     version = version,
+    parentNoteId = parentNoteId,
 )
 
 fun NoteEntity.toStatusResponse(updating: Boolean): NoteStatusResponse =

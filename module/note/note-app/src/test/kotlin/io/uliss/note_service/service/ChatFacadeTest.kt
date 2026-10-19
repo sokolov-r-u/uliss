@@ -175,6 +175,44 @@ class ChatFacadeTest {
     }
 
     @Test
+    fun `requestSummary passes the chosen parent note to the new note`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val latest = UUID.randomUUID()
+        val parentNoteId = UUID.randomUUID()
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteService.requestChatSummary(userId, chatId, latest, key, null, parentNoteId)).thenReturn(savedNote)
+
+        val result = chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null, null, parentNoteId)
+
+        assertSame(savedNote, result)
+    }
+
+    @Test
+    fun `requestSummary takes one place, a constellation or a parent note, and none for an update`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val current = CurrentChatSummary(UUID.randomUUID(), "Trip", UUID.randomUUID())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(
+                userId, chatId, UUID.randomUUID(), SummaryMode.CREATE, null, UUID.randomUUID(), UUID.randomUUID(),
+            )
+        }
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(
+                userId, chatId, UUID.randomUUID(), SummaryMode.UPDATE, current.noteId, null, UUID.randomUUID(),
+            )
+        }
+        Mockito.verify(noteService, Mockito.never()).findSummaryReplay(anyValue(), anyValue(), anyValue())
+        Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
+    }
+
+    @Test
     fun `requestSummary refuses a place for an update before reserving anything`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

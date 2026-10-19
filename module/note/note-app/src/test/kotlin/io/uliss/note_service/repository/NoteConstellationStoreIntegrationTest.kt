@@ -137,19 +137,88 @@ class NoteConstellationStoreIntegrationTest {
     }
 
     @Test
-    fun `notes without a constellation leave out placed notes, sub-notes and other users' notes`() {
+    fun `notes without a constellation are unplaced top notes with all their sub-notes, newest first`() {
         val placed = note("Kind of Blue")
         replace(placed.id, NoteMembership(root("Music").id, true, t0))
+        val underPlaced = note("Under the placed one")
+        parent(underPlaced.id, placed.id)
         val loose = note("Loose thought")
         val newerLoose = note("Another one")
         val subNote = note("Under the loose one")
-        jdbcTemplate.update("UPDATE note.notes SET parent_note_id = ? WHERE id = ?", loose.id, subNote.id)
+        val subSubNote = note("Deeper still")
+        parent(subNote.id, loose.id)
+        parent(subSubNote.id, subNote.id)
         noteRepository.save(NoteEntity(UUID.randomUUID(), "foreign"))
 
         assertEquals(
-            listOf(newerLoose.id, loose.id),
+            listOf(subSubNote.id, subNote.id, newerLoose.id, loose.id),
             noteRepository.findWithoutConstellation(userId).map { it.id },
         )
+    }
+
+    @Test
+    fun `notes here come with all sub-notes of the node's own notes`() {
+        val music = root("Music")
+        val jazz = child(music.id, "Jazz")
+        val bowie = note("Bowie")
+        val low = note("Low")
+        val warszawa = note("Warszawa")
+        val deeper = note("Kind of Blue")
+        val deeperChild = note("So What")
+        replace(bowie.id, NoteMembership(music.id, true, t0))
+        replace(deeper.id, NoteMembership(jazz.id, true, t0))
+        parent(low.id, bowie.id)
+        parent(warszawa.id, low.id)
+        parent(deeperChild.id, deeper.id)
+
+        assertEquals(
+            listOf(warszawa.id, low.id, bowie.id),
+            noteRepository.findInConstellation(userId, music.id).map { it.id },
+        )
+    }
+
+    @Test
+    fun `counts include sub-notes, each note once per subtree`() {
+        val music = root("Music")
+        val rock = child(music.id, "Rock")
+        val jazz = child(music.id, "Jazz")
+        val bowie = note("Bowie")
+        val low = note("Low")
+        val warszawa = note("Warszawa")
+        val both = note("Kind of Blue")
+        val bothChild = note("So What")
+        val loose = note("Loose")
+        val looseChild = note("Under loose")
+        replace(bowie.id, NoteMembership(rock.id, true, t0))
+        replace(both.id, NoteMembership(jazz.id, true, t0), NoteMembership(rock.id, false, t0))
+        parent(low.id, bowie.id)
+        parent(warszawa.id, low.id)
+        parent(bothChild.id, both.id)
+        parent(looseChild.id, loose.id)
+
+        val counts = store.countNotes(userId).associateBy { it.constellationId }
+
+        assertEquals(ConstellationNoteCount(music.id, 5, 0), counts[music.id])
+        assertEquals(ConstellationNoteCount(rock.id, 5, 5), counts[rock.id])
+        assertEquals(ConstellationNoteCount(jazz.id, 2, 2), counts[jazz.id])
+    }
+
+    @Test
+    fun `memberships of several notes are read at once, only for the owner`() {
+        val music = root("Music")
+        val films = root("Films")
+        val bowie = note("Bowie")
+        val stalker = note("Stalker")
+        val loose = note("Loose")
+        replace(bowie.id, NoteMembership(music.id, false, t0), NoteMembership(films.id, true, t0.plusSeconds(1)))
+        replace(stalker.id, NoteMembership(films.id, true, t0))
+
+        val found = store.findByNotes(userId, listOf(bowie.id, stalker.id, loose.id))
+
+        assertEquals(setOf(bowie.id, stalker.id), found.keys)
+        assertEquals(listOf(films.id, music.id), found.getValue(bowie.id).map { it.constellationId })
+        assertTrue(store.findByNotes(UUID.randomUUID(), listOf(bowie.id)).isEmpty())
+        assertTrue(store.findByNotes(userId, emptyList()).isEmpty())
     }
 
     @Test
@@ -159,6 +228,10 @@ class NoteConstellationStoreIntegrationTest {
         jdbcTemplate.update("UPDATE note.notes SET parent_note_id = ? WHERE id = ?", parent.id, child.id)
 
         assertEquals(parent.id, noteRepository.findByIdAndUserId(child.id, userId)?.parentNoteId)
+    }
+
+    private fun parent(noteId: UUID, parentId: UUID) {
+        jdbcTemplate.update("UPDATE note.notes SET parent_note_id = ? WHERE id = ?", parentId, noteId)
     }
 
     private fun replace(noteId: UUID, vararg memberships: NoteMembership) {

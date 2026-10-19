@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {Link, MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
@@ -19,6 +19,13 @@ import {
 } from './streamChatReply'
 import {clearTokens} from '../auth/tokenStore'
 import {ChatPage} from './ChatPage'
+import {
+    type Constellation,
+    ConstellationApiError,
+    createConstellation,
+    listConstellations,
+    searchNotes,
+} from '../constellations/constellationApi'
 
 vi.mock('./chatApi', () => ({
     getMessages: vi.fn(),
@@ -46,6 +53,18 @@ vi.mock('./streamChatReply', () => ({
 vi.mock('../constellations/constellationApi', () => ({
     listConstellations: vi.fn(() => Promise.resolve([])),
     createConstellation: vi.fn(),
+    searchNotes: vi.fn(() => Promise.resolve([])),
+    ConstellationApiError: class ConstellationApiError extends Error {
+        constructor(
+            public readonly kind: string,
+            message: string,
+            public readonly status?: number,
+            options?: ErrorOptions,
+            public readonly code?: string,
+        ) {
+            super(message, options)
+        }
+    },
 }))
 vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
@@ -57,8 +76,10 @@ vi.mock('../notes/noteApi', () => ({
             public readonly kind: string,
             message: string,
             public readonly status?: number,
+            options?: ErrorOptions,
+            public readonly code?: string,
         ) {
-            super(message)
+            super(message, options)
         }
     },
 }))
@@ -361,7 +382,7 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         // Skipped place, no update target: the create request carries neither a note nor a constellation.
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
@@ -969,5 +990,155 @@ describe('ChatPage summary flow', () => {
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
         expect(sessionStorage.getItem('preference')).toBe('keep')
+    })
+})
+
+describe('ChatPage summary place picker', () => {
+    const tree: Constellation[] = [
+        {id: 'music', parentId: null, name: 'Music', hue: 264, lightness: 'BASE', noteCount: 0, ownNoteCount: 0},
+        {id: 'jazz', parentId: 'music', name: 'Jazz', hue: 264, lightness: 'LIGHT', noteCount: 0, ownNoteCount: 0},
+    ]
+
+    beforeEach(() => {
+        mockedGetMessages.mockReset().mockResolvedValue(messagePage([
+            {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+        ]))
+        mockedSummary.mockReset().mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+        vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
+        vi.mocked(listConstellations).mockReset().mockResolvedValue(tree)
+        vi.mocked(createConstellation).mockReset()
+        sessionStorage.clear()
+    })
+
+    async function openPicker() {
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        return screen.getByRole('dialog', {name: 'Create a summary note?'})
+    }
+
+    it('summarizes into the branch picked in the tree', async () => {
+        const dialog = await openPicker()
+        expect(await within(dialog).findByRole('button', {name: 'Select a place'})).toBeDisabled()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: /^Music/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: /^Jazz/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize into Jazz'}))
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined))
+        expect(await screen.findByRole('status', {name: 'Summary note'}))
+            .toHaveTextContent('Uliss is writing a note — summary started')
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('creates a constellation from the search and summarizes into it', async () => {
+        vi.mocked(createConstellation).mockResolvedValue(
+            {id: 'rock', parentId: null, name: 'Rock', hue: 10, lightness: 'BASE', noteCount: 0, ownNoteCount: 0})
+        const dialog = await openPicker()
+
+        await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'Rock')
+        vi.mocked(listConstellations).mockResolvedValue([...tree,
+            {id: 'rock', parentId: null, name: 'Rock', hue: 10, lightness: 'BASE', noteCount: 0, ownNoteCount: 0}])
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Create “Rock”'}))
+
+        expect(createConstellation).toHaveBeenCalledWith('Rock', null)
+        // Creating only selects the new branch: the summary starts from the action.
+        expect(mockedSummary).not.toHaveBeenCalled()
+        await userEvent.click(await within(dialog).findByRole('button', {name: 'Summarize into Rock'}))
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined))
+    })
+
+    it('explains a deleted constellation, reloads the tree and starts nothing', async () => {
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
+            'CONSTELLATION_NOT_FOUND'))
+        const dialog = await openPicker()
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Music/}))
+        vi.mocked(listConstellations).mockResolvedValue([tree[1]!].map((item) => ({...item, id: 'other'})))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize into Music'}))
+
+        expect(await within(dialog).findByText('That constellation no longer exists. Pick another one or skip for now.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+        expect(screen.queryByRole('status', {name: 'Summary note'})).not.toBeInTheDocument()
+        // The rejected key is dropped, so the next attempt is a new request.
+        expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
+    })
+
+    it('explains a branch deleted while creating inside it', async () => {
+        vi.mocked(createConstellation).mockRejectedValue(new ConstellationApiError('http', 'gone', 404))
+        const dialog = await openPicker()
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Music/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: '+ New in Music'}))
+        await userEvent.type(within(dialog).getByRole('textbox', {name: 'New constellation in Music'}), 'Rock{Enter}')
+
+        expect(await within(dialog).findByRole('alert'))
+            .toHaveTextContent('That constellation no longer exists. Pick another place.')
+        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+        expect(mockedSummary).not.toHaveBeenCalled()
+    })
+
+    it('offers Retry when the tree does not load and Skip for now still works', async () => {
+        vi.mocked(listConstellations).mockRejectedValueOnce(new ConstellationApiError('transport', 'offline'))
+        const dialog = await openPicker()
+
+        expect(await within(dialog).findByText('Could not load the constellations.')).toBeInTheDocument()
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Retry'}))
+        expect(await within(dialog).findByRole('button', {name: /^Music/})).toBeInTheDocument()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Skip for now'}))
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined))
+    })
+
+    it('summarizes under a note found by its title', async () => {
+        vi.mocked(searchNotes).mockResolvedValue(
+            [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'music'}])
+        const dialog = await openPicker()
+
+        await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'bow')
+        const hit = await within(dialog).findByRole('button', {name: /^Bowie/})
+        expect(hit).toHaveTextContent('Music')
+        await userEvent.click(hit)
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Bowie'}))
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie'))
+        expect(searchNotes).toHaveBeenCalledWith('bow', null, expect.any(AbortSignal))
+    })
+
+    it('explains a deleted parent note and reloads the picker', async () => {
+        vi.mocked(searchNotes).mockResolvedValue([{id: 'gone', title: 'Gone', ancestors: [], constellationId: null}])
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
+            'PARENT_NOTE_NOT_FOUND'))
+        const dialog = await openPicker()
+
+        await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'gone')
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Gone/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Gone'}))
+
+        expect(await within(dialog).findByText('That note no longer exists. Pick another place or skip for now.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+    })
+
+    it('updates a summarized chat without the place picker', async () => {
+        mockedGetMessages.mockResolvedValueOnce({
+            ...messagePage([
+                {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+                {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'},
+            ]),
+            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
+        })
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        const dialog = screen.getByRole('dialog', {name: 'Update “Trip”?'})
+        expect(within(dialog).queryByRole('textbox', {name: 'Put the note in…'})).not.toBeInTheDocument()
+        expect(within(dialog).queryByRole('button', {name: 'Skip for now'})).not.toBeInTheDocument()
+        expect(listConstellations).not.toHaveBeenCalled()
     })
 })

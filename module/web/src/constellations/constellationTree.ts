@@ -1,5 +1,10 @@
-import {type ConstellationLightness, type ConstellationPickerItem, constellationColor} from '@uliss/design-system'
-import type {Constellation} from './constellationApi'
+import {
+    type ConstellationLightness,
+    type ConstellationPickerItem,
+    type ConstellationPickerNote,
+    constellationColor,
+} from '@uliss/design-system'
+import type {Constellation, NoteHit} from './constellationApi'
 
 /** Longest constellation name, in code points; mirrors the service's `ConstellationNameNormalizer`. */
 export const CONSTELLATION_NAME_LIMIT = 40
@@ -98,4 +103,16 @@ export function pickerItems(tree: ConstellationTree): ConstellationPickerItem[] 
         color: constellationColor(node.hue, node.lightness),
         count: node.count,
     }))
+}
+
+/** A found note as the place-picker lists it: its constellation path, then its parent notes. */
+export function pickerNote(hit: NoteHit, tree: ConstellationTree): ConstellationPickerNote {
+    const place = hit.constellationId ? tree.byId.get(hit.constellationId) : undefined
+    const constellations = place ? [...place.ancestors.map((ancestor) => ancestor.name), place.name] : []
+    return {
+        id: hit.id,
+        title: hit.title,
+        path: [...constellations, ...hit.ancestors.map((ancestor) => ancestor.title || 'Untitled note')],
+        ...(place ? {color: constellationColor(place.hue, place.lightness)} : {}),
+    }
 }
