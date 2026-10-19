@@ -2,12 +2,18 @@ import {
     ConstellationColorEditor,
     type ConstellationLightness,
     ConstellationPicker,
-    type ConstellationPickerItem,
     constellationColor,
-    Kicker,
     TagDot,
 } from '@uliss/design-system'
-import {type ConstellationNode, type ConstellationTree, descendantIds, plural} from './constellationTree'
+import {listConstellationNotes} from '../notes/noteApi'
+import {
+    type ConstellationNode,
+    type ConstellationTree,
+    descendantIds,
+    pickerItems,
+    plural,
+} from './constellationTree'
+import {NotesHere} from './NotesHere'
 
 export type PanelTool = 'colour' | 'move' | null
 
@@ -25,6 +31,7 @@ export interface ConstellationPanelProps {
     onDelete: () => void
     onRecolor: (change: { hue: number } | { lightness: ConstellationLightness }) => void
     onMove: (parentId: string | null) => void
+    onOpenNote: (noteId: string) => void
 }
 
 /** The selected branch: path, name, counts, its actions, the inline colour editor and move picker, Notes here. */
@@ -40,6 +47,7 @@ export function ConstellationPanel({
                                        onDelete,
                                        onRecolor,
                                        onMove,
+                                       onOpenNote,
                                    }: ConstellationPanelProps) {
     const isRoot = node.depth === 0
     const root = node.ancestors[0] ?? node
@@ -87,12 +95,9 @@ export function ConstellationPanel({
                                      lead={isRoot ? undefined : {label: 'Make it a root', onSelect: () => onMove(null)}}
                                      onPick={(id) => onMove(id)} onClose={() => onTool(null)}/>
             </div>}
-            <section className="constellation-panel-notes">
-                <Kicker size={9} spacing="3px" color="var(--text-faint)">Notes here</Kicker>
-                <p>No notes here yet.</p>
-                {below > 0 && <p>Plus {plural(below, 'star', 'stars')} deeper
-                    in {node.children.map((child) => child.name).join(', ')}.</p>}
-            </section>
+            <NotesHere id={node.id} load={listConstellationNotes} onOpen={onOpenNote}
+                       empty="No notes here yet."
+                       deeper={below > 0 ? `Plus ${plural(below, 'star', 'stars')} deeper in ${deeperNames(node)}.` : null}/>
             <section className="constellation-panel-foot">
                 <p>{isRoot
                     ? 'A root owns its colour. Everything below it plays with lightness.'
@@ -105,13 +110,8 @@ export function ConstellationPanel({
     )
 }
 
-function pickerItems(tree: ConstellationTree): ConstellationPickerItem[] {
-    return tree.flat.map((node) => ({
-        id: node.id,
-        name: node.name,
-        depth: node.depth,
-        path: node.ancestors.map((ancestor) => ancestor.name),
-        color: constellationColor(node.hue, node.lightness),
-        count: node.count,
-    }))
+/** The children that hold notes; all of them when the counts disagree. */
+function deeperNames(node: ConstellationNode): string {
+    const holding = node.children.filter((child) => child.count > 0)
+    return (holding.length > 0 ? holding : node.children).map((child) => child.name).join(', ')
 }

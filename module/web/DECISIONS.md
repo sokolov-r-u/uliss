@@ -73,3 +73,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   to `onSubmit(text)` because the owner's state has not caught up yet. Wording of voice errors sits in a line above the
   dock. Only the user retries a failed transcription, with the same recording and intent.
 - **Source:** task `docs/tasks/2026-10-17-voice-input.md`, block 3.
+
+## 2026-10-19 — A note's places are edited only from its panel
+
+- **Context:** task 2 of the constellations epic; the meta plate above the note text (board 16c) is not built.
+- **Decision:** the "Constellation" section opens the note's panel. The main place is a breadcrumb with Change (pick a
+  new main, the old one is dropped) and Remove; "Also in" chips make a place main on click and remove it with ×;
+  "+ Add constellation" adds one. Every pick goes through the DS `ConstellationPicker`, whose "Create “…”" creates a
+  root and places the note there. The Constellations screen shows the service's distinct subtree counts as they are
+  (the client no longer sums children), lists "Notes here" per branch, ends the tree with a muted "Without
+  constellation" row when such notes exist, and asks where to move the notes before deleting a branch that holds some.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 4.

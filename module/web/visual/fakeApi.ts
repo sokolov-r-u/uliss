@@ -33,6 +33,11 @@ function constellationResponse(path: string, method: string, body: string): Resp
         if (method === 'POST') return answer(constellations.create(JSON.parse(body)))
         return answer(constellations.list())
     }
+    // The visual notes are not placed anywhere yet.
+    if (path === '/note/notes/without-constellation') return json([])
+    if (/^\/note\/notes\/[^/]+\/constellations$/.test(path)) return json([])
+    if (/^\/note\/constellations\/[^/]+\/notes$/.test(path)) return json([])
+    if (/^\/note\/constellations\/[^/]+\/deletion$/.test(path)) return json({notesToMove: 0})
     const move = path.match(/^\/note\/constellations\/([^/]+)\/move$/)
     if (move && method === 'POST') return answer(constellations.move(move[1], JSON.parse(body).parentId ?? null))
     const one = path.match(/^\/note\/constellations\/([^/]+)$/)

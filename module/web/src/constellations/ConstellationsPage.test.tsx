@@ -1,5 +1,6 @@
 import {render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     type Constellation,
@@ -21,11 +22,21 @@ vi.mock('./constellationApi', async (importOriginal) => {
         updateConstellation: vi.fn(),
         moveConstellation: vi.fn(),
         deleteConstellation: vi.fn(),
+        getConstellationDeletion: vi.fn(async () => ({notesToMove: 0})),
+    }
+})
+
+vi.mock('../notes/noteApi', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../notes/noteApi')>()
+    return {
+        ...actual,
+        listNotesWithoutConstellation: vi.fn(async () => []),
+        listConstellationNotes: vi.fn(async () => []),
     }
 })
 
 function node(id: string, parentId: string | null, name: string, extra: Partial<Constellation> = {}): Constellation {
-    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount: 0, ...extra}
+    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount: 0, ownNoteCount: 0, ...extra}
 }
 
 const TREE = [
@@ -41,7 +52,7 @@ function httpError(status: number, code?: string) {
 
 async function renderPage(items: Constellation[] = TREE) {
     vi.mocked(listConstellations).mockResolvedValue(items)
-    render(<ConstellationsPage/>)
+    render(<MemoryRouter><ConstellationsPage/></MemoryRouter>)
 }
 
 async function openBranch(name: string) {
@@ -219,17 +230,18 @@ describe('ConstellationsPage', () => {
 
         await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
         const dialog = screen.getByRole('dialog', {name: 'Delete “Music”?'})
-        expect(dialog).toHaveTextContent('Its 2 sub-constellations go with it. Notes are never deleted with a constellation.')
+        expect(await within(dialog).findByText('Its 2 sub-constellations go with it. Notes are never deleted with a constellation.'))
+            .toBeInTheDocument()
         await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
 
-        expect(deleteConstellation).toHaveBeenCalledWith('music')
+        expect(deleteConstellation).toHaveBeenCalledWith('music', null)
         await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument())
         expect(screen.queryByRole('button', {name: /^Music/})).not.toBeInTheDocument()
     })
 
     it('offers a retry when the tree cannot be loaded', async () => {
         vi.mocked(listConstellations).mockRejectedValueOnce(new Error('down')).mockResolvedValue(TREE)
-        render(<ConstellationsPage/>)
+        render(<MemoryRouter><ConstellationsPage/></MemoryRouter>)
 
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
 

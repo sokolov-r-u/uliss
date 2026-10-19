@@ -23,6 +23,7 @@ export function createConstellationStore(empty: boolean) {
         hue: path(row)[0].hue,
         lightness: row.lightness ?? 'BASE',
         noteCount: 0,
+        ownNoteCount: 0,
     })
     const taken = (parentId: string | null, name: string, exceptId?: string) =>
         rows.some((row) => row.parentId === parentId && row.id !== exceptId && row.name.toLowerCase() === name.toLowerCase())

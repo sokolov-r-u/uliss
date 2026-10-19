@@ -21,7 +21,7 @@ function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
 }
 
-const MUSIC = {id: 'm', parentId: null, name: 'Music', hue: 264, lightness: 'BASE', noteCount: 0}
+const MUSIC = {id: 'm', parentId: null, name: 'Music', hue: 264, lightness: 'BASE', noteCount: 0, ownNoteCount: 0}
 
 describe('constellationApi', () => {
     beforeEach(() => mockedFetch.mockReset())

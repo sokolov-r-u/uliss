@@ -224,6 +224,24 @@ export async function listChatNotes(chatId: string, signal?: AbortSignal): Promi
     return value.map(parseNote)
 }
 
+/** The notes of a constellation itself (not of its sub-constellations), newest first. */
+export async function listConstellationNotes(constellationId: string, signal?: AbortSignal): Promise<Note[]> {
+    const response = await fetchNotes(`/note/constellations/${constellationId}/notes`, {signal})
+    await requireOk(response, 'constellation notes fetch')
+    const value = await responseJson(response)
+    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid constellation notes response')
+    return value.map(parseNote)
+}
+
+/** Notes with no constellation and no parent note, newest first. */
+export async function listNotesWithoutConstellation(signal?: AbortSignal): Promise<Note[]> {
+    const response = await fetchNotes('/note/notes/without-constellation', {signal})
+    await requireOk(response, 'unplaced notes fetch')
+    const value = await responseJson(response)
+    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid unplaced notes response')
+    return value.map(parseNote)
+}
+
 export async function getNote(noteId: string, signal?: AbortSignal): Promise<Note> {
     const response = await fetchNotes(`/note/notes/${noteId}`, {signal})
     await requireOk(response, 'note fetch')
