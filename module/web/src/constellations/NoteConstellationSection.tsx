@@ -6,7 +6,6 @@ import {
     constellationColor,
     Icon,
     IconButton,
-    Kicker,
     TagDot,
 } from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -24,7 +23,7 @@ import {
 import {buildConstellationTree, type ConstellationNode, type ConstellationTree, pickerItems} from './constellationTree'
 import './note-constellation.css'
 
-type Picker = 'change' | 'add' | null
+type Picker = 'main' | 'add' | null
 
 type LoadState =
     | { status: 'loading' }
@@ -44,9 +43,9 @@ export function placementFailureMessage(error: unknown, name?: string): string {
 }
 
 /**
- * The "Constellation" section of a note's panel: the main place as a path with Change and ×, the other places as chips
- * (click makes one main, × removes it) and "+ Add constellation". Every pick goes through the shared tree picker, which
- * can also create a constellation where the user stands; the picker's action button places the note.
+ * The "Constellation" section of a note's panel: the main place as a path with ×, the other places as chips (× removes
+ * one) and "+ Add constellation". A click on the main place offers the note's other places to make one main; adding
+ * goes through the shared tree picker, which can also create a constellation where the user stands.
  */
 export function NoteConstellationSection({noteId}: { noteId: string }) {
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
@@ -95,18 +94,14 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         }
     }
 
-    function place(mode: Exclude<Picker, null>, constellationId: string) {
+    function add(constellationId: string) {
         if (load.status !== 'ready') return
         // A pick that changes nothing says so instead of closing the picker as if it worked.
-        const current = load.memberships.find((membership) => membership.constellationId === constellationId)
-        const name = load.tree.byId.get(constellationId)?.name
-        if (current && (mode === 'add' || current.main)) {
-            setError(current.main ? `${name} is already the main place.` : `The note is already in ${name}.`)
+        if (load.memberships.some((membership) => membership.constellationId === constellationId)) {
+            setError(`The note is already in ${load.tree.byId.get(constellationId)?.name}.`)
             return
         }
-        void run(() => mode === 'change'
-            ? setMainNoteConstellation(noteId, constellationId, true)
-            : addNoteConstellation(noteId, constellationId))
+        void run(() => addNoteConstellation(noteId, constellationId))
     }
 
     /** Creates a constellation for the picker, which then selects it; the note is placed only by the action button. */
@@ -153,44 +148,42 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         setPicker((current) => current === next ? null : next)
     }
 
-    const pickerBlock = picker && <div className="note-places-picker">
-        <ConstellationPicker key={picker} items={items}
-                             label={picker === 'change' ? 'Move this note to…' : 'Add this note to…'}
-                             action={(name) => picker === 'change' ? `Make ${name} main` : `Add to ${name}`}
-                             busy={pending}
-                             onPick={(id) => place(picker, id)}
-                             onCreate={createIn}
-                             onClose={() => setPicker(null)}/>
+    const pickerBlock = picker === 'add' && <div className="note-places-picker">
+        <ConstellationPicker items={items} label="Add this note to…" action={(name) => `Add to ${name}`}
+                             busy={pending} onPick={add} onCreate={createIn} onClose={() => setPicker(null)}/>
     </div>
 
     return (
         <div className="note-places" aria-busy={pending || undefined}>
             {main ? <>
                 <div className="note-places-main">
-                    <MainPath node={main} disabled={pending} onClick={() => toggle('change')}/>
-                    <button type="button" className="note-places-action accent" disabled={pending}
-                            aria-expanded={picker === 'change'} onClick={() => toggle('change')}>Change
-                    </button>
+                    <MainPath node={main} disabled={pending || others.length === 0} open={picker === 'main'}
+                              onClick={() => toggle('main')}/>
                     <IconButton s={32} title={`Remove from ${main.name}`} disabled={pending}
                                 onClick={() => void run(() => removeNoteConstellation(noteId, main.id))}>
                         <Icon name="close" size={11}/>
                     </IconButton>
                 </div>
-                {picker === 'change' && pickerBlock}
-                <div className="note-places-also">
-                    {others.length > 0 && <Kicker size={8.5} spacing="2.2px" color="var(--text-faint)">Also in</Kicker>}
-                    <div className="note-places-chips">
-                        {others.map((node) => (
-                            <ConstellationChip key={node.id} label={node.name} size="sm"
-                                               color={constellationColor(node.hue, node.lightness)}
-                                               actionTitle={`Make ${node.name} main`}
-                                               onClick={() => void run(() => setMainNoteConstellation(noteId, node.id, false))}
-                                               onRemove={() => void run(() => removeNoteConstellation(noteId, node.id))}/>
-                        ))}
-                        <button type="button" className="note-places-add" disabled={pending}
-                                aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add constellation
-                        </button>
-                    </div>
+                {picker === 'main' && <div className="note-places-choice" role="list" aria-label="Make main">
+                    {others.map((node) => (
+                        <div role="listitem" key={node.id}>
+                            <button type="button" disabled={pending}
+                                    onClick={() => void run(() => setMainNoteConstellation(noteId, node.id, false))}>
+                                <TagDot color={constellationColor(node.hue, node.lightness)} size={6}/>
+                                <span>{[...node.ancestors.map((ancestor) => ancestor.name), node.name].join(' › ')}</span>
+                            </button>
+                        </div>
+                    ))}
+                </div>}
+                <div className="note-places-chips">
+                    {others.map((node) => (
+                        <ConstellationChip key={node.id} label={node.name} size="sm"
+                                           color={constellationColor(node.hue, node.lightness)}
+                                           onRemove={() => void run(() => removeNoteConstellation(noteId, node.id))}/>
+                    ))}
+                    <button type="button" className="note-places-add" disabled={pending}
+                            aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add constellation
+                    </button>
                 </div>
                 {picker === 'add' && pickerBlock}
             </> : <>
@@ -207,12 +200,21 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
     )
 }
 
-/** The main place as a breadcrumb, leaf in accent; deeper than three levels collapses to `root › … › leaf`. */
-function MainPath({node, disabled, onClick}: { node: ConstellationNode; disabled: boolean; onClick: () => void }) {
+/**
+ * The main place as a breadcrumb, leaf in accent; deeper than three levels collapses to `root › … › leaf`. It opens the
+ * choice among the note's other places, so it is inactive while there are none.
+ */
+function MainPath({node, disabled, open, onClick}: {
+    node: ConstellationNode
+    disabled: boolean
+    open: boolean
+    onClick: () => void
+}) {
     const deep = node.ancestors.length > 2
     const heads = deep ? [node.ancestors[0]] : node.ancestors
     return (
-        <button type="button" className="note-places-path" title="Change constellation" disabled={disabled}
+        <button type="button" className="note-places-path" title={disabled ? undefined : 'Choose the main place'}
+                disabled={disabled} aria-expanded={disabled ? undefined : open}
                 onClick={onClick}>
             <TagDot color={constellationColor(node.hue, node.lightness)} size={8}/>
             {heads.map((ancestor) => <span key={ancestor.id} className="note-places-crumb">{ancestor.name} ›</span>)}

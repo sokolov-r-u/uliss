@@ -78,12 +78,6 @@
     cursor: not-allowed;
 }
 
-.note-places-also {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
 .note-places-chips {
     display: flex;
     flex-wrap: wrap;
@@ -105,4 +99,40 @@
     font-size: 12px;
     line-height: 1.5;
     color: var(--terracotta);
+}
+
+/* With one place there is nothing to choose: the path stays readable, just not clickable. */
+.note-places .note-places-path:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+/* The note's other places, offered to become main. */
+.note-places-choice {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-panel);
+}
+
+.note-places-choice button {
+    width: 100%;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 11px;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--cream-dim);
+    cursor: pointer;
+}
+
+.note-places-choice > * + * button {
+    border-top: 1px solid var(--line);
 }

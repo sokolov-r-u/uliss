@@ -96,3 +96,10 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   Change and × in one line, chips with a "Make … main" tooltip, no hint. `ContextPanel` keeps its label for assistive
   tech only and shows just the close button.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, blocks 6–7.
+
+## 2026-10-19 — The main place is chosen among the note's own places
+
+- **Decision:** replaces the chip click and Change of the previous entry. A click on the main path lists the note's
+  other places and makes the chosen one main (the old main stays a place); with a single place the path is inactive.
+  Chips only show a place and remove it; there is no "Also in" label. Adding stays with the tree picker.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, manual test of round 2.
