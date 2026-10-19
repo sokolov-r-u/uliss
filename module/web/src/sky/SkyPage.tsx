@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, ConstellationPicker, EmptyState, Icon} from '@uliss/design-system'
+import {Button, ConstellationPicker, EmptyState, Icon, IconButton, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {getSky, type Sky} from '../constellations/constellationApi'
 import {pickerItems} from '../constellations/constellationTree'
@@ -8,7 +8,8 @@ import {subscribeToNotesChanges} from '../notes/noteApi'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {SkyCanvas} from './SkyCanvas'
 import {buildSkyGraph, defaultView, inBranch, type SkyView, subgraph} from './skyModel'
-import {skyPhysics} from './skySettings'
+import {DEFAULT_SKY_SETTINGS, skyPhysics} from './skySettings'
+import {SkySettingsPanel} from './SkySettingsPanel'
 import {SkyStarPanel} from './SkyStarPanel'
 import {useSkySettings} from './useSkySettings'
 import './sky.css'
@@ -24,7 +25,7 @@ const SEEDS = [{left: '34%', top: '33%', r: 4, on: true}, {left: '63%', top: '24
 export function SkyPage() {
     const navigate = useNavigate()
     const [load, setLoad] = useState<Load>({status: 'loading'})
-    const [settings, patchSettings] = useSkySettings()
+    const [settings, patchSettings, replaceSettings] = useSkySettings()
     const physics = useMemo(() => skyPhysics(settings), [settings])
     const [view, setView] = useState<SkyView | null>(null)
     const [focusId, setFocusId] = useState<string | null>(null)
@@ -33,6 +34,12 @@ export function SkyPage() {
     const [filter, setFilter] = useState<string | null>(null)
     const [filterOpen, setFilterOpen] = useState(false)
     const [starId, setStarId] = useState<string | null>(null)
+    const [settingsOpen, setSettingsOpen] = useState(false)
+    // one panel slot: a picked star closes the settings, the gear closes the star
+    const pickStar = (id: string) => {
+        setSettingsOpen(false)
+        setStarId(id)
+    }
 
     const reload = useCallback(async (signal?: AbortSignal) => {
         try {
@@ -93,16 +100,26 @@ export function SkyPage() {
     const inFilter = graph && filter ? graph.nodes.filter((n) => n.kind === 'star' && inBranch(graph, n, filter)).length : 0
 
     const header = <ScreenHeader kicker="Sky" count={graph?.starCount}
-                                 right={graph && graph.tree.flat.length > 0 ? <span className="sky-head-actions">
+                                 right={graph ? <span className="sky-head-actions">
                                      {branch && <button type="button" className="sky-filter-chip"
                                                         title="Show every constellation"
                                                         onClick={() => setFilter(null)}>
                                          {inFilter} of {graph.starCount} · {branch.name}<span aria-hidden> ×</span>
                                      </button>}
-                                     <button type="button" className={filterOpen || filter ? 'sky-head-button on' : 'sky-head-button'}
-                                             title="Filter by constellation" aria-expanded={filterOpen}
-                                             onClick={() => setFilterOpen((open) => !open)}>
+                                     {graph.tree.flat.length > 0 && <button type="button"
+                                                                            className={filterOpen || filter ? 'sky-head-button on' : 'sky-head-button'}
+                                                                            title="Filter by constellation"
+                                                                            aria-expanded={filterOpen}
+                                                                            onClick={() => setFilterOpen((open) => !open)}>
                                          <Icon name="filter" size={15}/>
+                                     </button>}
+                                     <button type="button" className={settingsOpen ? 'sky-head-button on' : 'sky-head-button'}
+                                             title="Sky settings" aria-expanded={settingsOpen}
+                                             onClick={() => {
+                                                 setStarId(null)
+                                                 setSettingsOpen((open) => !open)
+                                             }}>
+                                         <Icon name="gear" size={15}/>
                                      </button>
                                  </span> : undefined}/>
 
@@ -161,8 +178,8 @@ export function SkyPage() {
         <div className="sky-stage">
             <SkyCanvas graph={graph} sub={sub} view={shownView} focusId={focusId} depth={depth} filter={filter}
                        settings={settings} physics={physics} selectedId={starId}
-                       onPickStar={shownView === 'full' ? undefined : setStarId} onFocus={focus}
-                       onSettings={patchSettings} panelOpen={starId != null} footer={footer}/>
+                       onPickStar={shownView === 'full' ? undefined : pickStar} onFocus={focus}
+                       onSettings={patchSettings} panelOpen={starId != null || settingsOpen} footer={footer}/>
             {graph.starCount === 0 && <p className="sky-note">
                 Notes you keep appear as stars in their constellations. Start a chat and press Summarize.</p>}
             {filterOpen && <>
@@ -183,6 +200,20 @@ export function SkyPage() {
                                          onClose={() => setFilterOpen(false)}/>
                 </div>
             </>}
+            {settingsOpen && <aside className="sky-panel" data-sky-ui="" aria-label="Sky settings"
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Escape') setSettingsOpen(false)
+                                    }}>
+                <header className="sky-panel-head">
+                    <Kicker size={9} spacing="3px" color="var(--accent)">Sky</Kicker>
+                    <IconButton s={44} title="Close" onClick={() => setSettingsOpen(false)}>
+                        <Icon name="close" size={15}/></IconButton>
+                </header>
+                <div className="sky-panel-body">
+                    <SkySettingsPanel settings={settings} onSettings={patchSettings}
+                                      onReset={() => replaceSettings(DEFAULT_SKY_SETTINGS)}/>
+                </div>
+            </aside>}
             {starId && <SkyStarPanel graph={graph} starId={starId} onClose={() => setStarId(null)}
                                      onOpen={(id) => navigate(`/notes/${id}`)}/>}
         </div>

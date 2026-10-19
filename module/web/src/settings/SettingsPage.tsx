@@ -26,7 +26,7 @@ export function SettingsPage() {
 
     const rows = [
         {id: 'appearance', label: 'Appearance', hint: `${cap(theme.ground)} · ${cap(theme.accent)} · ${cap(theme.read)} text`},
-        {id: 'sky', label: 'Sky', hint: 'Unavailable · no graph data'},
+        {id: 'sky', label: 'Sky', hint: 'Names · stars · connections'},
         {id: 'account', label: 'Account', hint: 'Sign out available'},
         {id: 'language', label: 'Language', hint: 'English · fixed'},
     ]

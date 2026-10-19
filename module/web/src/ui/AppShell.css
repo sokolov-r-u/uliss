@@ -612,62 +612,6 @@
     pointer-events: none;
 }
 
-.sky-settings-preview {
-    position: relative;
-    height: 150px;
-    margin: 16px 0 8px;
-    overflow: hidden;
-    background: var(--sky-bg);
-    border: 1px solid var(--line);
-}
-
-.sky-settings-preview span {
-    position: absolute;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--accent-2);
-    box-shadow: var(--glow-accent);
-}
-
-.sky-settings-preview span:nth-child(1) {
-    left: 18%;
-    top: 64%;
-}
-
-.sky-settings-preview span:nth-child(2) {
-    left: 48%;
-    top: 28%;
-    background: var(--cream);
-}
-
-.sky-settings-preview span:nth-child(3) {
-    left: 78%;
-    top: 56%;
-    background: var(--cream-dim);
-}
-
-.sky-settings-preview i {
-    position: absolute;
-    height: 1px;
-    background: var(--edge-structural);
-    transform-origin: left center;
-}
-
-.sky-settings-preview i:nth-child(4) {
-    left: 19%;
-    top: 65%;
-    width: 42%;
-    transform: rotate(-31deg);
-}
-
-.sky-settings-preview i:nth-child(5) {
-    left: 49%;
-    top: 30%;
-    width: 35%;
-    transform: rotate(31deg);
-}
-
 .settings-lang-list {
     display: flex;
     flex-direction: column;
