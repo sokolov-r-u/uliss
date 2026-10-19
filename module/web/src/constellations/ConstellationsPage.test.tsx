@@ -7,11 +7,13 @@ import {
     ConstellationApiError,
     createConstellation,
     deleteConstellation,
+    getConstellationDeletion,
     listConstellations,
     moveConstellation,
     updateConstellation,
 } from './constellationApi'
 import {ConstellationsPage} from './ConstellationsPage'
+import {listConstellationNotes, listNotesWithoutConstellation, type Note} from '../notes/noteApi'
 
 vi.mock('./constellationApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./constellationApi')>()
@@ -67,6 +69,86 @@ describe('ConstellationsPage', () => {
         vi.mocked(updateConstellation).mockReset()
         vi.mocked(moveConstellation).mockReset()
         vi.mocked(deleteConstellation).mockReset()
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 0})
+        vi.mocked(listNotesWithoutConstellation).mockResolvedValue([])
+        vi.mocked(listConstellationNotes).mockResolvedValue([])
+    })
+
+    function note(id: string, title: string): Note {
+        return {id, source: 'MANUAL', status: 'READY', title, content: 'x', createdAt: '2026-10-19T10:00:00Z'}
+    }
+
+    it('lists notes without a constellation in a muted last row with its own panel', async () => {
+        vi.mocked(listNotesWithoutConstellation).mockResolvedValue([note('n1', 'Loose thought'), note('n2', 'Another')])
+        await renderPage()
+
+        const unplaced = await screen.findByRole('button', {name: /^Without constellation/})
+        expect(unplaced).toHaveTextContent('2')
+        await userEvent.click(unplaced)
+
+        const panel = screen.getByRole('complementary', {name: 'Without constellation'})
+        expect(await within(panel).findByText('Loose thought')).toBeInTheDocument()
+        expect(within(panel).queryByRole('button', {name: 'Rename'})).not.toBeInTheDocument()
+        expect(within(panel).queryByRole('button', {name: 'Delete constellation'})).not.toBeInTheDocument()
+    })
+
+    it('has no "Without constellation" row when every note has a place', async () => {
+        await renderPage()
+
+        await screen.findByRole('button', {name: /^Music/})
+        expect(screen.queryByRole('button', {name: /^Without constellation/})).not.toBeInTheDocument()
+    })
+
+    it('shows the service counts, the notes of the branch itself and how many lie deeper', async () => {
+        vi.mocked(listConstellationNotes).mockResolvedValue([note('n1', 'Kind of Blue')])
+        await renderPage([
+            node('music', null, 'Music', {noteCount: 3, ownNoteCount: 1}),
+            node('jazz', 'music', 'Jazz', {noteCount: 2, ownNoteCount: 2}),
+            node('ambient', 'music', 'Ambient'),
+        ])
+
+        const panel = await openBranch('Music')
+
+        expect(panel).toHaveTextContent('3 stars')
+        expect(await within(panel).findByText('Kind of Blue')).toBeInTheDocument()
+        expect(listConstellationNotes).toHaveBeenCalledWith('music', expect.anything())
+        expect(panel).toHaveTextContent('Plus 2 stars deeper in Jazz.')
+    })
+
+    it('moves the notes of a deleted branch to its parent by default', async () => {
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 2})
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        await openBranch('Music')
+        const panel = await openBranch('Jazz')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Jazz”?'})
+        expect(await within(dialog).findByText(/Jazz holds 2 notes with no other place/)).toBeInTheDocument()
+        expect(within(dialog).getByRole('button', {name: /Move to/})).toHaveTextContent('Music')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        expect(deleteConstellation).toHaveBeenCalledWith('jazz', 'music')
+    })
+
+    it('waits for a target before deleting a root with notes, or leaves them without a place', async () => {
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 1})
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        const panel = await openBranch('Films')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Films”?'})
+        await within(dialog).findByText(/Where should they move\?/)
+        expect(within(dialog).getByRole('button', {name: 'Delete'})).toBeDisabled()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: /Move to/}))
+        expect(within(dialog).queryByRole('button', {name: /^Films/})).not.toBeInTheDocument()
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Leave them without a constellation'}))
+        expect(dialog).toHaveTextContent('They lose their place')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        expect(deleteConstellation).toHaveBeenCalledWith('films', null)
     })
 
     it('offers to create the first constellation on an empty tree', async () => {

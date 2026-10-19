@@ -27,22 +27,36 @@ function json(body: unknown, status = 200): Response {
 
 const constellations = createConstellationStore(empty)
 
-function constellationResponse(path: string, method: string, body: string): Response | null {
+function constellationResponse(path: string, method: string, body: string, search: URLSearchParams): Response | null {
     const answer = (result: { status: number; body: unknown }) => json(result.body, result.status)
     if (path === '/note/constellations') {
         if (method === 'POST') return answer(constellations.create(JSON.parse(body)))
         return answer(constellations.list())
     }
-    // The visual notes are not placed anywhere yet.
-    if (path === '/note/notes/without-constellation') return json([])
-    if (/^\/note\/notes\/[^/]+\/constellations$/.test(path)) return json([])
-    if (/^\/note\/constellations\/[^/]+\/notes$/.test(path)) return json([])
-    if (/^\/note\/constellations\/[^/]+\/deletion$/.test(path)) return json({notesToMove: 0})
+    // Note places: the visual notes start without a constellation.
+    const notes = empty ? [] : NOTES
+    if (path === '/note/notes/without-constellation') {
+        return json(notes.filter((note) => !constellations.isPlaced(note.id)))
+    }
+    const noteNotes = path.match(/^\/note\/constellations\/([^/]+)\/notes$/)
+    if (noteNotes) {
+        const ids = constellations.notesIn(noteNotes[1])
+        return json(notes.filter((note) => ids.includes(note.id)))
+    }
+    const deletion = path.match(/^\/note\/constellations\/([^/]+)\/deletion$/)
+    if (deletion) return answer(constellations.deletion(deletion[1]))
+    const main = path.match(/^\/note\/notes\/([^/]+)\/constellations\/main$/)
+    if (main && method === 'PUT') return answer(constellations.makeMain(main[1], JSON.parse(body).constellationId))
+    const place = path.match(/^\/note\/notes\/([^/]+)\/constellations\/([^/]+)$/)
+    if (place && method === 'DELETE') return answer(constellations.removePlace(place[1], place[2]))
+    const notePlaces = path.match(/^\/note\/notes\/([^/]+)\/constellations$/)
+    if (notePlaces && method === 'POST') return answer(constellations.addPlace(notePlaces[1], JSON.parse(body).constellationId))
+    if (notePlaces) return answer(constellations.placesOf(notePlaces[1]))
     const move = path.match(/^\/note\/constellations\/([^/]+)\/move$/)
     if (move && method === 'POST') return answer(constellations.move(move[1], JSON.parse(body).parentId ?? null))
     const one = path.match(/^\/note\/constellations\/([^/]+)$/)
     if (one && method === 'PATCH') return answer(constellations.update(one[1], JSON.parse(body)))
-    if (one && method === 'DELETE') return answer(constellations.remove(one[1]))
+    if (one && method === 'DELETE') return answer(constellations.remove(one[1], search.get('moveTo')))
     return null
 }
 
@@ -112,7 +126,7 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/user/users/me/onboarding') return method === 'GET' ? json(onboarding()) : json({})
     if (url.pathname === '/note/chats') return json(chats)
     if (url.pathname === '/note/notes') return json(notes)
-    const constellation = constellationResponse(url.pathname, method, String(init?.body ?? ''))
+    const constellation = constellationResponse(url.pathname, method, String(init?.body ?? ''), url.searchParams)
     if (constellation) return constellation
 
     const chatMessages = url.pathname.match(/^\/note\/chats\/([^/]+)\/messages$/)

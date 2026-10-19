@@ -44,6 +44,7 @@ test('a tree is built, renamed, recoloured, moved and pruned', async ({page}) =>
     await panel.getByRole('button', {name: 'Move'}).click()
     await panel.getByRole('textbox', {name: 'Move to…'}).fill('fil')
     await panel.getByRole('button', {name: /^Films/}).click()
+    await panel.getByRole('button', {name: 'Move to Films'}).click()
     await expect(panel).toContainText('Films › Cool jazz')
 
     await panel.getByRole('button', {name: 'Move'}).click()
