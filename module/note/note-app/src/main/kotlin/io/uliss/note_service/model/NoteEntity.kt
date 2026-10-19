@@ -19,6 +19,9 @@ class NoteEntity(
     @Enumerated(EnumType.STRING)
     var status: NoteStatus = NoteStatus.READY,
     var title: String? = null,
+    /** A sub-note lives where this parent note lives and has no memberships of its own. */
+    @Column(name = "parent_note_id")
+    var parentNoteId: UUID? = null,
 ) : AuditEntity() {
 
     override fun toString(): String {

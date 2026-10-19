@@ -236,3 +236,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** one user's tree changes are serialized; reads take no lock. The tree is loaded whole per change,
   which assumes trees of hundreds of nodes, not millions.
 - **Source:** task `docs/tasks/2026-10-18-constellations-tree.md`, block 2.
+
+## 2026-10-19 — Note memberships are replaced as a whole set by pure placement rules
+
+- **Context:** task 2 of the constellations epic puts notes into constellations: one main among several memberships.
+- **Decision:** `NotePlacement` holds the rules as pure functions over one note's memberships: the first constellation
+  becomes main, a removed main promotes the oldest remaining membership (earliest `added_at`, then the smallest id), a
+  deleted branch drops its memberships and moves a note that had no other place to the chosen target as main.
+  `NoteConstellationStore` (`JdbcTemplate`) writes a changed note by deleting all its rows and inserting the new set:
+  JPA would flush the new main's update before the old main's delete and trip the one-main partial index. Tree counts
+  come from one recursive query: distinct notes per subtree and per node itself.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 1.
