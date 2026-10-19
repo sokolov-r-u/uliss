@@ -131,6 +131,21 @@ describe('ConstellationsPage', () => {
         expect(deleteConstellation).toHaveBeenCalledWith('jazz', 'music')
     })
 
+    it('still sends the parent when a sub-constellation had no notes to move when counted', async () => {
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        await openBranch('Music')
+        const panel = await openBranch('Jazz')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Jazz”?'})
+        await within(dialog).findByText(/Notes are never deleted with a constellation/)
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        // A note that lost its other places since the count moves to Music instead of losing its place.
+        expect(deleteConstellation).toHaveBeenCalledWith('jazz', 'music')
+    })
+
     it('waits for a target before deleting a root with notes, or leaves them without a place', async () => {
         vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 1})
         vi.mocked(deleteConstellation).mockResolvedValue()

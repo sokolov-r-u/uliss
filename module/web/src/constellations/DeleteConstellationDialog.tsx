@@ -19,7 +19,7 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
     busy: boolean
     /** The last failed delete. */
     error: string | null
-    /** null target: no note needs a move. */
+    /** null target: nothing to move to — a root that, when counted, held no note needing a move. */
     onDelete: (target: DeleteTarget | null) => void
     onCancel: () => void
 }) {
@@ -47,10 +47,11 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
         const body = impact.status === 'loading' ? 'Counting the notes…'
             : impact.status === 'error' ? 'Could not count the notes in this branch. Close and try again.'
                 : `${branches}Notes are never deleted with a constellation.`
+        // The parent still goes along: a note that lost its other places since the count moves there, not nowhere.
         return <Dialog danger title={title} body={error ?? body}
                        confirm={busy ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={busy}
                        confirmDisabled={busy || impact.status !== 'ready'}
-                       onConfirm={() => onDelete(null)} onCancel={onCancel}/>
+                       onConfirm={() => onDelete(node.parentId)} onCancel={onCancel}/>
     }
 
     const targetNode = target && target !== 'none' ? tree.byId.get(target) ?? null : null
