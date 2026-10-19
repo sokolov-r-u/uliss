@@ -159,6 +159,40 @@ class ChatFacadeTest {
     }
 
     @Test
+    fun `requestSummary passes the chosen constellation to the new note`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val latest = UUID.randomUUID()
+        val constellationId = UUID.randomUUID()
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteService.requestChatSummary(userId, chatId, latest, key, constellationId)).thenReturn(savedNote)
+
+        val result = chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null, constellationId)
+
+        assertSame(savedNote, result)
+    }
+
+    @Test
+    fun `requestSummary refuses a place for an update before reserving anything`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val current = CurrentChatSummary(UUID.randomUUID(), "Trip", UUID.randomUUID())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId, UUID.randomUUID())
+        }
+        Mockito.verify(noteService, Mockito.never()).requestChatSummaryUpdate(
+            anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+        )
+        Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
+    }
+
+    @Test
     fun `getChats attaches note counts and defaults missing counts to zero`() {
         val userId = UUID.randomUUID()
         val withNotes = ChatEntity(userId, "With notes")

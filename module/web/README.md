@@ -85,7 +85,9 @@ the prompt and one request `Idempotency-Key` to the initial-message stream endpo
 before provider streaming begins. The SPA persists the request key until those identities are recovered, then replaces
 the route with the persisted chat URL.
 
-Summarize asks for confirmation, then accepts the asynchronous placeholder without waiting for generation and links to
+The first Summarize of a chat asks where the note will live with the shared `ConstellationPicker` (its action starts
+the summary in that constellation; "Skip for now" leaves the note without a place); a later one asks to update the
+note. Summarize then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
 `FAILED` remains visible. A stored note `title` is shown in the list and above the detail content; notes without
 one fall back to their first content line. Note content is rendered as Markdown (date headings accented only for chat

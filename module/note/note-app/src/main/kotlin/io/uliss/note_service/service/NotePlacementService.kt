@@ -1,6 +1,7 @@
 package io.uliss.note_service.service
 
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.exception.ConstellationNotFoundException
 import io.uliss.note_service.exception.NotePlaceInheritedException
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.NoteMembership
@@ -65,7 +66,7 @@ class NotePlacementService(
         val note = getOwnedNote(userId, noteId)
         if (note.parentNoteId != null) throw NotePlaceInheritedException(noteId)
         val tree = ConstellationTree(constellationRepository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
-        if (joined != null && tree.find(joined) == null) throw NotFoundException("constellation id=$joined not found")
+        if (joined != null && tree.find(joined) == null) throw ConstellationNotFoundException(joined)
         val current = store.findByNote(userId, noteId)
         val next = rule(current, tree)
         if (next != current) store.replace(userId, mapOf(noteId to next))

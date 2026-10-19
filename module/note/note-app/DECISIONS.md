@@ -268,3 +268,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   moved branch: the ancestor place goes, a lost main passes to the oldest remaining descendant place. The checks use
   the tree snapshot already loaded under the lock. `V12` applies the same rule once to existing memberships.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 5.
+
+## 2026-10-19 — A summary note is placed together with its summarize request
+
+- **Context:** task 3 of the constellations epic lets the user pick the constellation of a chat's first summary note
+  before generation, which runs asynchronously through the outbox.
+- **Decision:** `SummarizeRequest.constellationId` (CREATE only, `400` with UPDATE) is applied by
+  `NoteService.requestChatSummary` through `NotePlacementService.add`, in the transaction that creates the `GENERATING`
+  note, its `summary_request` and the outbox event. The choice is not carried in the payload or applied on `READY`: the
+  user, not the model, chose the place, the note shows in the branch at once, and branch deletion already handles
+  memberships of notes in any status. A failed generation keeps its place; the next Summarize is CREATE again. A
+  replayed key returns the original note before any check and never changes its place, also when a concurrent
+  duplicate loses the reservation. A missing or foreign constellation rolls the whole request back with
+  `404 CONSTELLATION_NOT_FOUND`, now the code of every placement change, so the client tells it from a missing chat.
+- **Source:** task `docs/tasks/2026-10-19-constellations-summarize.md`, block 1.

@@ -50,6 +50,7 @@ class NoteService(
     private val outboxService: OutboxService,
     private val objectMapper: ObjectMapper,
     private val constellationRepository: ConstellationRepository,
+    private val notePlacementService: NotePlacementService,
 ) {
 
     fun getNotes(userId: UUID): List<NoteResponse> {
@@ -120,6 +121,8 @@ class NoteService(
     /**
      * Persists the user-visible placeholder and its durable generation request together. The
      * summary worker later replaces the placeholder content and queues indexing after success.
+     * A [constellationId] becomes the new note's main place in the same transaction; a replayed key keeps the place
+     * of its original request.
      */
     @Transactional
     fun requestChatSummary(
@@ -127,6 +130,7 @@ class NoteService(
         chatId: UUID,
         throughMessageId: UUID,
         idempotencyKey: UUID,
+        constellationId: UUID? = null,
     ): NoteEntity {
         val candidateNote = NoteEntity(
             userId = userId,
@@ -146,6 +150,7 @@ class NoteService(
 
         noteRepository.saveAndFlush(candidateNote)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
+        constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
         val payload = objectMapper.writeValueAsString(
             NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
         )

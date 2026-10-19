@@ -4,6 +4,7 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.eqValue
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
@@ -47,6 +48,7 @@ class NoteServiceTest {
     private val outboxService = Mockito.mock(OutboxService::class.java)
     private val objectMapper = JsonMapper.builder().build()
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
+    private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteService = NoteService(
         noteRepository,
         chatNoteRepository,
@@ -54,6 +56,7 @@ class NoteServiceTest {
         outboxService,
         objectMapper,
         constellationRepository,
+        notePlacementService,
     )
 
     @Test
@@ -268,6 +271,68 @@ class NoteServiceTest {
         assertTrue(payload.contains(userId.toString()))
         assertTrue(payload.contains(chatId.toString()))
         assertTrue(payload.contains(throughMessageId.toString()))
+    }
+
+    @Test
+    fun `requestChatSummary places the new note in the chosen constellation after saving it`() {
+        val userId = UUID.randomUUID()
+        val constellationId = UUID.randomUUID()
+        acceptReservations()
+        Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
+
+        val note = noteService.requestChatSummary(
+            userId, UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), constellationId,
+        )
+
+        val order = Mockito.inOrder(noteRepository, notePlacementService, outboxService)
+        order.verify(noteRepository).saveAndFlush(note)
+        order.verify(notePlacementService).add(userId, note.id, constellationId)
+        order.verify(outboxService).publish(eqValue(OutboxEventType.NOTE_SUMMARY_REQUESTED), anyValue())
+    }
+
+    @Test
+    fun `requestChatSummary without a constellation leaves the note without a place`() {
+        acceptReservations()
+        Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
+
+        noteService.requestChatSummary(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
+
+        Mockito.verifyNoInteractions(notePlacementService)
+    }
+
+    @Test
+    fun `a replayed summary request keeps the original place even when another constellation is sent`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val originalNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        // The winner committed between our replay lookup and the reservation: reserve reports the conflict.
+        Mockito.`when`(summaryRequestStore.find(userId, idempotencyKey)).thenReturn(
+            SummaryRequest(userId, idempotencyKey, chatId, UUID.randomUUID(), originalNote.id, Instant.now()),
+        )
+        Mockito.`when`(noteRepository.findByIdAndUserId(originalNote.id, userId)).thenReturn(originalNote)
+
+        val replayed = noteService.requestChatSummary(
+            userId, chatId, UUID.randomUUID(), idempotencyKey, UUID.randomUUID(),
+        )
+
+        assertEquals(originalNote, replayed)
+        Mockito.verifyNoInteractions(notePlacementService)
+    }
+
+    private fun acceptReservations() {
+        Mockito.`when`(
+            summaryRequestStore.reserve(anyValue(), anyValue(), anyValue(), anyValue(), anyValue()),
+        ).thenAnswer { invocation ->
+            SummaryRequest(
+                invocation.getArgument(0),
+                invocation.getArgument(1),
+                invocation.getArgument(2),
+                invocation.getArgument(3),
+                invocation.getArgument(4),
+                Instant.now(),
+            )
+        }
     }
 
     @Test

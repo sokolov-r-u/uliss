@@ -43,6 +43,10 @@ vi.mock('./streamChatReply', () => ({
         }
     },
 }))
+vi.mock('../constellations/constellationApi', () => ({
+    listConstellations: vi.fn(() => Promise.resolve([])),
+    createConstellation: vi.fn(),
+}))
 vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
     notifyNotesChanged: vi.fn(),
@@ -354,9 +358,10 @@ describe('ChatPage summary flow', () => {
         expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
         expect(mockedSummary).not.toHaveBeenCalled()
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
-        // No update target: the create request carries no note id.
-        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String), undefined))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
+        // Skipped place, no update target: the create request carries neither a note nor a constellation.
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
@@ -395,12 +400,12 @@ describe('ChatPage summary flow', () => {
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         expect(await screen.findByText(failure.message)).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBe(firstKey)
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
         expect(mockedSummary.mock.calls[1]?.[1]).toBe(firstKey)
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
@@ -411,7 +416,7 @@ describe('ChatPage summary flow', () => {
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
 
         expect(await screen.findByText('A summary of this chat is already in progress. Try again in a moment.'))
             .toBeInTheDocument()
@@ -424,7 +429,7 @@ describe('ChatPage summary flow', () => {
             .mockResolvedValueOnce({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
         const page = renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         expect(await screen.findByText('connection lost')).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
 
@@ -438,7 +443,7 @@ describe('ChatPage summary flow', () => {
         ]))
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
 
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
         expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(firstKey)
@@ -450,14 +455,14 @@ describe('ChatPage summary flow', () => {
             .mockResolvedValueOnce({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
         const page = renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         expect(await screen.findByText('connection lost')).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
 
         page.unmount()
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
 
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
         expect(mockedSummary.mock.calls[1]?.[1]).toBe(firstKey)
@@ -471,14 +476,14 @@ describe('ChatPage summary flow', () => {
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         expect(await screen.findByText(status === 409
             ? 'A summary of this chat is already in progress. Try again in a moment.'
             : `summary request failed (${status})`)).toBeInTheDocument()
         const rejectedKey = mockedSummary.mock.calls[0]?.[1]
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
 
-        await userEvent.click(screen.getByRole('button', {name: 'Create summary'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
         expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(rejectedKey)
     })

@@ -302,12 +302,13 @@ sequenceDiagram
     participant SR as SummaryRequestStore
     participant NR as NoteRepository
     participant CR as ChatNoteRepository
+    participant PS as NotePlacementService
     participant OS as OutboxService
     C ->> HC: POST chats/{chatId}/summarize<br/>Idempotency-Key
     HC ->> F: requestSummary(userId, chatId, key)
     F ->> CS: getLatestMessageId(userId, chatId)
     CS -->> F: owned latest-message boundary
-    F ->> NS: requestChatSummary(..., throughMessageId, key)
+    F ->> NS: requestChatSummary(..., throughMessageId, key, constellationId?)
 
     rect rgb(235, 245, 255)
         Note over NS, OS: One transaction
@@ -316,6 +317,10 @@ sequenceDiagram
             SR -->> NS: reservation
             NS ->> NR: save GENERATING note
             NS ->> CR: save chat_note link
+            opt constellationId given
+                NS ->> PS: add(userId, noteId, constellationId) under the tree lock
+                PS -->> NS: main place, or CONSTELLATION_NOT_FOUND rolls everything back
+            end
             NS ->> OS: publish NOTE_SUMMARY_REQUESTED
         else Key already exists for this user
             SR -->> NS: no reservation
