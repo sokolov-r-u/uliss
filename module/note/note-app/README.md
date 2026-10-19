@@ -186,6 +186,9 @@ Notes belong to constellations through `note_constellation` (`NotePlacementServi
   (joining it if needed); `replace: true` drops the previous main, `false` keeps it as a secondary membership.
 - `DELETE /note/notes/{noteId}/constellations/{constellationId}` removes a membership; a removed main promotes the
   oldest remaining one.
+- A note has at most one place on each root-to-leaf line: adding or making main a constellation above or below an
+  existing place replaces that place (its main flag passes on). Moving a branch so that two places of a note share a
+  line keeps the deeper one; a lost main passes to the oldest remaining descendant place.
 - All three changes return the new list. A note with a parent note inherits its place:
   `409 NOTE_PLACE_INHERITED`. A missing or foreign note or constellation is `404`.
 - `GET /note/notes/without-constellation` returns notes with no constellation and no parent note, newest first.

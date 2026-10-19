@@ -28,6 +28,10 @@ class ConstellationTree(
     /** [id] with all its descendants. */
     fun branchIds(id: UUID): Set<UUID> = nodes.filter { isInBranch(it.id, id) }.map { it.id }.toSet()
 
+    /** True when [ancestor] lies strictly above [descendant]. */
+    fun isAncestor(ancestor: UUID, descendant: UUID): Boolean =
+        ancestor != descendant && isInBranch(descendant, ancestor)
+
     /** True when [id] is [branchId] or one of its descendants. */
     fun isInBranch(id: UUID, branchId: UUID): Boolean = pathOf(id).any { it.id == branchId }
 

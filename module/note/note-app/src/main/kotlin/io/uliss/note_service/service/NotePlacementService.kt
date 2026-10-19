@@ -7,6 +7,7 @@ import io.uliss.note_service.model.projection.NoteMembership
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.util.ConstellationTree
 import io.uliss.note_service.util.NotePlacement
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -34,35 +35,39 @@ class NotePlacementService(
     /** Adds the note to a constellation; the first one becomes main. */
     @Transactional
     fun add(userId: UUID, noteId: UUID, constellationId: UUID): List<NoteMembership> =
-        change(userId, noteId, constellationId) { NotePlacement.add(it, constellationId, clock.instant()) }
+        change(userId, noteId, constellationId) { memberships, tree ->
+            NotePlacement.add(memberships, constellationId, clock.instant(), tree::isAncestor)
+        }
 
     /** Makes [constellationId] main; [replace] drops the previous main instead of keeping it as secondary. */
     @Transactional
     fun makeMain(userId: UUID, noteId: UUID, constellationId: UUID, replace: Boolean): List<NoteMembership> =
-        change(userId, noteId, constellationId) {
-            NotePlacement.makeMain(it, constellationId, replace, clock.instant())
+        change(userId, noteId, constellationId) { memberships, tree ->
+            NotePlacement.makeMain(memberships, constellationId, replace, clock.instant(), tree::isAncestor)
         }
 
     /** Removes the note from a constellation; a removed main promotes the oldest remaining membership. */
     @Transactional
     fun remove(userId: UUID, noteId: UUID, constellationId: UUID): List<NoteMembership> =
-        change(userId, noteId, joined = null) { NotePlacement.remove(it, constellationId) }
+        change(userId, noteId, joined = null) { memberships, _ -> NotePlacement.remove(memberships, constellationId) }
 
-    /** Applies [rule] under the tree lock; [joined] is a constellation the note may join, so it must be the user's. */
+    /**
+     * Applies [rule] to the note's memberships under the tree lock, against a snapshot of the tree that tells which
+     * places share a line; [joined] is a constellation the note may join, so it must be the user's.
+     */
     private fun change(
         userId: UUID,
         noteId: UUID,
         joined: UUID?,
-        rule: (List<NoteMembership>) -> List<NoteMembership>,
+        rule: (List<NoteMembership>, ConstellationTree) -> List<NoteMembership>,
     ): List<NoteMembership> {
         constellationRepository.lockUserTree(userId)
         val note = getOwnedNote(userId, noteId)
         if (note.parentNoteId != null) throw NotePlaceInheritedException(noteId)
-        if (joined != null && !constellationRepository.existsByIdAndUserId(joined, userId)) {
-            throw NotFoundException("constellation id=$joined not found")
-        }
+        val tree = ConstellationTree(constellationRepository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
+        if (joined != null && tree.find(joined) == null) throw NotFoundException("constellation id=$joined not found")
         val current = store.findByNote(userId, noteId)
-        val next = rule(current)
+        val next = rule(current, tree)
         if (next != current) store.replace(userId, mapOf(noteId to next))
         return NotePlacement.ordered(next)
     }

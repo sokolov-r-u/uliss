@@ -5,7 +5,8 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.exception.NotePlaceInheritedException
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.NoteMembership
-import io.uliss.note_service.repository.ConstellationRepository
+import io.uliss.note_service.model.ConstellationEntity
+import io.uliss.note_service.model.ConstellationLightness
 import io.uliss.note_service.repository.NoteRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -23,11 +24,11 @@ class NotePlacementServiceTest {
     private val earlier: Instant = Instant.parse("2026-10-19T10:00:00Z")
     private val userId = UUID.randomUUID()
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
-    private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
+    private val constellations = InMemoryConstellationStore()
     private val memberships = InMemoryNoteConstellationStore()
     private val service = NotePlacementService(
         noteRepository,
-        constellationRepository,
+        constellations.repository,
         memberships.store,
         Clock.fixed(now, ZoneOffset.UTC),
     )
@@ -36,6 +37,8 @@ class NotePlacementServiceTest {
     private val music = ownedConstellation()
     private val jazz = ownedConstellation()
     private val films = ownedConstellation()
+    private val rock = ownedConstellation(parentId = music)
+    private val bebop = ownedConstellation(parentId = rock)
 
     @Test
     fun `the first constellation becomes main under the tree lock, stamped with the clock`() {
@@ -43,7 +46,7 @@ class NotePlacementServiceTest {
 
         assertEquals(listOf(NoteMembership(music, true, now)), result)
         assertEquals(result, memberships.rows[note.id])
-        Mockito.verify(constellationRepository).lockUserTree(userId)
+        Mockito.verify(constellations.repository).lockUserTree(userId)
     }
 
     @Test
@@ -84,6 +87,14 @@ class NotePlacementServiceTest {
         service.remove(userId, note.id, jazz)
         assertTrue(service.remove(userId, note.id, films).isEmpty())
         assertTrue(service.getMemberships(userId, note.id).isEmpty())
+    }
+
+    @Test
+    fun `a place on a taken line replaces the membership there`() {
+        place(NoteMembership(music, true, earlier), NoteMembership(jazz, false, earlier))
+
+        assertEquals(listOf(bebop to true, jazz to false), service.add(userId, note.id, bebop).map { it.pair() })
+        assertEquals(listOf(rock to true, jazz to false), service.makeMain(userId, note.id, rock, replace = false).map { it.pair() })
     }
 
     @Test
@@ -130,7 +141,8 @@ class NotePlacementServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(it.id, userId)).thenReturn(it)
     }
 
-    private fun ownedConstellation(): UUID = UUID.randomUUID().also {
-        Mockito.`when`(constellationRepository.existsByIdAndUserId(it, userId)).thenReturn(true)
-    }
+    private fun ownedConstellation(parentId: UUID? = null): UUID = constellations.add(
+        if (parentId == null) ConstellationEntity(userId, null, "Root ${constellations.rows.size}", 22, null)
+        else ConstellationEntity(userId, parentId, "Child ${constellations.rows.size}", null, ConstellationLightness.LIGHT)
+    ).id
 }

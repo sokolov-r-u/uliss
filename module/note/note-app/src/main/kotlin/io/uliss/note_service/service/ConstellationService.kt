@@ -113,7 +113,19 @@ class ConstellationService(
             }
         }
         entity.parentId = parentId
-        return saveAndView(userId, entity)
+        save(entity)
+        keepOnePlacePerLine(userId, id)
+        return loadTree(userId).view(id)
+    }
+
+    /** A moved branch may put two places of a note on one line: the deeper place stays (and inherits a lost main). */
+    private fun keepOnePlacePerLine(userId: UUID, movedId: UUID) {
+        val tree = loadTree(userId, withCounts = false)
+        val touched = noteConstellationStore.findByNotesInConstellations(userId, tree.branchIds(movedId))
+        val changed = touched
+            .mapValues { (_, memberships) -> NotePlacement.keepDeepest(memberships, tree::isAncestor) }
+            .filter { (noteId, memberships) -> memberships != touched[noteId] }
+        noteConstellationStore.replace(userId, changed)
     }
 
     /**
@@ -155,8 +167,13 @@ class ConstellationService(
     private fun normalizeName(rawName: String): String =
         ConstellationNameNormalizer.normalize(rawName) ?: throw BadRequestException(ConstellationNameNormalizer.RULE)
 
-    /** Saves under the tree lock; the unique index stays the backstop when collations disagree on case. */
     private fun saveAndView(userId: UUID, entity: ConstellationEntity): ConstellationView {
+        save(entity)
+        return loadTree(userId).view(entity.id)
+    }
+
+    /** Saves under the tree lock; the unique index stays the backstop when collations disagree on case. */
+    private fun save(entity: ConstellationEntity) {
         try {
             repository.saveAndFlush(entity)
         } catch (e: DataIntegrityViolationException) {
@@ -164,7 +181,6 @@ class ConstellationService(
             if (constraint == NAME_INDEX) throw ConstellationNameTakenException(entity.name, e)
             throw e
         }
-        return loadTree(userId).view(entity.id)
     }
 
     private fun notFound(id: UUID) = NotFoundException("constellation id=$id not found")

@@ -269,6 +269,23 @@ class ConstellationServiceTest {
     }
 
     @Test
+    fun `a move that puts two places of a note on one line keeps the deeper one and hands it the main`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val rock = child(music, "Rock", ConstellationLightness.LIGHT)
+        val films = root("Films", 42)
+        val note = UUID.randomUUID()
+        val untouched = UUID.randomUUID()
+        memberships.put(userId, note, listOf(NoteMembership(rock.id, true, earlier), NoteMembership(jazz.id, false, now)))
+        memberships.put(userId, untouched, listOf(NoteMembership(films.id, true, earlier)))
+
+        service.move(userId, jazz.id, rock.id)
+
+        assertEquals(listOf(NoteMembership(jazz.id, true, now)), memberships.rows[note])
+        assertEquals(listOf(NoteMembership(films.id, true, earlier)), memberships.rows[untouched])
+    }
+
+    @Test
     fun `deleting a branch with notes keeps every note, dropping branch places or moving the note to the target`() {
         val music = root("Music", 264)
         val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)

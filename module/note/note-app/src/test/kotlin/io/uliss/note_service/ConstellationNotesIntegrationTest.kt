@@ -61,5 +61,20 @@ class ConstellationNotesIntegrationTest {
         assertTrue(noteRepository.existsById(onlyJazz.id) && noteRepository.existsById(jazzAndFilms.id))
     }
 
+    @Test
+    fun `adding on a taken line and moving a branch keep one place per line in the database`() {
+        val music = constellationService.create(userId, "Music", null)
+        val jazz = constellationService.create(userId, "Jazz", music.id)
+        val rock = constellationService.create(userId, "Rock", music.id)
+        val note = note("Kind of Blue")
+        placementService.add(userId, note.id, music.id)
+
+        assertEquals(listOf(jazz.id to true), placementService.add(userId, note.id, jazz.id).map { it.constellationId to it.main })
+        placementService.add(userId, note.id, rock.id)
+        constellationService.move(userId, rock.id, jazz.id)
+
+        assertEquals(listOf(rock.id to true), store.findByNote(userId, note.id).map { it.constellationId to it.main })
+    }
+
     private fun note(title: String): NoteEntity = noteRepository.saveAndFlush(NoteEntity(userId, "body", title = title))
 }

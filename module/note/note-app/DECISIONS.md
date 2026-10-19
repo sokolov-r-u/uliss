@@ -258,3 +258,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   without a place), and deletes the branch. The target must be the user's and outside the branch (`404` / `400`).
   `getDeletionImpact` counts the notes that need the move.
 - **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 2.
+
+## 2026-10-19 — A note has one place per line of the tree
+
+- **Context:** after the manual test of task 2 the user wants a note in Jazz or in Music, never in both, while Jazz and
+  Rock side by side stay allowed.
+- **Decision:** `NotePlacement` takes the tree's `isAncestor` relation. Adding or promoting a constellation replaces
+  the note's places on the same line, keeping their main flag. A branch move runs `keepDeepest` over the notes of the
+  moved branch: the ancestor place goes, a lost main passes to the oldest remaining descendant place. The checks use
+  the tree snapshot already loaded under the lock. `V12` applies the same rule once to existing memberships.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 5.

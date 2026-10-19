@@ -61,11 +61,16 @@ class NotePlacementApiIntegrationTest {
             jsonPath("$[0].constellationId") { value(jazz.toString()) }
             jsonPath("$[0].main") { value(true) }
         }
-        add(note, music).andExpect { jsonPath("$[1].main") { value(false) } }
+        // Music lies on Jazz's line: the place moves up instead of doubling.
+        add(note, music).andExpect {
+            jsonPath("$.length()") { value(1) }
+            jsonPath("$[0].constellationId") { value(music.toString()) }
+            jsonPath("$[0].main") { value(true) }
+        }
         mockMvc.get("/note/constellations") { auth() }.andExpect {
             jsonPath("$[?(@.name == 'Music')].noteCount") { value(1) }
             jsonPath("$[?(@.name == 'Music')].ownNoteCount") { value(1) }
-            jsonPath("$[?(@.name == 'Jazz')].noteCount") { value(1) }
+            jsonPath("$[?(@.name == 'Jazz')].noteCount") { value(0) }
         }
         mockMvc.get("/note/constellations/$music/notes") { auth() }.andExpect {
             status { isOk() }
@@ -79,19 +84,20 @@ class NotePlacementApiIntegrationTest {
             jsonPath("$[0].id") { value(loose.toString()) }
         }
 
-        main(note, """{"constellationId":"$music","replace":false}""").andExpect {
-            jsonPath("$[0].constellationId") { value(music.toString()) }
-            jsonPath("$[1].constellationId") { value(jazz.toString()) }
-        }
-        main(note, """{"constellationId":"$films","replace":true}""").andExpect {
+        add(note, films).andExpect { jsonPath("$[1].constellationId") { value(films.toString()) } }
+        main(note, """{"constellationId":"$films","replace":false}""").andExpect {
             jsonPath("$[0].constellationId") { value(films.toString()) }
-            jsonPath("$[0].main") { value(true) }
-            jsonPath("$[1].constellationId") { value(jazz.toString()) }
-            jsonPath("$.length()") { value(2) }
+            jsonPath("$[1].constellationId") { value(music.toString()) }
         }
-        remove(note, films).andExpect {
-            status { isOk() }
+        main(note, """{"constellationId":"$jazz","replace":true}""").andExpect {
+            jsonPath("$.length()") { value(1) }
             jsonPath("$[0].constellationId") { value(jazz.toString()) }
+            jsonPath("$[0].main") { value(true) }
+        }
+        add(note, films)
+        remove(note, jazz).andExpect {
+            status { isOk() }
+            jsonPath("$[0].constellationId") { value(films.toString()) }
             jsonPath("$[0].main") { value(true) }
         }
         mockMvc.get("/note/notes/$note/constellations") { auth() }.andExpect {
