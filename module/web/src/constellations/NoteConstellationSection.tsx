@@ -34,7 +34,7 @@ export function placementFailureMessage(error: unknown, name?: string): string {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') return `“${name}” is already taken. Pick it from the list.`
         if (error.code === 'NOTE_PLACE_INHERITED') return 'This note lives where its parent note lives.'
         if (error.status === 404) return 'This note or constellation no longer exists. Reload the page.'
-        if (error.status === 400) return 'Use a name of 1 to 40 characters.'
+        if (error.status === 400 && name !== undefined) return 'Use a name of 1 to 40 characters.'
         if (error.kind === 'transport') return 'The note service is unavailable. Try again.'
     }
     return 'Could not save the change. Try again.'
@@ -82,14 +82,19 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         setError(null)
         try {
             const memberships = await change()
-            const tree = treeChanged ? buildConstellationTree(await listConstellations()) : null
-            setLoad((current) => current.status === 'ready'
-                ? {status: 'ready', tree: tree ?? current.tree, memberships}
-                : current)
+            setLoad((current) => current.status === 'ready' ? {...current, memberships} : current)
             setPicker(null)
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name))
         } finally {
+            // A root may exist even when placing the note in it failed: the picker must list it.
+            if (treeChanged) {
+                const items = await listConstellations().catch(() => null)
+                if (items) {
+                    const tree = buildConstellationTree(items)
+                    setLoad((current) => current.status === 'ready' ? {...current, tree} : current)
+                }
+            }
             pendingRef.current = false
             setPending(false)
         }
@@ -159,10 +164,8 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                         {others.map((node) => (
                             <ConstellationChip key={node.id} label={node.name} size="sm"
                                                color={constellationColor(node.hue, node.lightness)}
-                                               onClick={pending ? undefined
-                                                   : () => void run(() => setMainNoteConstellation(noteId, node.id, false))}
-                                               onRemove={pending ? undefined
-                                                   : () => void run(() => removeNoteConstellation(noteId, node.id))}/>
+                                               onClick={() => void run(() => setMainNoteConstellation(noteId, node.id, false))}
+                                               onRemove={() => void run(() => removeNoteConstellation(noteId, node.id))}/>
                         ))}
                         <button type="button" className="note-places-add" disabled={pending}
                                 aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add constellation

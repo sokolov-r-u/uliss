@@ -16,12 +16,12 @@ export function NotesHere({id, load, onOpen, empty, deeper = null}: {
     empty: string
     deeper?: string | null
 }) {
-    const {items: notes} = useLinkedItems(id, load, SUBSCRIPTIONS)
+    const {items: notes, status} = useLinkedItems(id, load, SUBSCRIPTIONS)
     return (
         <section className="constellation-panel-notes">
             <Kicker size={9} spacing="3px" color="var(--text-faint)">Notes here</Kicker>
             {notes.length === 0
-                ? <p>{empty}</p>
+                ? <p>{status === 'loading' ? 'Loading…' : status === 'failed' ? 'Could not load the notes.' : empty}</p>
                 : <div className="constellation-panel-note-list">
                     {notes.map((note) => (
                         <ListRow key={note.id} title={note.title || 'Untitled note'}
