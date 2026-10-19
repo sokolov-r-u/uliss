@@ -1,16 +1,19 @@
 import {render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     type Constellation,
     ConstellationApiError,
     createConstellation,
     deleteConstellation,
+    getConstellationDeletion,
     listConstellations,
     moveConstellation,
     updateConstellation,
 } from './constellationApi'
 import {ConstellationsPage} from './ConstellationsPage'
+import {listConstellationNotes, listNotesWithoutConstellation, type Note} from '../notes/noteApi'
 
 vi.mock('./constellationApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./constellationApi')>()
@@ -21,11 +24,21 @@ vi.mock('./constellationApi', async (importOriginal) => {
         updateConstellation: vi.fn(),
         moveConstellation: vi.fn(),
         deleteConstellation: vi.fn(),
+        getConstellationDeletion: vi.fn(async () => ({notesToMove: 0})),
+    }
+})
+
+vi.mock('../notes/noteApi', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../notes/noteApi')>()
+    return {
+        ...actual,
+        listNotesWithoutConstellation: vi.fn(async () => []),
+        listConstellationNotes: vi.fn(async () => []),
     }
 })
 
 function node(id: string, parentId: string | null, name: string, extra: Partial<Constellation> = {}): Constellation {
-    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount: 0, ...extra}
+    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount: 0, ownNoteCount: 0, ...extra}
 }
 
 const TREE = [
@@ -41,7 +54,7 @@ function httpError(status: number, code?: string) {
 
 async function renderPage(items: Constellation[] = TREE) {
     vi.mocked(listConstellations).mockResolvedValue(items)
-    render(<ConstellationsPage/>)
+    render(<MemoryRouter><ConstellationsPage/></MemoryRouter>)
 }
 
 async function openBranch(name: string) {
@@ -56,6 +69,101 @@ describe('ConstellationsPage', () => {
         vi.mocked(updateConstellation).mockReset()
         vi.mocked(moveConstellation).mockReset()
         vi.mocked(deleteConstellation).mockReset()
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 0})
+        vi.mocked(listNotesWithoutConstellation).mockResolvedValue([])
+        vi.mocked(listConstellationNotes).mockResolvedValue([])
+    })
+
+    function note(id: string, title: string): Note {
+        return {id, source: 'MANUAL', status: 'READY', title, content: 'x', createdAt: '2026-10-19T10:00:00Z'}
+    }
+
+    it('lists notes without a constellation in a muted last row with its own panel', async () => {
+        vi.mocked(listNotesWithoutConstellation).mockResolvedValue([note('n1', 'Loose thought'), note('n2', 'Another')])
+        await renderPage()
+
+        const unplaced = await screen.findByRole('button', {name: /^Without constellation/})
+        expect(unplaced).toHaveTextContent('2')
+        await userEvent.click(unplaced)
+
+        const panel = screen.getByRole('complementary', {name: 'Without constellation'})
+        expect(await within(panel).findByText('Loose thought')).toBeInTheDocument()
+        expect(within(panel).queryByRole('button', {name: 'Rename'})).not.toBeInTheDocument()
+        expect(within(panel).queryByRole('button', {name: 'Delete constellation'})).not.toBeInTheDocument()
+    })
+
+    it('has no "Without constellation" row when every note has a place', async () => {
+        await renderPage()
+
+        await screen.findByRole('button', {name: /^Music/})
+        expect(screen.queryByRole('button', {name: /^Without constellation/})).not.toBeInTheDocument()
+    })
+
+    it('shows the service counts, the notes of the branch itself and how many lie deeper', async () => {
+        vi.mocked(listConstellationNotes).mockResolvedValue([note('n1', 'Kind of Blue')])
+        await renderPage([
+            node('music', null, 'Music', {noteCount: 3, ownNoteCount: 1}),
+            node('jazz', 'music', 'Jazz', {noteCount: 2, ownNoteCount: 2}),
+            node('ambient', 'music', 'Ambient'),
+        ])
+
+        const panel = await openBranch('Music')
+
+        expect(panel).toHaveTextContent('3 stars')
+        expect(await within(panel).findByText('Kind of Blue')).toBeInTheDocument()
+        expect(listConstellationNotes).toHaveBeenCalledWith('music', expect.anything())
+        expect(panel).toHaveTextContent('Plus 2 stars deeper in Jazz.')
+    })
+
+    it('moves the notes of a deleted branch to its parent by default', async () => {
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 2})
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        await openBranch('Music')
+        const panel = await openBranch('Jazz')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Jazz”?'})
+        expect(await within(dialog).findByText(/Jazz holds 2 notes with no other place/)).toBeInTheDocument()
+        expect(within(dialog).getByRole('button', {name: /Move to/})).toHaveTextContent('Music')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        expect(deleteConstellation).toHaveBeenCalledWith('jazz', 'music')
+    })
+
+    it('still sends the parent when a sub-constellation had no notes to move when counted', async () => {
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        await openBranch('Music')
+        const panel = await openBranch('Jazz')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Jazz”?'})
+        await within(dialog).findByText(/Notes are never deleted with a constellation/)
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        // A note that lost its other places since the count moves to Music instead of losing its place.
+        expect(deleteConstellation).toHaveBeenCalledWith('jazz', 'music')
+    })
+
+    it('waits for a target before deleting a root with notes, or leaves them without a place', async () => {
+        vi.mocked(getConstellationDeletion).mockResolvedValue({notesToMove: 1})
+        vi.mocked(deleteConstellation).mockResolvedValue()
+        await renderPage()
+        const panel = await openBranch('Films')
+
+        await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
+        const dialog = screen.getByRole('dialog', {name: 'Delete “Films”?'})
+        await within(dialog).findByText(/Where should they move\?/)
+        expect(within(dialog).getByRole('button', {name: 'Delete'})).toBeDisabled()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: /Move to/}))
+        expect(within(dialog).queryByRole('button', {name: /^Films/})).not.toBeInTheDocument()
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Leave them without a constellation'}))
+        expect(dialog).toHaveTextContent('They lose their place')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
+
+        expect(deleteConstellation).toHaveBeenCalledWith('films', null)
     })
 
     it('offers to create the first constellation on an empty tree', async () => {
@@ -182,8 +290,10 @@ describe('ConstellationsPage', () => {
 
         await userEvent.click(within(panel).getByRole('button', {name: 'Move'}))
         await userEvent.click(within(panel).getByRole('button', {name: /^Films/}))
+        await userEvent.click(within(panel).getByRole('button', {name: 'Move to Films'}))
 
-        expect(await within(panel).findByRole('alert')).toHaveTextContent('“Music” is already taken here.')
+        expect(moveConstellation).toHaveBeenCalledWith('music', 'films')
+        expect(await within(panel).findByRole('alert')).toHaveTextContent('“Music” is already taken there. Rename it or pick another place.')
     })
 
     it('keeps the panel and says so when the branch is gone', async () => {
@@ -219,17 +329,18 @@ describe('ConstellationsPage', () => {
 
         await userEvent.click(within(panel).getByRole('button', {name: 'Delete constellation'}))
         const dialog = screen.getByRole('dialog', {name: 'Delete “Music”?'})
-        expect(dialog).toHaveTextContent('Its 2 sub-constellations go with it. Notes are never deleted with a constellation.')
+        expect(await within(dialog).findByText('Its 2 sub-constellations go with it. Notes are never deleted with a constellation.'))
+            .toBeInTheDocument()
         await userEvent.click(within(dialog).getByRole('button', {name: 'Delete'}))
 
-        expect(deleteConstellation).toHaveBeenCalledWith('music')
+        expect(deleteConstellation).toHaveBeenCalledWith('music', null)
         await waitFor(() => expect(screen.queryByRole('complementary')).not.toBeInTheDocument())
         expect(screen.queryByRole('button', {name: /^Music/})).not.toBeInTheDocument()
     })
 
     it('offers a retry when the tree cannot be loaded', async () => {
         vi.mocked(listConstellations).mockRejectedValueOnce(new Error('down')).mockResolvedValue(TREE)
-        render(<ConstellationsPage/>)
+        render(<MemoryRouter><ConstellationsPage/></MemoryRouter>)
 
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
 

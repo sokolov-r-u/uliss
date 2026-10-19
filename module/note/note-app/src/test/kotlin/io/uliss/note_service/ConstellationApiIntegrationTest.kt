@@ -117,6 +117,17 @@ class ConstellationApiIntegrationTest {
     }
 
     @Test
+    fun `a name only the database folds together is still a conflict`() {
+        create("""{"name":"I"}""").andExpect { status { isCreated() } }
+
+        // Kotlin folds "İ" to "i̇", PostgreSQL to "i": only the unique index sees the clash.
+        create("""{"name":"İ"}""").andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("CONSTELLATION_NAME_TAKEN") }
+        }
+    }
+
+    @Test
     fun `a foreign constellation or parent is not found`() {
         val foreign = create("""{"name":"Theirs"}""", UUID.randomUUID()).id()
         val mine = create("""{"name":"Mine"}""").id()

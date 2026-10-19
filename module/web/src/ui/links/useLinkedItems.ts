@@ -11,8 +11,9 @@ export function useLinkedItems<T>(
     id: string,
     load: (id: string, signal: AbortSignal) => Promise<T[]>,
     subscriptions: Subscribe[],
-): { items: T[]; reload: () => void } {
-    const [loaded, setLoaded] = useState<{ id: string; items: T[] }>({id, items: []})
+): { items: T[]; reload: () => void; status: 'loading' | 'ready' | 'failed' } {
+    const [loaded, setLoaded] = useState<{ id: string; items: T[]; status: 'loading' | 'ready' | 'failed' }>(
+        {id, items: [], status: 'loading'})
     const [revision, setRevision] = useState(0)
     const reload = useCallback(() => setRevision((value) => value + 1), [])
 
@@ -26,12 +27,20 @@ export function useLinkedItems<T>(
         const controller = new AbortController()
         load(id, controller.signal)
             .then((items) => {
-                if (!controller.signal.aborted) setLoaded({id, items})
+                if (!controller.signal.aborted) setLoaded({id, items, status: 'ready'})
             })
-            .catch(() => undefined)
+            .catch(() => {
+                // A failed load keeps what is shown for the same id.
+                if (!controller.signal.aborted) {
+                    setLoaded((current) => current.id === id ? {...current, status: current.status === 'ready' ? 'ready' : 'failed'}
+                        : {id, items: [], status: 'failed'})
+                }
+            })
         return () => controller.abort()
         // `load` is a module-level API function.
     }, [id, revision])
 
-    return {items: loaded.id === id ? loaded.items : [], reload}
+    return loaded.id === id
+        ? {items: loaded.items, reload, status: loaded.status}
+        : {items: [], reload, status: 'loading'}
 }

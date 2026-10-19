@@ -327,10 +327,8 @@
 .context-panel-head {
     flex: 0 0 auto;
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 14px 12px 10px 16px;
-    border-bottom: 1px solid var(--line);
+    justify-content: flex-end;
+    padding: 4px 4px 0;
 }
 
 .context-panel-body {

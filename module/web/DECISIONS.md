@@ -73,3 +73,33 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   to `onSubmit(text)` because the owner's state has not caught up yet. Wording of voice errors sits in a line above the
   dock. Only the user retries a failed transcription, with the same recording and intent.
 - **Source:** task `docs/tasks/2026-10-17-voice-input.md`, block 3.
+
+## 2026-10-19 — A note's places are edited only from its panel
+
+- **Context:** task 2 of the constellations epic; the meta plate above the note text (board 16c) is not built.
+- **Decision:** the "Constellation" section opens the note's panel. The main place is a breadcrumb with Change (pick a
+  new main, the old one is dropped) and Remove; "Also in" chips make a place main on click and remove it with ×;
+  "+ Add constellation" adds one. Every pick goes through the DS `ConstellationPicker`, whose "Create “…”" creates a
+  root and places the note there. The Constellations screen shows the service's distinct subtree counts as they are
+  (the client no longer sums children), lists "Notes here" per branch, ends the tree with a muted "Without
+  constellation" row when such notes exist, and asks where to move the notes before deleting a branch that holds some.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 4.
+
+## 2026-10-19 — The place-picker walks the tree; panels drop their visible title
+
+- **Context:** the manual test of task 2: the picker listed the whole tree unfolded, and the note panel spent space on
+  a title and a hint that said nothing.
+- **Decision:** `ConstellationPicker` (DS) opens on the roots; a click selects a branch and unfolds it, the chevron
+  only folds, and an action button ("Add to Jazz", "Move to Jazz", "Make Jazz main") confirms. Search shows flat hits
+  with their path. `onCreate(name, parentId)` creates under the selection ("+ New in …", "Create “…” in …") or a root
+  and selects the new branch; the note is placed only by the action button. The note section shows the main place,
+  Change and × in one line, chips with a "Make … main" tooltip, no hint. `ContextPanel` keeps its label for assistive
+  tech only and shows just the close button.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, blocks 6–7.
+
+## 2026-10-19 — The main place is chosen among the note's own places
+
+- **Decision:** replaces the chip click and Change of the previous entry. A click on the main path lists the note's
+  other places and makes the chosen one main (the old main stays a place); with a single place the path is inactive.
+  Chips only show a place and remove it; there is no "Also in" label. Adding stays with the tree picker.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, manual test of round 2.

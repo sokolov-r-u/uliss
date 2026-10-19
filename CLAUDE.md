@@ -101,9 +101,13 @@
 
 ## Subagents and skills
 
-- Use subagents for: the code review before the report (`/code-review` on the task's commit range, base commit..HEAD;
-  medium effort, high plus `/security-review` for auth/security changes); broad read-only searches across many files
-  (`Explore`, a cheaper model such as Sonnet or Haiku); self-contained web research.
+- Use subagents for: the code review before the report; broad read-only searches across many files (`Explore`, a
+  cheaper model such as Sonnet or Haiku); self-contained web research.
+- The code review runs in a separate agent without the implementing conversation's context, never inline in it: the
+  author reviewing its own work misses what it already believes. Spawn it (`Agent`) with a self-contained brief: the
+  task's commit range (base commit..HEAD), the task file, and the review recipe (`/code-review` at medium effort; high
+  plus `/security-review` for auth/security changes). Cover the whole range, including commits made after an earlier
+  review round.
 - Do not use subagents for implementation, TDD steps, or anything that needs this conversation's context.
 - A subagent brief is self-contained. Its output is a claim, not a fact: verify every finding against the code before
   acting, evaluate findings in Russian, and fix only confirmed ones.

@@ -8,10 +8,15 @@ export interface ConstellationTreeViewProps {
     selectedId: string | null
     onToggle: (id: string) => void
     onSelect: (id: string) => void
+    /** The muted last row of notes with no place; absent when there are none. */
+    unplaced?: { count: number; selected: boolean; onSelect: () => void }
 }
 
-/** The tree, collapsed to the open branches: dot, name, subtree count, and a volume bar on every root. */
-export function ConstellationTreeView({tree, open, selectedId, onToggle, onSelect}: ConstellationTreeViewProps) {
+/**
+ * The tree, collapsed to the open branches: dot, name, subtree count, and a volume bar on every root; then the muted
+ * "Without constellation" row.
+ */
+export function ConstellationTreeView({tree, open, selectedId, onToggle, onSelect, unplaced}: ConstellationTreeViewProps) {
     const maxRoot = Math.max(0, ...tree.roots.map((root) => root.count))
     return (
         <ul className="constellation-tree" aria-label="Constellations">
@@ -19,6 +24,15 @@ export function ConstellationTreeView({tree, open, selectedId, onToggle, onSelec
                 <TreeRow key={node.id} node={node} open={open.has(node.id)} selected={node.id === selectedId}
                          maxRoot={maxRoot} onToggle={onToggle} onSelect={onSelect}/>
             ))}
+            {unplaced && <li className={unplaced.selected ? 'constellation-row unplaced selected' : 'constellation-row unplaced'}
+                             style={{'--depth': 0, '--branch-color': 'var(--text-faint)'} as CSSProperties}>
+                <span className="constellation-row-toggle"/>
+                <button type="button" className="constellation-row-select" aria-current={unplaced.selected || undefined}
+                        onClick={unplaced.onSelect}>
+                    <span className="constellation-row-name">Without constellation</span>
+                    <span className="constellation-row-count">{unplaced.count}</span>
+                </button>
+            </li>}
         </ul>
     )
 }

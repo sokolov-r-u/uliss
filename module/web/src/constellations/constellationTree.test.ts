@@ -2,14 +2,15 @@ import {describe, expect, it} from 'vitest'
 import type {Constellation} from './constellationApi'
 import {buildConstellationTree, descendantIds, normalizeConstellationName, visibleNodes} from './constellationTree'
 
-function item(id: string, parentId: string | null, name: string, noteCount = 0): Constellation {
-    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount}
+function item(id: string, parentId: string | null, name: string, noteCount = 0, ownNoteCount = noteCount): Constellation {
+    return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount, ownNoteCount}
 }
 
+// The service counts distinct notes per subtree: Music holds 7, not the 10 its parts add up to.
 const ITEMS = [
     item('miles', 'jazz', 'Miles', 2),
-    item('music', null, 'music', 3),
-    item('jazz', 'music', 'Jazz', 4),
+    item('music', null, 'music', 7, 3),
+    item('jazz', 'music', 'Jazz', 5, 4),
     item('ambient', 'music', 'ambient', 1),
     item('films', null, 'Films'),
 ]
@@ -22,7 +23,7 @@ describe('buildConstellationTree', () => {
         expect(tree.roots.map((node) => node.id)).toEqual(['films', 'music'])
     })
 
-    it('gives every node its depth, ancestors and the note count of its whole subtree', () => {
+    it('gives every node its depth, ancestors and the service note counts of the node and its subtree', () => {
         const tree = buildConstellationTree(ITEMS)
         const miles = tree.byId.get('miles')!
         const music = tree.byId.get('music')!
@@ -30,8 +31,8 @@ describe('buildConstellationTree', () => {
         expect(miles.depth).toBe(2)
         expect(miles.ancestors.map((node) => node.name)).toEqual(['music', 'Jazz'])
         expect(music.ownCount).toBe(3)
-        expect(music.count).toBe(10)
-        expect(tree.byId.get('jazz')!.count).toBe(6)
+        expect(music.count).toBe(7)
+        expect(tree.byId.get('jazz')!.count).toBe(5)
     })
 
     it('drops a node whose parent is missing, with its subtree', () => {

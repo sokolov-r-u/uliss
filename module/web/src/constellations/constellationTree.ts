@@ -1,4 +1,4 @@
-import type {ConstellationLightness} from '@uliss/design-system'
+import {type ConstellationLightness, type ConstellationPickerItem, constellationColor} from '@uliss/design-system'
 import type {Constellation} from './constellationApi'
 
 /** Longest constellation name, in code points; mirrors the service's `ConstellationNameNormalizer`. */
@@ -23,7 +23,7 @@ export interface ConstellationNode {
     children: ConstellationNode[]
     /** Notes in the node itself. */
     ownCount: number
-    /** Notes in the whole subtree. */
+    /** Distinct notes in the whole subtree: a note in two of its branches counts once. */
     count: number
 }
 
@@ -50,7 +50,7 @@ export function buildConstellationTree(items: Constellation[]): ConstellationTre
             depth: 0,
             ancestors: [],
             children: [],
-            ownCount: item.noteCount,
+            ownCount: item.ownNoteCount,
             count: item.noteCount,
         })
     }
@@ -68,7 +68,6 @@ export function buildConstellationTree(items: Constellation[]): ConstellationTre
         flat.push(node)
         placed.set(node.id, node)
         node.children.forEach((child) => visit(child, [...ancestors, node]))
-        node.count = node.ownCount + node.children.reduce((sum, child) => sum + child.count, 0)
     }
     roots.sort(byName).forEach((root) => visit(root, []))
     return {roots, flat, byId: placed}
@@ -86,4 +85,17 @@ export function visibleNodes(tree: ConstellationTree, open: ReadonlySet<string>)
 
 export function plural(count: number, one: string, many: string): string {
     return `${count} ${count === 1 ? one : many}`
+}
+
+/** The tree as the place-picker lists it. */
+export function pickerItems(tree: ConstellationTree): ConstellationPickerItem[] {
+    return tree.flat.map((node) => ({
+        id: node.id,
+        parentId: node.parentId,
+        name: node.name,
+        depth: node.depth,
+        path: node.ancestors.map((ancestor) => ancestor.name),
+        color: constellationColor(node.hue, node.lightness),
+        count: node.count,
+    }))
 }

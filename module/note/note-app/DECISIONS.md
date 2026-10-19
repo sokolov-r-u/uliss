@@ -236,3 +236,35 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** one user's tree changes are serialized; reads take no lock. The tree is loaded whole per change,
   which assumes trees of hundreds of nodes, not millions.
 - **Source:** task `docs/tasks/2026-10-18-constellations-tree.md`, block 2.
+
+## 2026-10-19 — Note memberships are replaced as a whole set by pure placement rules
+
+- **Context:** task 2 of the constellations epic puts notes into constellations: one main among several memberships.
+- **Decision:** `NotePlacement` holds the rules as pure functions over one note's memberships: the first constellation
+  becomes main, a removed main promotes the oldest remaining membership (earliest `added_at`, then the smallest id), a
+  deleted branch drops its memberships and moves a note that had no other place to the chosen target as main.
+  `NoteConstellationStore` (`JdbcTemplate`) writes a changed note by deleting all its rows and inserting the new set:
+  JPA would flush the new main's update before the old main's delete and trip the one-main partial index. Tree counts
+  come from one recursive query: distinct notes per subtree and per node itself.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 1.
+
+## 2026-10-19 — Note places change under the tree lock; deleting a branch moves only notes that need it
+
+- **Decision:** `NotePlacementService` adds, removes and promotes memberships under the same per-user advisory lock as
+  tree changes, so a membership cannot race the deletion of its branch and two first additions cannot both become
+  main. A note with `parent_note_id` refuses memberships (`409 NOTE_PLACE_INHERITED`). Any note status may be placed.
+  `ConstellationService.delete` takes an optional target: in one transaction it drops the branch's memberships
+  (promoting a main where one was lost), moves notes placed only inside the branch to the target as main (or leaves them
+  without a place), and deletes the branch. The target must be the user's and outside the branch (`404` / `400`).
+  `getDeletionImpact` counts the notes that need the move.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 2.
+
+## 2026-10-19 — A note has one place per line of the tree
+
+- **Context:** after the manual test of task 2 the user wants a note in Jazz or in Music, never in both, while Jazz and
+  Rock side by side stay allowed.
+- **Decision:** `NotePlacement` takes the tree's `isAncestor` relation. Adding or promoting a constellation replaces
+  the note's places on the same line, keeping their main flag. A branch move runs `keepDeepest` over the notes of the
+  moved branch: the ancestor place goes, a lost main passes to the oldest remaining descendant place. The checks use
+  the tree snapshot already loaded under the lock. `V12` applies the same rule once to existing memberships.
+- **Source:** task `docs/tasks/2026-10-19-constellations-notes.md`, block 5.

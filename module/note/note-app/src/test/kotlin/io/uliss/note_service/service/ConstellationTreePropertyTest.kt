@@ -23,7 +23,7 @@ class ConstellationTreePropertyTest {
         @ForAll("steps") steps: List<Step>,
     ) {
         val store = InMemoryConstellationStore()
-        val service = ConstellationService(store.repository)
+        val service = ConstellationService(store.repository, InMemoryNoteConstellationStore().store)
         val userId = UUID.randomUUID()
 
         for (step in steps) {
@@ -34,7 +34,7 @@ class ConstellationTreePropertyTest {
                     0 -> service.create(userId, NAMES[step.name], pick(step.first))
                     1 -> pick(step.first)?.let { service.move(userId, it, pick(step.second)) }
                     2 -> pick(step.first)?.let { service.update(userId, it, NAMES[step.name], null, null) }
-                    else -> pick(step.first)?.let { service.delete(userId, it) }
+                    else -> pick(step.first)?.let { service.delete(userId, it, null) }
                 }
             } catch (_: ServerException) {
                 // Refused changes are part of the walk; the invariants must hold either way.

@@ -1,6 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useNavigate} from 'react-router-dom'
 import {Button, Dialog, EmptyState, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
+import {listNotesWithoutConstellation, type Note, notifyNotesChanged} from '../notes/noteApi'
 import {ContextPanel} from '../ui/ContextPanel'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
@@ -17,17 +19,18 @@ import {
     buildConstellationTree,
     CONSTELLATION_NAME_LIMIT,
     type ConstellationNode,
-    descendantIds,
     normalizeConstellationName,
     plural,
 } from './constellationTree'
 import {ConstellationTreeView} from './ConstellationTreeView'
+import {DeleteConstellationDialog, type DeleteTarget} from './DeleteConstellationDialog'
+import {UnplacedPanel} from './UnplacedPanel'
 import './constellations.css'
 
 type LoadState =
     | { status: 'loading' }
     | { status: 'error'; message: string }
-    | { status: 'ready'; items: Constellation[] }
+    | { status: 'ready'; items: Constellation[]; unplaced: Note[] }
 
 type DialogState =
     | { kind: 'create'; parentId: string | null }
@@ -41,10 +44,17 @@ export type ConstellationChange = 'name' | 'colour' | 'move' | 'delete'
 export function constellationFailureMessage(error: unknown, change: ConstellationChange, name?: string): string {
     if (error instanceof ConstellationApiError) {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') {
-            return name ? `“${name}” is already taken here. Pick another name.` : 'That name is already taken there.'
+            if (!name) return 'That name is already taken there.'
+            // A move has no name field: the clash is at the target, renaming is the way out.
+            return change === 'move'
+                ? `“${name}” is already taken there. Rename it or pick another place.`
+                : `“${name}” is already taken here. Pick another name.`
         }
         if (error.code === 'CONSTELLATION_MOVE_CYCLE') return 'A branch cannot move inside itself.'
-        if (error.status === 404) return 'This constellation no longer exists.'
+        if (error.status === 404) {
+            return change === 'delete' ? 'This constellation or the chosen target no longer exists.'
+                : 'This constellation no longer exists.'
+        }
         if (error.status === 400) {
             return change === 'name'
                 ? `Use a name of 1 to ${CONSTELLATION_NAME_LIMIT} characters.`
@@ -59,17 +69,19 @@ export function ConstellationsPage() {
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
     const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
     const [selectedId, setSelectedId] = useState<string | null>(null)
+    const [unplacedOpen, setUnplacedOpen] = useState(false)
     const [tool, setTool] = useState<PanelTool>(null)
     const [dialog, setDialog] = useState<DialogState | null>(null)
     const [draft, setDraft] = useState('')
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const pendingRef = useRef(false)
+    const navigate = useNavigate()
 
     const reload = useCallback(async (signal?: AbortSignal) => {
         try {
-            const items = await listConstellations(signal)
-            setLoad({status: 'ready', items})
+            const [items, unplaced] = await Promise.all([listConstellations(signal), listNotesWithoutConstellation(signal)])
+            setLoad({status: 'ready', items, unplaced})
         } catch (e) {
             if (e instanceof AuthRequiredError || signal?.aborted) return
             setLoad({status: 'error', message: e instanceof Error ? e.message : String(e)})
@@ -92,6 +104,7 @@ export function ConstellationsPage() {
 
     const select = useCallback((id: string) => {
         setSelectedId(id)
+        setUnplacedOpen(false)
         setTool(null)
         setError(null)
         const node = tree.byId.get(id)
@@ -101,6 +114,7 @@ export function ConstellationsPage() {
 
     const closePanel = useCallback(() => {
         setSelectedId(null)
+        setUnplacedOpen(false)
         setTool(null)
         setError(null)
     }, [])
@@ -144,7 +158,7 @@ export function ConstellationsPage() {
     async function refreshAfter(parentId: string | null) {
         const items = await listConstellations().catch(() => null)
         if (items) {
-            setLoad({status: 'ready', items})
+            setLoad((current) => ({status: 'ready', items, unplaced: current.status === 'ready' ? current.unplaced : []}))
             reveal(parentId, items)
         } else {
             await reload()
@@ -179,17 +193,19 @@ export function ConstellationsPage() {
         }
     }
 
-    async function submitDelete() {
+    async function submitDelete(target: DeleteTarget | null) {
         if (dialog?.kind !== 'delete') return
         const id = dialog.id
         const done = await run('delete', async () => {
-            await deleteConstellation(id)
+            await deleteConstellation(id, target && target !== 'none' ? target : null)
             return true
         })
         if (!done) return
         setDialog(null)
         if (selectedId === id) closePanel()
         await reload()
+        // Notes moved or lost their place: open "Notes here" lists re-read them.
+        if (target) notifyNotesChanged()
     }
 
     async function recolor(node: ConstellationNode, change: { hue: number } | { lightness: Constellation['lightness'] }) {
@@ -206,6 +222,18 @@ export function ConstellationsPage() {
         setTool(null)
     }
 
+    const unplaced = load.status === 'ready' ? load.unplaced : []
+    const unplacedRow = unplaced.length > 0
+        ? {
+            count: unplaced.length, selected: unplacedOpen, onSelect: () => {
+                setSelectedId(null)
+                setTool(null)
+                setError(null)
+                setUnplacedOpen(true)
+            },
+        }
+        : undefined
+    const openNote = (noteId: string) => navigate(`/notes/${noteId}`)
     const count = load.status === 'ready' ? `${plural(tree.roots.length, 'root', 'roots')} · ${tree.flat.length} in all` : undefined
     const dialogNode = dialog && dialog.kind !== 'create' ? tree.byId.get(dialog.id) ?? null : null
     const createParent = dialog?.kind === 'create' && dialog.parentId ? tree.byId.get(dialog.parentId) ?? null : null
@@ -226,10 +254,12 @@ export function ConstellationsPage() {
                     <EmptyState title="No constellations yet"
                                 body="Constellations are the places your notes live: roots like Music or Films, with branches under them as deep as you like."
                                 action="New constellation" onAction={() => openDialog({kind: 'create', parentId: null})}/>
+                    {unplacedRow && <ConstellationTreeView tree={tree} open={open} selectedId={null} onToggle={toggle}
+                                                           onSelect={select} unplaced={unplacedRow}/>}
                 </div>}
                 {load.status === 'ready' && tree.flat.length > 0 && <div className="constellations-body">
                     <ConstellationTreeView tree={tree} open={open} selectedId={selectedId} onToggle={toggle}
-                                           onSelect={select}/>
+                                           onSelect={select} unplaced={unplacedRow}/>
                     <div className="constellations-foot">
                         <button type="button" className="constellations-new"
                                 onClick={() => openDialog({kind: 'create', parentId: null})}>+ New constellation
@@ -252,7 +282,11 @@ export function ConstellationsPage() {
                                 onCreateChild={() => openDialog({kind: 'create', parentId: selected.id})}
                                 onDelete={() => openDialog({kind: 'delete', id: selected.id})}
                                 onRecolor={(change) => void recolor(selected, change)}
-                                onMove={(parentId) => void move(selected, parentId)}/>
+                                onMove={(parentId) => void move(selected, parentId)}
+                                onOpenNote={openNote}/>
+        </ContextPanel>}
+        {unplacedOpen && !selected && <ContextPanel label="Without constellation" open onClose={closePanel}>
+            <UnplacedPanel count={unplaced.length} onOpenNote={openNote}/>
         </ContextPanel>}
         {dialog && dialog.kind !== 'delete' && <Dialog
             title={dialog.kind === 'rename' ? 'Rename constellation'
@@ -267,18 +301,8 @@ export function ConstellationsPage() {
                            if (event.key === 'Enter') void submitName()
                        }}/>
         </Dialog>}
-        {dialog?.kind === 'delete' && dialogNode && <Dialog
-            danger title={`Delete “${dialogNode.name}”?`}
-            body={error ?? deleteBody(dialogNode)}
-            confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={pending}
-            onConfirm={() => void submitDelete()} onCancel={closeDialog}/>}
+        {dialog?.kind === 'delete' && dialogNode && <DeleteConstellationDialog
+            node={dialogNode} tree={tree} busy={pending} error={error}
+            onDelete={(target) => void submitDelete(target)} onCancel={closeDialog}/>}
     </div>
-}
-
-function deleteBody(node: ConstellationNode): string {
-    const inside = descendantIds(node).length
-    const branches = inside > 0
-        ? `Its ${plural(inside, 'sub-constellation', 'sub-constellations')} go with it. `
-        : ''
-    return `${branches}Notes are never deleted with a constellation.`
 }

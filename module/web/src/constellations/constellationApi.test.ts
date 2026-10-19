@@ -1,11 +1,16 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {
+    addNoteConstellation,
     ConstellationApiError,
     createConstellation,
     deleteConstellation,
+    getConstellationDeletion,
     listConstellations,
+    listNoteConstellations,
     moveConstellation,
+    removeNoteConstellation,
+    setMainNoteConstellation,
     updateConstellation,
 } from './constellationApi'
 
@@ -21,7 +26,7 @@ function jsonResponse(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
 }
 
-const MUSIC = {id: 'm', parentId: null, name: 'Music', hue: 264, lightness: 'BASE', noteCount: 0}
+const MUSIC = {id: 'm', parentId: null, name: 'Music', hue: 264, lightness: 'BASE', noteCount: 0, ownNoteCount: 0}
 
 describe('constellationApi', () => {
     beforeEach(() => mockedFetch.mockReset())
@@ -82,5 +87,55 @@ describe('constellationApi', () => {
         const authError = new AuthRequiredError()
         mockedFetch.mockRejectedValueOnce(authError)
         await expect(listConstellations()).rejects.toBe(authError)
+    })
+
+    it.each([
+        ['a negative note count', {...MUSIC, noteCount: -1}],
+        ['more own notes than in the subtree', {...MUSIC, noteCount: 1, ownNoteCount: 2}],
+        ['a missing own note count', {...MUSIC, ownNoteCount: undefined}],
+    ])('refuses a node with %s', async (_, node) => {
+        mockedFetch.mockResolvedValue(jsonResponse([node]))
+
+        await expect(listConstellations()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('sends the note place changes to their endpoints and reads the new places back', async () => {
+        const places = [{constellationId: 'j', main: true}, {constellationId: 'f', main: false}]
+        mockedFetch.mockImplementation(async () => jsonResponse(places))
+
+        expect(await listNoteConstellations('n1')).toEqual(places)
+        await addNoteConstellation('n1', 'f')
+        await setMainNoteConstellation('n1', 'f', false)
+        await removeNoteConstellation('n1', 'j')
+
+        const calls = mockedFetch.mock.calls.map(([path, init]) => [path, init?.method, init?.body])
+        expect(calls).toEqual([
+            ['/note/notes/n1/constellations', undefined, undefined],
+            ['/note/notes/n1/constellations', 'POST', JSON.stringify({constellationId: 'f'})],
+            ['/note/notes/n1/constellations/main', 'PUT', JSON.stringify({constellationId: 'f', replace: false})],
+            ['/note/notes/n1/constellations/j', 'DELETE', undefined],
+        ])
+    })
+
+    it.each([
+        ['two mains', [{constellationId: 'j', main: true}, {constellationId: 'f', main: true}]],
+        ['no main', [{constellationId: 'j', main: false}]],
+        ['a place without an id', [{constellationId: '', main: true}]],
+    ])('refuses note places with %s', async (_, places) => {
+        mockedFetch.mockResolvedValue(jsonResponse(places))
+
+        await expect(listNoteConstellations('n1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reads the notes a delete has to move and sends the chosen target', async () => {
+        mockedFetch.mockResolvedValueOnce(jsonResponse({notesToMove: 2}))
+        expect(await getConstellationDeletion('m')).toEqual({notesToMove: 2})
+
+        mockedFetch.mockResolvedValue(new Response(null, {status: 204}))
+        await deleteConstellation('m', 'f')
+        await deleteConstellation('m', null)
+
+        expect(mockedFetch.mock.calls.slice(1).map(([path]) => path))
+            .toEqual(['/note/constellations/m?moveTo=f', '/note/constellations/m'])
     })
 })

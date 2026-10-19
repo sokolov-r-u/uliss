@@ -1,0 +1,138 @@
+/* ── "Constellation" section of a note's panel (constellations/NoteConstellationSection.tsx) ── */
+.note-places {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.note-places-state {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.note-places-main {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.note-places-main .context-text {
+    flex: 1;
+}
+
+.note-places-path,
+.note-places-action,
+.note-places-add {
+    min-height: 36px;
+    padding: 0 2px;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-text);
+    text-transform: uppercase;
+    cursor: pointer;
+}
+
+.note-places-path {
+    flex: 0 1 auto;
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    font-size: 10.5px;
+    letter-spacing: 1.6px;
+    text-align: left;
+}
+
+.note-places-crumb {
+    color: var(--text-faint);
+}
+
+.note-places-leaf {
+    color: var(--accent-2);
+}
+
+.note-places-action,
+.note-places-add {
+    font-size: 9.5px;
+    letter-spacing: 2px;
+    color: var(--text-muted);
+}
+
+.note-places-action.accent,
+.note-places-action[aria-expanded='true'],
+.note-places-add[aria-expanded='true'] {
+    color: var(--accent-2);
+}
+
+.note-places-add {
+    align-self: flex-start;
+    color: var(--cream-dim);
+}
+
+.note-places button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.note-places-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+}
+
+.note-places-chips button {
+    min-height: 32px;
+}
+
+.note-places-picker {
+    margin-top: 4px;
+}
+
+.note-places-error {
+    margin: 0;
+    font-family: var(--font-text);
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--terracotta);
+}
+
+/* With one place there is nothing to choose: the path stays readable, just not clickable. */
+.note-places .note-places-path:disabled {
+    opacity: 1;
+    cursor: default;
+}
+
+/* The note's other places, offered to become main. */
+.note-places-choice {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--line-strong);
+    background: var(--bg-panel);
+}
+
+.note-places-choice button {
+    width: 100%;
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 0 11px;
+    border: 0;
+    background: transparent;
+    font-family: var(--font-text);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-align: left;
+    color: var(--cream-dim);
+    cursor: pointer;
+}
+
+.note-places-choice > * + * button {
+    border-top: 1px solid var(--line);
+}
