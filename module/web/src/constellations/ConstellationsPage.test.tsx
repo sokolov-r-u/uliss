@@ -293,7 +293,7 @@ describe('ConstellationsPage', () => {
         await userEvent.click(within(panel).getByRole('button', {name: 'Move to Films'}))
 
         expect(moveConstellation).toHaveBeenCalledWith('music', 'films')
-        expect(await within(panel).findByRole('alert')).toHaveTextContent('“Music” is already taken here.')
+        expect(await within(panel).findByRole('alert')).toHaveTextContent('“Music” is already taken there. Rename it or pick another place.')
     })
 
     it('keeps the panel and says so when the branch is gone', async () => {

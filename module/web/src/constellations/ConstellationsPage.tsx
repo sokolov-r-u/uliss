@@ -44,7 +44,11 @@ export type ConstellationChange = 'name' | 'colour' | 'move' | 'delete'
 export function constellationFailureMessage(error: unknown, change: ConstellationChange, name?: string): string {
     if (error instanceof ConstellationApiError) {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') {
-            return name ? `“${name}” is already taken here. Pick another name.` : 'That name is already taken there.'
+            if (!name) return 'That name is already taken there.'
+            // A move has no name field: the clash is at the target, renaming is the way out.
+            return change === 'move'
+                ? `“${name}” is already taken there. Rename it or pick another place.`
+                : `“${name}” is already taken here. Pick another name.`
         }
         if (error.code === 'CONSTELLATION_MOVE_CYCLE') return 'A branch cannot move inside itself.'
         if (error.status === 404) {
