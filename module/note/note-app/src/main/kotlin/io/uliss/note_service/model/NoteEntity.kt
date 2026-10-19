@@ -19,8 +19,11 @@ class NoteEntity(
     @Enumerated(EnumType.STRING)
     var status: NoteStatus = NoteStatus.READY,
     var title: String? = null,
-    /** A sub-note lives where this parent note lives and has no memberships of its own. */
-    @Column(name = "parent_note_id")
+    /**
+     * A sub-note lives where this parent note lives and has no memberships of its own. `NoteHierarchyStore` changes it
+     * through JDBC without bumping the version, so JPA never writes it back: a stale save would undo a move.
+     */
+    @Column(name = "parent_note_id", updatable = false)
     var parentNoteId: UUID? = null,
 ) : AuditEntity() {
 

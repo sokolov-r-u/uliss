@@ -153,7 +153,11 @@ class NoteService(
         noteRepository.saveAndFlush(candidateNote)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
-        parentNoteId?.let { noteHierarchyService.moveUnder(userId, candidateNote.id, it) }
+        parentNoteId?.let {
+            noteHierarchyService.moveUnder(userId, candidateNote.id, it)
+            // Stored through JDBC; the returned entity shows it too.
+            candidateNote.parentNoteId = it
+        }
         val payload = objectMapper.writeValueAsString(
             NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
         )

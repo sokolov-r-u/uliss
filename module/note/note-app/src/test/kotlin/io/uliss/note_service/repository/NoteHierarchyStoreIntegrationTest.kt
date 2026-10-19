@@ -108,6 +108,21 @@ class NoteHierarchyStoreIntegrationTest {
     }
 
     @Test
+    fun `a stale JPA save of a note does not undo a move made meanwhile`() {
+        val bowie = note("Bowie")
+        val low = note("Low")
+        val stale = noteRepository.findByIdAndUserId(low.id, userId)!!
+        inTransaction { store.setParent(userId, listOf(low.id), bowie.id) }
+
+        stale.title = "Low (1977)"
+        noteRepository.saveAndFlush(stale)
+
+        val saved = noteRepository.findByIdAndUserId(low.id, userId)
+        assertEquals("Low (1977)", saved?.title)
+        assertEquals(bowie.id, saved?.parentNoteId)
+    }
+
+    @Test
     fun `deleting another user's notes changes nothing`() {
         val bowie = note("Bowie")
 

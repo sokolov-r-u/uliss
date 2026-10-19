@@ -306,6 +306,7 @@ class NoteServiceTest {
         val order = Mockito.inOrder(noteRepository, noteHierarchyService, outboxService)
         order.verify(noteRepository).saveAndFlush(note)
         order.verify(noteHierarchyService).moveUnder(userId, note.id, parentNoteId)
+        assertEquals(parentNoteId, note.parentNoteId)
         order.verify(outboxService).publish(eqValue(OutboxEventType.NOTE_SUMMARY_REQUESTED), anyValue())
         Mockito.verifyNoInteractions(notePlacementService)
     }
