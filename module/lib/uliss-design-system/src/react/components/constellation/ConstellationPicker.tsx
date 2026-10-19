@@ -173,6 +173,10 @@ export function ConstellationPicker({
                        }
                    }}
                    style={{...FIELD, minHeight: 36, padding: '0 6px', border: '1px solid var(--line-strong)'}}/>
+            {nameTaken(normalize(draft), parentId) &&
+                <span role="status" style={{fontFamily: 'var(--font-text)', fontSize: 11, color: 'var(--text-faint)'}}>
+                    Taken here
+                </span>}
             <Button size="sm" variant="quiet" disabled={creating || busy || !normalize(draft)
                 || nameTaken(normalize(draft), parentId)}
                     onClick={() => void create(normalize(draft), parentId)}>{creating ? 'Creating…' : 'Create'}</Button>

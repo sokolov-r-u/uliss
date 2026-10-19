@@ -12,6 +12,7 @@ import {
 import {AuthRequiredError} from '../auth/apiClient'
 import {
     addNoteConstellation,
+    type Constellation,
     ConstellationApiError,
     createConstellation,
     listConstellations,
@@ -28,7 +29,7 @@ type Picker = 'change' | 'add' | null
 type LoadState =
     | { status: 'loading' }
     | { status: 'error' }
-    | { status: 'ready'; tree: ConstellationTree; memberships: NoteMembership[] }
+    | { status: 'ready'; items: Constellation[]; tree: ConstellationTree; memberships: NoteMembership[] }
 
 /** The user's message for a failed change of the note's places. */
 export function placementFailureMessage(error: unknown, name?: string): string {
@@ -60,7 +61,7 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                 listConstellations(signal),
                 listNoteConstellations(noteId, signal),
             ])
-            setLoad({status: 'ready', tree: buildConstellationTree(items), memberships})
+            setLoad({status: 'ready', items, tree: buildConstellationTree(items), memberships})
         } catch (e) {
             if (e instanceof AuthRequiredError || signal?.aborted) return
             setLoad({status: 'error'})
@@ -94,18 +95,32 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
         }
     }
 
-    const place = (mode: Exclude<Picker, null>, constellationId: string) => run(() => mode === 'change'
-        ? setMainNoteConstellation(noteId, constellationId, true)
-        : addNoteConstellation(noteId, constellationId))
+    function place(mode: Exclude<Picker, null>, constellationId: string) {
+        if (load.status !== 'ready') return
+        // A pick that changes nothing says so instead of closing the picker as if it worked.
+        const current = load.memberships.find((membership) => membership.constellationId === constellationId)
+        const name = load.tree.byId.get(constellationId)?.name
+        if (current && (mode === 'add' || current.main)) {
+            setError(current.main ? `${name} is already the main place.` : `The note is already in ${name}.`)
+            return
+        }
+        void run(() => mode === 'change'
+            ? setMainNoteConstellation(noteId, constellationId, true)
+            : addNoteConstellation(noteId, constellationId))
+    }
 
     /** Creates a constellation for the picker, which then selects it; the note is placed only by the action button. */
     async function createIn(name: string, parentId: string | null): Promise<string | undefined> {
         setError(null)
         try {
             const created = await createConstellation(name, parentId)
-            const items = await listConstellations().catch(() => null)
-            const tree = items ? buildConstellationTree(items) : null
-            setLoad((current) => current.status === 'ready' && tree ? {...current, tree} : current)
+            const fresh = await listConstellations().catch(() => null)
+            // Without a fresh tree the new branch is added locally, so the picker can still select it.
+            setLoad((current) => {
+                if (current.status !== 'ready') return current
+                const items = fresh ?? [...current.items, created]
+                return {...current, items, tree: buildConstellationTree(items)}
+            })
             return created.id
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name))
@@ -143,7 +158,7 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                              label={picker === 'change' ? 'Move this note to…' : 'Add this note to…'}
                              action={(name) => picker === 'change' ? `Make ${name} main` : `Add to ${name}`}
                              busy={pending}
-                             onPick={(id) => void place(picker, id)}
+                             onPick={(id) => place(picker, id)}
                              onCreate={createIn}
                              onClose={() => setPicker(null)}/>
     </div>
@@ -166,12 +181,11 @@ export function NoteConstellationSection({noteId}: { noteId: string }) {
                     {others.length > 0 && <Kicker size={8.5} spacing="2.2px" color="var(--text-faint)">Also in</Kicker>}
                     <div className="note-places-chips">
                         {others.map((node) => (
-                            <span key={node.id} title={`Make ${node.name} main`}>
-                                <ConstellationChip label={node.name} size="sm"
-                                                   color={constellationColor(node.hue, node.lightness)}
-                                                   onClick={() => void run(() => setMainNoteConstellation(noteId, node.id, false))}
-                                                   onRemove={() => void run(() => removeNoteConstellation(noteId, node.id))}/>
-                            </span>
+                            <ConstellationChip key={node.id} label={node.name} size="sm"
+                                               color={constellationColor(node.hue, node.lightness)}
+                                               actionTitle={`Make ${node.name} main`}
+                                               onClick={() => void run(() => setMainNoteConstellation(noteId, node.id, false))}
+                                               onRemove={() => void run(() => removeNoteConstellation(noteId, node.id))}/>
                         ))}
                         <button type="button" className="note-places-add" disabled={pending}
                                 aria-expanded={picker === 'add'} onClick={() => toggle('add')}>+ Add constellation

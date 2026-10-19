@@ -114,7 +114,8 @@ class ConstellationService(
         }
         entity.parentId = parentId
         save(entity)
-        keepOnePlacePerLine(userId, id)
+        // A new root has no ancestors, so no place of its notes can come to share a line.
+        if (parentId != null) keepOnePlacePerLine(userId, id)
         return loadTree(userId).view(id)
     }
 
