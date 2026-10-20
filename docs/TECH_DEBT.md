@@ -411,8 +411,8 @@ without limit, and every call is paid to OpenAI.
 not Kubernetes, so Ingress annotations do not apply.
 
 - In Compose, browsers reach `auth`, `/user` and `/note` through the TLS `web` nginx (since 2026-10-18; `auth`
-  `:9000` is published on loopback only). `user` `:8080` and `note` `:8081` are still published to the host — stop
-  publishing them.
+  `:9000` is published on loopback only). Since 2026-10-21 `user` `:8080` and `note` `:8081` are on loopback only
+  too.
 - Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
   `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
   Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
@@ -475,14 +475,15 @@ Direction to discuss:
 `LoggingAspect` traces every `@Service`/`@Repository` call at DEBUG with arguments and results, and
 `infra/env.example.properties` sets `LOG_LEVEL_ULISS=debug`. Secrets are masked (`@Sensitive` plus a name regex), but
 user content is not: chat prompts and replies, note content and email addresses reach stdout, `infra/volumes/logs`
-and Dozzle. Dozzle is published on `8888` on all interfaces without authentication.
+and Dozzle. Since 2026-10-21 Dozzle listens on `127.0.0.1:8888` only, with actions and shell off, and starts with
+the `full` or `tools` profile.
 
 Before production:
 
 - User prompts and other user content must never be logged. Decide between disabling argument/result tracing for
   content-carrying methods and an explicit allowlist of loggable types; keep `@Sensitive` for secrets.
 - Default `LOG_LEVEL_ULISS` to `info` in production configuration.
-- Restrict Dozzle (bind to `127.0.0.1` or put it behind authentication) or drop it from the production Compose file.
+- Drop Dozzle from the production Compose file or put it behind authentication (it reads the Docker socket).
 - `GlobalExceptionHandler` logs every 4xx with `ex.message`; for binding errors that message holds the rejected value
   (`rejected value [...]`), so an over-long prompt is logged in full. Keep only field names and error codes in the
   log; the rejected values may stay at DEBUG while debugging and go with the rest of the user content.

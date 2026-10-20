@@ -41,10 +41,16 @@ path below is unchanged and still fully supported** — this is an additional op
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
   and to `infra/volumes/logs/<service>.log` (gitignored). Files roll daily or at 10 MB into `archive/` as plain text,
   kept 7 days (1 GB cap).
-- `postgres` (`5432`) and the `user` gRPC port (`9090`) are published on `127.0.0.1` only: host-based `bootRun`
-  still reaches them, other machines do not. Containers talk over the Compose network (`user:9090`).
-- `dozzle` (no profile, starts with any `up`) is a live log viewer for all containers at
-  `http://localhost:8888`.
+- `postgres` (`5432`), `user` (`8080`, gRPC `9090`) and `note` (`8081`) are published on `127.0.0.1` only:
+  host-based `bootRun` and the Vite dev proxy still reach them, other machines do not. Browsers go through the web
+  nginx; containers talk over the Compose network (`user:9090`).
+- `dozzle` (profiles `full` and `tools`) is a live log viewer for all containers at `http://localhost:8888`, this
+  machine only; actions and shell are off because it reads the Docker socket.
+- Every service restarts `unless-stopped`; container logs rotate (10 MB × 3); JVM services have a memory limit
+  (`AUTH_MEM_LIMIT`, `USER_MEM_LIMIT`, `NOTE_MEM_LIMIT`, default 768m/768m/1g) with `MaxRAMPercentage=75` and 35 s to
+  shut down gracefully.
+- `infra/.env` must set `POSTGRES_PASSWORD` (compose refuses to start without it) and a `FRONTEND_CLIENT_SECRET` of at
+  least 32 characters (auth refuses to start with a shorter one); generate them, e.g. `openssl rand -hex 32`.
 - Rebuild + `docker compose -f infra/docker-compose.yml --profile full up -d` again to pick up new
   images (`:latest` + Compose recreates a service when its image content changes).
 

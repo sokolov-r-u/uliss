@@ -13,7 +13,7 @@ security:
     client:
       authorization-code:
         client-id: test-web-client
-        client-secret: test-web-secret
+        client-secret: test-web-secret-0123456789abcdef0123
       redirect-uri: http://localhost:3000/callback
       post-logout-redirect-uri: http://localhost:3000/signed-out
       auth-server-public-url: http://localhost:9000

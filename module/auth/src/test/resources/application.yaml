@@ -36,7 +36,7 @@ app:
   clients:
     authorization-code:
       client-id: test-web-client
-      client-secret: test-web-secret
+      client-secret: test-web-secret-0123456789abcdef0123
       callback-urls: http://localhost:3000/callback
       post-logout-urls: http://localhost:3000/signed-out
 

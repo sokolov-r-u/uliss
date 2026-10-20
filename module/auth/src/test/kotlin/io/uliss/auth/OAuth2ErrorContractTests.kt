@@ -522,7 +522,7 @@ class OAuth2ErrorContractTests {
 
     companion object {
         const val WEB_CLIENT = "test-web-client"
-        const val WEB_SECRET = "test-web-secret"
+        const val WEB_SECRET = "test-web-secret-0123456789abcdef0123"
         const val REDIRECT_URI = "http://localhost:3000/callback"
 
         // PKCE code_verifier: 43-128 unreserved chars

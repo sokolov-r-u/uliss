@@ -8,6 +8,16 @@ x-file-logging: &file-logging
   LOGGING_LOGBACK_ROLLINGPOLICY_TOTAL_SIZE_CAP: 1GB
   LOGGING_LOGBACK_ROLLINGPOLICY_CLEAN_HISTORY_ON_START: "true"
 
+# json-file logs of every container rotate; a DEBUG stream would otherwise fill the disk.
+x-docker-logging: &docker-logging
+  options:
+    max-size: 10m
+    max-file: "3"
+
+# JVM services: a heap within the container limit and time for graceful shutdown (open SSE streams, outbox workers).
+x-jvm-runtime: &jvm-runtime
+  JAVA_TOOL_OPTIONS: -XX:MaxRAMPercentage=75
+
 # Browser-facing auth goes through the web nginx (TLS); services call auth inside the Compose network.
 x-auth-urls: &auth-urls
   AUTH_PUBLIC_URL: https://auth.uliss.home
@@ -16,15 +26,13 @@ x-auth-urls: &auth-urls
 services:
   postgres:
     image: pgvector/pgvector:0.8.2-pg18-trixie
-    #    restart: always
+    restart: unless-stopped
     environment:
       - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # no default: a missing password must stop the start, not fall back to a known one
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
       - POSTGRES_DB=${POSTGRES_DB:-uliss}
-    logging:
-      options:
-        max-size: 10m
-        max-file: "3"
+    logging: *docker-logging
     ports:
       # loopback only: host-based bootRun reaches it, other machines do not
       - "127.0.0.1:5432:5432"
@@ -33,25 +41,37 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 2s
-      timeout: 20s
+      timeout: 5s
       retries: 10
+      # first init or crash recovery may take longer than the retries
+      start_period: 30s
 
-  # Log viewer for all containers: http://localhost:8888
+  # Log viewer for all containers: http://localhost:8888 on this machine only. The socket is the whole Docker API
+  # (":ro" protects the file, not the API), so actions and shell stay off and the port is never published.
   dozzle:
     image: amir20/dozzle:v11.1.3
+    restart: unless-stopped
+    profiles: [ "full", "tools" ]
     environment:
       DOZZLE_NO_ANALYTICS: "true"
+      DOZZLE_ENABLE_ACTIONS: "false"
+      DOZZLE_ENABLE_SHELL: "false"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
     ports:
-      - "8888:8080"
+      - "127.0.0.1:8888:8080"
+    mem_limit: 128m
+    logging: *docker-logging
 
   # Images are pre-built, not built by compose: ./gradlew buildAllImages
   auth:
     image: uliss/auth:latest
-    #    restart: always
+    restart: unless-stopped
     profiles: [ "full" ]
     env_file: .env
+    mem_limit: ${AUTH_MEM_LIMIT:-768m}
+    stop_grace_period: 35s
+    logging: *docker-logging
     environment:
       # auth's own container, not localhost as in host-based bootRun
       USER_SERVICE_HOST: user
@@ -60,7 +80,7 @@ services:
       AUTH_CLIENT_CALLBACK_URLS: https://uliss.home/callback
       AUTH_CLIENT_POST_LOGOUT_URLS: https://uliss.home/signed-out
       AUTH_SECURE_COOKIE: "true"
-      <<: [ *auth-urls, *file-logging ]
+      <<: [ *auth-urls, *file-logging, *jvm-runtime ]
       LOGGING_FILE_NAME: /logs/auth.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/auth-%d{yyyy-MM-dd}.%i.log
@@ -83,19 +103,23 @@ services:
 
   user:
     image: uliss/user:latest
-    #    restart: always
+    restart: unless-stopped
     profiles: [ "full" ]
     env_file: .env
+    mem_limit: ${USER_MEM_LIMIT:-768m}
+    stop_grace_period: 35s
+    logging: *docker-logging
     environment:
       # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
       FRONTEND_URL: https://uliss.home
       AUTH_SECURE_COOKIE: "true"
-      <<: [ *auth-urls, *file-logging ]
+      <<: [ *auth-urls, *file-logging, *jvm-runtime ]
       LOGGING_FILE_NAME: /logs/user.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/user-%d{yyyy-MM-dd}.%i.log
     ports:
-      - "8080:8080"
+      # loopback only: browsers reach user-service through the web nginx (TLS)
+      - "127.0.0.1:8080:8080"
       # gRPC on loopback only (host-based bootRun auth); containers use the Compose network
       - "127.0.0.1:9090:9090"
     volumes:
@@ -112,18 +136,22 @@ services:
 
   note:
     image: uliss/note:latest
-    #    restart: always
+    restart: unless-stopped
     profiles: [ "full" ]
     env_file: .env
+    mem_limit: ${NOTE_MEM_LIMIT:-1g}
+    stop_grace_period: 35s
+    logging: *docker-logging
     environment:
       FRONTEND_URL: https://uliss.home
       AUTH_SECURE_COOKIE: "true"
-      <<: [ *auth-urls, *file-logging ]
+      <<: [ *auth-urls, *file-logging, *jvm-runtime ]
       LOGGING_FILE_NAME: /logs/note.log
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/note-%d{yyyy-MM-dd}.%i.log
     ports:
-      - "8081:8081"
+      # loopback only: browsers reach note-service through the web nginx (TLS)
+      - "127.0.0.1:8081:8081"
     volumes:
       - ./volumes/logs:/logs
     healthcheck:
@@ -138,8 +166,10 @@ services:
 
   web:
     image: uliss/web:latest
-    #    restart: always
+    restart: unless-stopped
     profiles: [ "full" ]
+    mem_limit: 128m
+    logging: *docker-logging
     environment:
       # TLS variant of the nginx config; the image default is plain HTTP (k8s, TLS at the Ingress)
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates-tls

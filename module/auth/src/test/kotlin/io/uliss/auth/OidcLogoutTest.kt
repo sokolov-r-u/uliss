@@ -156,7 +156,7 @@ class OidcLogoutTest {
         const val PASSWORD = "1234567!Qq"
         const val ISSUER = "http://localhost:9000"
         const val WEB_CLIENT = "test-web-client"
-        const val WEB_SECRET = "test-web-secret"
+        const val WEB_SECRET = "test-web-secret-0123456789abcdef0123"
         const val REDIRECT_URI = "http://localhost:3000/callback"
         const val POST_LOGOUT_URI = "http://localhost:3000/signed-out"
         const val VERIFIER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWX0123456789-._~"
