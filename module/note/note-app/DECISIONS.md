@@ -338,3 +338,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   still answers 409. Chat reply streams use `withHeartbeat`; the interval of all SSE heartbeats is
   `note.sse.heartbeat-interval` (default 15 s).
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 10.
+
+## 2026-10-21 — Note indexing is serialized per note and never goes back in time
+
+- **Context:** index events of one note (a rename, then an edit) could run in parallel; the slower one, holding the
+  older text, overwrote the newer index, and parallel replaces collided on the chunk unique key.
+- **Decision:** the handler passes the note version it read; `JdbcRagChunkStore.replace` takes a per-note advisory
+  lock and drops an index whose version is older than the stored index's `rag_chunks.content_version`. The stored
+  index, not the note, is the reference, so a note changed since without new text keeps its index.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 11.

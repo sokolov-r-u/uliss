@@ -20,7 +20,7 @@ class RagService(
     @Value($$"${note.rag.chunk-size:800}") private val chunkSize: Int,
 ) {
 
-    fun index(userId: UUID, noteId: UUID, content: String) {
+    fun index(userId: UUID, noteId: UUID, contentVersion: Long, content: String) {
         val documents = TokenTextSplitter.builder()
             .withChunkSize(chunkSize)
             .build()
@@ -37,7 +37,7 @@ class RagService(
             val text = requireNotNull(document.text) { "token splitter returned a non-text document" }
             EmbeddedChunk(index, text, document.metadata, embeddings[index])
         }
-        ragChunkStore.replace(userId, noteId, chunks)
+        ragChunkStore.replace(userId, noteId, contentVersion, chunks)
     }
 
     fun search(

@@ -85,7 +85,7 @@ class NoteHierarchyStoreIntegrationTest : NoteIntegrationTest() {
         }
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, warszawa.id)))
-        ragChunkStore.replace(userId, warszawa.id, listOf(EmbeddedChunk(0, "body", emptyMap(), FloatArray(1536) { 0.01f })))
+        ragChunkStore.replace(userId, warszawa.id, 0, listOf(EmbeddedChunk(0, "body", emptyMap(), FloatArray(1536) { 0.01f })))
 
         // Parent before child: the parent FK is checked at the end of the statement, not row by row.
         inTransaction { store.deleteNotes(userId, listOf(bowie.id, low.id, warszawa.id)) }

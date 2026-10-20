@@ -127,7 +127,7 @@ class ChatNoteRenameDeleteIntegrationTest : NoteIntegrationTest() {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val note = noteRepository.save(NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY))
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id)))
-        ragChunkStore.replace(userId, note.id, listOf(EmbeddedChunk(0, "body", emptyMap(), FloatArray(1536) { 0.01f })))
+        ragChunkStore.replace(userId, note.id, 0, listOf(EmbeddedChunk(0, "body", emptyMap(), FloatArray(1536) { 0.01f })))
 
         mockMvc.delete("/note/notes/${note.id}") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })

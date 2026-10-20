@@ -25,14 +25,15 @@ class NoteIndexRequestedHandlerTest {
     @Test
     fun `handle indexes a ready user-owned note`() {
         val userId = UUID.randomUUID()
-        val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY)
+        // the version read with the text, so a slower older index cannot overwrite a newer one
+        val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY).apply { version = 7 }
         val payload = NoteIndexRequestedPayload(note.id, userId)
         val event = event(objectMapper.writeValueAsString(payload))
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
 
         handler.handle(event)
 
-        Mockito.verify(ragService).index(userId, note.id, "A concise summary")
+        Mockito.verify(ragService).index(userId, note.id, 7, "A concise summary")
     }
 
     @Test
@@ -43,7 +44,7 @@ class NoteIndexRequestedHandlerTest {
 
         handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
 
-        Mockito.verify(ragService).index(userId, note.id, "Ownership columns\n\nA concise summary")
+        Mockito.verify(ragService).index(userId, note.id, 0, "Ownership columns\n\nA concise summary")
     }
 
     @Test
@@ -54,7 +55,7 @@ class NoteIndexRequestedHandlerTest {
 
         handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
 
-        Mockito.verify(ragService).index(userId, note.id, "A concise summary")
+        Mockito.verify(ragService).index(userId, note.id, 0, "A concise summary")
     }
 
     @Test
