@@ -33,10 +33,11 @@ export function ChatPageHeader({chatId, generationActive, panelOpen = false, onT
 
     useEffect(() => onChat?.(chat), [chat, onChat])
 
-    if (!chat) return chatId ? <ScreenHeader kicker="Conversation"/> : <ScreenHeader title="New chat"/>
+    if (!chat) return chatId ? <ScreenHeader back kicker="Conversation"/> : <ScreenHeader back title="New chat"/>
 
     return (
         <ScreenHeader
+            back
             title={chat.title}
             meta={noteCountLabel(chat.noteCount)}
             right={<>{onTogglePanel && <PanelToggle label="Chat details" open={panelOpen} onToggle={onTogglePanel}/>}

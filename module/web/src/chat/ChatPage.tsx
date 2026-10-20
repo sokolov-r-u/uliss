@@ -697,13 +697,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
-            <ScreenHeader kicker="Conversation"/>
+            <ScreenHeader back kicker="Conversation"/>
             <p className="chat-state">Loading…</p></div>
     }
 
     if (pagePhase === 'error') {
         return <div className="chat-page">
-            <ScreenHeader kicker="Conversation"/>
+            <ScreenHeader back kicker="Conversation"/>
             <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 

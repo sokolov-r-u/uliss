@@ -145,3 +145,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   from Product Logic ("Full — без панели ноды"), the user's call. The star under the mouse and the five nearest within
   120 px are always named; a press travelling under 6 px is a click.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 5.
+
+## 2026-10-20 — Back from an open note or chat
+
+- **Context:** Product Logic keeps the note header without a way back; Back existed only on a note opened from the
+  chat delete dialog. With the sky, the user wants to return to it from a note in one click.
+- **Decision:** the header of an open note and of an open chat shows Back (`ui/BackButton`, `navigate(-1)`) whenever
+  the screen was reached inside the app; a screen opened directly (the router's `default` entry) has none. On the
+  delete-dialog path the note keeps its own accented Back and the header one is hidden. Lists keep no Back.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 6.
