@@ -6,6 +6,7 @@ import {
     createConstellation,
     deleteConstellation,
     getConstellationDeletion,
+    getSky,
     getNotePlace,
     listConstellations,
     listNoteConstellations,
@@ -190,5 +191,37 @@ describe('constellationApi', () => {
         await expect(getNotePlace('low')).rejects.toMatchObject({kind: 'protocol'})
         mockedFetch.mockResolvedValueOnce(jsonResponse([{id: 'low', title: '', ancestors: []}]))
         await expect(searchNotes('low', null)).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reads the sky: the tree and the stars with their places', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            constellations: [MUSIC],
+            notes: [
+                {id: 'bowie', title: 'Bowie', parentNoteId: null, createdAt: '2026-10-20T10:00:00Z',
+                    memberships: [{constellationId: 'm', main: true}]},
+                {id: 'low', title: 'Low', parentNoteId: 'bowie', createdAt: '2026-10-20T11:00:00Z', memberships: []},
+            ],
+        }))
+
+        const sky = await getSky()
+
+        expect(mockedFetch).toHaveBeenCalledWith('/note/sky', {signal: undefined})
+        expect(sky.constellations).toEqual([MUSIC])
+        expect(sky.notes[0]).toEqual({id: 'bowie', title: 'Bowie', parentNoteId: null,
+            createdAt: '2026-10-20T10:00:00Z', memberships: [{constellationId: 'm', main: true}]})
+        expect(sky.notes[1].parentNoteId).toBe('bowie')
+    })
+
+    it('rejects a malformed sky', async () => {
+        const note = {id: 'n', title: 'N', parentNoteId: null, createdAt: '2026-10-20T10:00:00Z', memberships: []}
+        for (const body of [
+            {constellations: []},
+            {constellations: [], notes: [{...note, title: ''}]},
+            {constellations: [], notes: [{...note, createdAt: 'yesterday'}]},
+            {constellations: [], notes: [{...note, memberships: [{constellationId: 'm', main: false}]}]},
+        ]) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse(body))
+            await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
+        }
     })
 })
