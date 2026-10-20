@@ -45,6 +45,7 @@ export function SettingsRow({
                 color: 'inherit',
                 opacity: disabled ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : buttonProps.onClick ? 'pointer' : 'default',
+                ...buttonProps.style,
             }}
         >
       <span style={{flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4}}>

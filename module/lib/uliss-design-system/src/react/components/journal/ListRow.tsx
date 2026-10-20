@@ -48,13 +48,15 @@ export function ListRow({
                             date,
                             unread = false,
                             dim = false,
-                            dots = true,
+                            dots,
                             onClick,
                             onMenu,
                             menuLabel,
                             size = 'compact',
                             first = false,
                         }: ListRowProps) {
+    // a dots button without a menu would be a focusable control that does nothing
+    const showDots = dots ?? onMenu != null
     const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
     // A truncated title shows whole in a panel under the row after a short hover.
     const titleRef = useRef<HTMLSpanElement>(null)
@@ -212,7 +214,7 @@ export function ListRow({
                     padding: '5px 0'
                 }}>{content}</div>
             )}
-            {dots && (
+            {showDots && (
                 <button
                     type="button"
                     aria-label={menuLabel ?? `Actions for ${title}`}

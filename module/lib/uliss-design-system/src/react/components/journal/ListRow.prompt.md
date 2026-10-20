@@ -14,8 +14,8 @@ One line per note or chat. Dense index, not a feed.
 - Rows sit directly on the ground inside an 18px gutter, separated by nothing but their own height.
 - `onClick` owns the main native button. `onMenu(anchor)` owns a separate 44px menu button with `menuLabel` and also
   fires after a 480 ms touch long-press on the row (moving more than 8px cancels; the click that ends a long-press is
-  swallowed). The two actions must never be nested. Omit `onClick` for a non-interactive fixture row and set
-  `dots={false}` when no menu exists.
+  swallowed). The two actions must never be nested. Omit `onClick` for a non-interactive fixture row; the menu button
+  shows only when `onMenu` is given (`dots` overrides that).
 - Wide rows for tablet/desktop lists: 17px title at `--w-ui`, 52px row, a `--line` hairline between rows (pass `first`
   on the first row). `size="wide"` pins them; to switch at a CSS breakpoint, set `--list-row-title-size`,
   `--list-row-title-weight`, `--list-row-height` and `--list-row-rule` on the list container instead.

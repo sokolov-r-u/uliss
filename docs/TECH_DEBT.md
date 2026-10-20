@@ -678,9 +678,3 @@ a synchronous pre-solve of a fresh view: fine for hundreds of stars, slow from a
 Canvas and the layout to a Web Worker when real skies get there. Positions are not kept between visits either, so a
 sky can open a little differently after its notes change; cache the last positions per device (next to the sky
 settings) if users miss their bearings.
-
-## Arrow keys lose focus in `StepControl` and `OptionList` (`uliss-design-system`)
-
-**Status:** found while testing `docs/tasks/2026-10-20-sky.md`. Both move the choice with the arrow keys and then
-focus the new option in `requestAnimationFrame` through `event.currentTarget`, which React has already reset to null:
-the choice moves, the focus stays on the old option. Capture the element before the frame.

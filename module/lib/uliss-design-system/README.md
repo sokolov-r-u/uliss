@@ -45,8 +45,9 @@ general rounding convention.
 
 Interactive components use native controls and controlled values. Buttons forward standard button/ARIA attributes;
 text fields are native inputs; Select is a keyboard-operated listbox; option cards, swatches, and step controls expose
-radio/radiogroup state. Notice and Dialog label themselves as modal dialogs, while the consuming overlay owns focus
-containment, Escape dismissal, and restoration.
+radio/radiogroup state with a single tab stop. Notice and Dialog label themselves as modal dialogs. Dialog traps focus,
+handles Escape and restores focus itself through the exported `useFocusTrap` hook; the overlay that hosts a Notice uses
+the same hook. An Escape an inner control already handled (an open Select) does not close the overlay.
 
 Motion is limited to tokenized colour changes, pending/twinkle states, notice entrance, and one explicit exception:
 the mobile navigation drawer may enter horizontally using `--dur-drawer` and `--ease-drawer`. Other slide, bounce, and

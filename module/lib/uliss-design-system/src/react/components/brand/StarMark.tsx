@@ -12,6 +12,8 @@ export interface StarMarkProps {
 export function StarMark({size = 28, color = 'var(--accent-2)', glow = true}: StarMarkProps) {
     return (
         <svg
+            aria-hidden="true"
+            focusable="false"
             width={size}
             height={size}
             viewBox="0 0 32 32"

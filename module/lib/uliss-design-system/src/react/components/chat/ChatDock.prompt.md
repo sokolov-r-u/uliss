@@ -13,7 +13,8 @@ The composer at the foot of a chat.
 ```
 
 - `flex: '0 0 auto'` — it never scrolls with the transcript.
-- The mic tile is `--bg-muted` with an `--accent-2` glyph: present, not shouting.
+- The mic tile is `--bg-muted` with a `--cream-dim` glyph: present, not shouting. Without `voice` or `onMic` it is
+  disabled; during recording Stop and Send follow `disabled` (Send also `generationActive`).
 - Placeholder is an invitation in sentence case with an ellipsis, never "Type a message".
 - The dock is a native form with a controlled multiline textarea and separate submit/mic buttons. The textarea wraps
   text at word boundaries and grows from one line up to 144px; content beyond that height scrolls inside the field.

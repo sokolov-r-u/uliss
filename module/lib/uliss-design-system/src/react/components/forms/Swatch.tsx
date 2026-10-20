@@ -9,9 +9,11 @@ export interface SwatchProps {
     on?: boolean
     onPick?: () => void
     disabled?: boolean
+    /** The group's single tab stop is the chosen swatch; the host sets -1 on the others (roving tabindex). */
+    tabIndex?: number
 }
 
-export function Swatch({label, color, on = false, onPick, disabled = false}: SwatchProps) {
+export function Swatch({label, color, on = false, onPick, disabled = false, tabIndex}: SwatchProps) {
     return (
         <button
             type="button"
@@ -19,6 +21,7 @@ export function Swatch({label, color, on = false, onPick, disabled = false}: Swa
             aria-checked={on}
             aria-label={label}
             disabled={disabled}
+            tabIndex={tabIndex}
             onClick={onPick}
             onKeyDown={(event) => {
                 if (!['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return

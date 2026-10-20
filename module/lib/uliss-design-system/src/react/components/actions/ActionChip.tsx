@@ -37,6 +37,8 @@ export function ActionChip({
                 opacity: disabled ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
                 transition: 'color var(--dur-hover) var(--ease)',
+                // a caller's style refines the chip instead of being dropped
+                ...buttonProps.style,
             }}
         >
             {icon && <Icon name={icon} size={12}/>}

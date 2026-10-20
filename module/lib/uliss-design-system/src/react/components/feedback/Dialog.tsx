@@ -1,4 +1,5 @@
-import {type ReactNode, useEffect, useId, useRef} from 'react'
+import {type ReactNode, useId, useRef} from 'react'
+import {useFocusTrap} from '../../hooks/useFocusTrap'
 import {Button} from '../actions/Button'
 
 // The confirmation. Says what will happen and what survives, then offers a way
@@ -41,35 +42,7 @@ export function Dialog({
     const titleId = useId()
     const dialogRef = useRef<HTMLDivElement>(null)
 
-    useEffect(() => {
-        const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
-        const dialog = dialogRef.current
-        const focusable = () => Array.from(dialog?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]:not([tabindex="-1"])') ?? [])
-        focusable()[0]?.focus()
-        const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
-                event.preventDefault()
-                onCancel?.()
-            } else if (event.key === 'Tab') {
-                const items = focusable()
-                if (items.length === 0) return
-                const first = items[0]
-                const last = items[items.length - 1]
-                if (event.shiftKey && document.activeElement === first) {
-                    event.preventDefault()
-                    last.focus()
-                } else if (!event.shiftKey && document.activeElement === last) {
-                    event.preventDefault()
-                    first.focus()
-                }
-            }
-        }
-        document.addEventListener('keydown', onKeyDown)
-        return () => {
-            document.removeEventListener('keydown', onKeyDown)
-            previous?.focus()
-        }
-    }, [onCancel])
+    useFocusTrap(dialogRef, {onEscape: onCancel})
 
     return (
         <div

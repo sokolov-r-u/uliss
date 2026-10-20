@@ -49,22 +49,34 @@ export function ItemMenu({anchor, actions, label, onClose}: ItemMenuProps) {
         )
         items()[0]?.focus()
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            // Tab leaves the menu like Escape: focus must not wander behind the backdrop with the menu still open
+            if (event.key === 'Escape' || event.key === 'Tab') {
                 event.preventDefault()
                 onCloseRef.current()
                 return
             }
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-            event.preventDefault()
             const list = items()
             if (list.length === 0) return
             const index = list.findIndex((item) => item === document.activeElement)
-            const step = event.key === 'ArrowDown' ? 1 : -1
-            list[(index + step + list.length) % list.length]?.focus()
+            const target = {
+                ArrowDown: (index + 1) % list.length,
+                ArrowUp: (index - 1 + list.length) % list.length,
+                Home: 0,
+                End: list.length - 1,
+            }[event.key]
+            if (target === undefined) return
+            event.preventDefault()
+            list[target]?.focus()
         }
+        // the menu is fixed to where its anchor was: once the page scrolls or resizes it would float apart
+        const close = () => onCloseRef.current()
         document.addEventListener('keydown', onKeyDown)
+        window.addEventListener('resize', close)
+        window.addEventListener('scroll', close, true)
         return () => {
             document.removeEventListener('keydown', onKeyDown)
+            window.removeEventListener('resize', close)
+            window.removeEventListener('scroll', close, true)
             if (anchor.isConnected) anchor.focus()
         }
     }, [anchor])

@@ -21,11 +21,11 @@
   --cream: #eae6df; /* reading text + emphasis chrome */
   --cream-dim: #a9a5a0; /* chrome default */
   --text-muted: #8b9098; /* explanations */
-  --text-faint: #6b7079; /* dates, counters */
+  --text-faint: #7d828b; /* dates, counters; ≥4.5:1 on every ground (WCAG AA text) */
 
   /* ── Lines — two hairlines carry all structure, plus one opaque chip edge ── */
   --line:        rgba(232, 211, 168, 0.14);
-  --line-strong: rgba(232, 211, 168, 0.30);
+  --line-strong: rgba(232, 211, 168, 0.42); /* ≥3:1 on panels: field borders are control edges (WCAG 1.4.11) */
   --line-chip: #3a3022;
 
   /* ── Wordmark fill — flat, never a gradient. [data-accent] repoints this;

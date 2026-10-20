@@ -5,7 +5,7 @@ The 48px field. Focus is loud on purpose — it marks the one thing being asked.
   value={name} onChange={(event) => setName(event.target.value)} maxLength={24} />
 ```
 
-- Block caret, not a line caret — 8×18, `--accent-2`, 1.1s step blink.
+- The native caret in `--accent-2` (`caretColor`); no drawn block caret.
 - The counter appears only once there is a value.
 - No error styling exists. If a value can be wrong, constrain the input instead.
 - The field is a controlled native `<input>`. Pass `value` and `onChange`; standard input props such as `name`, `type`,

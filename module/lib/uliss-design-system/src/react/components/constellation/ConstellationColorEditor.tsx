@@ -1,4 +1,5 @@
-import {useState} from 'react'
+import {useEffect, useState} from 'react'
+import {arrowFocus} from '../../hooks/arrowFocus'
 import {Button} from '../actions/Button'
 import {IconButton} from '../actions/IconButton'
 import {Kicker} from '../brand/Kicker'
@@ -43,7 +44,13 @@ const CAPTION = {
 
 export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
     const [hue, setHue] = useState(props.hue)
-    const [lightness, setLightness] = useState<ConstellationLightness>(props.mode === 'lightness' ? props.lightness : 'BASE')
+    const initialLightness: ConstellationLightness = props.mode === 'lightness' ? props.lightness : 'BASE'
+    const [lightness, setLightness] = useState<ConstellationLightness>(initialLightness)
+    // another branch shown in the same editor starts from its own colour, not the previous draft
+    useEffect(() => setHue(props.hue), [props.hue])
+    useEffect(() => setLightness(initialLightness), [initialLightness])
+    const paletteIndex = CONSTELLATION_PALETTE.indexOf(hue as (typeof CONSTELLATION_PALETTE)[number])
+    const lightnessIndex = CONSTELLATION_LIGHTNESS_STEPS.findIndex((step) => step.id === lightness)
     const color = constellationColor(hue, lightness)
     const changed = props.mode === 'hue' ? hue !== props.hue : lightness !== props.lightness
     const save = () => {
@@ -68,16 +75,22 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
             {props.mode === 'hue' ? <>
                 <div role="radiogroup" aria-label="Palette"
                      style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7}}>
-                    {CONSTELLATION_PALETTE.map((tone) => (
+                    {CONSTELLATION_PALETTE.map((tone, index) => (
+                        // one tab stop (the chosen tone, or the first when the slider set another hue); arrows move
                         <button key={tone} type="button" role="radio" aria-checked={hue === tone}
+                                tabIndex={index === Math.max(paletteIndex, 0) ? 0 : -1}
                                 aria-label={`Hue ${tone}`} title={`Hue ${tone}`} onClick={() => setHue(tone)}
+                                onKeyDown={(event) => {
+                                    const next = arrowFocus(event, event.currentTarget.parentElement, index, CONSTELLATION_PALETTE.length, 7)
+                                    if (next !== null) setHue(CONSTELLATION_PALETTE[next])
+                                }}
                                 style={{
                                     height: 26,
                                     padding: 0,
                                     border: 0,
                                     background: constellationColor(tone),
-                                    outline: hue === tone ? '1px solid var(--cream)' : '1px solid transparent',
-                                    outlineOffset: 2,
+                                    // the choice is a ring drawn with a shadow: the outline stays free for the focus ring
+                                    boxShadow: hue === tone ? '0 0 0 2px var(--bg-surface), 0 0 0 3px var(--cream)' : 'none',
                                     cursor: 'pointer',
                                 }}/>
                     ))}
@@ -96,11 +109,16 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
                     </span>
                 </div>
                 <div role="radiogroup" aria-label="Lightness" style={{display: 'flex', gap: 7}}>
-                    {CONSTELLATION_LIGHTNESS_STEPS.map((step) => {
+                    {CONSTELLATION_LIGHTNESS_STEPS.map((step, index) => {
                         const on = step.id === lightness
                         return (
                             <button key={step.id} type="button" role="radio" aria-checked={on}
+                                    tabIndex={index === Math.max(lightnessIndex, 0) ? 0 : -1}
                                     onClick={() => setLightness(step.id)}
+                                    onKeyDown={(event) => {
+                                        const next = arrowFocus(event, event.currentTarget.parentElement, index, CONSTELLATION_LIGHTNESS_STEPS.length)
+                                        if (next !== null) setLightness(CONSTELLATION_LIGHTNESS_STEPS[next].id)
+                                    }}
                                     style={{
                                         flex: 1,
                                         minHeight: 44,
