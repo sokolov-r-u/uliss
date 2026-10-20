@@ -21,7 +21,8 @@ export function SkyNamesMenu({settings, onSettings, onClose}: {
     onClose: () => void
 }) {
     return <>
-        <div className="sky-menu-scrim" data-sky-ui="" onClick={onClose}/>
+        <button type="button" className="sky-menu-scrim" data-sky-ui="" tabIndex={-1} aria-hidden="true"
+                onClick={onClose}/>
         <div className="sky-names" data-sky-ui="" role="group" aria-label="Names"
              onKeyDown={(event) => {
                  if (event.key === 'Escape') onClose()

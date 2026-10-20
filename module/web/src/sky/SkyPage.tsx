@@ -186,7 +186,8 @@ export function SkyPage() {
             {graph.starCount === 0 && <p className="sky-note">
                 Notes you keep appear as stars in their constellations. Start a chat and press Summarize.</p>}
             {filterOpen && <>
-                <div className="sky-menu-scrim" onClick={() => setFilterOpen(false)}/>
+                <button type="button" className="sky-menu-scrim" tabIndex={-1} aria-hidden="true"
+                        onClick={() => setFilterOpen(false)}/>
                 <div className="sky-filter" data-sky-ui="">
                     <ConstellationPicker items={pickerItems(graph.tree)} label="Find a constellation"
                                          action={(name) => `Show ${name}`}

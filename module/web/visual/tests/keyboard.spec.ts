@@ -51,12 +51,15 @@ test('dialog traps focus, closes on Escape and skips disabled controls', async (
     await expect(page.getByRole('button', {name: 'Return focus'})).toBeFocused()
 })
 
-test('radio controls expose checked and disabled state', async ({page}) => {
+test('radio controls expose checked state and move the choice with the arrows', async ({page}) => {
     await openRoute(page, '/settings/sky')
-    const labels = page.getByRole('radiogroup', {name: 'Labels'})
+    const labels = page.getByRole('radiogroup', {name: 'Show note names'})
     await expect(labels.getByRole('radio')).toHaveCount(3)
-    await expect(labels.getByRole('radio', {name: 'Auto'})).toBeChecked()
-    await expect(labels.getByRole('radio', {name: 'Auto'})).toBeDisabled()
+    const auto = labels.getByRole('radio', {name: 'Auto'})
+    await expect(auto).toBeChecked()
+    await auto.focus()
+    await auto.press('ArrowRight')
+    await expect(labels.getByRole('radio', {name: 'Off'})).toBeChecked()
 })
 
 test('active chat generation replaces Send with keyboard-operable Stop', async ({page}) => {

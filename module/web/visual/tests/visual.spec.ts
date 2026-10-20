@@ -40,7 +40,7 @@ const scenarios: Scenario[] = [
             await page.getByRole('button', {name: 'Change colour'}).click()
         },
     },
-    {name: 'sky-empty', route: '/sky'},
+    {name: 'sky-empty', route: '/sky', query: 'data=empty'},
     {name: 'updates-empty', route: '/updates'},
     {name: 'search-empty', route: '/search'},
     {name: 'settings', route: '/settings'},
