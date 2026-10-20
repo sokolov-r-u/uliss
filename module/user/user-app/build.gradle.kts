@@ -10,6 +10,7 @@ dependencies {
     implementation(project(":user-api"))
     implementation(project(":security"))
     implementation(project(":database"))
+    testImplementation(testFixtures(project(":database")))
     implementation(project(":exception"))
     implementation(project(":logging"))
     implementation(project(":validation"))

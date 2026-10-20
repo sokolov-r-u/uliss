@@ -23,6 +23,6 @@ class UserEntity(
 ) : UuidEntity() {
 
     override fun toString(): String {
-        return "UserEntity(id=${id}, authId=$authId, displayName='$displayName'" + super.toString()
+        return "UserEntity(id=${id}, authId=$authId, displayName='$displayName'" + auditFields()
     }
 }

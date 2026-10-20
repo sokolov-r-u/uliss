@@ -34,7 +34,5 @@ abstract class OutboxAbstractEntity(
     @Column(name = "lease_id")
     var leaseId: UUID? = null
 
-    override fun toString(): String {
-        return ", status=$status, attempts=$attempts" + super.toString()
-    }
+    override fun auditFields(): String = ", status=$status, attempts=$attempts" + super.auditFields()
 }

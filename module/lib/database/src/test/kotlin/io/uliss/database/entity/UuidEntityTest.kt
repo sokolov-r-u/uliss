@@ -1,5 +1,8 @@
 package io.uliss.database.entity
 
+import org.hibernate.proxy.HibernateProxy
+import org.hibernate.proxy.LazyInitializer
+import java.lang.reflect.Proxy
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -10,6 +13,12 @@ import kotlin.test.assertTrue
 private class TestUuidEntityA(id: UUID) : UuidEntity(id)
 private class TestUuidEntityB(id: UUID) : UuidEntity(id)
 private class TestUuidEntityDefault : UuidEntity()
+
+/** What Hibernate hands out for a lazy reference: a subclass whose persistent class is the real entity. */
+private class ProxyOfA(id: UUID, private val initializer: LazyInitializer) : UuidEntity(id), HibernateProxy {
+    override fun getHibernateLazyInitializer(): LazyInitializer = initializer
+    override fun writeReplace(): Any = this
+}
 
 class UuidEntityTest {
 
@@ -62,13 +71,33 @@ class UuidEntityTest {
     }
 
     @Test
-    fun `toString includes audit fields`() {
-        val entity = TestUuidEntityA(UUID.randomUUID())
+    fun `toString names the entity and its id and includes audit fields`() {
+        val id = UUID.randomUUID()
 
-        val result = entity.toString()
+        val result = TestUuidEntityA(id).toString()
 
+        assertTrue(result.startsWith("TestUuidEntityA(id=$id"), result)
         assertTrue(result.contains("createdAt="))
         assertTrue(result.contains("updatedAt="))
         assertTrue(result.contains("version="))
+    }
+
+    @Test
+    fun `an uninitialized hibernate proxy equals the entity it stands for`() {
+        val id = UUID.randomUUID()
+        val initializer = Proxy.newProxyInstance(
+            LazyInitializer::class.java.classLoader,
+            arrayOf(LazyInitializer::class.java),
+        ) { _, method, _ ->
+            when (method.name) {
+                "getPersistentClass" -> TestUuidEntityA::class.java
+                "getImplementation" -> TestUuidEntityA(id)
+                else -> null
+            }
+        } as LazyInitializer
+        val proxy = ProxyOfA(id, initializer)
+
+        assertTrue(TestUuidEntityA(id) == proxy)
+        assertFalse(TestUuidEntityB(id) == proxy)
     }
 }

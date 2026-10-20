@@ -31,7 +31,8 @@ abstract class UuidEntity(
         return id.hashCode()
     }
 
-    override fun toString(): String {
-        return ", createdAt=$createdAt, updatedAt=$updatedAt, version=$version)"
-    }
+    override fun toString(): String = "${javaClass.simpleName}(id=$id" + auditFields()
+
+    /** The closing part of `toString`, shared by subclasses that print their own fields first. */
+    protected open fun auditFields(): String = ", createdAt=$createdAt, updatedAt=$updatedAt, version=$version)"
 }

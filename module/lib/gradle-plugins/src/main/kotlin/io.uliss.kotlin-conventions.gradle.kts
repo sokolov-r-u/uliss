@@ -14,8 +14,8 @@ val javaCompileVersion = libs.findVersion("java-compile").get().requiredVersion.
 val springBootVersion = libs.findVersion("spring-boot").get().requiredVersion
 val jacocoVersion = libs.findVersion("jacoco").get().requiredVersion
 
+// actuator comes from :monitoring, which every application uses; libraries and the gRPC contract do not need it
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation(libs.findLibrary("kotlin-reflect").get())
 }
 
