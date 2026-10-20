@@ -10,7 +10,6 @@ Shared logging library for the JVM services (auto-configured, package `io.uliss.
   (`call` with `args`, `result`, `durationMs`; `call failed` with `args`, `exception`, `durationMs`). Nested calls
   therefore appear innermost first. Active only when the class logger is at DEBUG (`LOG_LEVEL_ULISS=debug`); disable entirely with
   `uliss.logging.aspect.enabled=false`. Values are truncated to 500 characters; reactive results are not rendered.
-- `@MeasureTime` — logs a method's execution time at DEBUG.
 - `ConsoleLogPatternEnvironmentPostProcessor` — default text console pattern with `%kvp`, so key values stay visible
   outside structured logging.
 
@@ -23,8 +22,9 @@ is logged as `***`:
 fun exchangeCode(@Sensitive code: String, @Sensitive codeVerifier: String): TokenResponse
 ```
 
-- Annotate on the method that is actually invoked through the proxy: for a bean called through an interface, put it on
-  the interface method's parameter.
-- A fallback regex also masks parameters named like `password`, `secret`, `token`, `verifier`, `privateKey`, `apiKey`.
-  It is a safety net, not a substitute for the annotation.
-- `@Sensitive` covers parameters only. Objects holding secrets (DTOs, results) must override `toString` to omit them.
+- The annotation is found on the invoked method or on the interface method it implements.
+- `@Sensitive` on a function masks its result (e.g. a method returning a token).
+- A fallback regex also masks parameters named like `password`, `secret`, `token`, `verifier`, `privateKey`, `apiKey`,
+  `credential`, `cookie`, `jwt`, `otp`, `state` or ending in `code`. It is a safety net, not a substitute for the
+  annotation.
+- Objects holding secrets (DTOs) must still override `toString` to omit them.
