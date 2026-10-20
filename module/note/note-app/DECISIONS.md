@@ -347,3 +347,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   lock and drops an index whose version is older than the stored index's `rag_chunks.content_version`. The stored
   index, not the note, is the reference, so a note changed since without new text keeps its index.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 11.
+
+## 2026-10-21 — Constellation note counts are aggregated in memory
+
+- **Context:** the counting query paired every constellation with each of its ancestors in a recursive CTE, so its
+  rows grew with the square of the tree depth, on every tree and sky view; no limit bounds the depth.
+- **Decision:** `countNotes` reads two flat lists (constellation parents, placed notes with sub-notes) and
+  `ConstellationNoteCounter` walks each placement up its ancestors in memory, stopping where the note is already
+  counted. `note_constellation` gets an index on `(user_id, constellation_id)`. Tree size limits stay undecided
+  (`docs/TECH_DEBT.md`, "Constellation tree size limits").
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 12.

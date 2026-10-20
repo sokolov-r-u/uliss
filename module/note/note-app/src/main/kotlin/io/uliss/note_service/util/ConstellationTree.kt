@@ -23,7 +23,7 @@ class ConstellationTree(
     /** Depth of the node: 0 for a root. */
     fun depthOf(id: UUID): Int = pathOf(id).size - 1
 
-    fun rootOf(id: UUID): ConstellationEntity = pathOf(id).first()
+    fun rootOf(id: UUID): ConstellationEntity = byId.getValue(rootIdOf(id))
 
     /** [id] with all its descendants. */
     fun branchIds(id: UUID): Set<UUID> = nodes.filter { isInBranch(it.id, id) }.map { it.id }.toSet()
@@ -55,6 +55,25 @@ class ConstellationTree(
             noteCount = countsById[id]?.noteCount ?: 0,
             ownNoteCount = countsById[id]?.ownNoteCount ?: 0,
         )
+    }
+
+    private val rootIds = HashMap<UUID, UUID>()
+
+    /** Remembered per node, so [views] of a deep tree walk each path once instead of once per node. */
+    private fun rootIdOf(id: UUID): UUID {
+        val walked = mutableListOf<UUID>()
+        var current = id
+        while (true) {
+            rootIds[current]?.let { root ->
+                walked.forEach { rootIds[it] = root }
+                return root
+            }
+            walked += current
+            check(walked.size <= nodes.size) { "constellation id=$id is on a cycle" }
+            current = byId.getValue(current).parentId ?: break
+        }
+        walked.forEach { rootIds[it] = current }
+        return current
     }
 
     /** Root first, the node last. */

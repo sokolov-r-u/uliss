@@ -1,6 +1,7 @@
 package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.projection.ConstellationNoteCount
+import io.uliss.note_service.util.ConstellationNoteCounter
 import io.uliss.note_service.model.projection.NoteMembership
 import io.uliss.note_service.util.NotePlacement
 import org.springframework.jdbc.core.JdbcTemplate
@@ -67,23 +68,22 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
 
     /**
      * Note counts of every constellation of the user that holds notes in its subtree, sub-notes included (they live
-     * where their top note lives); empty ones are absent.
+     * where their top note lives); empty ones are absent. Two flat reads aggregated in memory: a recursive ancestry
+     * query grew with the square of the tree depth.
      */
-    fun countNotes(userId: UUID): List<ConstellationNoteCount> =
-        jdbcTemplate.query(
-            COUNT_NOTES_SQL,
-            { rs, _ ->
-                ConstellationNoteCount(
-                    constellationId = rs.getObject("constellation_id", UUID::class.java),
-                    noteCount = rs.getInt("note_count"),
-                    ownNoteCount = rs.getInt("own_note_count"),
-                )
-            },
-            userId,
-            userId,
+    fun countNotes(userId: UUID): List<ConstellationNoteCount> {
+        val parents = HashMap<UUID, UUID?>()
+        jdbcTemplate.query(CONSTELLATION_PARENTS_SQL, { rs ->
+            parents[rs.getObject("id", UUID::class.java)] = rs.getObject("parent_id", UUID::class.java)
+        }, userId)
+        val placements = jdbcTemplate.query(
+            PLACED_NOTES_SQL,
+            { rs, _ -> rs.getObject("note_id", UUID::class.java) to rs.getObject("constellation_id", UUID::class.java) },
             userId,
             userId,
         )
+        return ConstellationNoteCounter.count(parents, placements)
+    }
 
     private fun mapMembership(rs: ResultSet) = NoteMembership(
         constellationId = rs.getObject("constellation_id", UUID::class.java),
@@ -123,10 +123,11 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
             VALUES (?, ?, ?, ?, ?)
         """
 
+        const val CONSTELLATION_PARENTS_SQL = "SELECT id, parent_id FROM note.constellations WHERE user_id = ?"
+
         // Placed notes are the memberships plus every sub-note of a placed note with the same constellation (UNION
-        // stops even on corrupted cyclic data). Every constellation is paired with itself and each of its ancestors;
-        // a note counts once per ancestor.
-        const val COUNT_NOTES_SQL = """
+        // stops even on corrupted cyclic data).
+        const val PLACED_NOTES_SQL = """
             WITH RECURSIVE placed AS (
                 SELECT note_id, constellation_id
                 FROM note.note_constellation
@@ -136,23 +137,9 @@ class NoteConstellationStore(private val jdbcTemplate: JdbcTemplate) {
                 FROM placed p
                          JOIN note.notes n ON n.parent_note_id = p.note_id
                 WHERE n.user_id = ?
-            ),
-            ancestry AS (
-                SELECT id, id AS ancestor_id, parent_id
-                FROM note.constellations
-                WHERE user_id = ?
-                UNION ALL
-                SELECT a.id, c.id, c.parent_id
-                FROM ancestry a
-                         JOIN note.constellations c ON c.id = a.parent_id
-                WHERE c.user_id = ?
             )
-            SELECT a.ancestor_id                                                 AS constellation_id,
-                   COUNT(DISTINCT p.note_id)                                     AS note_count,
-                   COUNT(DISTINCT p.note_id) FILTER (WHERE a.id = a.ancestor_id) AS own_note_count
-            FROM ancestry a
-                     JOIN placed p ON p.constellation_id = a.id
-            GROUP BY a.ancestor_id
+            SELECT note_id, constellation_id
+            FROM placed
         """
     }
 }
