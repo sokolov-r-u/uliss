@@ -37,16 +37,6 @@ class DataInitializerPropertyTest {
         }
     }
 
-    @Property(tries = 50)
-    fun `any stored m2m client ends up exactly as configured and stays so`(@ForAll("storedClients") stored: StoredClient) {
-        assertSyncedAndStable(stored.toRegisteredClient(M2M)) { client ->
-            assertEquals(setOf(AuthorizationGrantType.CLIENT_CREDENTIALS), client.authorizationGrantTypes)
-            assertEquals(setOf("internal"), client.scopes)
-            assertTrue(client.redirectUris.isEmpty())
-            assertTrue(client.postLogoutRedirectUris.isEmpty())
-        }
-    }
-
     private fun assertSyncedAndStable(stored: RegisteredClient, expectConfigured: (RegisteredClient) -> Unit) {
         val repository = CountingRegisteredClientRepository()
         repository.save(stored)
@@ -59,8 +49,7 @@ class DataInitializerPropertyTest {
         expectConfigured(synced)
         assertEquals(stored.id, synced.id)
         assertEquals(setOf(ClientAuthenticationMethod.CLIENT_SECRET_BASIC), synced.clientAuthenticationMethods)
-        val secret = if (stored.clientId == WEB) "web-secret" else "m2m-secret"
-        assertTrue(TEST_ENCODER.matches(secret, synced.clientSecret))
+        assertTrue(TEST_ENCODER.matches("web-secret", synced.clientSecret))
         assertEquals(savesAfterSync, repository.saves, "a startup in sync with config must not write")
         assertEquals(synced, repository.findByClientId(stored.clientId))
     }
@@ -74,7 +63,7 @@ class DataInitializerPropertyTest {
         Arbitraries.of("http://new/callback", "http://old/callback", "http://evil/callback").set().ofMinSize(1),
         Arbitraries.of("http://old/logout").set(),
         Arbitraries.of(true, false),
-        Arbitraries.of("web-secret", "m2m-secret", "old-secret"),
+        Arbitraries.of("web-secret", "old-secret"),
         Arbitraries.integers().between(1, 120),
     ).`as` { grants, scopes, methods, redirects, logouts, proofKey, secret, ttlMinutes ->
         StoredClient(grants, scopes, methods, redirects, logouts, proofKey, secret, ttlMinutes)
@@ -113,8 +102,7 @@ class DataInitializerPropertyTest {
         webClientSecret = "web-secret",
         callbackUrls = CALLBACKS,
         postLogoutUrls = listOf("http://new/signed-out"),
-        m2mClientId = M2M,
-        m2mClientSecret = "m2m-secret",
+        retiredClientRepository = NO_RETIRED_CLIENTS,
     )
 
     private companion object {

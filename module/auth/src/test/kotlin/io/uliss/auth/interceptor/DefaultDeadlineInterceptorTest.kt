@@ -1,4 +1,4 @@
-package io.uliss.auth.config
+package io.uliss.auth.interceptor
 
 import io.grpc.CallOptions
 import io.grpc.Channel

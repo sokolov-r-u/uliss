@@ -1,7 +1,6 @@
 package io.uliss.security.dto.response
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import java.time.Instant
 
 data class TokenResponse(
     @JsonProperty("access_token") val accessToken: String,
@@ -10,8 +9,5 @@ data class TokenResponse(
     @JsonProperty("token_type") val tokenType: String = "Bearer",
     @JsonProperty("id_token") val idToken: String? = null,
 ) {
-    val expiresAt: Instant = Instant.now().plusSeconds(expiresIn)
-
-    override fun toString(): String =
-        "TokenResponse(tokenType=$tokenType, expiresIn=$expiresIn, expiresAt=$expiresAt)"
+    override fun toString(): String = "TokenResponse(tokenType=$tokenType, expiresIn=$expiresIn)"
 }

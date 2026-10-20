@@ -15,7 +15,8 @@ Authorizations (codes, access and refresh tokens) and consents are stored in the
 (`AuthServerConfig`), so sessions survive restarts and work across replicas. `AuthorizationCleanupService` deletes
 authorizations whose every code and token has expired, daily by `AUTH_AUTHORIZATION_CLEANUP_CRON` (default 03:00).
 
-Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
+Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`; a stored
+client that config no longer has is deleted at startup with its authorizations and consents:
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
   accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`, and the OIDC end-session endpoint returns only to
@@ -23,7 +24,6 @@ Registered clients are stored in Spring Authorization Server JDBC tables and see
   last 30 days and rotate on use. `RefreshGrantPolicy` refuses a refresh for a missing or disabled user and 90 days
   after sign-in; a rotated-out refresh token presented again revokes the whole authorization
   (`ReuseDetectingAuthorizationService`).
-- `uliss-internal` uses Client Credentials with the `internal` scope for service traffic.
 
 Config is the source of truth: at startup an existing client is rebuilt from config, keeping only its id and issue time
 (stored authorizations reference the id). Grant types, scopes, authentication methods, redirect and logout URIs, and

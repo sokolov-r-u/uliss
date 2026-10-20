@@ -37,7 +37,6 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 
 @Tag("integration")
 @SpringBootTest
@@ -178,18 +177,6 @@ class OAuth2ErrorContractTests {
         }.andExpect {
             status { isBadRequest() }
             jsonPath("$.error") { value("unauthorized_client") }
-        }
-    }
-
-    @Test
-    fun `m2m client requesting scope outside internal is invalid_scope`() {
-        mockMvc.post("/oauth2/token") {
-            param("grant_type", "client_credentials")
-            param("scope", "profile")
-            with(httpBasic(M2M_CLIENT, M2M_SECRET))
-        }.andExpect {
-            status { isBadRequest() }
-            jsonPath("$.error") { value("invalid_scope") }
         }
     }
 
@@ -374,20 +361,6 @@ class OAuth2ErrorContractTests {
         assertEquals(userIdName, authorization.principalName)
     }
 
-    @Test
-    fun `m2m client_credentials issues access token without refresh`() {
-        val json = mockMvc.post("/oauth2/token") {
-            param("grant_type", "client_credentials")
-            param("scope", "internal")
-            with(httpBasic(M2M_CLIENT, M2M_SECRET))
-        }.andExpect {
-            status { isOk() }
-        }.andReturn().response.contentAsString
-
-        assertNotNull(readOrNull(json, "$.access_token"), "expected access_token")
-        assertEquals(null, readOrNull(json, "$.refresh_token"), "client_credentials -> no refresh")
-    }
-
     // ---------- access token contents ----------
 
     @Test
@@ -408,18 +381,6 @@ class OAuth2ErrorContractTests {
         assertEquals(true, claims.getBooleanClaim("onboardingRequired"))
         assertEquals(listOf("ROLE_USER"), claims.getStringListClaim("roles"))
         assertEquals(listOf(WEB_CLIENT), claims.audience)
-    }
-
-    @Test
-    fun `m2m access token is not enriched by user-service`() {
-        val json = mockMvc.post("/oauth2/token") {
-            param("grant_type", "client_credentials")
-            param("scope", "internal")
-            with(httpBasic(M2M_CLIENT, M2M_SECRET))
-        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
-
-        assertNull(accessTokenClaims(json).getClaim("userId"))
-        Mockito.verifyNoInteractions(userServiceBlockingStub)
     }
 
     // ---------- user-service outage ----------
@@ -562,8 +523,6 @@ class OAuth2ErrorContractTests {
     companion object {
         const val WEB_CLIENT = "test-web-client"
         const val WEB_SECRET = "test-web-secret"
-        const val M2M_CLIENT = "test-m2m-client"
-        const val M2M_SECRET = "test-m2m-secret"
         const val REDIRECT_URI = "http://localhost:3000/callback"
 
         // PKCE code_verifier: 43-128 unreserved chars

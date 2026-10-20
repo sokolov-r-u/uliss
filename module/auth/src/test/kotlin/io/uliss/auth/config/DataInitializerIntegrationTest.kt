@@ -9,10 +9,16 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.oauth2.core.AuthorizationGrantType
+import io.uliss.auth.repository.RetiredClientRepository
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClient
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
+import java.util.UUID
 
 /** The real JDBC repository round-trips settings through JSON; a sync must survive that without rewriting rows. */
 @Tag("integration")
@@ -26,6 +32,12 @@ class DataInitializerIntegrationTest {
     @Autowired
     lateinit var passwordEncoder: PasswordEncoder
 
+    @Autowired
+    lateinit var authorizationService: OAuth2AuthorizationService
+
+    @Autowired
+    lateinit var jdbcTemplate: JdbcTemplate
+
     @Value($$"${app.clients.authorization-code.client-id}")
     lateinit var webClientId: String
 
@@ -38,15 +50,12 @@ class DataInitializerIntegrationTest {
     @Value($$"${app.clients.authorization-code.post-logout-urls}")
     lateinit var postLogoutUrls: List<String>
 
-    @Value($$"${app.clients.m2m.client-id}")
-    lateinit var m2mClientId: String
-
-    @Value($$"${app.clients.m2m.client-secret}")
-    lateinit var m2mClientSecret: String
+    @Autowired
+    lateinit var retiredClientRepository: RetiredClientRepository
 
     @Test
     fun `a restart over rows already in sync writes nothing`() {
-        // application startup has already synced both clients into the database
+        // application startup has already synced the client into the database
         val counting = CountingWrites(registeredClientRepository)
 
         initializer(counting).run(DefaultApplicationArguments())
@@ -74,6 +83,28 @@ class DataInitializerIntegrationTest {
         assertEquals(0, counting.saves)
     }
 
+    @Test
+    fun `a stored client missing from config is removed with its authorizations`() {
+        val synced = assertNotNull(registeredClientRepository.findByClientId(webClientId))
+        val retired = RegisteredClient.withId(UUID.randomUUID().toString())
+            .clientId("retired-${UUID.randomUUID()}")
+            .clientSecret("{noop}secret")
+            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+            .build()
+        registeredClientRepository.save(retired)
+        val authorization = OAuth2Authorization.withRegisteredClient(retired)
+            .principalName(retired.clientId)
+            .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
+            .build()
+        authorizationService.save(authorization)
+
+        initializer(registeredClientRepository).run(DefaultApplicationArguments())
+
+        assertNull(registeredClientRepository.findByClientId(retired.clientId))
+        assertNull(authorizationService.findById(authorization.id))
+        assertEquals(synced, registeredClientRepository.findByClientId(webClientId))
+    }
+
     private fun initializer(repository: RegisteredClientRepository) = DataInitializer(
         registeredClientRepository = repository,
         passwordEncoder = passwordEncoder,
@@ -81,8 +112,7 @@ class DataInitializerIntegrationTest {
         webClientSecret = webClientSecret,
         callbackUrls = callbackUrls,
         postLogoutUrls = postLogoutUrls,
-        m2mClientId = m2mClientId,
-        m2mClientSecret = m2mClientSecret,
+        retiredClientRepository = retiredClientRepository,
     )
 
     private class CountingWrites(private val delegate: RegisteredClientRepository) :

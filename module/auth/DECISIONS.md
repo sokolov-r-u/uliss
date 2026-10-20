@@ -52,3 +52,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   duplicated browser tab shares one copied refresh token, so the second tab's refresh now ends the session of both
   tabs instead of only its own (`docs/TECH_DEBT.md`, "Session drops").
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 3.
+
+## 2026-10-21 — Only configured clients exist; the m2m client is removed
+
+- **Replaces:** the consequence "Clients missing from config are not touched yet" of "Registered clients are rebuilt
+  from config on startup" (2026-10-15).
+- **Context:** the `uliss-internal` client-credentials client was registered and its secret handed to user- and
+  note-service, but nothing used it: REST refuses tokens without `userId`, gRPC accepts only the service token auth
+  signs itself. A renamed or removed client kept working with its old secret.
+- **Decision:** the m2m client and its `APP_CLIENTS_M2M_*` settings are removed. At startup `DataInitializer` deletes
+  every registered client config does not have, with its authorizations and consents (`RetiredClientRepository`).
+  The signing key is created under an advisory lock, so replicas starting on an empty database agree on one key.
+  Lookups by token value and state use hash indexes; `client_id` is unique.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 4.

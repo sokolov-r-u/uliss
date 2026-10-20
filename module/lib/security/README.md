@@ -6,8 +6,8 @@ and a stateless OAuth mediator for user-service, note-service, and future JVM se
 ## Resource server
 
 The library validates JWTs against the authorization server's JWKS endpoint, requires `iss` to equal
-`AUTH_PUBLIC_URL`, and rejects tokens without a UUID `userId` claim with 401 (`userIdClaimValidator`), so m2m tokens
-cannot call user endpoints. It permits mediator routes in both
+`AUTH_PUBLIC_URL` and `aud` to contain the web client id (`FRONTEND_CLIENT_ID`), and rejects tokens without a UUID
+`userId` claim with 401 (`userIdClaimValidator`), so service tokens cannot call user endpoints. It permits mediator routes in both
 unprefixed library tests and one-segment-prefixed consuming applications, permits `/actuator/health`, configures CORS,
 and requires authentication elsewhere.
 

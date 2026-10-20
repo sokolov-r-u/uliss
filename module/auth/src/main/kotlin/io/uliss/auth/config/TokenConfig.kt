@@ -32,7 +32,7 @@ class TokenConfig {
 
     @Bean
     fun tokenCustomizer(
-        userChanel: UserServiceGrpc.UserServiceBlockingStub,
+        userChannel: UserServiceGrpc.UserServiceBlockingStub,
         refreshGrantPolicy: RefreshGrantPolicy,
     ): OAuth2TokenCustomizer<JwtEncodingContext> =
         OAuth2TokenCustomizer { context ->
@@ -40,10 +40,6 @@ class TokenConfig {
                 val principal = context.getPrincipal<Authentication>() ?: return@OAuth2TokenCustomizer
                 context.claims.claim("roles", principal.authorities.map { it.authority })
 
-                // client_credentials (m2m) tokens have no user to enrich
-                if (context.authorizationGrantType == AuthorizationGrantType.CLIENT_CREDENTIALS) {
-                    return@OAuth2TokenCustomizer
-                }
                 if (context.authorizationGrantType == AuthorizationGrantType.REFRESH_TOKEN) {
                     refreshGrantPolicy.checkRefresh(context.getAuthorization() ?: return@OAuth2TokenCustomizer)
                 }
@@ -51,7 +47,7 @@ class TokenConfig {
                 try {
                     // principal.name is the auth user id (see UserEntity.toUserDetails)
                     val userInfoRequest = UserInfoRequest.newBuilder().setAuthId(principal.name).build()
-                    context.claims.addUserInfo(userChanel.getUserInfo(userInfoRequest))
+                    context.claims.addUserInfo(userChannel.getUserInfo(userInfoRequest))
                 } catch (ex: StatusRuntimeException) {
                     logger.error("user service unavailable, blocking token issue", "tokenCustomizer", ex)
                     throw UserServiceUnavailableException(ex)

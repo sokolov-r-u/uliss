@@ -3,6 +3,7 @@ package io.uliss.auth.service
 import io.uliss.auth.repository.SigningKeyRepository
 import io.uliss.auth.model.SigningKeyEntity
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import java.security.KeyPair
 import java.security.KeyPairGenerator
 import java.util.Base64
@@ -11,7 +12,11 @@ import java.util.Base64
 class SigningKeysService(
     private val signingKeyRepository: SigningKeyRepository
 ) {
-    fun getOrGenerate(): SigningKeyEntity = signingKeyRepository.findTopByOrderByCreatedAtDesc() ?: generateAndSave()
+    @Transactional
+    fun getOrGenerate(): SigningKeyEntity {
+        signingKeyRepository.lockKeyCreation()
+        return signingKeyRepository.findTopByOrderByCreatedAtDesc() ?: generateAndSave()
+    }
 
     private fun generateAndSave(): SigningKeyEntity {
         val keyPair = generateKeyPair()

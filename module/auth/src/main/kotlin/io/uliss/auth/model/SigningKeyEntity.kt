@@ -14,7 +14,10 @@ import java.util.Base64
 class SigningKeyEntity(
     var privateKey: String,
     var publicKey: String
-) : UuidEntity()
+) : UuidEntity() {
+    // never print the private key
+    override fun toString(): String = "SigningKeyEntity(id=$id)"
+}
 
 fun SigningKeyEntity.toKeyPair(): KeyPair {
     val keyFactory = KeyFactory.getInstance("RSA")

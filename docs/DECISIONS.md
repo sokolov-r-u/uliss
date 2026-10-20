@@ -123,3 +123,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the logout response changes from 204 to 200 with a body. A session started before this change has
   no `id_token`, so its sign-out falls back to revocation only.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 2.
+
+## 2026-10-21 — Resource servers require the web client audience
+
+- **Context:** user and note services checked only `iss` and a `userId` claim; any token of the same issuer with a
+  `userId` (an id token, a future service token) would have been accepted.
+- **Decision:** `security.yml` sets `spring.security.oauth2.resourceserver.jwt.audiences` to `FRONTEND_CLIENT_ID`;
+  auth issues user access tokens with `aud` = the web client id.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 4.

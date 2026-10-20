@@ -16,7 +16,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
+import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
@@ -64,7 +64,8 @@ class SecurityConfig(
             it.loginPage("/login").defaultSuccessUrl(frontendUrl, false)
         }
         .csrf { csrf ->
-            val requestHandler = CsrfTokenRequestAttributeHandler()
+            // Xor masks the token per response (BREACH); a null attribute name keeps the eager loading
+            val requestHandler = XorCsrfTokenRequestAttributeHandler()
             requestHandler.setCsrfRequestAttributeName(null)
             csrf.csrfTokenRequestHandler(requestHandler)
         }

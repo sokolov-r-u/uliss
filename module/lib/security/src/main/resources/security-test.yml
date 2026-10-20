@@ -5,6 +5,8 @@ spring:
         jwt:
           jwk-set-uri: http://localhost:9000/oauth2/jwks
           issuer-uri: http://localhost:9000
+          # user tokens are issued to the web client; other tokens of the same issuer are refused
+          audiences: test-web-client
 
 security:
   oauth2:
@@ -12,9 +14,6 @@ security:
       authorization-code:
         client-id: test-web-client
         client-secret: test-web-secret
-      m2m:
-        client-id: test-m2m-client
-        client-secret: test-m2m-secret
       redirect-uri: http://localhost:3000/callback
       post-logout-redirect-uri: http://localhost:3000/signed-out
       auth-server-public-url: http://localhost:9000

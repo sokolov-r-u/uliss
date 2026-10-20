@@ -1,5 +1,7 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.repository.RetiredClientRepository
+import org.mockito.Mockito
 import org.springframework.boot.DefaultApplicationArguments
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
@@ -27,7 +29,6 @@ class DataInitializerTest {
     fun `startup replaces secret, token settings and redirect uris of existing clients with config`() {
         val repository = InMemoryRegisteredClientRepository(
             staleClient(WEB, AuthorizationGrantType.AUTHORIZATION_CODE, "http://old/callback"),
-            staleClient(M2M, AuthorizationGrantType.CLIENT_CREDENTIALS, null),
         )
 
         initializer(repository).run(DefaultApplicationArguments())
@@ -39,9 +40,6 @@ class DataInitializerTest {
         assertFalse(web.tokenSettings.isReuseRefreshTokens)
         assertTrue(web.clientSettings.isRequireProofKey)
         assertEquals(setOf("http://new/callback"), web.redirectUris)
-
-        val m2m = assertNotNull(repository.findByClientId(M2M))
-        assertTrue(encoder.matches("m2m-secret", m2m.clientSecret))
     }
 
     @Test
@@ -76,24 +74,6 @@ class DataInitializerTest {
     }
 
     @Test
-    fun `startup resets the m2m client to client credentials with the internal scope only`() {
-        val stale = RegisteredClient.from(staleClient(M2M, AuthorizationGrantType.AUTHORIZATION_CODE, "http://m2m/callback"))
-            .authorizationGrantType(AuthorizationGrantType.REFRESH_TOKEN)
-            .scope("openid")
-            .clientSettings(ClientSettings.builder().requireProofKey(false).requireAuthorizationConsent(true).build())
-            .build()
-        val repository = InMemoryRegisteredClientRepository(stale)
-
-        initializer(repository).run(DefaultApplicationArguments())
-
-        val m2m = assertNotNull(repository.findByClientId(M2M))
-        assertEquals(setOf(AuthorizationGrantType.CLIENT_CREDENTIALS), m2m.authorizationGrantTypes)
-        assertEquals(setOf("internal"), m2m.scopes)
-        assertTrue(m2m.redirectUris.isEmpty())
-        assertFalse(m2m.clientSettings.isRequireAuthorizationConsent)
-    }
-
-    @Test
     fun `startup keeps the client id and issue time so stored authorizations stay linked`() {
         val issuedAt = Instant.parse("2026-01-01T00:00:00Z")
         val stale = RegisteredClient.from(staleClient(WEB, AuthorizationGrantType.AUTHORIZATION_CODE, "http://old/callback"))
@@ -116,7 +96,7 @@ class DataInitializerTest {
 
         initializer(repository).run(DefaultApplicationArguments())
 
-        assertEquals(2, savesOnFirstStart)
+        assertEquals(1, savesOnFirstStart)
         assertEquals(savesOnFirstStart, repository.saves)
     }
 
@@ -148,8 +128,7 @@ class DataInitializerTest {
         webClientSecret = "web-secret",
         callbackUrls = listOf("http://new/callback"),
         postLogoutUrls = listOf("http://new/signed-out"),
-        m2mClientId = M2M,
-        m2mClientSecret = "m2m-secret",
+        retiredClientRepository = NO_RETIRED_CLIENTS,
     )
 
     private fun staleClient(clientId: String, grant: AuthorizationGrantType, redirectUri: String?) =
@@ -164,7 +143,10 @@ class DataInitializerTest {
 }
 
 internal const val WEB = "web"
-internal const val M2M = "m2m"
+
+/** Unit tests use an in-memory client repository; the retired-client cleanup is covered by the integration test. */
+internal val NO_RETIRED_CLIENTS: RetiredClientRepository =
+    Mockito.mock(RetiredClientRepository::class.java)
 internal val TEST_ENCODER = BCryptPasswordEncoder(4)
 
 /** In-memory repository that counts writes, to prove a startup in sync with config writes nothing. */

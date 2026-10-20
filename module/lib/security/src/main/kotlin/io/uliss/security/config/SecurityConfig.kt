@@ -48,7 +48,7 @@ class SecurityConfig {
             .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint()) }
             .build()
 
-    /** Boot adds every validator bean to the JWT decoder: tokens without a UUID `userId` (e.g. m2m) are rejected. */
+    /** Boot adds every validator bean to the JWT decoder: tokens without a UUID `userId` are rejected. */
     @Bean
     fun userIdClaimValidator(): OAuth2TokenValidator<Jwt> = OAuth2TokenValidator { jwt ->
         val userId = jwt.getClaimAsString(USER_ID_CLAIM)

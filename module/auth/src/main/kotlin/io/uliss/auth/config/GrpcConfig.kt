@@ -3,6 +3,7 @@ package io.uliss.auth.config
 import io.grpc.ManagedChannel
 import io.grpc.ManagedChannelBuilder
 import io.uliss.api.user.v1.UserServiceGrpc
+import io.uliss.auth.interceptor.DefaultDeadlineInterceptor
 import io.uliss.auth.service.UserServiceTokenProvider
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
@@ -18,7 +19,7 @@ class GrpcConfig(
 ) {
 
     @Bean
-    fun userServiceChanel(tokenProvider: UserServiceTokenProvider): ManagedChannel =
+    fun userServiceChannel(tokenProvider: UserServiceTokenProvider): ManagedChannel =
         ManagedChannelBuilder.forAddress(userServiceHost, userServicePort)
             .usePlaintext()
             .intercept(
@@ -29,6 +30,6 @@ class GrpcConfig(
             .build()
 
     @Bean
-    fun userServiceBlockingStub(chanel: ManagedChannel): UserServiceGrpc.UserServiceBlockingStub =
-        UserServiceGrpc.newBlockingStub(chanel)
+    fun userServiceBlockingStub(channel: ManagedChannel): UserServiceGrpc.UserServiceBlockingStub =
+        UserServiceGrpc.newBlockingStub(channel)
 }

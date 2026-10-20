@@ -6,6 +6,8 @@ spring:
           jwk-set-uri: ${AUTH_INTERNAL_URL}/oauth2/jwks
           # validates "iss" only; keys still come from jwk-set-uri, no discovery request
           issuer-uri: ${AUTH_PUBLIC_URL}
+          # user tokens are issued to the web client; other tokens of the same issuer are refused
+          audiences: ${FRONTEND_CLIENT_ID}
 
 security:
   oauth2:
@@ -13,9 +15,6 @@ security:
       authorization-code:
         client-id: ${FRONTEND_CLIENT_ID}
         client-secret: ${FRONTEND_CLIENT_SECRET}
-      m2m:
-        client-id: ${APP_CLIENTS_M2M_CLIENT_ID}
-        client-secret: ${APP_CLIENTS_M2M_CLIENT_SECRET}
       redirect-uri: ${FRONTEND_URL}/callback
       post-logout-redirect-uri: ${FRONTEND_URL}/signed-out
       auth-server-public-url: ${AUTH_PUBLIC_URL}

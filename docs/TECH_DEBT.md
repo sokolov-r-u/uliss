@@ -487,15 +487,6 @@ Before production:
   (`rejected value [...]`), so an over-long prompt is logged in full. Keep only field names and error codes in the
   log; the rejected values may stay at DEBUG while debugging and go with the rest of the user content.
 
-## Registered clients missing from config stay active (`auth`)
-
-**Status:** not implemented (pre-existing; found in the 2026-10-15 review).
-
-`DataInitializer` rebuilds only the two configured clients (`app.clients.authorization-code`, `app.clients.m2m`).
-A client whose id was renamed or removed from config keeps its row in `oauth2_registered_client` with its old secret,
-grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
-secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
-
 ## Abandon an outbox worker once its lease is lost (`note-service`)
 
 **Status:** not implemented (agreed 2026-10-15 to defer).
