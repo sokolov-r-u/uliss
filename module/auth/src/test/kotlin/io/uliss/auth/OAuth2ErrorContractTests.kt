@@ -8,6 +8,9 @@ import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.TestContainersConfiguration
+import io.uliss.auth.model.UserEntity
+import io.uliss.auth.model.UserStatus
+import io.uliss.auth.repository.UserRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -51,8 +54,22 @@ class OAuth2ErrorContractTests {
     @Autowired
     lateinit var registeredClientRepository: RegisteredClientRepository
 
+    @Autowired
+    lateinit var userRepository: UserRepository
+
     @MockitoBean
     lateinit var userServiceBlockingStub: UserServiceGrpc.UserServiceBlockingStub
+
+    /** The auth-user id, as a real login sets it; refresh checks that user. */
+    private lateinit var userIdName: String
+
+    @BeforeEach
+    fun createUser() {
+        val user = userRepository.save(
+            UserEntity(email = "contract-${UUID.randomUUID()}@example.com", passwordHash = "hash", status = UserStatus.ACTIVE)
+        )
+        userIdName = user.id.toString()
+    }
 
     @BeforeEach
     fun stubUserService() {
@@ -199,7 +216,7 @@ class OAuth2ErrorContractTests {
             "scope" to "openid",
         )
         val location = mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andReturn().response.redirectedUrl
 
         assertNotNull(location, "authorize must redirect to redirect_uri")
@@ -218,7 +235,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andExpect {
             status { isBadRequest() }
         }
@@ -235,7 +252,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andExpect {
             status { isBadRequest() }
         }
@@ -354,7 +371,7 @@ class OAuth2ErrorContractTests {
         val authorization = restarted.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN)
 
         assertNotNull(authorization, "refresh token must survive an authorization server restart")
-        assertEquals("alice@example.com", authorization.principalName)
+        assertEquals(userIdName, authorization.principalName)
     }
 
     @Test
@@ -438,6 +455,43 @@ class OAuth2ErrorContractTests {
         refreshRequest(refreshToken).andExpect { status { isOk() } }
     }
 
+    // ---------- refresh policy ----------
+
+    @Test
+    fun `a disabled user cannot refresh`() {
+        val refreshToken = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refreshToken)
+        val user = userRepository.findById(UUID.fromString(userIdName)).orElseThrow()
+        user.status = UserStatus.DISABLED
+        userRepository.save(user)
+
+        refreshRequest(refreshToken).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+    }
+
+    @Test
+    fun `reusing a rotated refresh token revokes the whole session`() {
+        val refresh1 = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refresh1)
+        val refresh2 = readOrNull(
+            refreshRequest(refresh1).andExpect { status { isOk() } }.andReturn().response.contentAsString,
+            "$.refresh_token",
+        )
+        assertNotNull(refresh2)
+
+        // a stolen copy of the old token shows up: the session cannot tell who is legitimate and ends
+        refreshRequest(refresh1).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+        refreshRequest(refresh2).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+    }
+
     // ---------- helpers ----------
 
     private fun exchangeRequest(code: String) = mockMvc.post("/oauth2/token") {
@@ -474,7 +528,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         val response = mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andReturn().response
 
         val location = response.redirectedUrl

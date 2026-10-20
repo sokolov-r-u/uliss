@@ -279,7 +279,8 @@ diagnosed; suspects, most likely first:
    refreshed reuses the stored tokens (`auth/apiClient.test.ts`). 2026-10-14: `getAccessToken()` is the single
    owner of the session, and only a 400/401 refresh rejection signs the user out; network/5xx failures keep the
    tokens. Duplicated tabs still share one copied refresh token (needs shared storage plus Web Locks). If
-   sign-outs continue, check suspect 2.
+   sign-outs continue, check suspect 2. Since 2026-10-21 refresh-token reuse detection revokes the whole
+   authorization when a rotated-out token comes back, so a duplicated tab ends the session of both tabs.
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.

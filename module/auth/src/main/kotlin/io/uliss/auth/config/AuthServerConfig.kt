@@ -1,5 +1,6 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.service.ReuseDetectingAuthorizationService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -21,12 +22,15 @@ class AuthServerConfig(
     fun registeredClientRepository(jdbcTemplate: JdbcTemplate): RegisteredClientRepository =
         JdbcRegisteredClientRepository(jdbcTemplate)
 
-    /** Persists codes and tokens so sessions survive restarts and work across replicas. */
+    /** Persists codes and tokens so sessions survive restarts and work across replicas; detects refresh reuse. */
     @Bean
     fun authorizationService(
         jdbcTemplate: JdbcTemplate,
         registeredClientRepository: RegisteredClientRepository,
-    ): OAuth2AuthorizationService = JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository)
+    ): OAuth2AuthorizationService = ReuseDetectingAuthorizationService(
+        JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository),
+        jdbcTemplate,
+    )
 
     @Bean
     fun authorizationConsentService(

@@ -9,6 +9,7 @@ import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoRequest
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.model.toKeyPair
+import io.uliss.auth.service.RefreshGrantPolicy
 import io.uliss.auth.service.SigningKeysService
 import io.uliss.auth.utils.addUserInfo
 import io.uliss.logging.logger.AppLogger
@@ -30,7 +31,10 @@ class TokenConfig {
     private val logger = AppLogger.of(TokenConfig::class)
 
     @Bean
-    fun tokenCustomizer(userChanel: UserServiceGrpc.UserServiceBlockingStub): OAuth2TokenCustomizer<JwtEncodingContext> =
+    fun tokenCustomizer(
+        userChanel: UserServiceGrpc.UserServiceBlockingStub,
+        refreshGrantPolicy: RefreshGrantPolicy,
+    ): OAuth2TokenCustomizer<JwtEncodingContext> =
         OAuth2TokenCustomizer { context ->
             if (context.tokenType == OAuth2TokenType.ACCESS_TOKEN) {
                 val principal = context.getPrincipal<Authentication>() ?: return@OAuth2TokenCustomizer
@@ -39,6 +43,9 @@ class TokenConfig {
                 // client_credentials (m2m) tokens have no user to enrich
                 if (context.authorizationGrantType == AuthorizationGrantType.CLIENT_CREDENTIALS) {
                     return@OAuth2TokenCustomizer
+                }
+                if (context.authorizationGrantType == AuthorizationGrantType.REFRESH_TOKEN) {
+                    refreshGrantPolicy.checkRefresh(context.getAuthorization() ?: return@OAuth2TokenCustomizer)
                 }
 
                 try {

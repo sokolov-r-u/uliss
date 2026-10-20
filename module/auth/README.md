@@ -19,8 +19,10 @@ Registered clients are stored in Spring Authorization Server JDBC tables and see
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
   accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`, and the OIDC end-session endpoint returns only to
-  `AUTH_CLIENT_POST_LOGOUT_URLS` (default `FRONTEND_URL/signed-out`). Access tokens last 15 minutes; refresh tokens last 30 days and
-  rotate on use.
+  `AUTH_CLIENT_POST_LOGOUT_URLS` (default `FRONTEND_URL/signed-out`). Access tokens last 15 minutes; refresh tokens
+  last 30 days and rotate on use. `RefreshGrantPolicy` refuses a refresh for a missing or disabled user and 90 days
+  after sign-in; a rotated-out refresh token presented again revokes the whole authorization
+  (`ReuseDetectingAuthorizationService`).
 - `uliss-internal` uses Client Credentials with the `internal` scope for service traffic.
 
 Config is the source of truth: at startup an existing client is rebuilt from config, keeping only its id and issue time
