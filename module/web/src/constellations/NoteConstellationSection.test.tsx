@@ -74,6 +74,23 @@ describe('NoteConstellationSection', () => {
         expect(screen.queryByRole('textbox', {name: 'Add this note to…'})).not.toBeInTheDocument()
     })
 
+    it('tells its host about every stored change of place, and not about a refused one', async () => {
+        const onChanged = vi.fn()
+        vi.mocked(listConstellations).mockResolvedValue(TREE)
+        vi.mocked(getNotePlace).mockResolvedValue({ancestors: [], constellations: [place('jazz', true), place('films', false)]})
+        render(<NoteConstellationSection noteId="n1" onChanged={onChanged}/>)
+        await screen.findByRole('button', {name: /^\+ Add/})
+
+        vi.mocked(removeNoteConstellation).mockRejectedValueOnce(new ConstellationApiError('http', 'gone', 404))
+        await userEvent.click(screen.getByRole('button', {name: 'Remove Films'}))
+        await screen.findByRole('alert')
+        expect(onChanged).not.toHaveBeenCalled()
+
+        vi.mocked(removeNoteConstellation).mockResolvedValueOnce([place('jazz', true)])
+        await userEvent.click(screen.getByRole('button', {name: 'Remove Films'}))
+        await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(1))
+    })
+
     it('shows the other places as removable chips without a label and no way to promote them', async () => {
         await renderSection([place('jazz', true), place('films', false)])
         vi.mocked(removeNoteConstellation).mockResolvedValue([place('jazz', true)])

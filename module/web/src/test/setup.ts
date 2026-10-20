@@ -22,6 +22,15 @@ if (typeof window.PointerEvent === 'undefined') {
     window.PointerEvent = TestPointerEvent as unknown as typeof PointerEvent
 }
 
+// jsdom has no pointer capture; the sky's canvas captures a drag or a pan once it travels.
+if (!Element.prototype.hasPointerCapture) {
+    Object.assign(Element.prototype, {
+        hasPointerCapture: () => false,
+        setPointerCapture: () => undefined,
+        releasePointerCapture: () => undefined,
+    })
+}
+
 // Node's own (flag-gated) global `localStorage` shadows jsdom's and is undefined without --localstorage-file.
 if (typeof globalThis.localStorage === 'undefined' || globalThis.localStorage === null) {
     const store = new Map<string, string>()

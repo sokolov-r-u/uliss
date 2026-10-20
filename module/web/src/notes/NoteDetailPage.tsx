@@ -2,18 +2,15 @@ import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {NoteConstellationSection} from '../constellations/NoteConstellationSection'
-import {SubNotesSection} from '../constellations/SubNotesSection'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
-import {NoteChatsList} from '../ui/links/NoteChatsList'
+import {ContextPanel, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
+import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
 import './notes.css'
-import {formatFullDate} from '../ui/format'
 
 type ReadyNote = Note & { content: string }
 
@@ -32,10 +29,12 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function NoteDetailView({state, onRetry, actions, edit}: {
+export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
     state: DetailState
     onRetry?: () => void
     actions?: ReactNode
+    /** The header's way back to the previous screen; off where the screen offers its own Back. */
+    back?: boolean
     /** The edit form of a ready note; it replaces the note's text while it is open. */
     edit?: ReactNode
 }) {
@@ -47,7 +46,7 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
     const right = <>{note && <PanelToggle label="Note details" open={panelOpen}
                                           onToggle={togglePanel}/>}{actions}</>
     return <div className="detail-layout"><div className="note-detail">
-        {title ? <ScreenHeader title={title} right={right}/> : <ScreenHeader kicker="Note" right={right}/>}
+        {title ? <ScreenHeader back={back} title={title} right={right}/> : <ScreenHeader back={back} kicker="Note" right={right}/>}
         <div className="note-detail-body">
         {state.status === 'loading' && <p className="note-detail-state">Loading…</p>}
         {state.status === 'generating' &&
@@ -71,19 +70,8 @@ export function NoteDetailView({state, onRetry, actions, edit}: {
         </div>
     </div>
         {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
-            <PanelSection label="Constellation">
-                <NoteConstellationSection noteId={note.id} noteTitle={note.title}/>
-            </PanelSection>
-            <SubNotesSection noteId={note.id} onOpen={(noteId) => navigate(`/notes/${noteId}`)}/>
-            <PanelSection label="Written from">
-                <NoteChatsList noteId={note.id} onOpen={(chatId) => navigate(`/chats/${chatId}`)}
-                               empty={<p className="context-text">
-                                   {note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>}/>
-            </PanelSection>
-            <PanelSection label="Dates">
-                <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
-                <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt) || '—'}/>
-            </PanelSection>
+            <NoteDetailsSections note={note} onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
+                                 onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}/>
         </ContextPanel>}
     </div>
 }
@@ -218,6 +206,6 @@ export function NoteDetailPage() {
     // Opened from the chat delete dialog: the previous history entry is that screen with the dialog open.
     const backButton = backToDeleteDialog && <Button variant="quiet" size="sm" onClick={() => navigate(-1)}>Back</Button>
 
-    return <NoteDetailView state={state} onRetry={() => void load()} edit={edit}
+    return <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}
                            actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
 }

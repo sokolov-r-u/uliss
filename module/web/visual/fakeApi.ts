@@ -6,7 +6,7 @@
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
  * Summarize creates a generating note in the picked place or under a picked note; `?summary=old` gives chat c1 a note
  * that covers only its first answer, so Summarize offers an update. Notes can move under notes and back, and a note
- * with sub-notes is deleted with a choice, as in the note service.
+ * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -145,6 +145,16 @@ function constellationResponse(path: string, method: string, body: string, searc
     }
     // Note places: the visual notes start without a constellation.
     const notes = empty ? [] : NOTES
+    if (path === '/note/sky') {
+        // Stars are ready titled notes, oldest first; a top star carries its places (the fixtures nest ready notes only).
+        const stars = notes.filter((note) => note.status === 'READY' && note.title)
+            .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
+            .map((note) => ({
+                id: note.id, title: note.title, parentNoteId: parents.get(note.id) ?? null, createdAt: note.createdAt,
+                memberships: parents.has(note.id) ? [] : constellations.placesOf(note.id).body,
+            }))
+        return json({constellations: constellations.list().body, notes: stars})
+    }
     if (path === '/note/notes/without-constellation') {
         const loose = notes.filter((note) => !parents.has(note.id) && !constellations.isPlaced(note.id))
             .flatMap((note) => subtreeOf(note.id))

@@ -63,9 +63,14 @@ export function placementFailureMessage(error: unknown, name?: string): string {
  * one) and "+ Add constellation". A click on the main place offers the note's other places to make one main; adding
  * goes through the shared tree picker, which can also create a constellation where the user stands. "Move under a
  * note" hangs the note under another one. A sub-note shows its path through its parent notes instead, explains that
- * its place is inherited and offers "Move out" and "Move under another note".
+ * its place is inherited and offers "Move out" and "Move under another note". `onChanged` hears every stored change of
+ * the note's place or of the tree (a new constellation), for hosts that draw them (the sky).
  */
-export function NoteConstellationSection({noteId, noteTitle}: { noteId: string; noteTitle?: string }) {
+export function NoteConstellationSection({noteId, noteTitle, onChanged}: {
+    noteId: string
+    noteTitle?: string
+    onChanged?: () => void
+}) {
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
     const [picker, setPicker] = useState<Picker>(null)
     const [pending, setPending] = useState(false)
@@ -110,6 +115,7 @@ export function NoteConstellationSection({noteId, noteTitle}: { noteId: string; 
                 : () => result
             setLoad((current) => current.status === 'ready' ? {...current, place: place(current.place)} : current)
             if (!Array.isArray(result)) notifyNotesChanged()
+            onChanged?.()
             setPicker(null)
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e))
@@ -141,6 +147,7 @@ export function NoteConstellationSection({noteId, noteTitle}: { noteId: string; 
                 const items = fresh ?? [...current.items, created]
                 return {...current, items, tree: buildConstellationTree(items)}
             })
+            onChanged?.()
             return created.id
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name))

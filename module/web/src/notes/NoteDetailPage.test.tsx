@@ -383,9 +383,19 @@ describe('NoteDetailPage', () => {
         expect(deleteNote).toHaveBeenCalledWith('note-1', undefined)
     })
 
-    it('offers no Back on a note opened any other way', async () => {
+    it('a note opened from another screen of the app goes back to it', async () => {
         mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
         renderFromDeleteDialog()
+
+        expect(await screen.findByRole('heading', {name: 'Idea'})).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Back'}))
+
+        expect(screen.getByTestId('chats-route')).toBeInTheDocument()
+    })
+
+    it('offers no Back on a note opened directly', async () => {
+        mockedGetNote.mockResolvedValue({id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'})
+        renderPage()
 
         expect(await screen.findByRole('heading', {name: 'Idea'})).toBeInTheDocument()
         expect(screen.queryByRole('button', {name: 'Back'})).not.toBeInTheDocument()

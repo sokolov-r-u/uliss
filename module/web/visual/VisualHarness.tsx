@@ -1,11 +1,9 @@
 import {useEffect, useRef, useState} from 'react'
 import {Bubble, ChatDock, Dialog, EmptyState, Select} from '@uliss/design-system'
-import {SkyView} from '../src/sky/SkyPage'
-import {SKY} from './fixtures'
 
 /**
  * Isolated component scenarios for the keyboard specs — behaviour the real screens cannot reach without a backend
- * (a populated sky, a live generation) or that needs a controlled setup. Screens themselves render the real `App`
+ * (an open listbox, a live generation) or that needs a controlled setup. Screens themselves render the real `App`
  * (see `main.tsx`).
  */
 
@@ -41,10 +39,18 @@ function DisabledOpenSelectFixture() {
     </div>
 }
 
+function SelectFixture() {
+    const [value, setValue] = useState<string | null>(null)
+    return <div className="visual-screen"><Select aria-label="Pick a constellation" value={value} onChange={setValue}
+                                                  placeholder="All constellations"
+                                                  options={[{value: 'music', label: 'Music'}, {value: 'films', label: 'Films'}]}/>
+    </div>
+}
+
 export function VisualHarness({scenario}: { scenario: string }) {
     if (scenario === 'chats-streaming') return <StreamingFixture/>
     if (scenario === 'dialog') return <DialogFixture/>
     if (scenario === 'select-disabled-open') return <DisabledOpenSelectFixture/>
-    if (scenario === 'sky-populated') return <div className="visual-screen"><SkyView model={SKY}/></div>
+    if (scenario === 'select') return <SelectFixture/>
     return <div className="visual-screen"><EmptyState title="Unknown visual scenario" body={scenario}/></div>
 }

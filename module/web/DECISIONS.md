@@ -117,3 +117,49 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   note first counts its sub-notes; with any, the dialog offers Keep sub-notes (default) or Delete all, and a
   `NOTE_HAS_SUB_NOTES` refusal recounts and asks.
 - **Source:** task `docs/tasks/2026-10-19-constellations-subnotes.md`, block 3.
+
+## 2026-10-20 — The sky renderer
+
+- **Context:** the Sky screen draws the user's constellations and notes as a live force graph (PROT Sky, board 17).
+- **Decision:** the renderer lives in `module/web/src/sky`, not the design system: it is one screen bound to the sky
+  snapshot. Physics is `d3-force` alone (not all of `d3`), pinned to an exact version. Every view is a subset of one
+  graph built from `GET /note/sky`; each view keeps its own last positions, so a reload or a mode switch does not
+  throw the layout away, and a fresh view is solved to rest synchronously before its first frame. The canvas paints
+  in screen space from world positions, so marks and names keep their size at any zoom. Stars with no place get no
+  edge and a radial rim force: the rim lies beyond the farthest placed node by a gap growing with √(stars), with a
+  floor for an almost empty sky; its coefficients live in `skyModel.rimRadius` and are not a setting. A star in
+  several constellations is split into sectors when the user turns Mix colours on. Sky settings are per device
+  (`localStorage`, versioned, merged with defaults).
+- **Consequences:** SVG plus a React render per tick is enough for hundreds of stars; thousands need Canvas or a
+  worker (`docs/TECH_DEBT.md`). Positions are not kept between visits, so the sky can open slightly differently
+  after notes change.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 3.
+
+## 2026-10-20 — One sky layout for every view
+
+- **Context:** replaces, in "The sky renderer" above, the per-view layouts; after the first manual check the user
+  wanted entering Focus not to move the sky.
+- **Decision:** the simulation always holds the whole graph with YOU pinned at the centre; Skeleton, Focus and Full
+  only hide and show nodes and edges, without re-centring or re-framing. In Focus YOU stays where it is and leads out
+  of Focus on click. A star or its name opens the note panel in every view, Full included — a deliberate departure
+  from Product Logic ("Full — без панели ноды"), the user's call. The star under the mouse and the five nearest within
+  120 px are always named; a press travelling under 6 px is a click.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 5.
+
+## 2026-10-20 — Back from an open note or chat
+
+- **Context:** Product Logic keeps the note header without a way back; Back existed only on a note opened from the
+  chat delete dialog. With the sky, the user wants to return to it from a note in one click.
+- **Decision:** the header of an open note and of an open chat shows Back (`ui/BackButton`, `navigate(-1)`) whenever
+  the screen was reached inside the app; a screen opened directly (the router's `default` entry) has none. On the
+  delete-dialog path the note keeps its own accented Back and the header one is hidden. Lists keep no Back.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 6.
+
+## 2026-10-20 — The star panel is the note's details panel
+
+- **Decision:** the open note's details panel content is one component (`notes/NoteDetailsSections`: Constellation,
+  Sub-notes, Written from, Dates); the sky's star panel shows the same sections under the note's title, the start of
+  its text and Open note. `NoteConstellationSection` reports every stored change through `onChanged`, and the sky
+  reloads its snapshot on it. The mouse on an edge lights up and names its two nodes; how many stars near the pointer
+  are named (0–10) and how far (Close · Medium · Wide · Vast) are sky settings.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 8.
