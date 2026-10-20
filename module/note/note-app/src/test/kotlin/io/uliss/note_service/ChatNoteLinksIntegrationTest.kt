@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
@@ -11,16 +10,10 @@ import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import org.hamcrest.Matchers.contains
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockHttpServletRequestDsl
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
@@ -30,11 +23,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class ChatNoteLinksIntegrationTest {
+class ChatNoteLinksIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -51,8 +40,6 @@ class ChatNoteLinksIntegrationTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @Test
     fun `a chat lists its notes newest first with their status`() {

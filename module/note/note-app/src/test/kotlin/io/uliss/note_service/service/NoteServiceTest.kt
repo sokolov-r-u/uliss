@@ -143,11 +143,12 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId))
             .thenReturn(generating, generating, ready)
 
-        StepVerifier.create(noteService.streamNoteStatus(userId, generating.id))
+        // virtual time: the 1 s polls run instantly, no real waiting and no timeout to race
+        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, generating.id) }
             .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null, false))
+            .thenAwait(Duration.ofSeconds(2))
             .expectNext(NoteStatusResponse(ready.id, NoteStatus.READY, null, false))
-            .expectComplete()
-            .verify(Duration.ofSeconds(4))
+            .verifyComplete()
 
         Mockito.verify(noteRepository, Mockito.times(3)).findByIdAndUserId(generating.id, userId)
     }
@@ -201,11 +202,11 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true, true, false)
 
-        StepVerifier.create(noteService.streamNoteStatus(userId, note.id))
+        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, note.id) }
             .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, true))
+            .thenAwait(Duration.ofSeconds(2))
             .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, false))
-            .expectComplete()
-            .verify(Duration.ofSeconds(4))
+            .verifyComplete()
     }
 
     @Test

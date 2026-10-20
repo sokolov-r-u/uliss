@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -18,18 +17,12 @@ import io.uliss.note_service.repository.ChatTurnStore
 import io.uliss.note_service.repository.EmbeddedChunk
 import io.uliss.note_service.repository.JdbcRagChunkStore
 import io.uliss.note_service.repository.NoteRepository
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.queryForObject
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
@@ -39,11 +32,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class ChatNoteRenameDeleteIntegrationTest {
+class ChatNoteRenameDeleteIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -69,8 +58,6 @@ class ChatNoteRenameDeleteIntegrationTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @Test
     fun `deleting a chat keeps its note and removes messages and the link`() {

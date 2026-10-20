@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -17,11 +16,8 @@ import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteService
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -29,10 +25,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ChatSummaryStateIntegrationTest {
+class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService

@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
@@ -10,17 +9,11 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.EmbeddedChunk
 import io.uliss.note_service.repository.JdbcRagChunkStore
 import io.uliss.note_service.repository.NoteRepository
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockHttpServletRequestDsl
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
@@ -34,11 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class SubNotesApiIntegrationTest {
+class SubNotesApiIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -61,8 +50,6 @@ class SubNotesApiIntegrationTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
 

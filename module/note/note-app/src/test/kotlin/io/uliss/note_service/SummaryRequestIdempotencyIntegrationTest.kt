@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.model.ChatEntity
@@ -17,12 +16,9 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.service.NoteService
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.repository.CrudRepository
 import org.springframework.jdbc.core.JdbcTemplate
@@ -39,10 +35,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class SummaryRequestIdempotencyIntegrationTest {
+class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService

@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
@@ -11,11 +10,8 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -30,10 +26,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ChatTurnIdempotencyIntegrationTest {
+class ChatTurnIdempotencyIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var chatTurnService: ChatTurnService

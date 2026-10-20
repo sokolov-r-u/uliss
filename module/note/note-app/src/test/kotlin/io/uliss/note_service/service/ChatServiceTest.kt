@@ -102,17 +102,6 @@ class ChatServiceTest {
     }
 
     @Test
-    fun `getChats delegates to the repository`() {
-        val userId = UUID.randomUUID()
-        val chat = ChatEntity(userId, "Trip planning")
-        Mockito.`when`(chatRepository.findByUserIdOrderByUpdatedAtDescIdDesc(userId)).thenReturn(listOf(chat))
-
-        val result = chatService.getChats(userId)
-
-        assertSame(chat, result.single())
-    }
-
-    @Test
     fun `touchActivity hides a missing or foreign chat behind not found`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

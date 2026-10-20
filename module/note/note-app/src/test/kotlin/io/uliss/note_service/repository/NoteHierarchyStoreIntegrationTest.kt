@@ -1,20 +1,15 @@
 package io.uliss.note_service.repository
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.NoteNode
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.core.queryForObject
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.transaction.IllegalTransactionStateException
 import org.springframework.transaction.support.TransactionTemplate
 import java.util.UUID
@@ -23,10 +18,7 @@ import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class NoteHierarchyStoreIntegrationTest {
+class NoteHierarchyStoreIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var store: NoteHierarchyStore
@@ -49,8 +41,6 @@ class NoteHierarchyStoreIntegrationTest {
     @Autowired
     lateinit var transactionTemplate: TransactionTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
 

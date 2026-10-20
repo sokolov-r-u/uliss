@@ -1,7 +1,7 @@
 package io.uliss.note_service.outbox
 
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.database.outbox.OutboxEventStatus
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
@@ -13,11 +13,8 @@ import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
 import io.uliss.note_service.service.NoteService
 import org.junit.jupiter.api.BeforeEach
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
@@ -28,10 +25,7 @@ import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class OutboxLeaseFencingIntegrationTest {
+class OutboxLeaseFencingIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var outboxService: OutboxService

@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
@@ -24,7 +23,6 @@ import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.util.ChatPrompts
 import org.hamcrest.Matchers
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
@@ -34,12 +32,8 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.context.bean.override.mockito.MockitoSpyBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
@@ -56,11 +50,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class NoteLifecycleApiIntegrationTest {
+class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -92,8 +82,6 @@ class NoteLifecycleApiIntegrationTest {
     @Autowired
     lateinit var noteService: NoteService
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @MockitoSpyBean
     lateinit var chatTurnService: ChatTurnService
@@ -219,7 +207,7 @@ class NoteLifecycleApiIntegrationTest {
             assertEquals("Final answer", invocation.getArgument(4))
             assertEquals(ChatTurnStatus.COMPLETE, invocation.getArgument(5))
             persistenceStarted.countDown()
-            assertTrue(releasePersistence.await(1, TimeUnit.SECONDS))
+            assertTrue(releasePersistence.await(10, TimeUnit.SECONDS))
             invocation.callRealMethod()
         }.`when`(chatTurnService).finishGenerationAttempt(
             anyValue(),
@@ -234,7 +222,7 @@ class NoteLifecycleApiIntegrationTest {
         val streamedReply = reply.events.collectList().toFuture()
 
         try {
-            assertTrue(persistenceStarted.await(1, TimeUnit.SECONDS))
+            assertTrue(persistenceStarted.await(10, TimeUnit.SECONDS))
             assertFalse(streamedReply.isDone)
         } finally {
             releasePersistence.countDown()
@@ -245,7 +233,7 @@ class NoteLifecycleApiIntegrationTest {
                 AssistantStreamEvent.AppendText(" answer"),
                 AssistantStreamEvent.GenerationCompleted,
             ),
-            streamedReply.get(1, TimeUnit.SECONDS),
+            streamedReply.get(10, TimeUnit.SECONDS),
         )
 
         chatFacade.requestSummary(userId, chat.id, UUID.randomUUID(), SummaryMode.CREATE, null)

@@ -1,19 +1,14 @@
 package io.uliss.note_service.repository
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.model.ConstellationEntity
 import io.uliss.note_service.model.ConstellationLightness
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.ConstellationNoteCount
 import io.uliss.note_service.model.projection.NoteMembership
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.transaction.IllegalTransactionStateException
 import org.springframework.transaction.support.TransactionTemplate
 import java.time.Instant
@@ -23,10 +18,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class NoteConstellationStoreIntegrationTest {
+class NoteConstellationStoreIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var store: NoteConstellationStore
@@ -43,8 +35,6 @@ class NoteConstellationStoreIntegrationTest {
     @Autowired
     lateinit var transactionTemplate: TransactionTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
     private val t0: Instant = Instant.now().truncatedTo(ChronoUnit.MICROS)

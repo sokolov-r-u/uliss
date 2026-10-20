@@ -1,7 +1,7 @@
 package io.uliss.note_service.outbox
 
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.database.outbox.OutboxEventStatus
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
@@ -9,11 +9,8 @@ import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
@@ -22,10 +19,7 @@ import kotlin.test.assertFails
 
 private val LEASE: UUID = UUID.randomUUID()
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class OutboxTerminalFailureIntegrationTest {
+class OutboxTerminalFailureIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var outboxService: OutboxService

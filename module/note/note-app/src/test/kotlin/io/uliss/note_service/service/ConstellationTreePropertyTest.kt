@@ -16,17 +16,19 @@ import kotlin.test.fail
 class ConstellationTreePropertyTest {
 
     /** One random step: what to do, which existing nodes it touches, and which name it uses. */
-    data class Step(val kind: Int, val first: Int, val second: Int, val name: Int)
+    data class Step(val kind: Int, val first: Int, val second: Int, val name: Int, val user: Int)
 
     @Property(tries = 300)
-    fun `any sequence of tree changes keeps the tree acyclic, owned and named uniquely among siblings`(
+    fun `any sequence of two users' tree changes keeps each tree acyclic, owned and named uniquely among siblings`(
         @ForAll("steps") steps: List<Step>,
     ) {
         val store = InMemoryConstellationStore()
         val service = ConstellationService(store.repository, InMemoryNoteConstellationStore().store)
-        val userId = UUID.randomUUID()
+        val users = listOf(UUID.randomUUID(), UUID.randomUUID())
 
         for (step in steps) {
+            val userId = users[step.user]
+            // every node, the other user's too: touching a foreign node must be refused, never applied
             val ids = store.rows.keys.toList()
             val pick = { index: Int -> if (ids.isEmpty() || index % (ids.size + 1) == ids.size) null else ids[index % (ids.size + 1)] }
             try {
@@ -51,7 +53,8 @@ class ConstellationTreePropertyTest {
             index,
             index,
             Arbitraries.integers().between(0, NAMES.size - 1),
-        ).`as` { kind, first, second, name -> Step(kind, first, second, name) }
+            Arbitraries.integers().between(0, 1),
+        ).`as` { kind, first, second, name, user -> Step(kind, first, second, name, user) }
         return step.list().ofMaxSize(40)
     }
 
@@ -61,7 +64,9 @@ class ConstellationTreePropertyTest {
             var current: ConstellationEntity = row
             var steps = 0
             while (current.parentId != null) {
-                current = byId[current.parentId] ?: fail("dangling parent of ${row.name}")
+                val parent = byId[current.parentId] ?: fail("dangling parent of ${row.name}")
+                assertEquals(current.userId, parent.userId, "parent of ${current.name} belongs to another user")
+                current = parent
                 if (++steps > rows.size) fail("cycle through ${row.name}")
             }
             if (row.parentId == null) {
@@ -70,7 +75,7 @@ class ConstellationTreePropertyTest {
                 assertTrue(row.hue == null && row.lightness != null, "sub-constellation colour of $row")
             }
         }
-        rows.groupBy { it.parentId }.values.forEach { siblings ->
+        rows.groupBy { it.userId to it.parentId }.values.forEach { siblings ->
             val names = siblings.map { it.name.lowercase(Locale.ROOT) }
             assertEquals(names.size, names.toSet().size, "sibling names $names")
         }

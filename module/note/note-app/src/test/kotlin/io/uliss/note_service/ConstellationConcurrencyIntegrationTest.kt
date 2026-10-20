@@ -1,6 +1,5 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.exception.ConstellationMoveCycleException
 import io.uliss.note_service.exception.ConstellationNotFoundException
 import io.uliss.note_service.exception.NoteMoveCycleException
@@ -21,13 +20,8 @@ import io.uliss.note_service.service.ConstellationService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.facade.ChatFacade
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.util.UUID
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.Executors
@@ -35,10 +29,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ConstellationConcurrencyIntegrationTest {
+class ConstellationConcurrencyIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var service: ConstellationService
@@ -67,8 +58,6 @@ class ConstellationConcurrencyIntegrationTest {
     @Autowired
     lateinit var notePlacementService: NotePlacementService
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @Test
     fun `two simultaneous moves of two roots under each other never close a cycle`() {

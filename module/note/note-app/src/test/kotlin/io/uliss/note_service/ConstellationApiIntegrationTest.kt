@@ -1,18 +1,12 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.repository.ConstellationRepository
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.MockMvcResultMatchersDsl
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.delete
 import org.springframework.test.web.servlet.get
@@ -23,11 +17,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class ConstellationApiIntegrationTest {
+class ConstellationApiIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
@@ -38,8 +28,6 @@ class ConstellationApiIntegrationTest {
     @Autowired
     lateinit var repository: ConstellationRepository
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
 
@@ -91,14 +79,29 @@ class ConstellationApiIntegrationTest {
         val music = create("""{"name":"Music"}""").id()
         val jazz = create("""{"name":"Jazz","parentId":"$music"}""").id()
 
-        create("""{"name":"   "}""").andExpect { status { isBadRequest() } }
-        create("""{"name":"${"a".repeat(41)}"}""").andExpect { status { isBadRequest() } }
-        create("""{}""").andExpect { status { isBadRequest() } }
-        patch(music, """{"hue":360}""").andExpect { status { isBadRequest() } }
-        patch(music, """{"lightness":"DEEP"}""").andExpect { status { isBadRequest() } }
-        patch(jazz, """{"hue":10}""").andExpect { status { isBadRequest() } }
-        patch(jazz, """{"lightness":"DIM"}""").andExpect { status { isBadRequest() } }
-        patch(jazz, """{}""").andExpect { status { isBadRequest() } }
+        create("""{"name":"   "}""").andExpect(badRequest("VALIDATION_ERROR", "$.details.name"))
+        create("""{"name":"${"a".repeat(41)}"}""").andExpect(badRequest("BAD_REQUEST_ERROR", "name must be 1 to 40 characters"))
+        create("""{}""").andExpect(badRequest("BAD_REQUEST_ERROR"))
+        patch(music, """{"hue":360}""").andExpect(badRequest("VALIDATION_ERROR", "$.details.hue"))
+        patch(music, """{"lightness":"DEEP"}""").andExpect(badRequest("BAD_REQUEST_ERROR", "a root constellation has no lightness"))
+        patch(jazz, """{"hue":10}""").andExpect(badRequest("BAD_REQUEST_ERROR", "only a root constellation has a hue"))
+        patch(jazz, """{"lightness":"DIM"}""").andExpect(badRequest("BAD_REQUEST_ERROR"))
+        patch(jazz, """{}""").andExpect(badRequest("BAD_REQUEST_ERROR", "nothing to update"))
+        // nothing of the refused changes was stored
+        val stored = repository.findByUserIdOrderByCreatedAtAscIdAsc(userId).associateBy { it.id }
+        assertEquals("Music", stored.getValue(music).name)
+        assertEquals(null, stored.getValue(jazz).hue)
+    }
+
+    /** 400 with its code and, when given, the message or the field it names. */
+    private fun badRequest(code: String, detail: String? = null): MockMvcResultMatchersDsl.() -> Unit = {
+        status { isBadRequest() }
+        jsonPath("$.code") { value(code) }
+        when {
+            detail == null -> Unit
+            detail.startsWith("$.") -> jsonPath(detail) { exists() }
+            else -> jsonPath("$.details.message") { value(detail) }
+        }
     }
 
     @Test

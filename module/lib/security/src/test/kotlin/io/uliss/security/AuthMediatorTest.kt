@@ -36,7 +36,8 @@ import kotlin.test.assertEquals
 private const val LOGIN_COOKIE_AGE = 1800
 
 @Tag("integration")
-@SpringBootTest
+// the retry count is the contract under test, not the backoff: no real waiting
+@SpringBootTest(properties = ["uliss.security.auth-retry.delay-ms=1", "uliss.security.auth-retry.jitter-ms=0"])
 @AutoConfigureMockMvc
 class AuthMediatorTest {
 
