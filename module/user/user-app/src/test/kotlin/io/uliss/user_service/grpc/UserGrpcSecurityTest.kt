@@ -59,7 +59,8 @@ class UserGrpcSecurityTest {
     fun `service token from auth is accepted`() {
         val response = call(token())
 
-        assertTrue(UUID.fromString(response.userId) != null)
+        assertTrue(response.userId.isNotBlank())
+        UUID.fromString(response.userId)
     }
 
     @Test
@@ -91,6 +92,16 @@ class UserGrpcSecurityTest {
     @Test
     fun `service token from another issuer is rejected`() {
         assertStatus(Status.Code.UNAUTHENTICATED, token(issuer = "http://evil.test"))
+    }
+
+    @Test
+    fun `a token with the service claims but another subject is rejected`() {
+        assertStatus(Status.Code.UNAUTHENTICATED, token(subject = "note-service"))
+    }
+
+    @Test
+    fun `a token signed with an unknown key is rejected`() {
+        assertStatus(Status.Code.UNAUTHENTICATED, token(key = RSAKeyGenerator(2048).keyID("other-key").generate()))
     }
 
     @Test
@@ -141,17 +152,19 @@ class UserGrpcSecurityTest {
             scope: String? = UserServiceAuth.USER_INFO_SCOPE,
             userId: UUID? = null,
             expiresAt: Instant = Instant.now().plusSeconds(300),
+            subject: String = UserServiceAuth.SUBJECT,
+            key: RSAKey = signingKey,
         ): String {
             val claims = JWTClaimsSet.Builder()
                 .issuer(issuer)
-                .subject("auth-service")
+                .subject(subject)
                 .apply { if (audience != null) audience(audience) }
                 .expirationTime(Date.from(expiresAt))
                 .apply { if (scope != null) claim("scope", scope) }
                 .apply { if (userId != null) claim("userId", userId.toString()) }
                 .build()
-            return SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.keyID).build(), claims)
-                .apply { sign(RSASSASigner(signingKey)) }
+            return SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID(key.keyID).build(), claims)
+                .apply { sign(RSASSASigner(key)) }
                 .serialize()
         }
     }

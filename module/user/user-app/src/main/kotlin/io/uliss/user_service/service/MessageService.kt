@@ -7,7 +7,10 @@ import io.uliss.user_service.model.UserMessageId
 import io.uliss.user_service.model.UserMessageStatus
 import io.uliss.user_service.repository.MessageRepository
 import io.uliss.user_service.repository.UserMessageRepository
+import io.uliss.exception.common.InternalException
+import io.uliss.user_service.exception.OnboardingStepNotPendingException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
@@ -32,15 +35,22 @@ class MessageService(
     fun isOnboardingRequired(userId: UUID): Boolean =
         userMessageRepository.existsPendingBlockingByUserId(userId)
 
-    @Transactional
-    fun transition(userId: UUID, code: OnboardingMessageCode, status: UserMessageStatus) {
-        val message = messageRepository.findByCode(code.name) ?: return
-        val userMessage = userMessageRepository.findById(UserMessageId(userId, message.id)).orElse(null) ?: return
-        if (userMessage.status == UserMessageStatus.PENDING) {
-            userMessage.status = status
-            userMessageRepository.save(userMessage)
-        }
+    /**
+     * The user's pending step, locked until the transaction ends. A step already completed or skipped, or never seeded
+     * for this user (users created before the step existed, `docs/TECH_DEBT.md`), is not pending.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun getPendingStepForUpdate(userId: UUID, code: OnboardingMessageCode): UserMessageEntity {
+        val message = messageRepository.findByCode(code.name)
+            ?: throw InternalException("onboarding message $code is missing from the catalog")
+        return userMessageRepository.findForUpdate(UserMessageId(userId, message.id))
+            ?.takeIf { it.status == UserMessageStatus.PENDING }
+            ?: throw OnboardingStepNotPendingException(code)
     }
 
-//    todo add registration new messages to all existing users
+    @Transactional
+    fun finish(step: UserMessageEntity, status: UserMessageStatus) {
+        step.status = status
+        userMessageRepository.save(step)
+    }
 }

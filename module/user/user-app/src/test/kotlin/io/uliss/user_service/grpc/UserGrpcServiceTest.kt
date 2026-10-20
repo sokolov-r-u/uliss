@@ -10,6 +10,7 @@ import io.uliss.user_service.service.UserProfileService
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
+import org.springframework.dao.DataAccessResourceFailureException
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -90,6 +91,31 @@ class UserGrpcServiceTest {
         Mockito.verify(responseObserver).onError(captor.capture())
         Mockito.verify(responseObserver, Mockito.never()).onNext(Mockito.any())
         assertEquals(Status.INVALID_ARGUMENT.code, Status.fromThrowable(captor.value).code)
+    }
+
+    @Test
+    fun `a database outage maps to UNAVAILABLE so auth can tell it is temporary`() {
+        val authId = UUID.randomUUID()
+        Mockito.`when`(userProfileService.getOrCreate(authId))
+            .thenThrow(DataAccessResourceFailureException("connection refused"))
+
+        grpcService.getUserInfo(request(authId.toString()), responseObserver)
+
+        val captor = ArgumentCaptor.forClass(Throwable::class.java)
+        Mockito.verify(responseObserver).onError(captor.capture())
+        assertEquals(Status.UNAVAILABLE.code, Status.fromThrowable(captor.value).code)
+    }
+
+    @Test
+    fun `an illegal argument inside the service is not blamed on the authId`() {
+        val authId = UUID.randomUUID()
+        Mockito.`when`(userProfileService.getOrCreate(authId)).thenThrow(IllegalArgumentException("bad state"))
+
+        grpcService.getUserInfo(request(authId.toString()), responseObserver)
+
+        val captor = ArgumentCaptor.forClass(Throwable::class.java)
+        Mockito.verify(responseObserver).onError(captor.capture())
+        assertEquals(Status.INTERNAL.code, Status.fromThrowable(captor.value).code)
     }
 
     @Test

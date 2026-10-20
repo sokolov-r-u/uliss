@@ -1,8 +1,6 @@
 package io.uliss.user_service.onboarding
 
-import io.uliss.user_service.dto.OnboardingRequest
 import io.uliss.user_service.model.Gender
-import io.uliss.user_service.model.OnboardingMessageCode
 import io.uliss.user_service.model.UserEntity
 import io.uliss.user_service.model.UserMessageStatus
 import org.junit.jupiter.api.Test
@@ -16,7 +14,7 @@ class CompleteProfileCommandTest {
     private val command = CompleteProfileCommand()
 
     private fun request(birthDate: LocalDate?, gender: Gender?) =
-        OnboardingRequest(OnboardingMessageCode.COMPLETE_PROFILE, null, birthDate, gender)
+        OnboardingInput(displayName = null, birthDate = birthDate, gender = gender)
 
     private fun user() = UserEntity(authId = UUID.randomUUID(), displayName = null)
 

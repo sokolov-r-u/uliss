@@ -1,9 +1,10 @@
 package io.uliss.user_service.service
 
+import io.uliss.exception.common.InternalException
 import io.uliss.user_service.anyValue
 import io.uliss.user_service.captorFor
 import io.uliss.user_service.captureValue
-import io.uliss.user_service.dto.OnboardingMessageView
+import io.uliss.user_service.exception.OnboardingStepNotPendingException
 import io.uliss.user_service.model.MessageEntity
 import io.uliss.user_service.model.OnboardingMessageCode
 import io.uliss.user_service.model.UserMessageEntity
@@ -13,9 +14,10 @@ import io.uliss.user_service.repository.MessageRepository
 import io.uliss.user_service.repository.UserMessageRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
-import java.util.Optional
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
 class MessageServiceTest {
@@ -57,63 +59,47 @@ class MessageServiceTest {
     }
 
     @Test
-    fun `getPending delegates to the repository`() {
-        val userId = UUID.randomUUID()
-        val view = Mockito.mock(OnboardingMessageView::class.java)
-        Mockito.`when`(userMessageRepository.findPendingByUserId(userId)).thenReturn(listOf(view))
-
-        val result = messageService.getPending(userId)
-
-        assertEquals(listOf(view), result)
-    }
-
-    @Test
-    fun `transition is a no-op when the message code is not in the catalog`() {
-        val userId = UUID.randomUUID()
+    fun `a step missing from the catalog is a server error`() {
         Mockito.`when`(messageRepository.findByCode("SET_DISPLAY_NAME")).thenReturn(null)
 
-        messageService.transition(userId, OnboardingMessageCode.SET_DISPLAY_NAME, UserMessageStatus.COMPLETED)
-
-        Mockito.verify(userMessageRepository, Mockito.never()).save(anyValue())
+        assertFailsWith<InternalException> {
+            messageService.getPendingStepForUpdate(UUID.randomUUID(), OnboardingMessageCode.SET_DISPLAY_NAME)
+        }
     }
 
     @Test
-    fun `transition is a no-op when no user-message row exists for the user`() {
-        val userId = UUID.randomUUID()
-        val message = MessageEntity(code = "SET_DISPLAY_NAME", blocking = true)
-        Mockito.`when`(messageRepository.findByCode("SET_DISPLAY_NAME")).thenReturn(message)
-        Mockito.`when`(userMessageRepository.findById(anyValue())).thenReturn(Optional.empty())
+    fun `a step never seeded for the user is not pending`() {
+        Mockito.`when`(messageRepository.findByCode("SET_DISPLAY_NAME")).thenReturn(MessageEntity("SET_DISPLAY_NAME", true))
+        Mockito.`when`(userMessageRepository.findForUpdate(anyValue())).thenReturn(null)
 
-        messageService.transition(userId, OnboardingMessageCode.SET_DISPLAY_NAME, UserMessageStatus.COMPLETED)
-
-        Mockito.verify(userMessageRepository, Mockito.never()).save(anyValue())
+        assertFailsWith<OnboardingStepNotPendingException> {
+            messageService.getPendingStepForUpdate(UUID.randomUUID(), OnboardingMessageCode.SET_DISPLAY_NAME)
+        }
     }
 
     @Test
-    fun `transition is a no-op when the user-message row is no longer PENDING`() {
+    fun `a completed or skipped step is not pending`() {
         val userId = UUID.randomUUID()
-        val message = MessageEntity(code = "SET_DISPLAY_NAME", blocking = true)
-        val userMessage = UserMessageEntity(UserMessageId(userId, message.id), status = UserMessageStatus.COMPLETED)
+        val message = MessageEntity("SET_DISPLAY_NAME", true)
         Mockito.`when`(messageRepository.findByCode("SET_DISPLAY_NAME")).thenReturn(message)
-        Mockito.`when`(userMessageRepository.findById(anyValue())).thenReturn(Optional.of(userMessage))
+        listOf(UserMessageStatus.COMPLETED, UserMessageStatus.SKIPPED).forEach { status ->
+            Mockito.`when`(userMessageRepository.findForUpdate(UserMessageId(userId, message.id)))
+                .thenReturn(UserMessageEntity(UserMessageId(userId, message.id), status))
 
-        messageService.transition(userId, OnboardingMessageCode.SET_DISPLAY_NAME, UserMessageStatus.SKIPPED)
-
-        assertEquals(UserMessageStatus.COMPLETED, userMessage.status)
-        Mockito.verify(userMessageRepository, Mockito.never()).save(anyValue())
+            assertFailsWith<OnboardingStepNotPendingException>(status.name) {
+                messageService.getPendingStepForUpdate(userId, OnboardingMessageCode.SET_DISPLAY_NAME)
+            }
+        }
     }
 
     @Test
-    fun `transition updates and saves a PENDING user-message row`() {
+    fun `a pending step is returned locked for the caller to finish`() {
         val userId = UUID.randomUUID()
-        val message = MessageEntity(code = "SET_DISPLAY_NAME", blocking = true)
-        val userMessage = UserMessageEntity(UserMessageId(userId, message.id))
+        val message = MessageEntity("SET_DISPLAY_NAME", true)
+        val step = UserMessageEntity(UserMessageId(userId, message.id))
         Mockito.`when`(messageRepository.findByCode("SET_DISPLAY_NAME")).thenReturn(message)
-        Mockito.`when`(userMessageRepository.findById(anyValue())).thenReturn(Optional.of(userMessage))
+        Mockito.`when`(userMessageRepository.findForUpdate(UserMessageId(userId, message.id))).thenReturn(step)
 
-        messageService.transition(userId, OnboardingMessageCode.SET_DISPLAY_NAME, UserMessageStatus.COMPLETED)
-
-        assertEquals(UserMessageStatus.COMPLETED, userMessage.status)
-        Mockito.verify(userMessageRepository).save(userMessage)
+        assertSame(step, messageService.getPendingStepForUpdate(userId, OnboardingMessageCode.SET_DISPLAY_NAME))
     }
 }

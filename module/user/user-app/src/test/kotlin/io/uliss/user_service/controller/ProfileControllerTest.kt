@@ -4,10 +4,14 @@ import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.WebMvcPathPrefixConfig
+import io.uliss.exception.handler.GlobalExceptionHandler
 import io.uliss.user_service.anyValue
 import io.uliss.user_service.dto.OnboardingMessageView
 import io.uliss.user_service.dto.OnboardingRequest
 import io.uliss.user_service.eqValue
+import io.uliss.user_service.exception.OnboardingStepNotPendingException
+import io.uliss.user_service.model.Gender
+import io.uliss.user_service.model.OnboardingMessageCode
 import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
 import org.junit.jupiter.api.Test
@@ -22,12 +26,19 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import java.time.LocalDate
 import java.util.UUID
 
 // SecurityConfig/CorsProperties imported explicitly: @WebMvcTest does not auto-load third-party
 // AutoConfiguration.imports entries, only beans it discovers itself.
 @WebMvcTest(ProfileController::class)
-@Import(SecurityConfig::class, CorsProperties::class, WebMvcPathPrefixConfig::class, OnboardingGuardConfig::class)
+@Import(
+    SecurityConfig::class,
+    CorsProperties::class,
+    WebMvcPathPrefixConfig::class,
+    OnboardingGuardConfig::class,
+    GlobalExceptionHandler::class,
+)
 class ProfileControllerTest {
 
     @Autowired
@@ -95,7 +106,69 @@ class ProfileControllerTest {
             status { isNoContent() }
         }
 
-        Mockito.verify(userProfileService).submit(eqValue<UUID>(userId), anyValue<OnboardingRequest>())
+        Mockito.verify(userProfileService).submit(
+            eqValue<UUID>(userId),
+            eqValue<OnboardingRequest>(OnboardingRequest(OnboardingMessageCode.SET_DISPLAY_NAME, "John", null, null)),
+        )
+    }
+
+    @Test
+    fun `submitOnboarding maps the profile fields`() {
+        mockMvc.post("/user/users/me/onboarding") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"command":"COMPLETE_PROFILE","birthDate":"1990-05-17","gender":"FEMALE"}"""
+        }.andExpect { status { isNoContent() } }
+
+        Mockito.verify(userProfileService).submit(
+            anyValue(),
+            eqValue<OnboardingRequest>(
+                OnboardingRequest(OnboardingMessageCode.COMPLETE_PROFILE, null, LocalDate.of(1990, 5, 17), Gender.FEMALE)
+            ),
+        )
+    }
+
+    @Test
+    fun `a step that is not pending answers 409 with its code`() {
+        val userId = UUID.randomUUID()
+        Mockito.doThrow(OnboardingStepNotPendingException(OnboardingMessageCode.SET_DISPLAY_NAME))
+            .`when`(userProfileService).submit(eqValue<UUID>(userId), anyValue())
+
+        mockMvc.post("/user/users/me/onboarding") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"command":"SET_DISPLAY_NAME","displayName":"John"}"""
+        }.andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("ONBOARDING_STEP_NOT_PENDING") }
+        }
+    }
+
+    @Test
+    fun `an unknown command is a bad request in the json error format`() {
+        mockMvc.post("/user/users/me/onboarding") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"command":"DELETE_EVERYTHING"}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("BAD_REQUEST_ERROR") }
+        }
+        Mockito.verifyNoInteractions(userProfileService)
+    }
+
+    @Test
+    fun `an underage birth date is a validation error`() {
+        mockMvc.post("/user/users/me/onboarding") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"command":"COMPLETE_PROFILE","birthDate":"${LocalDate.now().minusYears(10)}"}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("VALIDATION_ERROR") }
+            jsonPath("$.details.birthDate") { value("You must be at least 16 years old.") }
+        }
+        Mockito.verifyNoInteractions(userProfileService)
     }
 
     @Test
@@ -107,7 +180,10 @@ class ProfileControllerTest {
                 """{"command":"SET_DISPLAY_NAME","displayName":"${"x".repeat(64)}","birthDate":null,"gender":null}"""
         }.andExpect {
             status { isBadRequest() }
+            jsonPath("$.code") { value("VALIDATION_ERROR") }
+            jsonPath("$.details.displayName") { exists() }
         }
+        Mockito.verifyNoInteractions(userProfileService)
     }
 
     @Test
