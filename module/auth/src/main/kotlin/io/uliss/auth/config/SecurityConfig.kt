@@ -1,5 +1,6 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.handler.TokenErrorResponseHandler
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -33,7 +34,10 @@ class SecurityConfig(
     @Order(1)
     fun authorizationServerSecurityFilterChain(http: HttpSecurity): SecurityFilterChain = http
         .securityMatcher("/oauth2/**", "/.well-known/**")
-        .with(OAuth2AuthorizationServerConfigurer()) { it.oidc { Customizer.withDefaults<OidcConfigurer>() } }
+        .with(OAuth2AuthorizationServerConfigurer()) {
+            it.oidc { Customizer.withDefaults<OidcConfigurer>() }
+            it.tokenEndpoint { endpoint -> endpoint.errorResponseHandler(TokenErrorResponseHandler()) }
+        }
         .authorizeHttpRequests { it.anyRequest().authenticated() }
         .cors(Customizer.withDefaults())
         .formLogin(Customizer.withDefaults())

@@ -17,7 +17,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.security.config.annotation.web.configuration.OAuth2AuthorizationServerConfiguration
 import org.springframework.security.core.Authentication
 import org.springframework.security.oauth2.core.AuthorizationGrantType
-import org.springframework.security.oauth2.core.OAuth2AuthenticationException
+import io.uliss.auth.exception.UserServiceUnavailableException
 import org.springframework.security.oauth2.jwt.JwtDecoder
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import org.springframework.security.oauth2.server.authorization.token.JwtEncodingContext
@@ -46,8 +46,8 @@ class TokenConfig {
                     val userInfoRequest = UserInfoRequest.newBuilder().setAuthId(principal.name).build()
                     context.claims.addUserInfo(userChanel.getUserInfo(userInfoRequest))
                 } catch (ex: StatusRuntimeException) {
-                    logger.error("user service unavailable, blocking login", "tokenCustomizer", ex)
-                    throw OAuth2AuthenticationException("user_service_unavailable")
+                    logger.error("user service unavailable, blocking token issue", "tokenCustomizer", ex)
+                    throw UserServiceUnavailableException(ex)
                 }
             }
         }

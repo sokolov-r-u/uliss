@@ -180,7 +180,7 @@ class AuthMediatorTest {
     fun `callback retries on 5xx and finally maps to 500`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/token"))
-                .willReturn(aResponse().withStatus(503))
+                .willReturn(aResponse().withStatus(500))
         )
 
         mockMvc.post("/oauth2/callback") {
@@ -487,6 +487,25 @@ class AuthMediatorTest {
             content = """{"refreshToken":"whatever"}"""
         }.andExpect {
             status { isInternalServerError() }
+            jsonPath("$.code") { value("INTERNAL_ERROR") }
+        }
+
+        wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
+    fun `refresh maps a temporarily unavailable auth server to 503 keeping the session`() {
+        // auth answers 503 when user-service is down: no token was issued and the refresh token is still valid
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(503, """{"error":"temporarily_unavailable"}"""))
+        )
+
+        mockMvc.post("/oauth2/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"still-valid"}"""
+        }.andExpect {
+            status { isServiceUnavailable() }
             jsonPath("$.code") { value("INTERNAL_ERROR") }
         }
 

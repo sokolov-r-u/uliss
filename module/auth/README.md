@@ -33,8 +33,9 @@ authorization server's JWKS endpoint.
 
 `TokenConfig` adds roles, `userId`, and an optional `displayName` to user access tokens. It calls user-service over gRPC
 with the auth UUID; user-service lazily creates the profile and returns its identifier. A failed user-service call
-blocks user login because a token without the profile identity is incomplete. Client Credentials tokens do not use this
-path.
+blocks the token because a token without the profile identity is incomplete; the token endpoint then answers 503
+`temporarily_unavailable` (`TokenErrorResponseHandler`), so the code or refresh token stays valid for a retry. Client
+Credentials tokens do not use this path.
 
 The gRPC client is configured by `GrpcConfig` from `USER_SERVICE_HOST` and `USER_GRPC_PORT`. Every call carries a
 service token from `UserServiceTokenProvider`: a JWT auth signs with its own key (`aud=user-service`, `scope=user.info`,

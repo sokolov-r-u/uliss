@@ -1,6 +1,10 @@
 package io.uliss.auth
 
 import com.jayway.jsonpath.JsonPath
+import com.nimbusds.jwt.JWTClaimsSet
+import com.nimbusds.jwt.SignedJWT
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.TestContainersConfiguration
@@ -30,6 +34,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 
 @Tag("integration")
 @SpringBootTest
@@ -51,8 +56,9 @@ class OAuth2ErrorContractTests {
 
     @BeforeEach
     fun stubUserService() {
-        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
-            .thenReturn(UserInfoResponse.newBuilder().setUserId(UUID.randomUUID().toString()).build())
+        // doReturn: re-stubbing after a thenThrow must not call the throwing stub
+        Mockito.doReturn(UserInfoResponse.newBuilder().setUserId(UUID.randomUUID().toString()).build())
+            .`when`(userServiceBlockingStub).getUserInfo(Mockito.any())
     }
 
     @Test
@@ -365,7 +371,97 @@ class OAuth2ErrorContractTests {
         assertEquals(null, readOrNull(json, "$.refresh_token"), "client_credentials -> no refresh")
     }
 
+    // ---------- access token contents ----------
+
+    @Test
+    fun `user access token carries the profile claims from user-service`() {
+        val userId = UUID.randomUUID().toString()
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any())).thenReturn(
+            UserInfoResponse.newBuilder()
+                .setUserId(userId)
+                .setDisplayName("Alice")
+                .setOnboardingRequired(true)
+                .build()
+        )
+
+        val claims = accessTokenClaims(exchange(obtainAuthorizationCode(VERIFIER)))
+
+        assertEquals(userId, claims.getStringClaim("userId"))
+        assertEquals("Alice", claims.getStringClaim("displayName"))
+        assertEquals(true, claims.getBooleanClaim("onboardingRequired"))
+        assertEquals(listOf("ROLE_USER"), claims.getStringListClaim("roles"))
+        assertEquals(listOf(WEB_CLIENT), claims.audience)
+    }
+
+    @Test
+    fun `m2m access token is not enriched by user-service`() {
+        val json = mockMvc.post("/oauth2/token") {
+            param("grant_type", "client_credentials")
+            param("scope", "internal")
+            with(httpBasic(M2M_CLIENT, M2M_SECRET))
+        }.andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+        assertNull(accessTokenClaims(json).getClaim("userId"))
+        Mockito.verifyNoInteractions(userServiceBlockingStub)
+    }
+
+    // ---------- user-service outage ----------
+
+    @Test
+    fun `code exchange answers 503 while user-service is unavailable and the code stays usable`() {
+        val code = obtainAuthorizationCode(VERIFIER)
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
+            .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
+
+        exchangeRequest(code).andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.error") { value("temporarily_unavailable") }
+        }
+
+        stubUserService()
+        exchangeRequest(code).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `refresh answers 503 while user-service is unavailable and the refresh token stays valid`() {
+        val refreshToken = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refreshToken)
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
+            .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
+
+        refreshRequest(refreshToken).andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.error") { value("temporarily_unavailable") }
+        }
+
+        stubUserService()
+        refreshRequest(refreshToken).andExpect { status { isOk() } }
+    }
+
     // ---------- helpers ----------
+
+    private fun exchangeRequest(code: String) = mockMvc.post("/oauth2/token") {
+        param("grant_type", "authorization_code")
+        param("code", code)
+        param("redirect_uri", REDIRECT_URI)
+        param("code_verifier", VERIFIER)
+        with(httpBasic(WEB_CLIENT, WEB_SECRET))
+    }
+
+    private fun exchange(code: String): String =
+        exchangeRequest(code).andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+    private fun refreshRequest(refreshToken: String) = mockMvc.post("/oauth2/token") {
+        param("grant_type", "refresh_token")
+        param("refresh_token", refreshToken)
+        with(httpBasic(WEB_CLIENT, WEB_SECRET))
+    }
+
+    private fun accessTokenClaims(tokenJson: String): JWTClaimsSet {
+        val accessToken = readOrNull(tokenJson, "$.access_token")
+        assertNotNull(accessToken, "expected access_token")
+        return SignedJWT.parse(accessToken).jwtClaimsSet
+    }
 
     // non-openid scope: OIDC id_token needs a real login (authenticationTime), not the synthetic user()
     private fun obtainAuthorizationCode(verifier: String, scope: String = "profile"): String {

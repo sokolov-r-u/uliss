@@ -220,6 +220,10 @@ inline fun <reified T : Any> RestClient.RequestBodySpec.getResponseOrThrow(): T 
             res.statusCode == HttpStatus.UNAUTHORIZED ->
                 throw InvalidClientCredentialsException("invalid client credentials")
 
+            // 503: auth issued nothing (e.g. user-service is down), so the grant is still valid
+            res.statusCode == HttpStatus.SERVICE_UNAVAILABLE ->
+                throw AuthServerUnavailableException("auth server temporarily unavailable", null, HttpStatus.SERVICE_UNAVAILABLE)
+
             res.statusCode.is5xxServerError ->
                 throw AuthServerUnavailableException("auth server unavailable")
 

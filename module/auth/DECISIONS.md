@@ -27,3 +27,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** the form-login chain uses `defaultSuccessUrl(app.frontend-url, alwaysUse = false)`: a saved request
   still wins; otherwise the browser goes to the web app, whose own login passes on the now signed-in session.
 - **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 3.
+
+## 2026-10-21 — The token endpoint answers 503 while user-service is unavailable
+
+- **Context:** the token customizer failed with a plain OAuth2 error, which Spring Authorization Server answers with
+  400. The `:security` mediator reads any 400 on refresh as a rejected grant, so a user-service outage signed out
+  every user whose access token expired meanwhile.
+- **Decision:** the customizer throws `UserServiceUnavailableException` (`temporarily_unavailable`), and the token
+  endpoint's `TokenErrorResponseHandler` answers it with 503; every other error keeps the default 400. No token is
+  issued (fail-closed stays). The token is generated before the authorization is saved, so the code or refresh token
+  is still valid and a retry succeeds. The mediator passes the 503 through after its retries.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 1.
