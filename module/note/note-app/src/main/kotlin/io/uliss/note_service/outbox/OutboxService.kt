@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Lazy
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.time.Clock
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
@@ -23,6 +24,7 @@ class OutboxService(
     terminalFailureHandlers: List<OutboxTerminalFailureHandler>,
     // Lazy: handlers depend on services that publish through this one.
     @Lazy private val handlers: List<OutboxHandler>,
+    private val clock: Clock = Clock.systemUTC(),
 ) {
     private val log = AppLogger.of(OutboxService::class)
     private val terminalFailureHandlers = terminalFailureHandlers.associateBy { it.type }
@@ -39,7 +41,7 @@ class OutboxService(
                 payload = payload,
                 status = OutboxEventStatus.PENDING,
                 attempts = 0,
-                nextAttemptAt = Instant.now(),
+                nextAttemptAt = clock.instant(),
                 lastError = null,
             )
         )
@@ -67,7 +69,7 @@ class OutboxService(
     fun claim(batchSize: Int): List<OutboxEventEntity> {
         val handledTypes = handlers.mapTo(mutableSetOf()) { it.type }
         if (handledTypes.isEmpty()) return emptyList()
-        val now = Instant.now()
+        val now = clock.instant()
         val found = outboxEventRepository.findClaimable(
             CLAIMABLE_STATUSES,
             handledTypes,
@@ -147,7 +149,7 @@ class OutboxService(
             OutboxEventStatus.PENDING
         }
         val delay = OutboxBackoff.delayAfter(event.attempts, ThreadLocalRandom.current().nextDouble())
-        event.nextAttemptAt = Instant.now().plus(delay)
+        event.nextAttemptAt = clock.instant().plus(delay)
         log.error(
             "failed to process outbox event id=${event.id} type=${event.type} attempts=${event.attempts}",
             "recordFailure",

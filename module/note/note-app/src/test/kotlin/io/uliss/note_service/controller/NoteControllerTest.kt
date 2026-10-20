@@ -275,6 +275,19 @@ class NoteControllerTest {
     }
 
     @Test
+    fun `updateNote rejects content far over the limit before parsing it into the service`() {
+        mockMvc.put("/note/notes/${UUID.randomUUID()}") {
+            with(jwt().jwt { it.claim("userId", UUID.randomUUID().toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"New","content":"${"a".repeat(200_001)}","version":0}"""
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.code") { value("VALIDATION_ERROR") }
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
     fun `updateNote maps each refusal to 409 with its own code`() {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()

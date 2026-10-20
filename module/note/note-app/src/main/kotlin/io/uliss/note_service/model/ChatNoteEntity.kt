@@ -12,6 +12,9 @@ import java.util.UUID
 class ChatNoteEntity(
     @EmbeddedId
     var chatNoteId: ChatNoteId,
+    /** Owner of both the chat and the note; composite foreign keys keep them the same user. */
+    @Column(name = "user_id")
+    var userId: UUID,
     /** Last chat message this summary note covers; null for notes created before boundaries existed. */
     @Column(name = "summarized_through_message_id")
     var summarizedThroughMessageId: UUID? = null,

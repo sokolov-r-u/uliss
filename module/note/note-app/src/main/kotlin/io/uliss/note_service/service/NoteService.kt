@@ -82,7 +82,7 @@ class NoteService(
     /** Ids of the chats the owned note was written from; empty for a hand-written note or once its chats are gone. */
     fun getLinkedChatIds(userId: UUID, noteId: UUID): List<UUID> {
         getOwnedNote(userId, noteId)
-        return chatNoteRepository.findChatIdsByNoteId(noteId)
+        return chatNoteRepository.findChatIdsByNoteId(userId, noteId)
     }
 
     /** Linked note counts keyed by chat id; chats without notes are absent. Callers pass owned chat ids only. */
@@ -128,7 +128,7 @@ class NoteService(
         if (reservation == null) return getReplayedSummary(userId, chatId, idempotencyKey)
 
         noteRepository.saveAndFlush(candidateNote)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id)))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
         parentNoteId?.let {
             noteHierarchyService.moveUnder(userId, candidateNote.id, it)
@@ -214,14 +214,17 @@ class NoteService(
     ): Boolean {
         val note = findReadyNote(userId, noteId)
         val link = note?.let { chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) }
-        if (note == null || link == null || link.summarizedThroughMessageId != afterMessageId) {
+        val content = addendum?.let { "${note?.content.orEmpty().trimEnd()}\n\n---\n\n## $appliedOn\n\n$it" }
+        // a note past the editable limit could not be saved by its owner any more
+        val tooLong = content != null && content.length > NoteContentNormalizer.MAX_CHARS
+        if (note == null || link == null || link.summarizedThroughMessageId != afterMessageId || tooLong) {
             summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.FAILED)
             return false
         }
         val status = if (addendum == null) SummaryRequestStatus.NOTHING_NEW else SummaryRequestStatus.APPLIED
         summaryRequestStore.finish(userId, idempotencyKey, status) ?: return false
-        if (addendum != null) {
-            note.content = "${note.content.orEmpty().trimEnd()}\n\n---\n\n## $appliedOn\n\n$addendum"
+        if (content != null) {
+            note.content = content
             noteRepository.save(note)
             val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
             outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
@@ -238,11 +241,17 @@ class NoteService(
             ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
         val note = getOwnedNote(userId, noteId)
         if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
+        // as an edit: a rename racing a summary update would make one of them fail its version check
+        if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
         note.title = title
-        noteRepository.save(note)
+        try {
+            noteRepository.saveAndFlush(note)
+        } catch (e: ObjectOptimisticLockingFailureException) {
+            throw NoteVersionConflictException(noteId, e)
+        }
         val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
         outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
-        return note.toResponse(isUpdating(note, summaryRequestStore.hasPendingForNote(noteId)))
+        return note.toResponse(updating = false)
     }
 
     /**

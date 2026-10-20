@@ -479,7 +479,7 @@ class NoteServiceTest {
         val chatId = UUID.randomUUID()
         val throughMessageId = UUID.randomUUID()
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        val link = ChatNoteEntity(ChatNoteId(chatId, note.id))
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), userId)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(summaryRequestStore.finishPendingForNote(note.id, SummaryRequestStatus.APPLIED)).thenReturn(
             SummaryRequest(userId, UUID.randomUUID(), chatId, throughMessageId, note.id, Instant.now()),
@@ -543,7 +543,7 @@ class NoteServiceTest {
         val through = UUID.randomUUID()
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         val after = UUID.randomUUID()
-        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), after)
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), userId, after)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(summaryRequestStore.finish(userId, key, SummaryRequestStatus.NOTHING_NEW))
             .thenReturn(SummaryRequest(userId, key, chatId, through, note.id, Instant.now(), SummaryRequestStatus.NOTHING_NEW))
@@ -554,6 +554,31 @@ class NoteServiceTest {
         assertEquals("body", note.content)
         assertEquals(through, link.summarizedThroughMessageId)
         Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `applyChatSummaryUpdate refuses an addendum that would grow the note past the editable limit`() {
+        // otherwise every later edit of the note is refused for being too long
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val after = UUID.randomUUID()
+        val body = "x".repeat(99_990)
+        val note = NoteEntity(userId, body, NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), userId, after)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
+
+        assertFalse(
+            noteService.applyChatSummaryUpdate(
+                userId, key, note.id, chatId, after, UUID.randomUUID(), "A new paragraph.", LocalDate.now(),
+            )
+        )
+
+        assertEquals(body, note.content)
+        assertEquals(after, link.summarizedThroughMessageId)
+        Mockito.verify(summaryRequestStore).finish(userId, key, SummaryRequestStatus.FAILED)
         Mockito.verifyNoInteractions(outboxService)
     }
 
@@ -578,7 +603,7 @@ class NoteServiceTest {
         val key = UUID.randomUUID()
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         // Another update already applied and moved the boundary past this request's start.
-        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), UUID.randomUUID())
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), userId, UUID.randomUUID())
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
         Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
 
@@ -602,7 +627,7 @@ class NoteServiceTest {
         val response = noteService.renameNote(userId, note.id, "  New  title ")
 
         assertEquals("New title", response.title)
-        Mockito.verify(noteRepository).save(note)
+        Mockito.verify(noteRepository).saveAndFlush(note)
         val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
         assertTrue(payload.contains(note.id.toString()))
     }
@@ -615,6 +640,30 @@ class NoteServiceTest {
 
         assertFailsWith<NoteNotReadyException> { noteService.renameNote(userId, note.id, "Title") }
         Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `renameNote is refused while a summary update is pending, as an edit is`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "content", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Old")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true)
+
+        assertFailsWith<NoteUpdatingException> { noteService.renameNote(userId, note.id, "New") }
+        assertEquals("Old", note.title)
+        Mockito.verifyNoInteractions(outboxService)
+    }
+
+    @Test
+    fun `renameNote losing a concurrent write is a version conflict, not a server error`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "content", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Old")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(noteRepository.saveAndFlush(note))
+            .thenThrow(ObjectOptimisticLockingFailureException(NoteEntity::class.java, note.id))
+
+        assertFailsWith<NoteVersionConflictException> { noteService.renameNote(userId, note.id, "New") }
         Mockito.verifyNoInteractions(outboxService)
     }
 
@@ -813,7 +862,7 @@ class NoteServiceTest {
         Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
 
         assertFailsWith<NotFoundException> { noteService.getLinkedChatIds(userId, noteId) }
-        Mockito.verify(chatNoteRepository, Mockito.never()).findChatIdsByNoteId(anyValue())
+        Mockito.verify(chatNoteRepository, Mockito.never()).findChatIdsByNoteId(anyValue(), anyValue())
     }
 
     @Test

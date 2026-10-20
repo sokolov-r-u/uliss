@@ -39,8 +39,11 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
     )
     fun findNotesByChatId(@Param("userId") userId: UUID, @Param("chatId") chatId: UUID): List<NoteEntity>
 
-    @Query("SELECT cn.chatNoteId.chatId FROM ChatNoteEntity cn WHERE cn.chatNoteId.noteId = :noteId")
-    fun findChatIdsByNoteId(@Param("noteId") noteId: UUID): List<UUID>
+    @Query(
+        "SELECT cn.chatNoteId.chatId FROM ChatNoteEntity cn " +
+            "WHERE cn.chatNoteId.noteId = :noteId AND cn.userId = :userId"
+    )
+    fun findChatIdsByNoteId(@Param("userId") userId: UUID, @Param("noteId") noteId: UUID): List<UUID>
 
     @Query(
         """

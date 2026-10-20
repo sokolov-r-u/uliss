@@ -91,7 +91,7 @@ class NoteAiEditIntegrationTest : NoteIntegrationTest() {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, message(chat, "new").id, UUID.randomUUID())
 
         aiEdit(userId, note.id).andExpect {

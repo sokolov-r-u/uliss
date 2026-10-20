@@ -155,7 +155,7 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
         val note = noteRepository.save(
             NoteEntity(chat.userId, if (status == NoteStatus.READY) "body" else null, NoteSource.CHAT_SUMMARY, status, title),
         )
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), throughMessageId))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, throughMessageId))
         return note
     }
 }

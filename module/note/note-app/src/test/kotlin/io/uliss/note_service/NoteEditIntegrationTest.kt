@@ -100,7 +100,7 @@ class NoteEditIntegrationTest : NoteIntegrationTest() {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         val through = message(chat, "new")
         noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, UUID.randomUUID())
         val version = noteRepository.findById(note.id).orElseThrow().version
@@ -117,7 +117,7 @@ class NoteEditIntegrationTest : NoteIntegrationTest() {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         val version = noteRepository.findById(note.id).orElseThrow().version
         put(userId, note.id, "Title", "edited by hand", version).andExpect { status { isOk() } }
         val through = message(chat, "new")

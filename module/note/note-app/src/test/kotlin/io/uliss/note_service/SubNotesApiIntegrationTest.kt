@@ -179,7 +179,7 @@ class SubNotesApiIntegrationTest : NoteIntegrationTest() {
         val loose = note("Loose")
         moveUnder(low, bowie)
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, low)))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, low), chat.userId))
         ragChunkStore.replace(userId, low, 0, listOf(EmbeddedChunk(0, "body", emptyMap(), FloatArray(1536) { 0.01f })))
 
         mockMvc.delete("/note/notes/$bowie?subNotes=DELETE") { auth() }.andExpect { status { isNoContent() } }

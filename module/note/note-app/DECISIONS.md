@@ -366,3 +366,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   `updated_at`) and refuses a stream beyond `note.status-stream.max-per-user` (default 5) with 429
   `TOO_MANY_STATUS_STREAMS`; a slot is freed when the stream ends, fails or is cancelled. The count is per instance.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 13.
+
+## 2026-10-21 — Chat-note links carry their owner; renames follow the edit rules
+
+- **Decision:** `chat_note` gets `user_id` with composite foreign keys to `chat (id, user_id)` and
+  `notes (id, user_id)`, like the other cross-table references; the migration drops links across users (none can be
+  created by code). A rename is refused while a summary update is pending and maps a lost concurrent write to the
+  version conflict, as an edit does. A summary addendum that would grow a note past 100,000 characters fails the
+  request instead of making the note uneditable. `OutboxService` reads time from an injected `Clock`.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.
