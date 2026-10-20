@@ -1,6 +1,7 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.policy.OutboxLeasePolicy
@@ -143,7 +144,7 @@ class OutboxService(
     private fun applyFailure(event: OutboxEventEntity, ex: Exception) {
         event.lastError = ex.message
         event.leaseId = null
-        event.status = if (event.attempts >= outboxProperties.maxAttempts) {
+        event.status = if (ex is NonRetryableOutboxException || event.attempts >= outboxProperties.maxAttempts) {
             OutboxEventStatus.FAILED
         } else {
             OutboxEventStatus.PENDING

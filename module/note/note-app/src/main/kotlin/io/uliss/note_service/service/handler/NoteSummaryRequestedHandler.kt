@@ -3,6 +3,7 @@ package io.uliss.note_service.service.handler
 import io.uliss.exception.common.NotFoundException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.NoteDraft
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
@@ -45,7 +46,6 @@ class NoteSummaryRequestedHandler(
     private val chatService: ChatService,
     private val ragService: RagService,
     private val noteService: NoteService,
-    private val terminalFailureHandler: NoteSummaryTerminalFailureHandler,
     private val properties: NoteSummaryProperties,
 ) : OutboxHandler {
 
@@ -55,13 +55,15 @@ class NoteSummaryRequestedHandler(
 
     override fun handle(event: OutboxEventEntity) {
         val payload = objectMapper.readValue(event.payload, NoteSummaryRequestedPayload::class.java)
+        if (!noteService.isAwaitingSummary(payload.userId, payload.noteId)) {
+            // deleted or finished while the event waited: a model call would be paid for nothing
+            log.warn("note id=${payload.noteId} no longer waits for its summary, skipping", "handle")
+            return
+        }
         val context = try {
             chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId)
         } catch (_: NotFoundException) {
-            // The chat was deleted after the request; retrying cannot succeed.
-            log.warn("chat id=${payload.chatId} not found, failing summary note id=${payload.noteId}", "handle")
-            terminalFailureHandler.handleTerminalFailure(event)
-            return
+            throw NonRetryableOutboxException("chat id=${payload.chatId} was deleted before note id=${payload.noteId}")
         }
         val relatedChunks = ragService.search(
             userId = payload.userId,

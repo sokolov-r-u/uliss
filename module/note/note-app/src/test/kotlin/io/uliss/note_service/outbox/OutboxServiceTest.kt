@@ -4,6 +4,7 @@ import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.policy.OutboxLeasePolicy
 import io.uliss.note_service.repository.OutboxEventRepository
@@ -271,6 +272,22 @@ class OutboxServiceTest {
         assertTrue(!event.nextAttemptAt.isBefore(NOW.plusSeconds(24)), "${event.nextAttemptAt}")
         assertTrue(!event.nextAttemptAt.isAfter(NOW.plusSeconds(36)), "${event.nextAttemptAt}")
         Mockito.verify(outboxEventRepository).save(event)
+    }
+
+    @Test
+    fun `recordFailure fails a non-retryable error on its first attempt and runs the terminal handler`() {
+        val terminal = Mockito.mock(OutboxTerminalFailureHandler::class.java)
+        Mockito.`when`(terminal.type).thenReturn(OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        val service = service(terminalFailureHandlers = listOf(terminal))
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 1, leaseId = lease, type = OutboxEventType.NOTE_SUMMARY_REQUESTED)
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
+        Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
+
+        service.recordFailure(event.id, lease, NonRetryableOutboxException("chat is gone"))
+
+        assertEquals(OutboxEventStatus.FAILED, event.status)
+        Mockito.verify(terminal).handleTerminalFailure(event)
     }
 
     @Test

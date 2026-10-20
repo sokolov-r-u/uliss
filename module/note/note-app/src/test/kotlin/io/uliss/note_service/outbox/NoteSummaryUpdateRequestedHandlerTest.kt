@@ -5,6 +5,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
@@ -18,7 +19,6 @@ import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryUpdateRequestedHandler
-import io.uliss.note_service.service.handler.NoteSummaryUpdateTerminalFailureHandler
 import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -41,11 +41,10 @@ class NoteSummaryUpdateRequestedHandlerTest {
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteService::class.java)
-    private val terminalFailureHandler = Mockito.mock(NoteSummaryUpdateTerminalFailureHandler::class.java)
     private val properties = NoteSummaryProperties(retrievalQueryMaxChars = 400, retrievalTopK = 3, retrievalMinSimilarity = 0.75)
     private val clock = Clock.fixed(Instant.parse("2026-10-08T23:30:00Z"), ZoneOffset.UTC)
     private val handler = NoteSummaryUpdateRequestedHandler(
-        objectMapper, chatClient, chatService, ragService, noteService, terminalFailureHandler, properties, clock,
+        objectMapper, chatClient, chatService, ragService, noteService, properties, clock,
     )
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
     private val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
@@ -98,14 +97,13 @@ class NoteSummaryUpdateRequestedHandlerTest {
         val payload = payload()
         stubContext(payload, "ok")
 
-        handler.handle(event(payload))
+        assertFailsWith<NonRetryableOutboxException> { handler.handle(event(payload)) }
 
         Mockito.`when`(
             chatService.getSummaryUpdateContext(payload.userId, payload.chatId, payload.afterMessageId, payload.throughMessageId)
         ).thenThrow(NotFoundException("chat id=${payload.chatId} not found"))
-        handler.handle(event(payload))
+        assertFailsWith<NonRetryableOutboxException> { handler.handle(event(payload)) }
 
-        Mockito.verify(terminalFailureHandler, Mockito.times(2)).handleTerminalFailure(anyValue())
         Mockito.verifyNoInteractions(chatClient, ragService)
     }
 

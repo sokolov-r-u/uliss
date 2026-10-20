@@ -3,6 +3,7 @@ package io.uliss.note_service.service.handler
 import io.uliss.exception.common.NotFoundException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
@@ -26,7 +27,6 @@ class NoteSummaryUpdateRequestedHandler(
     private val chatService: ChatService,
     private val ragService: RagService,
     private val noteService: NoteService,
-    private val terminalFailureHandler: NoteSummaryUpdateTerminalFailureHandler,
     private val properties: NoteSummaryProperties,
     /** Addendum dates are UTC; tests pass a fixed clock. */
     private val clock: Clock = Clock.systemUTC(),
@@ -43,16 +43,10 @@ class NoteSummaryUpdateRequestedHandler(
                 payload.userId, payload.chatId, payload.afterMessageId, payload.throughMessageId,
             )
         } catch (_: NotFoundException) {
-            log.warn("chat id=${payload.chatId} not found, failing summary update of note id=${payload.noteId}", "handle")
-            terminalFailureHandler.handleTerminalFailure(event)
-            return
+            throw NonRetryableOutboxException("chat id=${payload.chatId} was deleted before the update of note id=${payload.noteId}")
         }
         val note = noteService.findReadyNote(payload.userId, payload.noteId)
-        if (note == null) {
-            log.warn("note id=${payload.noteId} is gone or not ready, failing its summary update", "handle")
-            terminalFailureHandler.handleTerminalFailure(event)
-            return
-        }
+            ?: throw NonRetryableOutboxException("note id=${payload.noteId} is gone or not ready for its summary update")
         val relatedChunks = ragService.searchExcluding(
             userId = payload.userId,
             query = SummaryRetrievalQuery.build(context, properties.retrievalQueryMaxChars),

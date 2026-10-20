@@ -193,6 +193,10 @@ class NoteService(
         return true
     }
 
+    /** Whether the summary placeholder still waits for its content: false once completed, failed or deleted. */
+    fun isAwaitingSummary(userId: UUID, noteId: UUID): Boolean =
+        noteRepository.findByIdAndUserId(noteId, userId)?.status == NoteStatus.GENERATING
+
     fun findReadyNote(userId: UUID, noteId: UUID): NoteEntity? =
         noteRepository.findByIdAndUserId(noteId, userId)?.takeIf { it.status == NoteStatus.READY }
 

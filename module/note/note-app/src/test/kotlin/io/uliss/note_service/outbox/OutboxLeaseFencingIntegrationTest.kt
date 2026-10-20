@@ -20,6 +20,9 @@ import org.springframework.transaction.support.TransactionTemplate
 import tools.jackson.databind.ObjectMapper
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
@@ -55,6 +58,38 @@ class OutboxLeaseFencingIntegrationTest : NoteIntegrationTest() {
     @BeforeEach
     fun clearOutbox() {
         outboxEventRepository.deleteAll()
+    }
+
+    @Test
+    fun `two workers claiming at once take different events without waiting for each other`() {
+        // SKIP LOCKED (lock timeout -2): without it the second worker blocks until the first commits, or fails
+        val saved = (1..4).map { savePendingEvent(OutboxEventType.NOTE_INDEX_REQUESTED, "{}").id }.toSet()
+        val firstClaimed = CountDownLatch(1)
+        val releaseFirst = CountDownLatch(1)
+        val pool = Executors.newFixedThreadPool(2)
+        try {
+            val first = pool.submit<List<UUID>> {
+                TransactionTemplate(transactionManager).execute {
+                    outboxService.claim(2).map { it.id }.also {
+                        firstClaimed.countDown()
+                        releaseFirst.await(10, TimeUnit.SECONDS)
+                    }
+                }
+            }
+            assertTrue(firstClaimed.await(10, TimeUnit.SECONDS))
+
+            // the first worker still holds its rows locked here
+            val second = pool.submit<List<UUID>> { outboxService.claim(10).map { it.id } }.get(10, TimeUnit.SECONDS)
+            releaseFirst.countDown()
+            val firstIds = first.get(10, TimeUnit.SECONDS)
+
+            assertEquals(2, firstIds.size)
+            assertEquals(2, second.size)
+            assertEquals(saved, (firstIds + second).toSet())
+        } finally {
+            releaseFirst.countDown()
+            pool.shutdownNow()
+        }
     }
 
     @Test

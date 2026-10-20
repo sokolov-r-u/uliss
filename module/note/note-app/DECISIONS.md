@@ -375,3 +375,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   version conflict, as an edit does. A summary addendum that would grow a note past 100,000 characters fails the
   request instead of making the note uneditable. `OutboxService` reads time from an injected `Clock`.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.
+
+## 2026-10-21 — Unfixable outbox failures fail the event at once
+
+- **Context:** summary handlers called their terminal failure handler themselves, outside a transaction, and then
+  returned normally, so the event ended `COMPLETED`; a summary whose note was deleted still paid for a model call.
+- **Decision:** a handler throws `NonRetryableOutboxException`; `OutboxService.recordFailure` fails the event on that
+  attempt and runs the terminal handler in its transaction. The summary handler skips a note that no longer waits
+  for its summary before any provider call.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.
