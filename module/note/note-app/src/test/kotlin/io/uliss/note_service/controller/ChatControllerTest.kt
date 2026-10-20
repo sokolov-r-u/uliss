@@ -46,13 +46,15 @@ import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import reactor.core.publisher.Flux
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertTrue
 
 // SecurityConfig/CorsProperties/GlobalExceptionHandler imported explicitly: @WebMvcTest does not
 // auto-load third-party AutoConfiguration.imports entries, only beans it discovers itself.
-@WebMvcTest(ChatController::class)
+// a short heartbeat so a quiet stream shows one without waiting 15 s
+@WebMvcTest(ChatController::class, properties = ["note.sse.heartbeat-interval=20ms"])
 @Import(
     SecurityConfig::class,
     CorsProperties::class,
@@ -242,6 +244,35 @@ class ChatControllerTest {
             content {
                 contentTypeCompatibleWith(MediaType.TEXT_EVENT_STREAM)
                 string(Matchers.containsString("event:append"))
+                string(Matchers.containsString("event:done"))
+            }
+        }
+    }
+
+    @Test
+    fun `streamMessage keeps a quiet stream alive with heartbeats`() {
+        // a notes search or a slow first token: nothing to send, and a proxy would cut an idle connection
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamReply(userId, chatId, idempotencyKey, "hi")).thenReturn(
+            AssistantReplyStream(
+                UUID.randomUUID(),
+                Flux.just<AssistantStreamEvent>(AssistantStreamEvent.GenerationCompleted)
+                    .delaySubscription(Duration.ofMillis(200)),
+                chatId,
+            )
+        )
+
+        mockMvc.post("/note/chats/$chatId/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                string(Matchers.containsString(":keepalive"))
                 string(Matchers.containsString("event:done"))
             }
         }

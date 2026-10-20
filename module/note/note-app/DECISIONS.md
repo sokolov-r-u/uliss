@@ -327,3 +327,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the client builds the sky without further requests and fetches a note's text only when a star is
   opened. Like the trees, the snapshot is loaded whole, which assumes thousands of notes per user.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 1.
+
+## 2026-10-21 — An abandoned turn does not block its chat; chat streams send heartbeats
+
+- **Context:** a turn whose lease expired (the service restarted mid-stream) could be resumed or failed only by a
+  request with its own idempotency key. A client that had lost the key got 409 for every new message until the chat
+  was deleted. The chat reply stream had no heartbeat, unlike ai-edit and status streams.
+- **Decision:** when a new turn finds another `GENERATING` turn with an expired lease, that turn becomes `FAILED`
+  with an empty `FAILED` assistant message (fenced like the attempt-limit path) and the new turn starts; a live lease
+  still answers 409. Chat reply streams use `withHeartbeat`; the interval of all SSE heartbeats is
+  `note.sse.heartbeat-interval` (default 15 s).
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 10.

@@ -18,6 +18,8 @@ import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
+import io.uliss.note_service.util.withHeartbeat
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -36,12 +38,14 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import reactor.core.publisher.Flux
+import java.time.Duration
 import java.util.UUID
 
 @RestController
 @RequestMapping("/chats")
 class ChatController(
     private val chatFacade: ChatFacade,
+    @param:Value($$"${note.sse.heartbeat-interval:15s}") private val heartbeatInterval: Duration,
 ) {
 
     @GetMapping
@@ -116,6 +120,8 @@ class ChatController(
             .onErrorResume {
                 Flux.just(ServerSentEvent.builder<Any>("FAILED").event("error").build())
             }
+            // a notes search between model calls can stay silent longer than a proxy's read timeout
+            .withHeartbeat(heartbeatInterval)
         val response = ResponseEntity.ok()
             .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
             .header(CHAT_ID_HEADER, reply.chatId.toString())

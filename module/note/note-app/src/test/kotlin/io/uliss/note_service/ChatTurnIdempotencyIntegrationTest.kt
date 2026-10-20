@@ -464,6 +464,42 @@ class ChatTurnIdempotencyIntegrationTest : NoteIntegrationTest() {
         assertTurnRows(chatId, resolution.turn.id, expectedUserMessages = 1, expectedAssistantMessages = 1)
     }
 
+    @Test
+    fun `a new message is not blocked by another turn whose lease expired`() {
+        // e.g. the service restarted mid-stream and the client lost the turn's key
+        val userId = UUID.randomUUID()
+        val chatId = createChat(userId)
+        val abandoned = assertIs<ChatTurnRequestResolution.StartGeneration>(
+            chatTurnService.resolveTurnRequest(userId, chatId, UUID.randomUUID(), "lost in a restart")
+        )
+        jdbcTemplate.update(
+            "UPDATE note.chat_turn SET lease_until = CURRENT_TIMESTAMP - INTERVAL '1 second' WHERE id = ?",
+            abandoned.turn.id,
+        )
+
+        val next = assertIs<ChatTurnRequestResolution.StartGeneration>(
+            chatTurnService.resolveTurnRequest(userId, chatId, UUID.randomUUID(), "next question")
+        )
+
+        assertNotEquals(abandoned.turn.id, next.turn.id)
+        assertEquals(ChatTurnStatus.FAILED, chatTurnService.getTurn(userId, abandoned.turn.id).status)
+        assertEquals("FAILED", singleAssistantStatus(abandoned.turn.id))
+        assertEquals(false, chatTurnService.finishGenerationAttempt(
+            userId, chatId, abandoned.turn.id, abandoned.turn.attempt, "late", ChatTurnStatus.COMPLETE,
+        ))
+    }
+
+    @Test
+    fun `a turn with a live lease still blocks another message`() {
+        val userId = UUID.randomUUID()
+        val chatId = createChat(userId)
+        chatTurnService.resolveTurnRequest(userId, chatId, UUID.randomUUID(), "still thinking")
+
+        assertFailsWith<ChatTurnAlreadyGeneratingException> {
+            chatTurnService.resolveTurnRequest(userId, chatId, UUID.randomUUID(), "impatient")
+        }
+    }
+
     private fun createChat(userId: UUID): UUID =
         chatRepository.save(ChatEntity(userId, "Chat turn idempotency test")).id
 
