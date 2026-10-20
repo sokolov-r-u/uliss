@@ -151,3 +151,10 @@ Squash Flyway migrations, deploy to production, and switch migrations to append-
 - Sources of a chat reply (to think over; may move before the MVP): the notes found by the chat's notes search are
   shown under the reply and link to the notes. Needs a many-to-many link between an assistant message and notes
   (fragments of one note collapse into one link; removed with the note or the chat).
+- Offline-first mobile app. The phone keeps all of the user's notes, constellations and links in a local database,
+  reads only from it and syncs deltas: `GET /note/sync?since=<cursor>` returns changed rows and deletions since the
+  cursor; local edits go through a queue with idempotency keys. Principles to keep from now on: the cursor is a
+  server-assigned monotonic change number (`sync_seq` from a sequence), never `updated_at`; deletions leave a trace
+  (tombstones or soft delete), never a silent hard delete; conflicts use the existing note `version` (409). Needs a
+  public OAuth client with PKCE for the app (no client secret), tokens in Keychain/Keystore, an encrypted local
+  database wiped on sign-out. AI features stay online-only. The SPA may later use the same sync API.
