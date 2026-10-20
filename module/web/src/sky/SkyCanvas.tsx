@@ -2,6 +2,7 @@ import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, 
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
 import {nearestStars, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
+import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
 
 /**
@@ -67,11 +68,13 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const [box, setBox] = useState<Box | null>(null)
     const boxRef = useRef<Box>({w: 360, h: 680})
     const layoutRef = useRef<SkyLayout | null>(null)
-    const positions = useRef(new Map<string, { x: number; y: number }>())
-    const viewRef = useRef<ViewBox>({s: 1, tx: 180, ty: 340})
-    const fitScale = useRef(1)
-    const touched = useRef(false)
-    const [hint, setHint] = useState(true)
+    // coming back to the sky restores how it was left (skyMemory)
+    const memory = skyMemory.canvas
+    const positions = useRef(memory?.positions ?? new Map<string, { x: number; y: number }>())
+    const viewRef = useRef<ViewBox>(memory?.viewBox ?? {s: 1, tx: 180, ty: 340})
+    const fitScale = useRef(memory?.fitScale ?? 1)
+    const touched = useRef(memory?.touched ?? false)
+    const [hint, setHint] = useState(!memory?.touched)
     const [, repaint] = useReducer((x: number) => x + 1, 0)
     const [reveal, setReveal] = useState<number | null>(null)
     const [namesOpen, setNamesOpen] = useState(false)
@@ -137,7 +140,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
             if (!touched.current) fit()
             repaint()
         })
-        layout.simulation.alpha(previous.size > 0 ? 0.3 : 0.06).restart()
+        // new stars get room; a restored or unchanged sky only breathes
+        const fresh = layout.nodes.some((n) => !previous.has(n.id))
+        layout.simulation.alpha(previous.size > 0 && fresh ? 0.3 : previous.size > 0 ? 0.02 : 0.06).restart()
         return () => {
             layout.simulation.stop()
             positions.current = new Map(layout.nodes.map((n) => [n.id, {x: n.x, y: n.y}]))
@@ -145,6 +150,16 @@ export function SkyCanvas(props: SkyCanvasProps) {
         // physics is applied live below; rebuilding on it would throw the layout away
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [all, graph.starCount])
+
+    // declared after the layout effect, so on unmount it runs after the layout has saved its positions
+    useEffect(() => () => {
+        skyMemory.canvas = {
+            viewBox: viewRef.current,
+            fitScale: fitScale.current,
+            touched: touched.current,
+            positions: positions.current,
+        }
+    }, [])
 
     const physicsFirst = useRef(true)
     useEffect(() => {

@@ -11,6 +11,7 @@ import {buildSkyGraph, defaultView, inBranch, type SkyView, subgraph} from './sk
 import {DEFAULT_SKY_SETTINGS, skyPhysics} from './skySettings'
 import {SkySettingsPanel} from './SkySettingsPanel'
 import {SkyStarPanel} from './SkyStarPanel'
+import {skyMemory} from './skyMemory'
 import {useSkySettings} from './useSkySettings'
 import './sky.css'
 
@@ -28,14 +29,18 @@ export function SkyPage() {
     const [load, setLoad] = useState<Load>({status: 'loading'})
     const [settings, patchSettings, replaceSettings] = useSkySettings()
     const physics = useMemo(() => skyPhysics(settings), [settings])
-    const [view, setView] = useState<SkyView | null>(null)
-    const [focusId, setFocusId] = useState<string | null>(null)
-    const [lastFocus, setLastFocus] = useState<string | null>(null)
-    const [depth, setDepth] = useState(2)
-    const [filter, setFilter] = useState<string | null>(null)
+    const memory = skyMemory.screen
+    const [view, setView] = useState<SkyView | null>(memory?.view ?? null)
+    const [focusId, setFocusId] = useState<string | null>(memory?.focusId ?? null)
+    const [lastFocus, setLastFocus] = useState<string | null>(memory?.lastFocus ?? null)
+    const [depth, setDepth] = useState(memory?.depth ?? 2)
+    const [filter, setFilter] = useState<string | null>(memory?.filter ?? null)
     const [filterOpen, setFilterOpen] = useState(false)
-    const [starId, setStarId] = useState<string | null>(null)
-    const [settingsOpen, setSettingsOpen] = useState(false)
+    const [starId, setStarId] = useState<string | null>(memory?.starId ?? null)
+    const [settingsOpen, setSettingsOpen] = useState(memory?.settingsOpen ?? false)
+    useEffect(() => {
+        skyMemory.screen = {view, focusId, lastFocus, depth, filter, starId, settingsOpen}
+    }, [view, focusId, lastFocus, depth, filter, starId, settingsOpen])
     // one panel slot: a picked star closes the settings, the gear closes the star
     const pickStar = (id: string) => {
         setSettingsOpen(false)
