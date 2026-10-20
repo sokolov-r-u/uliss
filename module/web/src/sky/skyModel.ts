@@ -211,3 +211,12 @@ export function nearestStars(
         .slice(0, count)
         .map((p) => p.id)
 }
+
+/** Distance in px from [p] to the segment [a]–[b]. */
+export function segmentDistance(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const length = dx * dx + dy * dy
+    const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length))
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
+}

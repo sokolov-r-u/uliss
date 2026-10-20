@@ -10,6 +10,10 @@ const LABEL_SIZE: Steps<'labelSize'> = [
     {id: 'small', label: 'Small'}, {id: 'regular', label: 'Regular'}, {id: 'large', label: 'Large'},
     {id: 'largest', label: 'Largest'},
 ]
+const NEAR_REACH: Steps<'nearReach'> = [
+    {id: 'close', label: 'Close'}, {id: 'medium', label: 'Medium'}, {id: 'wide', label: 'Wide'},
+    {id: 'vast', label: 'Vast'},
+]
 const MARK_SIZE: Steps<'starSize'> = [
     {id: 'fine', label: 'Fine'}, {id: 'regular', label: 'Regular'}, {id: 'bold', label: 'Bold'},
     {id: 'beacon', label: 'Beacon'},
@@ -96,6 +100,8 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
                 <span className="sky-settings-ends"><span>Fewer</span><span>More</span></span>
             </Row>}
             {steps('labelSize', 'Text size', LABEL_SIZE)}
+            <NearNamesRows settings={settings} onSettings={onSettings}/>
+            {settings.nearCount > 0 && steps('nearReach', 'Reach', NEAR_REACH, 'How far from the pointer those names reach.')}
         </>)}
         {section('stars', 'Stars', <>
             {steps('starSize', 'Star size', MARK_SIZE)}
@@ -134,6 +140,19 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
                 {flash ? 'Defaults restored' : 'Applies to your sky as you go · remembered on this device'}</p>
         </div>
     </div>
+}
+
+/** "Names near the pointer": how many stars around the mouse are named; 0 turns it off. */
+export function NearNamesRows({settings, onSettings}: {
+    settings: SkySettings
+    onSettings: (patch: Partial<SkySettings>) => void
+}) {
+    return <Row label="Names near the pointer" value={settings.nearCount === 0 ? 'Off' : String(settings.nearCount)}
+                hint="The stars closest to the mouse show their names.">
+        <input type="range" className="sky-settings-range" aria-label="Names near the pointer" min={0} max={10} step={1}
+               value={settings.nearCount} onChange={(event) => onSettings({nearCount: Number(event.target.value)})}/>
+        <span className="sky-settings-ends"><span>Off</span><span>10</span></span>
+    </Row>
 }
 
 function Row({label, value, hint, children}: { label: string; value?: string; hint?: string; children: ReactNode }) {

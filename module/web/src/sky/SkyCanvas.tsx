@@ -1,6 +1,6 @@
 import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
-import {nearestStars, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
+import {nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
@@ -35,9 +35,8 @@ const Z_MAX = 40
 const FIT_MAX = 2.4
 /** A press that travels less than this is a click, not a drag or a pan. */
 const DRAG_START = 6
-/** Names of the stars around the mouse: how many, and how far from it in screen px. */
-const NEAR_COUNT = 5
-const NEAR_RADIUS = 120
+/** How close in screen px the mouse must be to an edge to light up its two ends. */
+const EDGE_HIT = 6
 /** The hit radius of a star or constellation, in screen px. */
 const HIT_RADIUS = 13
 
@@ -368,11 +367,30 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const nodes = (layout?.nodes ?? []).filter((n) => visible.has(n.id) && shown(n.id))
     // the star under the mouse and the ones around it are always named
     const stars = nodes.filter((n) => n.node.kind === 'star')
-    const near = pointer
-        ? new Set(nearestStars(stars.map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, NEAR_COUNT, NEAR_RADIUS))
+    const near = pointer && settings.nearCount > 0
+        ? new Set(nearestStars(stars.map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, settings.nearCount,
+            physics.nearRadius))
         : new Set<string>()
     const hovered = pointer ? nearestStars(nodes.filter((n) => n.node.kind !== 'you')
         .map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, 1, HIT_RADIUS)[0] : undefined
+    // the mouse on an edge (and not on a node) lights up the two nodes it joins
+    const edgeEnds = new Set<string>()
+    if (pointer && !hovered && layout) {
+        let best = EDGE_HIT
+        let ends: [string, string] | null = null
+        for (const link of layout.links) {
+            const a = link.source
+            const b = link.target
+            if (!visibleEdges.has(`${a.id}>${b.id}>${link.kind}`) || !shown(a.id) || !shown(b.id)) continue
+            const d = segmentDistance(pointer, {x: sx(a), y: sy(a)}, {x: sx(b), y: sy(b)})
+            if (d <= best) {
+                best = d
+                ends = [a.id, b.id]
+            }
+        }
+        ends?.forEach((id) => edgeEnds.add(id))
+    }
+    const lit = (id: string) => id === hovered || edgeEnds.has(id)
 
     return (
         <div ref={frameRef} className={props.panelOpen ? 'sky-frame panel-open' : 'sky-frame'}
@@ -425,7 +443,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                     const isConstellation = node.kind === 'constellation'
                     const dimmed = off(node)
                     const pickable = !dimmed && true
-                    const name = n.id === hovered || near.has(n.id) ? 1 : labelOf(node)
+                    const name = lit(n.id) || near.has(n.id) ? 1 : labelOf(node)
                     const outward = x >= cx ? 1 : -1
                     const colour = tint(node)
                     const sectors = !mono && settings.mixColours && node.colors.length > 1 ? node.colors : null
@@ -441,8 +459,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                   }
                               } : undefined}>
                         {pickable && <circle cx={x} cy={y} r={HIT_RADIUS} fill="transparent"/>}
-                        {n.id === selectedId &&
-                            <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)" strokeWidth={1}/>}
+                        {(n.id === selectedId || edgeEnds.has(n.id)) &&
+                            <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)"
+                                    strokeWidth={1} opacity={n.id === selectedId ? 1 : 0.7}/>}
                         {settings.glow && <circle cx={x} cy={y} r={r * (isConstellation ? 2 : 2.9)} fill={colour}
                                                   opacity={isConstellation ? 0.09 : 0.14}/>}
                         {isConstellation
@@ -452,7 +471,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                 : <circle cx={x} cy={y} r={r} fill={colour}/>}
                         {name > 0.001 && <text x={x + outward * (r + 5)} y={y + 3.2}
                                                textAnchor={outward > 0 ? 'start' : 'end'} opacity={name}
-                                               className={`${isConstellation ? 'sky-name constellation' : 'sky-name'}${n.id === hovered ? ' hovered' : ''}`}
+                                               className={`${isConstellation ? 'sky-name constellation' : 'sky-name'}${lit(n.id) ? ' hovered' : ''}`}
                                                fontSize={(isConstellation ? node.depth === 1 ? 10 : 9 : 9.5) * physics.labelScale}>
                             {node.label}</text>}
                     </g>

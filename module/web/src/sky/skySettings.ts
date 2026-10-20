@@ -7,6 +7,7 @@
 export const LABEL_MODES = ['always', 'auto', 'off'] as const
 export const LABEL_SIZES = ['small', 'regular', 'large', 'largest'] as const
 export const MARK_SIZES = ['fine', 'regular', 'bold', 'beacon'] as const
+export const NEAR_REACHES = ['close', 'medium', 'wide', 'vast'] as const
 export const COLOURS = ['constellation', 'mono'] as const
 export const CENTER_MARKS = ['ship', 'star'] as const
 export const LINK_DISTANCES = ['close', 'comfortable', 'roomy', 'spacious'] as const
@@ -24,6 +25,10 @@ export interface SkySettings {
     /** 0–100; 50 is the sky's own judgement of how many names fit. */
     labelDensity: number
     labelSize: Of<typeof LABEL_SIZES>
+    /** How many stars around the mouse are named, 0–10; 0 turns it off. */
+    nearCount: number
+    /** How far from the mouse those stars may be. */
+    nearReach: Of<typeof NEAR_REACHES>
     starSize: Of<typeof MARK_SIZES>
     constellationSize: Of<typeof MARK_SIZES>
     colour: Of<typeof COLOURS>
@@ -45,6 +50,8 @@ export const DEFAULT_SKY_SETTINGS: SkySettings = {
     labels: 'auto',
     labelDensity: 50,
     labelSize: 'regular',
+    nearCount: 5,
+    nearReach: 'medium',
     starSize: 'regular',
     constellationSize: 'regular',
     colour: 'constellation',
@@ -80,12 +87,16 @@ export function parseSkySettings(raw: unknown): SkySettings {
     const d = DEFAULT_SKY_SETTINGS
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) return d
     const p = raw as Record<string, unknown>
+    const nearCount = typeof p.nearCount === 'number' && Number.isFinite(p.nearCount)
+        ? Math.min(10, Math.max(0, Math.round(p.nearCount))) : d.nearCount
     const density = typeof p.labelDensity === 'number' && Number.isFinite(p.labelDensity)
         ? Math.min(100, Math.max(0, Math.round(p.labelDensity))) : d.labelDensity
     return {
         labels: oneOf(LABEL_MODES, p.labels, d.labels),
         labelDensity: density,
         labelSize: oneOf(LABEL_SIZES, p.labelSize, d.labelSize),
+        nearCount,
+        nearReach: oneOf(NEAR_REACHES, p.nearReach, d.nearReach),
         starSize: oneOf(MARK_SIZES, p.starSize, d.starSize),
         constellationSize: oneOf(MARK_SIZES, p.constellationSize, d.constellationSize),
         colour: oneOf(COLOURS, p.colour, d.colour),
@@ -143,6 +154,8 @@ export interface SkyPhysics {
     constellationScale: number
     /** Scales every zoom threshold of Auto names: lower shows more names. */
     labelGain: number
+    /** Screen px around the mouse within which stars are named. */
+    nearRadius: number
 }
 
 const LINK_DIST: Record<SkySettings['linkDist'], number> = {close: 104, comfortable: 150, roomy: 208, spacious: 276}
@@ -153,6 +166,7 @@ const CENTRE_PULL: Record<SkySettings['pull'], number> = {loose: 0.12, gentle: 0
 const MOTION: Record<SkySettings['motion'], number> = {calm: 0.06, natural: 0.035, lively: 0.018}
 const SECONDARY_PULL: Record<SkySettings['secondary'], number> = {faint: 0.12, gentle: 0.3, firm: 0.6, strong: 1}
 const LABEL_SCALE: Record<SkySettings['labelSize'], number> = {small: 0.85, regular: 1, large: 1.2, largest: 1.45}
+const NEAR_RADIUS: Record<SkySettings['nearReach'], number> = {close: 60, medium: 120, wide: 200, vast: 300}
 const MARK_SCALE: Record<SkySettings['starSize'], number> = {fine: 0.7, regular: 1, bold: 1.35, beacon: 1.75}
 
 export function skyPhysics(settings: SkySettings): SkyPhysics {
@@ -167,5 +181,6 @@ export function skyPhysics(settings: SkySettings): SkyPhysics {
         starScale: MARK_SCALE[settings.starSize],
         constellationScale: MARK_SCALE[settings.constellationSize],
         labelGain: Math.max(0.08, 1 - (settings.labelDensity - 50) / 50 * 0.92),
+        nearRadius: NEAR_RADIUS[settings.nearReach],
     }
 }

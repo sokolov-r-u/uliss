@@ -2,18 +2,15 @@ import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {NoteConstellationSection} from '../constellations/NoteConstellationSection'
-import {SubNotesSection} from '../constellations/SubNotesSection'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
-import {ContextPanel, PanelFact, PanelSection, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
-import {NoteChatsList} from '../ui/links/NoteChatsList'
+import {ContextPanel, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
+import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
 import './notes.css'
-import {formatFullDate} from '../ui/format'
 
 type ReadyNote = Note & { content: string }
 
@@ -73,19 +70,8 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
         </div>
     </div>
         {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
-            <PanelSection label="Constellation">
-                <NoteConstellationSection noteId={note.id} noteTitle={note.title}/>
-            </PanelSection>
-            <SubNotesSection noteId={note.id} onOpen={(noteId) => navigate(`/notes/${noteId}`)}/>
-            <PanelSection label="Written from">
-                <NoteChatsList noteId={note.id} onOpen={(chatId) => navigate(`/chats/${chatId}`)}
-                               empty={<p className="context-text">
-                                   {note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>}/>
-            </PanelSection>
-            <PanelSection label="Dates">
-                <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
-                <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt) || '—'}/>
-            </PanelSection>
+            <NoteDetailsSections note={note} onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
+                                 onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}/>
         </ContextPanel>}
     </div>
 }

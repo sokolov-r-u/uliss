@@ -154,3 +154,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the screen was reached inside the app; a screen opened directly (the router's `default` entry) has none. On the
   delete-dialog path the note keeps its own accented Back and the header one is hidden. Lists keep no Back.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 6.
+
+## 2026-10-20 — The star panel is the note's details panel
+
+- **Decision:** the open note's details panel content is one component (`notes/NoteDetailsSections`: Constellation,
+  Sub-notes, Written from, Dates); the sky's star panel shows the same sections under the note's title, the start of
+  its text and Open note. `NoteConstellationSection` reports every stored change through `onChanged`, and the sky
+  reloads its snapshot on it. The mouse on an edge lights up and names its two nodes; how many stars near the pointer
+  are named (0–10) and how far (Close · Medium · Wide · Vast) are sky settings.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 8.

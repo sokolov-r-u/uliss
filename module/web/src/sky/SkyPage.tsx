@@ -218,7 +218,9 @@ export function SkyPage() {
                 </div>
             </aside>}
             {starId && <SkyStarPanel graph={graph} starId={starId} onClose={() => setStarId(null)}
-                                     onOpen={(id) => navigate(`/notes/${id}`)}/>}
+                                     onOpen={(id) => navigate(`/notes/${id}`)} onPickStar={pickStar}
+                                     onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}
+                                     onChanged={() => void reload()}/>}
         </div>
     </div>
 }

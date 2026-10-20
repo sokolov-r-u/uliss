@@ -7,6 +7,10 @@ const MODES: { id: SkySettings['labels']; label: string; hint: string }[] = [
     {id: 'off', label: 'Off', hint: 'The shape only'},
 ]
 
+const REACHES: { id: SkySettings['nearReach']; label: string }[] = [
+    {id: 'close', label: 'Close'}, {id: 'medium', label: 'Medium'}, {id: 'wide', label: 'Wide'}, {id: 'vast', label: 'Vast'},
+]
+
 /**
  * Names, where the user is looking at them: the same three choices as Settings › Sky plus, for Auto, how hard the sky
  * tries to fit names in. Writes straight into the sky settings.
@@ -30,6 +34,19 @@ export function SkyNamesMenu({settings, onSettings, onClose}: {
                     <span>{mode.label}</span><small>{mode.hint}</small>
                 </button>)}
             </div>
+            <label className="sky-names-density">
+                <span>Near the pointer · {settings.nearCount === 0 ? 'Off' : settings.nearCount}</span>
+                <input type="range" min={0} max={10} step={1} value={settings.nearCount}
+                       onChange={(event) => onSettings({nearCount: Number(event.target.value)})}/>
+                <span className="sky-names-ends"><span>Off</span><span>10</span></span>
+            </label>
+            {settings.nearCount > 0 && <div className="sky-names-reach" role="group" aria-label="Reach">
+                <span>Reach</span>
+                <div>{REACHES.map((reach) => <button key={reach.id} type="button"
+                                                     aria-pressed={settings.nearReach === reach.id}
+                                                     className={settings.nearReach === reach.id ? 'on' : undefined}
+                                                     onClick={() => onSettings({nearReach: reach.id})}>{reach.label}</button>)}</div>
+            </div>}
             {settings.labels === 'auto' && <label className="sky-names-density">
                 <span>How many names</span>
                 <input type="range" min={0} max={100} step={5} value={settings.labelDensity}

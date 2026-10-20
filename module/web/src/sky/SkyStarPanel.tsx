@@ -1,7 +1,8 @@
 import {useEffect, useState} from 'react'
-import {Button, ConstellationChip, constellationColor, Icon, IconButton, Kicker} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
-import {getNote} from '../notes/noteApi'
+import {NoteDetailsSections} from '../notes/NoteDetailsSections'
+import {getNote, type Note} from '../notes/noteApi'
 import type {SkyGraph} from './skyModel'
 
 /** Markdown reduced to one plain line for a preview: headings, emphasis, links and list marks dropped. */
@@ -17,48 +18,43 @@ export function plainExcerpt(markdown: string | null): string {
 }
 
 /**
- * The picked star's panel: the note's title, where it lives (the main constellation's path and the other places as
- * chips, or the path through its parent notes), the start of its text and Open note.
+ * The picked star's panel: the note's title, the start of its text and Open note, then everything the open note's
+ * details panel holds — where it lives (with all of its place actions), its sub-notes, the chats it came from and its
+ * dates. A change of place redraws the sky; a sub-note opens its own panel here.
  */
-export function SkyStarPanel({graph, starId, onClose, onOpen}: {
+export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpenChat, onChanged}: {
     graph: SkyGraph
     starId: string
     onClose: () => void
     onOpen: (id: string) => void
+    onPickStar: (id: string) => void
+    onOpenChat: (chatId: string) => void
+    onChanged: () => void
 }) {
     const star = graph.byId.get(starId)
-    const [text, setText] = useState<{ id: string; excerpt: string } | null>(null)
+    const [loaded, setLoaded] = useState<{ id: string; note: Note | null } | null>(null)
 
     useEffect(() => {
         const controller = new AbortController()
         getNote(starId, controller.signal)
-            .then((note) => setText({id: starId, excerpt: plainExcerpt(note.content)}))
+            .then((note) => setLoaded({id: starId, note}))
             .catch((error: unknown) => {
                 if (error instanceof AuthRequiredError || controller.signal.aborted) return
-                setText({id: starId, excerpt: ''})
+                setLoaded({id: starId, note: null})
             })
         return () => controller.abort()
     }, [starId])
 
     useEffect(() => {
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape' && !document.querySelector('[role="dialog"]')) onClose()
+            if (event.key === 'Escape' && !document.querySelector('[role="dialog"], [role="menu"]')) onClose()
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
     }, [onClose])
 
     if (!star) return null
-    const parents: string[] = []
-    for (let id = star.parentId; id; id = graph.byId.get(id)?.parentId ?? null) {
-        const node = graph.byId.get(id)
-        if (node?.kind !== 'star') break
-        parents.unshift(node.label)
-    }
-    const [mainId, ...otherIds] = star.constellationIds
-    const main = mainId ? graph.tree.byId.get(mainId) : undefined
-    const path = [...(main ? [...main.ancestors.map((a) => a.name), main.name] : []), ...parents]
-    const loading = text?.id !== starId
+    const note = loaded?.id === starId ? loaded.note : undefined
 
     return <aside className="sky-panel" data-sky-ui="" aria-label="Note">
         <header className="sky-panel-head">
@@ -67,18 +63,13 @@ export function SkyStarPanel({graph, starId, onClose, onOpen}: {
         </header>
         <div className="sky-panel-body">
             <h2 className="sky-panel-title">{star.label}</h2>
-            <div className="sky-panel-place">
-                {path.length > 0
-                    ? <span className="sky-panel-path">{path.join(' › ')}</span>
-                    : <span className="sky-panel-path muted">Without constellation</span>}
-                {parents.length === 0 && otherIds.map((id) => {
-                    const node = graph.tree.byId.get(id)
-                    return node ? <ConstellationChip key={id} label={node.name} size="sm"
-                                                     color={constellationColor(node.hue, node.lightness)}/> : null
-                })}
-            </div>
-            <p className="sky-panel-excerpt">{loading ? 'Loading…' : text?.excerpt}</p>
+            <p className="sky-panel-excerpt">{note === undefined ? 'Loading…'
+                : note ? plainExcerpt(note.content) : 'Could not load the note.'}</p>
             <Button variant="outline" onClick={() => onOpen(star.id)}>Open note</Button>
+            {note && <div className="sky-panel-details">
+                <NoteDetailsSections note={note} onOpenNote={(id) => graph.byId.has(id) ? onPickStar(id) : onOpen(id)}
+                                     onOpenChat={onOpenChat} onPlaceChanged={onChanged}/>
+            </div>}
         </div>
     </aside>
 }
