@@ -26,7 +26,9 @@
     cursor: pointer;
 }
 
-.sky-node:focus-visible {
+/* no browser focus box around SVG nodes: keyboard focus is shown by the accent stroke below */
+.sky-node:focus,
+.sky-you:focus {
     outline: none;
 }
 
@@ -48,6 +50,12 @@
 
 .sky-you.exit {
     cursor: pointer;
+}
+
+.sky-you:focus-visible circle:nth-of-type(2) {
+    stroke: var(--accent);
+    stroke-width: 1.5;
+    opacity: 1;
 }
 
 .sky-name.constellation {
