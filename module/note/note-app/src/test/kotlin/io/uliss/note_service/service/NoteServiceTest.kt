@@ -117,43 +117,6 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `streamNoteStatus emits the current terminal state and completes immediately`() {
-        val userId = UUID.randomUUID()
-        val updatedAt = Instant.parse("2026-09-10T10:15:30Z")
-        val note = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY).apply {
-            this.updatedAt = updatedAt
-        }
-        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
-
-        StepVerifier.create(noteService.streamNoteStatus(userId, note.id))
-            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, updatedAt, false))
-            .verifyComplete()
-
-        Mockito.verify(noteRepository).findByIdAndUserId(note.id, userId)
-        Mockito.verifyNoInteractions(chatNoteRepository)
-    }
-
-    @Test
-    fun `streamNoteStatus suppresses unchanged states and completes after a transition`() {
-        val userId = UUID.randomUUID()
-        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        val ready = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY).apply {
-            id = generating.id
-        }
-        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId))
-            .thenReturn(generating, generating, ready)
-
-        // virtual time: the 1 s polls run instantly, no real waiting and no timeout to race
-        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, generating.id) }
-            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null, false))
-            .thenAwait(Duration.ofSeconds(2))
-            .expectNext(NoteStatusResponse(ready.id, NoteStatus.READY, null, false))
-            .verifyComplete()
-
-        Mockito.verify(noteRepository, Mockito.times(3)).findByIdAndUserId(generating.id, userId)
-    }
-
-    @Test
     fun `getNote reports a pending update only for a ready note`() {
         val userId = UUID.randomUUID()
         val ready = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
@@ -193,32 +156,6 @@ class NoteServiceTest {
         val notes = noteService.getNotes(userId)
 
         assertEquals(listOf(true, false, false), notes.map { it.updating })
-    }
-
-    @Test
-    fun `streamNoteStatus keeps a ready note open until its update finishes`() {
-        val userId = UUID.randomUUID()
-        val note = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
-        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
-        Mockito.`when`(summaryRequestStore.hasPendingForNote(note.id)).thenReturn(true, true, false)
-
-        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, note.id) }
-            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, true))
-            .thenAwait(Duration.ofSeconds(2))
-            .expectNext(NoteStatusResponse(note.id, NoteStatus.READY, null, false))
-            .verifyComplete()
-    }
-
-    @Test
-    fun `streamNoteStatus gives up on a note stuck in GENERATING`() {
-        val userId = UUID.randomUUID()
-        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId)).thenReturn(generating)
-
-        StepVerifier.withVirtualTime { noteService.streamNoteStatus(userId, generating.id) }
-            .expectNext(NoteStatusResponse(generating.id, NoteStatus.GENERATING, null, false))
-            .thenAwait(Duration.ofMinutes(10))
-            .verifyComplete()
     }
 
     @Test

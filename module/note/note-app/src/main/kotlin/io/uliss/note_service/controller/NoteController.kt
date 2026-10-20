@@ -20,6 +20,7 @@ import io.uliss.note_service.service.NoteAiEditService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteStatusService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.note_service.util.withHeartbeat
 import io.uliss.security.utils.getUserId
@@ -53,6 +54,7 @@ class NoteController(
     private val noteAiEditService: NoteAiEditService,
     private val notePlacementService: NotePlacementService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val noteStatusService: NoteStatusService,
     @param:Value($$"${note.sse.heartbeat-interval:15s}") private val heartbeatInterval: Duration,
 ) {
 
@@ -197,7 +199,7 @@ class NoteController(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable noteId: UUID,
     ): Flux<ServerSentEvent<NoteStatusResponse>> =
-        noteService.streamNoteStatus(jwt.getUserId(), noteId)
+        noteStatusService.streamNoteStatus(jwt.getUserId(), noteId)
             .map { status -> ServerSentEvent.builder(status).event("status").build() }
             .withHeartbeat(heartbeatInterval)
 

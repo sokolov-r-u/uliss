@@ -21,6 +21,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.service.NoteAiEditService
 import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteStatusService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.security.config.CorsProperties
 import io.uliss.security.config.OnboardingGuardConfig
@@ -64,6 +65,9 @@ class NoteControllerTest {
 
     @MockitoBean
     lateinit var noteFacade: NoteFacade
+
+    @MockitoBean
+    lateinit var noteStatusService: NoteStatusService
 
     @MockitoBean
     lateinit var noteAiEditService: NoteAiEditService
@@ -147,7 +151,7 @@ class NoteControllerTest {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
         val updatedAt = Instant.parse("2026-09-10T10:15:30Z")
-        Mockito.`when`(noteService.streamNoteStatus(userId, noteId)).thenReturn(
+        Mockito.`when`(noteStatusService.streamNoteStatus(userId, noteId)).thenReturn(
             Flux.just(
                 NoteStatusResponse(noteId, NoteStatus.GENERATING, updatedAt, false),
                 NoteStatusResponse(noteId, NoteStatus.READY, updatedAt, false),
@@ -173,7 +177,7 @@ class NoteControllerTest {
     fun `streamNoteStatus for a missing or foreign note returns 404 before opening a stream`() {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
-        Mockito.`when`(noteService.streamNoteStatus(userId, noteId))
+        Mockito.`when`(noteStatusService.streamNoteStatus(userId, noteId))
             .thenThrow(NotFoundException("note id=$noteId not found"))
 
         mockMvc.get("/note/notes/$noteId/status/stream") {

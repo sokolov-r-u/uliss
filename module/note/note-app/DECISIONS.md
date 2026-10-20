@@ -357,3 +357,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   counted. `note_constellation` gets an index on `(user_id, constellation_id)`. Tree size limits stay undecided
   (`docs/TECH_DEBT.md`, "Constellation tree size limits").
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 12.
+
+## 2026-10-21 — Note status streams read a projection and are limited per user
+
+- **Context:** every open status stream loaded the whole note (content included) each second, and a user could open
+  any number of them against an 8-connection pool.
+- **Decision:** `NoteStatusService` (split out of `NoteService`) polls `findStatusByIdAndUserId` (id, status,
+  `updated_at`) and refuses a stream beyond `note.status-stream.max-per-user` (default 5) with 429
+  `TOO_MANY_STATUS_STREAMS`; a slot is freed when the stream ends, fails or is cancelled. The count is per instance.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 13.

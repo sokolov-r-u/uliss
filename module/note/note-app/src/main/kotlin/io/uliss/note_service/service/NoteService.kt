@@ -4,9 +4,7 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.response.NoteResponse
-import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.dto.response.toResponse
-import io.uliss.note_service.dto.response.toStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.exception.NoteUpdatingException
@@ -34,11 +32,7 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import reactor.core.publisher.Flux
-import reactor.core.publisher.Mono
-import reactor.core.scheduler.Schedulers
 import tools.jackson.databind.ObjectMapper
-import java.time.Duration
 import java.time.LocalDate
 import java.util.UUID
 
@@ -101,23 +95,6 @@ class NoteService(
     fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
         .findSummaries(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, PageRequest.of(0, 1))
         .firstOrNull()
-
-    fun streamNoteStatus(userId: UUID, noteId: UUID): Flux<NoteStatusResponse> {
-        val initialStatus = getStatus(userId, noteId)
-        val persistedStatuses = Flux.interval(STATUS_POLL_INTERVAL)
-            .concatMap {
-                Mono.fromCallable { getStatus(userId, noteId) }
-                    .subscribeOn(Schedulers.boundedElastic())
-            }
-
-        return persistedStatuses
-            .startWith(initialStatus)
-            .distinctUntilChanged { status -> status.status to status.updating }
-            // A READY note stays open while its summary update runs, so the reader sees the appended content.
-            .takeUntil { status -> status.status.isTerminal() && !status.updating }
-            // A note stuck in GENERATING or updating must not hold the connection and its DB polling forever.
-            .take(STATUS_STREAM_TIMEOUT)
-    }
 
     /**
      * Persists the user-visible placeholder and its durable generation request together. The
@@ -328,25 +305,14 @@ class NoteService(
         chatNoteRepository.save(link)
     }
 
-    private fun getStatus(userId: UUID, noteId: UUID): NoteStatusResponse {
-        val pending = summaryRequestStore.hasPendingForNote(noteId)
-        return getOwnedNote(userId, noteId).let { it.toStatusResponse(isUpdating(it, pending)) }
-    }
-
     /**
      * Only a READY note can be updating: a GENERATING note's pending request is its creation. Callers read [pending]
      * before the note, so an update committing in between reads as updating, never as settled with stale content.
      */
     private fun isUpdating(note: NoteEntity, pending: Boolean): Boolean = note.status == NoteStatus.READY && pending
 
-    private fun NoteStatus.isTerminal(): Boolean = this == NoteStatus.READY || this == NoteStatus.FAILED
-
     private fun getOwnedNote(userId: UUID, noteId: UUID): NoteEntity =
         noteRepository.findByIdAndUserId(noteId, userId)
             ?: throw NotFoundException("note id=$noteId not found")
 
-    private companion object {
-        val STATUS_POLL_INTERVAL: Duration = Duration.ofSeconds(1)
-        val STATUS_STREAM_TIMEOUT: Duration = Duration.ofMinutes(10)
-    }
 }
