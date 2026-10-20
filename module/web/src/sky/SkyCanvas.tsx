@@ -1,6 +1,6 @@
 import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
-import {nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
+import {labelLines, nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
@@ -469,11 +469,18 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                       strokeWidth={node.depth === 1 ? 1.3 : 1}/>
                             : sectors ? <StarSectors x={x} y={y} r={r} colors={sectors}/>
                                 : <circle cx={x} cy={y} r={r} fill={colour}/>}
-                        {name > 0.001 && <text x={x + outward * (r + 5)} y={y + 3.2}
-                                               textAnchor={outward > 0 ? 'start' : 'end'} opacity={name}
-                                               className={`${isConstellation ? 'sky-name constellation' : 'sky-name'}${lit(n.id) ? ' hovered' : ''}`}
-                                               fontSize={(isConstellation ? node.depth === 1 ? 10 : 9 : 9.5) * physics.labelScale}>
-                            {node.label}</text>}
+                        {name > 0.001 && (() => {
+                            const size = (isConstellation ? node.depth === 1 ? 10 : 9 : 9.5) * physics.labelScale
+                            const lines = isConstellation ? [node.label] : labelLines(node.label)
+                            const lx = x + outward * (r + 5)
+                            // two lines sit centred on the star, one line on its baseline
+                            const top = y + 3.2 - (lines.length - 1) * size * 0.6
+                            return <text x={lx} y={top} textAnchor={outward > 0 ? 'start' : 'end'} opacity={name}
+                                         className={`${isConstellation ? 'sky-name constellation' : 'sky-name'}${lit(n.id) ? ' hovered' : ''}`}
+                                         fontSize={size}>
+                                {lines.map((line, i) => <tspan key={i} x={lx} dy={i === 0 ? 0 : size * 1.2}>{line}</tspan>)}
+                            </text>
+                        })()}
                     </g>
                 })}
 

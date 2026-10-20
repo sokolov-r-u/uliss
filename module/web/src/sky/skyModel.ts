@@ -220,3 +220,21 @@ export function segmentDistance(p: { x: number; y: number }, a: { x: number; y: 
     const t = length === 0 ? 0 : Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / length))
     return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
 }
+
+/** Star names longer than this many code points are drawn on two lines (a title is at most 50). */
+export const LABEL_WRAP_AT = 18
+
+/**
+ * A star's name as one or two lines: a long name breaks at the space nearest its middle, so the halves are about even.
+ * A short name, or one without a space, stays on one line.
+ */
+export function labelLines(label: string): string[] {
+    const chars = Array.from(label)
+    if (chars.length <= LABEL_WRAP_AT) return [label]
+    let best = -1
+    chars.forEach((c, i) => {
+        if (c === ' ' && (best < 0 || Math.abs(i - chars.length / 2) < Math.abs(best - chars.length / 2))) best = i
+    })
+    if (best <= 0) return [label]
+    return [chars.slice(0, best).join('').trimEnd(), chars.slice(best + 1).join('').trimStart()]
+}
