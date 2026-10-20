@@ -1,19 +1,19 @@
 package io.uliss.note_service.service
 
-import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.exception.ConstellationNotFoundException
 import io.uliss.note_service.exception.NotePlaceInheritedException
-import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.projection.NoteMembership
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.util.ConstellationTree
 import io.uliss.note_service.util.NotePlacement
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import io.uliss.note_service.util.getOwnedNote
+import io.uliss.note_service.util.loadTree
 import java.time.Clock
 import java.util.UUID
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The constellations a note belongs to. Every change takes the user's tree lock, so it cannot race a branch deletion
@@ -29,7 +29,7 @@ class NotePlacementService(
 
     /** The note's memberships, main first. */
     fun getMemberships(userId: UUID, noteId: UUID): List<NoteMembership> {
-        getOwnedNote(userId, noteId)
+        noteRepository.getOwnedNote(userId, noteId)
         return store.findByNote(userId, noteId)
     }
 
@@ -63,16 +63,13 @@ class NotePlacementService(
         rule: (List<NoteMembership>, ConstellationTree) -> List<NoteMembership>,
     ): List<NoteMembership> {
         constellationRepository.lockUserTree(userId)
-        val note = getOwnedNote(userId, noteId)
+        val note = noteRepository.getOwnedNote(userId, noteId)
         if (note.parentNoteId != null) throw NotePlaceInheritedException(noteId)
-        val tree = ConstellationTree(constellationRepository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
+        val tree = constellationRepository.loadTree(userId)
         if (joined != null && tree.find(joined) == null) throw ConstellationNotFoundException(joined)
         val current = store.findByNote(userId, noteId)
         val next = rule(current, tree)
         if (next != current) store.replace(userId, mapOf(noteId to next))
         return NotePlacement.ordered(next)
     }
-
-    private fun getOwnedNote(userId: UUID, noteId: UUID): NoteEntity =
-        noteRepository.findByIdAndUserId(noteId, userId) ?: throw NotFoundException("note id=$noteId not found")
 }

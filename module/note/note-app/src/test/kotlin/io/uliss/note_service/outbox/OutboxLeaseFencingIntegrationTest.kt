@@ -1,5 +1,6 @@
 package io.uliss.note_service.outbox
 
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.model.NoteEntity
@@ -44,6 +45,9 @@ class OutboxLeaseFencingIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var outboxLeasePolicy: OutboxLeasePolicy
@@ -159,7 +163,7 @@ class OutboxLeaseFencingIntegrationTest : NoteIntegrationTest() {
                 expireLease(event.id)
                 assertTrue(outboxService.claim(10).isEmpty())
                 assertEquals(NoteStatus.FAILED, noteRepository.findById(note.id).orElseThrow().status)
-                noteService.completeChatSummary(userId, note.id, "Late title", "late summary")
+                noteSummaryService.completeChatSummary(userId, note.id, "Late title", "late summary")
             }
         }
 

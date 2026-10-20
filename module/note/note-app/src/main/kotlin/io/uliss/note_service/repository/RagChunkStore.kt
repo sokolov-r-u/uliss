@@ -7,24 +7,7 @@ import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.sql.PreparedStatement
-import java.time.Instant
 import java.util.UUID
-
-class EmbeddedChunk(
-    val index: Int,
-    val content: String,
-    val metadata: Map<String, Any>,
-    val embedding: FloatArray,
-)
-
-data class RetrievedChunk(
-    val noteId: UUID,
-    val chunkIndex: Int,
-    val content: String,
-    val similarity: Double,
-    val noteTitle: String?,
-    val noteCreatedAt: Instant,
-)
 
 @Repository
 class JdbcRagChunkStore(

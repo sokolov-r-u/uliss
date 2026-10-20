@@ -1,5 +1,6 @@
 package io.uliss.note_service
 
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -34,6 +35,9 @@ class NoteEditIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var noteRepository: NoteRepository
@@ -102,7 +106,7 @@ class NoteEditIntegrationTest : NoteIntegrationTest() {
         val note = readyNote(userId)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         val through = message(chat, "new")
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, UUID.randomUUID())
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, UUID.randomUUID())
         val version = noteRepository.findById(note.id).orElseThrow().version
 
         put(userId, note.id, "Title", "edited", version).andExpect {
@@ -122,10 +126,10 @@ class NoteEditIntegrationTest : NoteIntegrationTest() {
         put(userId, note.id, "Title", "edited by hand", version).andExpect { status { isOk() } }
         val through = message(chat, "new")
         val key = UUID.randomUUID()
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
 
         assertTrue(
-            noteService.applyChatSummaryUpdate(
+            noteSummaryService.applyChatSummaryUpdate(
                 userId, key, note.id, chat.id, covered.id, through.id, "Added.", LocalDate.of(2026, 10, 17),
             ),
         )

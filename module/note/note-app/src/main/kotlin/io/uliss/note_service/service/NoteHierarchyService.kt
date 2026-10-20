@@ -13,13 +13,13 @@ import io.uliss.note_service.model.projection.NoteNode
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.repository.NoteHierarchyStore
-import io.uliss.note_service.util.ConstellationTree
 import io.uliss.note_service.util.NoteHierarchy
 import io.uliss.note_service.util.NoteRemoval
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import io.uliss.note_service.util.loadTree
 import java.time.Clock
 import java.util.UUID
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Notes under notes: a sub-note has no constellations of its own and lives where its top note lives. Every change
@@ -74,7 +74,7 @@ class NoteHierarchyService(
         val note = getOwned(hierarchy, noteId)
         if (note.parentNoteId == null) return placeOf(userId, hierarchy, noteId)
         if (moveTo != null) {
-            val tree = ConstellationTree(constellationRepository.findByUserIdOrderByCreatedAtAscIdAsc(userId))
+            val tree = constellationRepository.loadTree(userId)
             tree.find(moveTo) ?: throw ConstellationNotFoundException(moveTo)
         }
         hierarchyStore.setParent(userId, listOf(noteId), null)

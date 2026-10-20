@@ -1,6 +1,6 @@
 package io.uliss.note_service.service
 
-import io.uliss.database.entity.generateId
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution

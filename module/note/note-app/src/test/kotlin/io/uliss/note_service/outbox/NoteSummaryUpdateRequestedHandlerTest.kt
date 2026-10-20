@@ -15,7 +15,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.service.ChatService
-import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryUpdateRequestedHandler
@@ -40,7 +40,7 @@ class NoteSummaryUpdateRequestedHandlerTest {
     private val chatClient = Mockito.mock(ChatClient::class.java)
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
-    private val noteService = Mockito.mock(NoteService::class.java)
+    private val noteService = Mockito.mock(NoteSummaryService::class.java)
     private val properties = NoteSummaryProperties(retrievalQueryMaxChars = 400, retrievalTopK = 3, retrievalMinSimilarity = 0.75)
     private val clock = Clock.fixed(Instant.parse("2026-10-08T23:30:00Z"), ZoneOffset.UTC)
     private val handler = NoteSummaryUpdateRequestedHandler(

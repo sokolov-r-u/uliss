@@ -12,6 +12,7 @@ import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.service.tool.NoteSearch
@@ -24,6 +25,7 @@ class ChatFacade(
     private val chatService: ChatService,
     private val assistantService: AssistantService,
     private val noteService: NoteService,
+    private val noteSummaryService: NoteSummaryService,
     private val chatTurnService: ChatTurnService,
     private val ragService: RagService,
 ) {
@@ -35,10 +37,10 @@ class ChatFacade(
     }
 
     fun getChat(userId: UUID, chatId: UUID): ChatWithNoteCount =
-        withNoteCount(chatService.requireOwnedChat(userId, chatId))
+        withNoteCount(chatService.getOwnedChat(userId, chatId))
 
     fun getChatNotes(userId: UUID, chatId: UUID): List<NoteResponse> {
-        chatService.requireOwnedChat(userId, chatId)
+        chatService.getOwnedChat(userId, chatId)
         return noteService.getChatNotes(userId, chatId)
     }
 
@@ -56,7 +58,7 @@ class ChatFacade(
     fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
         val page = chatService.getMessages(userId, chatId, before, limit)
         if (before != null) return page
-        return page.copy(summary = noteService.findCurrentChatSummary(chatId))
+        return page.copy(summary = noteSummaryService.findCurrentChatSummary(chatId))
     }
 
     @Transactional
@@ -69,14 +71,14 @@ class ChatFacade(
         val chat = if (chatId == null) {
             chatService.createChat(userId, idempotencyKey, prompt)
         } else {
-            chatService.requireOwnedChat(userId, chatId)
+            chatService.getOwnedChat(userId, chatId)
         }
         return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id))
     }
 
     /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
-        val currentNoteId = noteService.findCurrentChatSummary(chatId)?.noteId
+        val currentNoteId = noteSummaryService.findCurrentChatSummary(chatId)?.noteId
         if (currentNoteId == null) {
             ragService.search(userId, query, limit, minSimilarity)
         } else {
@@ -112,14 +114,14 @@ class ChatFacade(
         }
         val latestMessageId = chatService.getLatestMessageId(userId, chatId)
             ?: throw BadRequestException("chat id=$chatId has no messages to summarize")
-        noteService.findSummaryReplay(userId, chatId, idempotencyKey)?.let { return it }
-        val current = noteService.findCurrentChatSummary(chatId)
+        noteSummaryService.findSummaryReplay(userId, chatId, idempotencyKey)?.let { return it }
+        val current = noteSummaryService.findCurrentChatSummary(chatId)
         val note = when (mode) {
             SummaryMode.CREATE -> {
                 if (current != null) {
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
-                noteService.requestChatSummary(
+                noteSummaryService.requestChatSummary(
                     userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId,
                 )
             }
@@ -132,7 +134,7 @@ class ChatFacade(
                 if (current.throughMessageId == latestMessageId) {
                     throw BadRequestException("chat id=$chatId has no new messages to summarize")
                 }
-                noteService.requestChatSummaryUpdate(
+                noteSummaryService.requestChatSummaryUpdate(
                     userId, chatId, target, current.throughMessageId, latestMessageId, idempotencyKey,
                 )
             }

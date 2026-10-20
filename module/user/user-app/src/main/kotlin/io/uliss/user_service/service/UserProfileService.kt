@@ -1,6 +1,6 @@
 package io.uliss.user_service.service
 
-import io.uliss.database.entity.generateId
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException

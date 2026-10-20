@@ -1,5 +1,6 @@
 package io.uliss.note_service
 
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
@@ -82,6 +83,9 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
     @Autowired
     lateinit var noteService: NoteService
 
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
+
 
     @MockitoSpyBean
     lateinit var chatTurnService: ChatTurnService
@@ -94,7 +98,7 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "First thought", ChatMessageStatus.COMPLETE)
         )
         val noteId = summarize(userId, chat.id, null)
-        noteService.completeChatSummary(userId, noteId, "Title", "Body")
+        noteSummaryService.completeChatSummary(userId, noteId, "Title", "Body")
         val second = chatMessageRepository.save(
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "Second thought", ChatMessageStatus.COMPLETE)
         )
@@ -130,7 +134,7 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
         chatMessageRepository.save(
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "Sent while generating", ChatMessageStatus.COMPLETE)
         )
-        noteService.applyChatSummaryUpdate(
+        noteSummaryService.applyChatSummaryUpdate(
             userId, key, noteId, chat.id, first.id, second.id, "Added.", LocalDate.of(2026, 10, 8),
         )
 

@@ -6,18 +6,7 @@ import org.springframework.dao.DuplicateKeyException
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 import java.sql.ResultSet
-import java.time.Instant
 import java.util.UUID
-
-data class SummaryRequest(
-    val userId: UUID,
-    val idempotencyKey: UUID,
-    val chatId: UUID,
-    val throughMessageId: UUID,
-    val noteId: UUID,
-    val createdAt: Instant,
-    val status: SummaryRequestStatus = SummaryRequestStatus.PENDING,
-)
 
 @Repository
 class SummaryRequestStore(

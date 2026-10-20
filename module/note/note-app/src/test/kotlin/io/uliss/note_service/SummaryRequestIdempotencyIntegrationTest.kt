@@ -1,5 +1,6 @@
 package io.uliss.note_service
 
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.model.ChatEntity
@@ -41,6 +42,9 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
     lateinit var noteService: NoteService
 
     @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
+
+    @Autowired
     lateinit var chatRepository: ChatRepository
 
     @Autowired
@@ -70,8 +74,8 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val (chat, boundary) = createChatBoundary(userId)
         val idempotencyKey = UUID.randomUUID()
 
-        val first = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
-        val replay = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+        val first = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+        val replay = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
 
         assertEquals(first.id, replay.id)
         assertSingleSummaryResult(userId, idempotencyKey, chat.id, first.id)
@@ -90,7 +94,7 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         try {
             val winner = executor.submit<UUID> {
                 transactionTemplate.execute {
-                    val note = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+                    val note = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
                     winnerReady.countDown()
                     check(releaseWinner.await(5, TimeUnit.SECONDS)) { "winner release timed out" }
                     note.id
@@ -100,7 +104,7 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
 
             val replay = executor.submit<UUID> {
                 replayStarted.countDown()
-                noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey).id
+                noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey).id
             }
             assertTrue(replayStarted.await(5, TimeUnit.SECONDS), "replay did not start")
             assertFailsWith<TimeoutException> { replay.get(250, TimeUnit.MILLISECONDS) }
@@ -135,12 +139,12 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
         val idempotencyKey = UUID.randomUUID()
-        val original = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+        val original = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
 
         listOf(NoteStatus.GENERATING, NoteStatus.READY, NoteStatus.FAILED).forEach { status ->
             jdbcTemplate.update("UPDATE note.notes SET status = ? WHERE id = ?", status.name, original.id)
 
-            val replay = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+            val replay = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
 
             assertEquals(original.id, replay.id)
             assertEquals(status, replay.status)
@@ -154,10 +158,10 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val (firstChat, firstBoundary) = createChatBoundary(userId)
         val (secondChat, secondBoundary) = createChatBoundary(userId)
         val idempotencyKey = UUID.randomUUID()
-        val first = noteService.requestChatSummary(userId, firstChat.id, firstBoundary.id, idempotencyKey)
+        val first = noteSummaryService.requestChatSummary(userId, firstChat.id, firstBoundary.id, idempotencyKey)
 
         assertFailsWith<IdempotencyKeyReusedException> {
-            noteService.requestChatSummary(userId, secondChat.id, secondBoundary.id, idempotencyKey)
+            noteSummaryService.requestChatSummary(userId, secondChat.id, secondBoundary.id, idempotencyKey)
         }
 
         assertSingleSummaryResult(userId, idempotencyKey, firstChat.id, first.id)
@@ -172,8 +176,8 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val (secondChat, secondBoundary) = createChatBoundary(secondUserId)
         val idempotencyKey = UUID.randomUUID()
 
-        val first = noteService.requestChatSummary(firstUserId, firstChat.id, firstBoundary.id, idempotencyKey)
-        val second = noteService.requestChatSummary(secondUserId, secondChat.id, secondBoundary.id, idempotencyKey)
+        val first = noteSummaryService.requestChatSummary(firstUserId, firstChat.id, firstBoundary.id, idempotencyKey)
+        val second = noteSummaryService.requestChatSummary(secondUserId, secondChat.id, secondBoundary.id, idempotencyKey)
 
         assertNotEquals(first.id, second.id)
         assertSingleSummaryResult(firstUserId, idempotencyKey, firstChat.id, first.id)
@@ -186,10 +190,10 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
     fun `a second pending request for the chat is rejected as in progress`() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
-        noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
 
         assertFailsWith<SummaryInProgressException> {
-            noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+            noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
         }
         assertEquals(1, count("SELECT COUNT(*) FROM note.summary_request WHERE chat_id = ?", chat.id))
     }
@@ -199,7 +203,7 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
         val key = UUID.randomUUID()
-        noteService.requestChatSummary(userId, chat.id, boundary.id, key)
+        noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, key)
 
         val finished = summaryRequestStore.finish(userId, key, SummaryRequestStatus.APPLIED)
         val again = summaryRequestStore.finish(userId, key, SummaryRequestStatus.FAILED)
@@ -213,10 +217,10 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
     fun `finishPendingForNote releases the chat for the next request`() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
-        val note = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        val note = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
 
         val finished = summaryRequestStore.finishPendingForNote(note.id, SummaryRequestStatus.FAILED)
-        noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
 
         assertEquals(chat.id, finished?.chatId)
         assertEquals(boundary.id, finished?.throughMessageId)
@@ -238,21 +242,21 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
     fun `update requests for the same note are allowed one at a time and replay by key`() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
-        val note = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
-        noteService.completeChatSummary(userId, note.id, "Title", "Body")
+        val note = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        noteSummaryService.completeChatSummary(userId, note.id, "Title", "Body")
         val next = chatMessageRepository.save(
             ChatMessageEntity(chat.id, ChatMessageRole.USER, "More", ChatMessageStatus.COMPLETE),
         )
         val key = UUID.randomUUID()
 
-        val first = noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
-        val replay = noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
+        val first = noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
+        val replay = noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, key)
 
         assertEquals(note.id, first.id)
         assertEquals(note.id, replay.id)
         assertEquals(2, count("SELECT COUNT(*) FROM note.summary_request WHERE note_id = ?", note.id))
         assertFailsWith<SummaryInProgressException> {
-            noteService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, UUID.randomUUID())
+            noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, boundary.id, next.id, UUID.randomUUID())
         }
     }
 
@@ -261,11 +265,11 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         val userId = UUID.randomUUID()
         val (chat, boundary) = createChatBoundary(userId)
         val (otherChat, otherBoundary) = createChatBoundary(userId)
-        val pending = noteService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
-        val finished = noteService.requestChatSummary(userId, otherChat.id, otherBoundary.id, UUID.randomUUID())
+        val pending = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, UUID.randomUUID())
+        val finished = noteSummaryService.requestChatSummary(userId, otherChat.id, otherBoundary.id, UUID.randomUUID())
         summaryRequestStore.finishPendingForNote(finished.id, SummaryRequestStatus.FAILED)
         val (foreignChat, foreignBoundary) = createChatBoundary(UUID.randomUUID())
-        noteService.requestChatSummary(foreignChat.userId, foreignChat.id, foreignBoundary.id, UUID.randomUUID())
+        noteSummaryService.requestChatSummary(foreignChat.userId, foreignChat.id, foreignBoundary.id, UUID.randomUUID())
 
         assertEquals(setOf(pending.id), summaryRequestStore.findPendingNoteIds(userId))
         assertTrue(summaryRequestStore.hasPendingForNote(pending.id))
@@ -315,12 +319,12 @@ class SummaryRequestIdempotencyIntegrationTest : NoteIntegrationTest() {
         }
 
         assertFailsWith<ExpectedRollback> {
-            noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+            noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
         }
         assertNoSummaryResult(userId, idempotencyKey, chat.id)
 
         Mockito.reset(noteRepository, chatNoteRepository, outboxService)
-        val retry = noteService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
+        val retry = noteSummaryService.requestChatSummary(userId, chat.id, boundary.id, idempotencyKey)
 
         assertSingleSummaryResult(userId, idempotencyKey, chat.id, retry.id)
     }

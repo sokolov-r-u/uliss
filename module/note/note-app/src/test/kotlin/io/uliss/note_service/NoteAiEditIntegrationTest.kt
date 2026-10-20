@@ -1,5 +1,6 @@
 package io.uliss.note_service
 
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -37,6 +38,9 @@ class NoteAiEditIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var noteRepository: NoteRepository
@@ -92,7 +96,7 @@ class NoteAiEditIntegrationTest : NoteIntegrationTest() {
         val covered = message(chat, "covered")
         val note = readyNote(userId)
         chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, message(chat, "new").id, UUID.randomUUID())
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, message(chat, "new").id, UUID.randomUUID())
 
         aiEdit(userId, note.id).andExpect {
             status { isConflict() }

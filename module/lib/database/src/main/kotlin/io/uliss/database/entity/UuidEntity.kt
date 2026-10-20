@@ -1,14 +1,10 @@
 package io.uliss.database.entity
 
-import com.fasterxml.uuid.Generators
+import io.uliss.database.utils.generateId
 import jakarta.persistence.Id
 import jakarta.persistence.MappedSuperclass
 import org.hibernate.Hibernate
 import java.util.UUID
-
-private val uuidGenerator = Generators.timeBasedEpochGenerator()
-
-fun generateId(): UUID = uuidGenerator.generate()
 
 @MappedSuperclass
 abstract class UuidEntity(
