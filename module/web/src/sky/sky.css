@@ -39,8 +39,15 @@
     fill: var(--cream);
     font-family: var(--font-text);
     letter-spacing: 0.8px;
-    pointer-events: none;
     transition: opacity 0.2s ease;
+}
+
+.sky-name.hovered {
+    fill: var(--accent-2);
+}
+
+.sky-you.exit {
+    cursor: pointer;
 }
 
 .sky-name.constellation {

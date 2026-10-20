@@ -134,3 +134,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   worker (`docs/TECH_DEBT.md`). Positions are not kept between visits, so the sky can open slightly differently
   after notes change.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 3.
+
+## 2026-10-20 — One sky layout for every view
+
+- **Context:** replaces, in "The sky renderer" above, the per-view layouts; after the first manual check the user
+  wanted entering Focus not to move the sky.
+- **Decision:** the simulation always holds the whole graph with YOU pinned at the centre; Skeleton, Focus and Full
+  only hide and show nodes and edges, without re-centring or re-framing. In Focus YOU stays where it is and leads out
+  of Focus on click. A star or its name opens the note panel in every view, Full included — a deliberate departure
+  from Product Logic ("Full — без панели ноды"), the user's call. The star under the mouse and the five nearest within
+  120 px are always named; a press travelling under 6 px is a click.
+- **Source:** task `docs/tasks/2026-10-20-sky.md`, block 5.

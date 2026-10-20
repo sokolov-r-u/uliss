@@ -1,6 +1,6 @@
 import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
-import {type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, YOU_ID} from './skyModel'
+import {nearestStars, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {SkyNamesMenu} from './SkyNamesMenu'
 
@@ -11,17 +11,17 @@ import {SkyNamesMenu} from './SkyNamesMenu'
  */
 export interface SkyCanvasProps {
     graph: SkyGraph
+    /** What the current view shows; the layout always holds the whole graph, so a view only hides and shows. */
     sub: SkySubgraph
     view: SkyView
-    focusId: string | null
-    depth: number
     filter: string | null
     settings: SkySettings
     physics: SkyPhysics
     selectedId: string | null
-    /** Undefined where stars are looked at, not opened (Full). */
-    onPickStar?: (id: string) => void
+    onPickStar: (id: string) => void
     onFocus: (constellationId: string) => void
+    /** YOU is the way out of Focus. */
+    onExitFocus: () => void
     onSettings: (patch: Partial<SkySettings>) => void
     /** Leaves room on the right for the open panel. */
     panelOpen: boolean
@@ -32,6 +32,13 @@ export interface SkyCanvasProps {
 const Z_MIN = 0.05
 const Z_MAX = 40
 const FIT_MAX = 2.4
+/** A press that travels less than this is a click, not a drag or a pan. */
+const DRAG_START = 6
+/** Names of the stars around the mouse: how many, and how far from it in screen px. */
+const NEAR_COUNT = 5
+const NEAR_RADIUS = 120
+/** The hit radius of a star or constellation, in screen px. */
+const HIT_RADIUS = 13
 
 interface ViewBox {
     s: number
@@ -55,12 +62,12 @@ const BACKDROP = (() => {
 })()
 
 export function SkyCanvas(props: SkyCanvasProps) {
-    const {graph, sub, view, focusId, depth, filter, settings, physics, selectedId, onPickStar, onFocus} = props
+    const {graph, sub, view, filter, settings, physics, selectedId, onPickStar, onFocus} = props
     const frameRef = useRef<HTMLDivElement>(null)
     const [box, setBox] = useState<Box | null>(null)
     const boxRef = useRef<Box>({w: 360, h: 680})
     const layoutRef = useRef<SkyLayout | null>(null)
-    const positions = useRef(new Map<string, Map<string, { x: number; y: number }>>())
+    const positions = useRef(new Map<string, { x: number; y: number }>())
     const viewRef = useRef<ViewBox>({s: 1, tx: 180, ty: 340})
     const fitScale = useRef(1)
     const touched = useRef(false)
@@ -68,7 +75,11 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const [, repaint] = useReducer((x: number) => x + 1, 0)
     const [reveal, setReveal] = useState<number | null>(null)
     const [namesOpen, setNamesOpen] = useState(false)
-    const layoutKey = `${view}|${focusId ?? ''}|${view === 'focus' ? depth : ''}`
+    // the mouse over the sky: names the star under it and the ones around it
+    const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
+    const all = useMemo(() => subgraph(graph, 'full'), [graph])
+    const visible = useMemo(() => new Set(sub.nodes.map((n) => n.id)), [sub])
+    const visibleEdges = useMemo(() => new Set(sub.edges.map((e) => `${e.source}>${e.target}>${e.kind}`)), [sub])
 
     // measured frame → the SVG's own pixel box
     useEffect(() => {
@@ -110,16 +121,13 @@ export function SkyCanvas(props: SkyCanvasProps) {
         viewRef.current = {s: scale, tx: w / 2 - scale * (x0 + x1) / 2, ty: h / 2 - scale * (y0 + y1) / 2}
     }
 
-    // one layout per view; positions of the same view survive data updates and mode switches
+    // one layout of the whole graph for every view; positions survive data updates
     useEffect(() => {
-        const {w, h} = boxRef.current
-        const previous = positions.current.get(layoutKey) ?? new Map()
+        const previous = positions.current
         const layout = createLayout({
-            sub,
+            sub: all,
             physics,
             starCount: graph.starCount,
-            focusId: view === 'focus' ? focusId : null,
-            youAt: {x: -w * 0.36, y: -h * 0.38},
             previous,
         })
         layoutRef.current = layout
@@ -132,11 +140,11 @@ export function SkyCanvas(props: SkyCanvasProps) {
         layout.simulation.alpha(previous.size > 0 ? 0.3 : 0.06).restart()
         return () => {
             layout.simulation.stop()
-            positions.current.set(layoutKey, new Map(layout.nodes.map((n) => [n.id, {x: n.x, y: n.y}])))
+            positions.current = new Map(layout.nodes.map((n) => [n.id, {x: n.x, y: n.y}]))
         }
         // physics is applied live below; rebuilding on it would throw the layout away
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [sub, layoutKey, graph.starCount])
+    }, [all, graph.starCount])
 
     const physicsFirst = useRef(true)
     useEffect(() => {
@@ -246,6 +254,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
     }
 
     const onPointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+        if (event.pointerType === 'mouse') {
+            setPointer((event.target as Element).closest('[data-sky-ui]') ? null : local(event))
+        }
         if (!pointers.current.has(event.pointerId)) return
         pointers.current.set(event.pointerId, local(event))
         const g = gesture.current
@@ -258,7 +269,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
             return
         }
         if (g.kind === 'drag') {
-            if (!g.moved && Math.hypot(p.x - g.x0, p.y - g.y0) < 3) return
+            if (!g.moved && Math.hypot(p.x - g.x0, p.y - g.y0) < DRAG_START) return
             if (!g.moved) {
                 g.moved = true
                 takeOver()
@@ -271,7 +282,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
             repaint()
             return
         }
-        if (!g.moved && Math.hypot(p.x - g.x, p.y - g.y) < 3) return
+        if (!g.moved && Math.hypot(p.x - g.x, p.y - g.y) < DRAG_START) return
         if (!g.moved) {
             g.moved = true
             takeOver()
@@ -312,7 +323,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
             return
         }
         if (node.kind === 'constellation') onFocus(node.id)
-        else if (node.kind === 'star' && onPickStar) onPickStar(node.id)
+        else if (node.kind === 'star') onPickStar(node.id)
     }
 
     // ── paint ──
@@ -337,15 +348,21 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const radiusOf = (node: SkyNode) => node.kind === 'constellation'
         ? (node.depth === 1 ? 5.6 : node.depth === 2 ? 4.6 : 3.9) * physics.constellationScale
         : 3.2 * physics.starScale
-    const centreX = layout?.byId.get(view === 'focus' && focusId ? focusId : YOU_ID)
-    const cx = centreX ? sx(centreX) : w / 2
-
-    const nodes = layout?.nodes ?? []
     const you = layout?.byId.get(YOU_ID)
+    const cx = you ? sx(you) : w / 2
+    const nodes = (layout?.nodes ?? []).filter((n) => visible.has(n.id) && shown(n.id))
+    // the star under the mouse and the ones around it are always named
+    const stars = nodes.filter((n) => n.node.kind === 'star')
+    const near = pointer
+        ? new Set(nearestStars(stars.map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, NEAR_COUNT, NEAR_RADIUS))
+        : new Set<string>()
+    const hovered = pointer ? nearestStars(nodes.filter((n) => n.node.kind !== 'you')
+        .map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, 1, HIT_RADIUS)[0] : undefined
 
     return (
         <div ref={frameRef} className={props.panelOpen ? 'sky-frame panel-open' : 'sky-frame'}
              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}
+             onPointerLeave={() => setPointer(null)}
              onPointerCancel={onPointerUp} onDoubleClick={(e) => {
             if (!(e.target as Element).closest('[data-sky-ui]')) reset()
         }}>
@@ -366,7 +383,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                 {layout?.links.map((link, i) => {
                     const a = link.source
                     const b = link.target
-                    if (!shown(a.id) || !shown(b.id)) return null
+                    if (!visibleEdges.has(`${a.id}>${b.id}>${link.kind}`) || !shown(a.id) || !shown(b.id)) return null
                     if (link.kind === 'secondary') {
                         return <line key={i} x1={sx(a)} y1={sy(a)} x2={sx(b)} y2={sy(b)} stroke={tint(a.node)}
                                      strokeWidth={0.8}
@@ -386,14 +403,14 @@ export function SkyCanvas(props: SkyCanvasProps) {
 
                 {nodes.map((n) => {
                     const node = n.node
-                    if (node.kind === 'you' || !shown(n.id)) return null
+                    if (node.kind === 'you') return null
                     const x = sx(n)
                     const y = sy(n)
                     const r = radiusOf(node)
                     const isConstellation = node.kind === 'constellation'
                     const dimmed = off(node)
-                    const pickable = !dimmed && (isConstellation || onPickStar != null)
-                    const name = labelOf(node)
+                    const pickable = !dimmed && true
+                    const name = n.id === hovered || near.has(n.id) ? 1 : labelOf(node)
                     const outward = x >= cx ? 1 : -1
                     const colour = tint(node)
                     const sectors = !mono && settings.mixColours && node.colors.length > 1 ? node.colors : null
@@ -408,7 +425,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                       activate(node)
                                   }
                               } : undefined}>
-                        {pickable && <circle cx={x} cy={y} r={13} fill="transparent"/>}
+                        {pickable && <circle cx={x} cy={y} r={HIT_RADIUS} fill="transparent"/>}
                         {n.id === selectedId &&
                             <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)" strokeWidth={1}/>}
                         {settings.glow && <circle cx={x} cy={y} r={r * (isConstellation ? 2 : 2.9)} fill={colour}
@@ -420,13 +437,18 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                 : <circle cx={x} cy={y} r={r} fill={colour}/>}
                         {name > 0.001 && <text x={x + outward * (r + 5)} y={y + 3.2}
                                                textAnchor={outward > 0 ? 'start' : 'end'} opacity={name}
-                                               className={isConstellation ? 'sky-name constellation' : 'sky-name'}
+                                               className={`${isConstellation ? 'sky-name constellation' : 'sky-name'}${n.id === hovered ? ' hovered' : ''}`}
                                                fontSize={(isConstellation ? node.depth === 1 ? 10 : 9 : 9.5) * physics.labelScale}>
                             {node.label}</text>}
                     </g>
                 })}
 
-                {you && <YouMark x={sx(you)} y={sy(you)} away={view === 'focus'} mark={settings.centerMark}/>}
+                {you && <YouMark x={sx(you)} y={sy(you)} mark={settings.centerMark}
+                                 onExit={view === 'focus' ? () => {
+                                     // a pan that started on YOU is not a click
+                                     if (suppressClick.current) suppressClick.current = false
+                                     else props.onExitFocus()
+                                 } : undefined}/>}
             </svg>
 
             <div className="sky-controls" data-sky-ui="">
@@ -463,10 +485,19 @@ function StarSectors({x, y, r, colors}: { x: number; y: number; r: number; color
     })}</g>
 }
 
-/** YOU: the real centre in Skeleton and Full, a dim marker with the way home in Focus. */
-function YouMark({x, y, away, mark}: { x: number; y: number; away: boolean; mark: SkySettings['centerMark'] }) {
-    const k = away ? 0.6 : 1
-    return <g className="sky-you" opacity={away ? 0.5 : 1} aria-hidden="true">
+/** YOU, the centre of every view; in Focus it is the way out. */
+function YouMark({x, y, mark, onExit}: { x: number; y: number; mark: SkySettings['centerMark']; onExit?: () => void }) {
+    const k = 1
+    return <g className={onExit ? 'sky-you exit' : 'sky-you'}
+              role={onExit ? 'button' : undefined} tabIndex={onExit ? 0 : undefined}
+              aria-label={onExit ? 'Exit focus' : undefined} aria-hidden={onExit ? undefined : true}
+              onClick={onExit} onKeyDown={onExit ? (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault()
+            onExit()
+        }
+    } : undefined}>
+        {onExit && <title>Exit focus</title>}
         <circle cx={x} cy={y} r={30 * k} fill="color-mix(in srgb, var(--accent-2) 10%, transparent)"/>
         <circle cx={x} cy={y} r={17 * k} fill="none" stroke="var(--accent-2)" strokeWidth={0.8} opacity={0.55}/>
         {mark === 'star'
@@ -479,8 +510,7 @@ function YouMark({x, y, away, mark}: { x: number; y: number; away: boolean; mark
                 <rect x={x - 0.9 * k} y={y - 15 * k} width={1.8 * k} height={23 * k}/>
                 <path d={`M${x} ${y - 13.5 * k} L${x + 10.5 * k} ${y + 6 * k} L${x} ${y + 6 * k} Z`} opacity={0.92}/>
             </g>}
-        <text x={x} y={y + (away ? 26 : 34) * k} textAnchor="middle" className="sky-you-label"
-              fontSize={(away ? 8.5 : 10) * k}>YOU
+        <text x={x} y={y + 34 * k} textAnchor="middle" className="sky-you-label" fontSize={10 * k}>YOU
         </text>
     </g>
 }

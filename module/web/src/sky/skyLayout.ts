@@ -13,7 +13,7 @@ import {rimRadius, type SkyNode, type SkySubgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics} from './skySettings'
 
 /**
- * The live layout of one view. World coordinates are centred on YOU (or, in Focus, on the focused constellation);
+ * The live layout of the whole sky; every view only hides and shows its nodes. World coordinates are centred on YOU;
  * the canvas maps them to the screen. Only structural edges (and, weakly, secondary ones) pull; stars with no place
  * are pushed to a rim beyond the branches.
  */
@@ -82,7 +82,7 @@ function rimForce(starCount: number): Force<SimNode, SimLink> {
     return force
 }
 
-const RIM_STRENGTH = 0.5
+const RIM_STRENGTH = 0.15
 
 /**
  * Seeds every node where its branch sits: roots share the circle by subtree size, children take a slice of their
@@ -133,31 +133,23 @@ export interface LayoutInput {
     sub: SkySubgraph
     physics: SkyPhysics
     starCount: number
-    /** Focus: the constellation pinned at the centre; YOU is pinned at [youAt]. */
-    focusId: string | null
-    youAt: { x: number; y: number }
-    /** Positions to start from (the previous layout of the same view); missing nodes are seeded. */
+    /** Positions to start from (the previous layout); missing nodes are seeded. */
     previous: Map<string, { x: number; y: number }>
 }
 
 /** Builds the simulation; with no previous positions it is solved to rest synchronously so the first frame is final. */
-export function createLayout({sub, physics, starCount, focusId, youAt, previous}: LayoutInput): SkyLayout {
-    const center = focusId ?? YOU_ID
-    const seeds = seedPositions(sub, starCount, center)
+export function createLayout({sub, physics, starCount, previous}: LayoutInput): SkyLayout {
+    const seeds = seedPositions(sub, starCount, YOU_ID)
     const nodes: SimNode[] = sub.nodes.map((node) => {
-        // Focus: the way home (the centre's ancestors) is not seeded by the tree walk; it lies towards YOU.
-        const at = previous.get(node.id) ?? seeds.get(node.id) ?? {x: youAt.x * 0.5, y: youAt.y * 0.5}
+        const at = previous.get(node.id) ?? seeds.get(node.id) ?? {x: 0, y: 0}
         return {id: node.id, node, x: at.x, y: at.y}
     })
     const byId = new Map(nodes.map((n) => [n.id, n]))
-    for (const n of nodes) {
-        if (n.id === center) {
-            n.fx = 0
-            n.fy = 0
-        } else if (n.id === YOU_ID) {
-            n.fx = youAt.x
-            n.fy = youAt.y
-        }
+    // YOU holds the centre of every view
+    const you = byId.get(YOU_ID)
+    if (you) {
+        you.fx = 0
+        you.fy = 0
     }
     const links: SimLink[] = sub.edges.flatMap((edge) => {
         const source = byId.get(edge.source)

@@ -20,7 +20,8 @@ const SEEDS = [{left: '34%', top: '33%', r: 4, on: true}, {left: '63%', top: '24
 
 /**
  * Sky: the constellation tree and every note as one live graph around YOU. Skeleton shows the constellations, a click
- * on one focuses it (Focus, depth 1–3), Full shows everything and is only looked at. Stars open a panel with the note.
+ * on one focuses it (Focus, depth 1–3; YOU leads out), Full shows everything. The layout is one for all three: a view
+ * only hides and shows. A star, in any view, opens a panel with the note.
  */
 export function SkyPage() {
     const navigate = useNavigate()
@@ -91,10 +92,7 @@ export function SkyPage() {
         setView('focus')
         setStarId(null)
     }
-    const pickView = (next: SkyView) => {
-        setView(next)
-        if (next === 'full') setStarId(null)
-    }
+    const pickView = (next: SkyView) => setView(next)
 
     const branch = filter && graph ? graph.tree.byId.get(filter) : undefined
     const inFilter = graph && filter ? graph.nodes.filter((n) => n.kind === 'star' && inBranch(graph, n, filter)).length : 0
@@ -176,9 +174,9 @@ export function SkyPage() {
     return <div className="product-view sky-view">
         {header}
         <div className="sky-stage">
-            <SkyCanvas graph={graph} sub={sub} view={shownView} focusId={focusId} depth={depth} filter={filter}
+            <SkyCanvas graph={graph} sub={sub} view={shownView} filter={filter}
                        settings={settings} physics={physics} selectedId={starId}
-                       onPickStar={shownView === 'full' ? undefined : pickStar} onFocus={focus}
+                       onPickStar={pickStar} onFocus={focus} onExitFocus={() => setView('skeleton')}
                        onSettings={patchSettings} panelOpen={starId != null || settingsOpen} footer={footer}/>
             {graph.starCount === 0 && <p className="sky-note">
                 Notes you keep appear as stars in their constellations. Start a chat and press Summarize.</p>}

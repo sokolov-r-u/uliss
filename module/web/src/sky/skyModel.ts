@@ -193,6 +193,21 @@ export function rimRadius(placedExtent: number, starCount: number): number {
     return Math.max(RIM_MIN, placedExtent + gap)
 }
 
-const RIM_MIN = 150
-const RIM_GAP = 70
-const RIM_GAP_PER_STAR = 16
+const RIM_MIN = 110
+const RIM_GAP = 40
+const RIM_GAP_PER_STAR = 6
+
+/** Ids of up to [count] points nearest to [at] within [radius], nearest first. */
+export function nearestStars(
+    points: readonly { id: string; x: number; y: number }[],
+    at: { x: number; y: number },
+    count: number,
+    radius: number,
+): string[] {
+    return points
+        .map((p) => ({id: p.id, d: Math.hypot(p.x - at.x, p.y - at.y)}))
+        .filter((p) => p.d <= radius)
+        .sort((a, b) => a.d - b.d)
+        .slice(0, count)
+        .map((p) => p.id)
+}
