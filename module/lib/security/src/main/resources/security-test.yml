@@ -16,6 +16,7 @@ security:
         client-id: test-m2m-client
         client-secret: test-m2m-secret
       redirect-uri: http://localhost:3000/callback
+      post-logout-redirect-uri: http://localhost:3000/signed-out
       auth-server-public-url: http://localhost:9000
       auth-server-internal-url: http://localhost:9000
       secure-cookie: false

@@ -38,6 +38,7 @@ app:
       client-id: test-web-client
       client-secret: test-web-secret
       callback-urls: http://localhost:3000/callback
+      post-logout-urls: http://localhost:3000/signed-out
     m2m:
       client-id: test-m2m-client
       client-secret: test-m2m-secret

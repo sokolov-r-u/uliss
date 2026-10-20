@@ -27,6 +27,7 @@ import org.springframework.web.client.HttpClientErrorException
 import org.springframework.web.client.HttpServerErrorException
 import org.springframework.web.client.ResourceAccessException
 import org.springframework.web.client.RestClient
+import org.springframework.web.util.UriComponentsBuilder
 import java.net.ConnectException
 import java.net.URI
 import java.net.UnknownHostException
@@ -71,7 +72,23 @@ class AuthService(
                 "&client_id=${securityProperties.authorizationCode.clientId}" +
                 "&code_challenge=$codeChallenge" +
                 "&code_challenge_method=S256" +
+                "&scope=openid%20profile" +
                 "&state=$state"
+    }
+
+    /**
+     * The auth server keeps its own browser session after a revocation, so signing out also sends the browser to the
+     * OIDC end-session endpoint. Without an id token there is no hint for it.
+     */
+    fun createEndSessionUrl(@Sensitive idToken: String?): String? {
+        if (idToken.isNullOrBlank()) return null
+        return UriComponentsBuilder.fromUriString("${securityProperties.authServerPublicUrl}/connect/logout")
+            .queryParam("id_token_hint", idToken)
+            .queryParam("client_id", clientId)
+            .queryParam("post_logout_redirect_uri", securityProperties.postLogoutRedirectUri)
+            .encode()
+            .build()
+            .toUriString()
     }
 
     /**

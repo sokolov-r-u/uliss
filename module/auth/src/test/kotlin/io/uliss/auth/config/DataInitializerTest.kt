@@ -72,7 +72,7 @@ class DataInitializerTest {
         assertEquals(setOf(AuthorizationGrantType.AUTHORIZATION_CODE, AuthorizationGrantType.REFRESH_TOKEN), web.authorizationGrantTypes)
         assertEquals(setOf("openid", "profile"), web.scopes)
         assertEquals(setOf(ClientAuthenticationMethod.CLIENT_SECRET_BASIC), web.clientAuthenticationMethods)
-        assertTrue(web.postLogoutRedirectUris.isEmpty())
+        assertEquals(setOf("http://new/signed-out"), web.postLogoutRedirectUris)
     }
 
     @Test
@@ -147,6 +147,7 @@ class DataInitializerTest {
         webClientId = WEB,
         webClientSecret = "web-secret",
         callbackUrls = listOf("http://new/callback"),
+        postLogoutUrls = listOf("http://new/signed-out"),
         m2mClientId = M2M,
         m2mClientSecret = "m2m-secret",
     )

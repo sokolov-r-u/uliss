@@ -22,6 +22,7 @@ class DataInitializer(
     @Value($$"${app.clients.authorization-code.client-id}") private val webClientId: String,
     @Value($$"${app.clients.authorization-code.client-secret}") private val webClientSecret: String,
     @Value($$"${app.clients.authorization-code.callback-urls}") private val callbackUrls: List<String>,
+    @Value($$"${app.clients.authorization-code.post-logout-urls}") private val postLogoutUrls: List<String>,
     @Value($$"${app.clients.m2m.client-id}") private val m2mClientId: String,
     @Value($$"${app.clients.m2m.client-secret}") private val m2mClientSecret: String
 ) : ApplicationRunner {
@@ -44,6 +45,7 @@ class DataInitializer(
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .redirectUris { it.addAll(callbackUrls) }
+                .postLogoutRedirectUris { it.addAll(postLogoutUrls) }
                 .clientSettings(ClientSettings.builder().requireProofKey(true).build())
                 .tokenSettings(
                     TokenSettings.builder()

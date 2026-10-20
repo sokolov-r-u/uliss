@@ -32,17 +32,23 @@ class SecurityConfig(
 
     @Bean
     @Order(1)
-    fun authorizationServerSecurityFilterChain(http: HttpSecurity): SecurityFilterChain = http
-        .securityMatcher("/oauth2/**", "/.well-known/**")
-        .with(OAuth2AuthorizationServerConfigurer()) {
-            it.oidc { Customizer.withDefaults<OidcConfigurer>() }
-            it.tokenEndpoint { endpoint -> endpoint.errorResponseHandler(TokenErrorResponseHandler()) }
-        }
-        .authorizeHttpRequests { it.anyRequest().authenticated() }
-        .cors(Customizer.withDefaults())
-        .formLogin(Customizer.withDefaults())
-        .configureExceptionHandling()
-        .build()
+    fun authorizationServerSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+        // every endpoint the server advertises, incl. OIDC /userinfo and /connect/logout, not only /oauth2/**
+        val authorizationServer = OAuth2AuthorizationServerConfigurer()
+        return http
+            .securityMatcher(authorizationServer.endpointsMatcher)
+            .with(authorizationServer) { server ->
+                server.oidc { Customizer.withDefaults<OidcConfigurer>() }
+                server.tokenEndpoint { it.errorResponseHandler(TokenErrorResponseHandler()) }
+            }
+            .authorizeHttpRequests { it.anyRequest().authenticated() }
+            // /userinfo authenticates with the access token
+            .oauth2ResourceServer { it.jwt(Customizer.withDefaults()) }
+            .cors(Customizer.withDefaults())
+            .formLogin(Customizer.withDefaults())
+            .configureExceptionHandling()
+            .build()
+    }
 
     @Bean
     @Order(2)

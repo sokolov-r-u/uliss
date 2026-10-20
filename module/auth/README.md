@@ -5,7 +5,8 @@ registered clients, authorization state, and signing keys.
 
 ## Security and clients
 
-`SecurityConfig` defines two filter chains. The first matches authorization-server and discovery endpoints. The second
+`SecurityConfig` defines two filter chains. The first matches every endpoint of the authorization server
+(`endpointsMatcher`: `/oauth2/**`, discovery, OIDC `/userinfo` with a bearer access token, `/connect/logout`). The second
 handles the application UI, including the custom `/login` and `/register` pages, static `/ds/**` resources, error
 handling, and actuator health. Form pages eagerly load the CSRF token so the session exists before a large response
 commits.
@@ -17,7 +18,8 @@ authorizations whose every code and token has expired, daily by `AUTH_AUTHORIZAT
 Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
-  accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`. Access tokens last 15 minutes; refresh tokens last 30 days and
+  accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`, and the OIDC end-session endpoint returns only to
+  `AUTH_CLIENT_POST_LOGOUT_URLS` (default `FRONTEND_URL/signed-out`). Access tokens last 15 minutes; refresh tokens last 30 days and
   rotate on use.
 - `uliss-internal` uses Client Credentials with the `internal` scope for service traffic.
 

@@ -22,7 +22,8 @@ note-service. These mediator routes are distinct from the real authorization ser
 `AuthController` and `AuthService` implement the frontend-facing flow:
 
 1. `GET /user/oauth2/login` creates a PKCE verifier and a random `state`, stores both in HttpOnly cookies, and
-   redirects the browser to the public authorization endpoint.
+   redirects the browser to the public authorization endpoint with `scope=openid profile`, so the token response
+   carries an `id_token`.
 2. The authorization server returns the browser to the SPA callback.
 3. `POST /user/oauth2/callback?code=...&state=...` rejects a `state` that differs from the cookie (login CSRF),
    exchanges the code and verifier as the confidential client, returns tokens as JSON, and clears both cookies. A
@@ -30,9 +31,12 @@ note-service. These mediator routes are distinct from the real authorization ser
    cleared whenever the request carried one (a request with none, e.g. a cross-site POST, leaves them alone).
 4. `POST /user/oauth2/refresh` performs the refresh grant and returns the rotated token pair. An OAuth rejection
    (400, or 401 `invalid_client`, which is also logged as an error) becomes 401 `INVALID_REFRESH_TOKEN`, so the SPA
-   signs in again. 408 and 429 (a busy server or proxy) are retried and then answered with 503; any other 4xx is a
-   configuration error answered with 500. In both cases the SPA keeps its tokens.
-5. `POST /user/oauth2/logout` performs best-effort refresh-token revocation.
+   signs in again. 408, 429 and 503 (a busy server or proxy, or auth unable to reach user-service) are retried and then
+   answered with 503; any other 4xx is a configuration error answered with 500. In both cases the SPA keeps its tokens.
+5. `POST /user/oauth2/logout` (`{refreshToken, idToken}`) performs best-effort refresh-token revocation and answers
+   `{redirectUrl}`: the auth server's OIDC end-session endpoint (`/connect/logout` with `id_token_hint`, `client_id` and
+   `post_logout_redirect_uri` = `FRONTEND_URL/signed-out`). The browser must go there, because revocation does not end
+   the auth server's own session; without an `idToken` the URL is absent.
 
 Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange
 and refresh grant are one-time, so a read timeout or reset after the request was sent is not retried; logout is

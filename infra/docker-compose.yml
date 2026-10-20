@@ -58,6 +58,7 @@ services:
       # web is served over HTTPS in full-compose mode, not the Vite dev port :3000
       FRONTEND_URL: https://uliss.home
       AUTH_CLIENT_CALLBACK_URLS: https://uliss.home/callback
+      AUTH_CLIENT_POST_LOGOUT_URLS: https://uliss.home/signed-out
       AUTH_SECURE_COOKIE: "true"
       <<: [ *auth-urls, *file-logging ]
       LOGGING_FILE_NAME: /logs/auth.log

@@ -14,6 +14,9 @@ class SecurityProperties {
     lateinit var m2m: ClientCredentials
     lateinit var redirectUri: String
 
+    /** SPA page the auth server's end-session endpoint returns to; registered on the web client in auth */
+    lateinit var postLogoutRedirectUri: String
+
     class ClientCredentials {
         var clientId: String = ""
         var clientSecret: String = ""

@@ -109,3 +109,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** SPA and `/user`/`/note` routing changes go into `uliss-app.conf` once; host-level changes (redirects,
   auth proxy) may need both variants.
 - **Source:** `docs/tasks/2026-10-18-home-https.md`.
+
+## 2026-10-21 — Signing out ends the auth server session through OIDC end-session
+
+- **Context:** sign-out only revoked the refresh token. The auth server's browser session lived on, so the SPA's
+  automatic login right after sign-out got a new code without a password.
+- **Decision:** the mediator requests `scope=openid profile` and passes the `id_token` through. `POST /oauth2/logout`
+  takes `{refreshToken, idToken}`, revokes, and answers `{redirectUrl}` — the auth server's `/connect/logout` with
+  `id_token_hint`, `client_id` and `post_logout_redirect_uri` (`FRONTEND_URL/signed-out`, registered on the web client
+  from `AUTH_CLIENT_POST_LOGOUT_URLS`). The SPA keeps the `id_token` with its tokens, navigates the whole page there,
+  and lands on a "signed out" page that does not start a login by itself. The auth server's first chain now matches
+  `endpointsMatcher`, so `/userinfo` and `/connect/logout` work.
+- **Consequences:** the logout response changes from 204 to 200 with a body. A session started before this change has
+  no `id_token`, so its sign-out falls back to revocation only.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 2.

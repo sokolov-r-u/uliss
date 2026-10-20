@@ -46,6 +46,8 @@ app:
       client-id: ${FRONTEND_CLIENT_ID}
       client-secret: ${FRONTEND_CLIENT_SECRET}
       callback-urls: ${AUTH_CLIENT_CALLBACK_URLS:${FRONTEND_URL}/callback}
+      # pages the end-session endpoint may return to after sign-out
+      post-logout-urls: ${AUTH_CLIENT_POST_LOGOUT_URLS:${FRONTEND_URL}/signed-out}
 
     m2m:
       client-id: ${APP_CLIENTS_M2M_CLIENT_ID}

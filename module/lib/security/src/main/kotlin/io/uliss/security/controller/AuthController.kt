@@ -3,6 +3,7 @@ package io.uliss.security.controller
 import io.uliss.security.annotation.AllowedDuringOnboarding
 import io.uliss.security.dto.request.LogoutRequest
 import io.uliss.security.dto.request.RefreshRequest
+import io.uliss.security.dto.response.LogoutResponse
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.service.AuthService
 import io.uliss.security.utils.CODE_VERIFIER
@@ -59,8 +60,8 @@ class AuthController(
     }
 
     @PostMapping("/logout")
-    fun logout(@RequestBody request: LogoutRequest): ResponseEntity<Void> {
+    fun logout(@RequestBody request: LogoutRequest): ResponseEntity<LogoutResponse> {
         authService.logout(request.refreshToken)
-        return ResponseEntity.noContent().build()
+        return ResponseEntity.ok(LogoutResponse(authService.createEndSessionUrl(request.idToken)))
     }
 }

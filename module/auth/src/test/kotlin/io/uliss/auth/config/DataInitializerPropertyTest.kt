@@ -30,6 +30,7 @@ class DataInitializerPropertyTest {
             )
             assertEquals(setOf("openid", "profile"), client.scopes)
             assertEquals(CALLBACKS.toSet(), client.redirectUris)
+            assertEquals(setOf("http://new/signed-out"), client.postLogoutRedirectUris)
             assertTrue(client.clientSettings.isRequireProofKey)
             assertEquals(Duration.ofMinutes(15), client.tokenSettings.accessTokenTimeToLive)
             assertEquals(Duration.ofDays(30), client.tokenSettings.refreshTokenTimeToLive)
@@ -42,6 +43,7 @@ class DataInitializerPropertyTest {
             assertEquals(setOf(AuthorizationGrantType.CLIENT_CREDENTIALS), client.authorizationGrantTypes)
             assertEquals(setOf("internal"), client.scopes)
             assertTrue(client.redirectUris.isEmpty())
+            assertTrue(client.postLogoutRedirectUris.isEmpty())
         }
     }
 
@@ -57,7 +59,6 @@ class DataInitializerPropertyTest {
         expectConfigured(synced)
         assertEquals(stored.id, synced.id)
         assertEquals(setOf(ClientAuthenticationMethod.CLIENT_SECRET_BASIC), synced.clientAuthenticationMethods)
-        assertTrue(synced.postLogoutRedirectUris.isEmpty())
         val secret = if (stored.clientId == WEB) "web-secret" else "m2m-secret"
         assertTrue(TEST_ENCODER.matches(secret, synced.clientSecret))
         assertEquals(savesAfterSync, repository.saves, "a startup in sync with config must not write")
@@ -111,6 +112,7 @@ class DataInitializerPropertyTest {
         webClientId = WEB,
         webClientSecret = "web-secret",
         callbackUrls = CALLBACKS,
+        postLogoutUrls = listOf("http://new/signed-out"),
         m2mClientId = M2M,
         m2mClientSecret = "m2m-secret",
     )

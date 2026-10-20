@@ -35,6 +35,9 @@ class DataInitializerIntegrationTest {
     @Value($$"${app.clients.authorization-code.callback-urls}")
     lateinit var callbackUrls: List<String>
 
+    @Value($$"${app.clients.authorization-code.post-logout-urls}")
+    lateinit var postLogoutUrls: List<String>
+
     @Value($$"${app.clients.m2m.client-id}")
     lateinit var m2mClientId: String
 
@@ -77,6 +80,7 @@ class DataInitializerIntegrationTest {
         webClientId = webClientId,
         webClientSecret = webClientSecret,
         callbackUrls = callbackUrls,
+        postLogoutUrls = postLogoutUrls,
         m2mClientId = m2mClientId,
         m2mClientSecret = m2mClientSecret,
     )
