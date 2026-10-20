@@ -7,8 +7,9 @@ applications or infrastructure.
 ## Running the full stack locally (Docker Compose, no minikube)
 
 An alternative to minikube for everyday local dev — no cluster, no `kubectl`/`skaffold`. Runs the
-same images the k8s path builds, orchestrated by plain Docker Compose instead. **The minikube/skaffold
-path below is unchanged and still fully supported** — this is an additional option, not a replacement.
+same images the k8s path builds, orchestrated by plain Docker Compose instead. Production runs on Docker Compose;
+**the minikube/skaffold path below is not maintained** (no TLS on the Ingress, no probes or limits, the m2m client
+and newer settings such as `AUTH_CLIENT_POST_LOGOUT_URLS` are not reflected) — treat it as an outdated example.
 
 - Add `127.0.0.1 uliss.home` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
   including `auth.uliss.home` etc., already needed for host-based `bootRun` dev).
@@ -173,7 +174,10 @@ note-service does not discard queued events. Multiple replicas can claim work co
 `FOR UPDATE SKIP LOCKED`; keep all replicas on compatible code and database migrations because the
 outbox payloads are consumed by any instance.
 
-## Deploying to Kubernetes (minikube)
+## Deploying to Kubernetes (minikube) — not maintained
+
+> Kept as a historical example only; it lags behind the Compose setup (see the note at the top). Do not deploy
+> from it without bringing it up to date first.
 
 Manifests and kustomize live under `infra/`, deployed with one command: `kubectl apply -k infra`.
 
@@ -229,7 +233,7 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   history of issues in `ndots`/search-domain-heavy `resolv.conf` setups like k8s's, and glibc was
   preferred deliberately.
 - **Workflow under minikube — `skaffold run`** (`skaffold.yaml` at repo root). One command: builds
-  all three images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
+  all four images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
   `eval $(minikube docker-env)` isn't needed), deploys via kustomize (`infra/`), and rolls out
   automatically. The rollout triggers by itself because Skaffold tags images with a unique digest and
   swaps `uliss/<svc>:latest` in the manifests for `uliss/<svc>:<digest>` — changing the reference means
