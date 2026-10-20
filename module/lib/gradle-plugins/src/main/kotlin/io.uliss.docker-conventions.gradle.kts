@@ -29,7 +29,9 @@ afterEvaluate {
             val registry = providers.gradleProperty("docker.registry").orNull?.takeIf { it.isNotBlank() }
             val repository = if (registry != null) "$registry/${project.name}" else "uliss/${project.name}"
             image = "$repository:${project.version}"
-            tags = setOf("latest")
+            // CI adds -Pdocker.extra.tag=<commit sha>: latest and the version move, a rollback pulls the commit tag
+            val extraTag = providers.gradleProperty("docker.extra.tag").orNull?.takeIf { it.isNotBlank() }
+            tags = setOfNotNull("latest", extraTag)
         }
         dockerClient {
             executable = requiredProperty("docker.executable")

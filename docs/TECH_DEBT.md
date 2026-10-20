@@ -645,11 +645,6 @@ saved and returns to it after login, which answers 404 problem+json. A `/` handl
 `app.frontend-url` (and a friendly 404 page for HTML requests) would close it. Recorded from
 `docs/tasks/2026-10-17-auth-login-glitches.md`.
 
-## `build` and `integrationTest` cannot run in one Gradle invocation
-
-**Status:** not implemented. `./gradlew build :auth:integrationTest` fails task validation: `:auth:jacocoTestReport`
-reads `build/jacoco/integrationTest.exec` without depending on `:auth:integrationTest`. Run them as separate
-invocations until the jacoco report task declares that input (or `mustRunAfter`).
 ## Edit a selected fragment of a note with the model (`note-service`, `web`)
 
 **Status:** not implemented. The note edit command always sends and rewrites the whole text (up to 30,000

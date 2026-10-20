@@ -23,6 +23,7 @@ tasks.register<JacocoReport>("jacocoRootReport") {
     group = "verification"
     description = "Merges per-module JaCoCo test + integrationTest coverage into one report."
     dependsOn(coverageProjects.map { it.tasks.named("test") })
+    mustRunAfter(coverageProjects.map { it.tasks.named("integrationTest") })
 
     sourceDirectories.setFrom(coverageProjects.map { it.layout.projectDirectory.dir("src/main/kotlin") })
     // Excludes generated protobuf/gRPC stubs (user-api) and the Kotlin file-class holding the

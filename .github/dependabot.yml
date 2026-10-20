@@ -1,0 +1,23 @@
+# Weekly update PRs for every dependency source; CI checks each like any other PR.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: docker
+    directories:
+      - /module/web
+      - /infra/docker/base-jre
+    schedule:
+      interval: weekly
+  - package-ecosystem: github-actions
+    directories:
+      - /
+      - /.github/actions/ghcr-login
+    schedule:
+      interval: weekly

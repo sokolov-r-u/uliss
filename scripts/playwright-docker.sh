@@ -3,7 +3,9 @@
 set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-playwright_image="mcr.microsoft.com/playwright:v1.62.1-noble"
+# the image must match @playwright/test in module/web/package.json; read it from there
+playwright_version=$(node -p "require('$repository_root/module/web/package.json').devDependencies['@playwright/test']")
+playwright_image="mcr.microsoft.com/playwright:v${playwright_version}-noble"
 
 case "${1:-}" in
     test)

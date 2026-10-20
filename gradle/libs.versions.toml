@@ -9,10 +9,10 @@ node-gradle = "7.1.0"
 wiremock = "3.13.2"
 jqwik = "1.9.3"
 
+# protoc and the gRPC codegen plugin: keep equal to protobuf-java and grpc-* in the Spring Boot BOM (runtime)
 protobuf = "4.34.2"
 grpc = "1.80.0"
 protobufPlugin = "0.9.6"
-springGrpc = "1.1.0"
 tomcat-annotations = "6.0.53"
 jib = "3.5.4"
 spring-ai = "2.0.0"
@@ -38,7 +38,6 @@ grpc-stub = { module = "io.grpc:grpc-stub" }
 grpc-protobuf = { module = "io.grpc:grpc-protobuf" }
 protobuf-java = { module = "com.google.protobuf:protobuf-java" }
 
-spring-grpc-bom = { module = "org.springframework.grpc:spring-grpc-dependencies", version.ref = "springGrpc" }
 spring-ai-starter-deepseek = { module = "org.springframework.ai:spring-ai-starter-model-deepseek", version.ref = "spring-ai" }
 spring-ai-starter-openai = { module = "org.springframework.ai:spring-ai-starter-model-openai", version.ref = "spring-ai" }
 pgvector = { module = "com.pgvector:pgvector", version.ref = "pgvector" }
@@ -47,8 +46,4 @@ tomcat-annotations-api = { module = "org.apache.tomcat:annotations-api", version
 protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobufPlugin" }
 
 [plugins]
-kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
-kotlin-spring = { id = "org.jetbrains.kotlin.plugin.spring", version.ref = "kotlin" }
-spring-boot = { id = "org.springframework.boot", version.ref = "spring-boot" }
-spring-dependency-management = { id = "io.spring.dependency-management", version.ref = "spring-dependency-management" }
 node = { id = "com.github.node-gradle.node", version.ref = "node-gradle" }

@@ -5,9 +5,9 @@ on:
     branches: [ main ]
   workflow_dispatch: { }
 
+# read-only by default; only the jobs that push images get packages: write (not the third-party path filter)
 permissions:
   contents: read
-  packages: write
 
 # false, not true: cancelling docker/build-push-action mid-push can leave a partially-pushed
 # manifest/layer on GHCR. GitHub still coalesces the queue — only the most recently queued run
@@ -23,11 +23,12 @@ jobs:
       base_jre: ${{ steps.filter.outputs.base_jre }}
       web: ${{ steps.filter.outputs.web }}
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
           fetch-depth: 0
 
-      - uses: dorny/paths-filter@v4.0.3
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
           filters: |
@@ -43,17 +44,22 @@ jobs:
   # manual dispatch), and jvm-images below waits on it — this ordering is what fixes the previous
   # race between this image and the JVM images that pull it as their Jib base image.
   base-jre:
+    permissions:
+      contents: read
+      packages: write
     needs: changes
     if: needs.changes.outputs.base_jre == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4.2.0
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v4.3.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Log in to GHCR
         id: ghcr
@@ -68,7 +74,7 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
       - name: Build and push base-jre image
-        uses: docker/build-push-action@v7.3.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: infra/docker/base-jre
           file: infra/docker/base-jre/Dockerfile
@@ -79,6 +85,9 @@ jobs:
           cache-to: type=gha,scope=base-jre,mode=max
 
   jvm-images:
+    permissions:
+      contents: read
+      packages: write
     needs: [ changes, base-jre ]
     # Deliberately does NOT check needs.changes.result: these images always publish regardless
     # of path filtering, so a transient failure in the `changes` job must not block them. base-jre
@@ -89,16 +98,18 @@ jobs:
       (needs.base-jre.result == 'success' || needs.base-jre.result == 'skipped')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Set up JDK
-        uses: actions/setup-java@v5.7.0
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
         with:
           distribution: temurin
           java-version: "25"
 
       - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v5.0.2
+        uses: gradle/actions/setup-gradle@0723195856401067f7a2779048b490ace7a47d7c # v5.0.2
 
       - name: Log in to GHCR
         id: ghcr
@@ -116,30 +127,69 @@ jobs:
         run: >
           ./gradlew :auth:jib :user:jib :note:jib
           -Pdocker.registry=${{ steps.ghcr.outputs.registry-path }}
+          -Pdocker.extra.tag=${{ github.sha }}
 
   # Fully independent of base-jre/jvm-images (no Jib, no JVM build) — runs in parallel with them,
   # only when module/web or its design-system dependency changed.
   web-image:
+    permissions:
+      contents: read
+      packages: write
     needs: changes
     if: needs.changes.outputs.web == 'true' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Log in to GHCR
         id: ghcr
         uses: ./.github/actions/ghcr-login
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@v4.3.0
+        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
       - name: Build and push web image
-        uses: docker/build-push-action@v7.3.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: module/web/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.ghcr.outputs.registry-path }}/web:latest
+          # the commit tag is what a rollback pulls; latest moves with every push
+          tags: |
+            ${{ steps.ghcr.outputs.registry-path }}/web:latest
+            ${{ steps.ghcr.outputs.registry-path }}/web:${{ github.sha }}
           cache-from: type=gha,scope=web
           cache-to: type=gha,scope=web,mode=max
+
+  # Scans what was just pushed. After the push on purpose: a finding turns the run red without holding back the
+  # deploy of an unrelated fix; base images are refreshed through Dependabot.
+  scan-images:
+    needs: [ jvm-images, web-image ]
+    if: always() && needs.jvm-images.result == 'success'
+    permissions:
+      contents: read
+      packages: read
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [ auth, user, note, web ]
+    steps:
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+
+      - name: Scan ${{ matrix.image }}
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          # web is pushed only when it changed; latest is then the current image
+          image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.image == 'web' && 'latest' || github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: "1"
