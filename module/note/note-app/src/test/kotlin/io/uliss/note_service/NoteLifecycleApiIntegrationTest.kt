@@ -411,7 +411,8 @@ class NoteLifecycleApiIntegrationTest {
                 jsonPath("$.status") { value(404) }
                 jsonPath("$.code") { value("NOT_FOUND_ERROR") }
                 jsonPath("$.path") { value("/note/notes/$noteId") }
-                jsonPath("$.details") { isEmpty() }
+                // the same text for a foreign and a missing note: only the requested id
+                jsonPath("$.details.message") { value("note id=$noteId not found") }
             }
         }
     }

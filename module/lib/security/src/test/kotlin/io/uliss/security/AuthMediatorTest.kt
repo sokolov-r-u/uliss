@@ -13,6 +13,7 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.github.tomakehurst.wiremock.http.Fault
 import com.github.tomakehurst.wiremock.stubbing.Scenario
 import jakarta.servlet.http.Cookie
+import org.hamcrest.Matchers
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
@@ -162,7 +163,8 @@ class AuthMediatorTest {
             status { isBadRequest() }
             jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
             jsonPath("$.status") { value(400) }
-            jsonPath("$.details") { isEmpty() }
+            jsonPath("$.details.message") { value("authorization code is invalid or expired") }
+            content { string(Matchers.not(Matchers.containsString("code expired"))) }
         }
     }
 

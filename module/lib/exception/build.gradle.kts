@@ -7,7 +7,8 @@ version = "0.0.1"
 dependencies {
     implementation(project(":logging"))
 
-    implementation("org.springframework.boot:spring-boot-starter-data-jpa")
+    // org.springframework.dao exceptions mapped to 409; no JPA is used here
+    implementation("org.springframework:spring-tx")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
 
