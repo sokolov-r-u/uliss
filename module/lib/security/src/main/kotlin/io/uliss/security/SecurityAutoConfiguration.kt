@@ -2,6 +2,7 @@ package io.uliss.security
 
 import io.uliss.security.config.AuditorConfig
 import io.uliss.security.config.CorsProperties
+import io.uliss.security.config.JwkSetClientConfig
 import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.SecurityProperties
@@ -19,6 +20,7 @@ import org.springframework.resilience.annotation.EnableResilientMethods
 @EnableResilientMethods
 @Import(
     SecurityConfig::class,
+    JwkSetClientConfig::class,
     CorsProperties::class,
     AuditorConfig::class,
     AuthController::class,

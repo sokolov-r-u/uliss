@@ -41,3 +41,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** both cookies live 1800 s, the default auth-server session timeout; they stay single-use and are
   cleared by the callback.
 - **Source:** task `docs/tasks/2026-10-17-auth-login-glitches.md`, block 2.
+
+## 2026-10-21 — The key set is fetched with the auth server timeouts
+
+- **Context:** Spring Security fetches the JWKS with Nimbus's default 500 ms read timeout. A cold or busy auth server
+  (and a loaded CI runner, where `JwtValidationTest` failed) answered more slowly, and a valid token was rejected.
+- **Decision:** a `JwkSetUriJwtDecoderBuilderCustomizer` (`JwkSetClientConfig`) gives the key set client the timeouts
+  of every other call to the auth server: 3 s to connect, 5 s to read. Boot's validators stay as configured.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, CI failure after the code review round.
