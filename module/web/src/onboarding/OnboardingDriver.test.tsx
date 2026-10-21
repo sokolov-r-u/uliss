@@ -140,6 +140,22 @@ describe('OnboardingDriver', () => {
         await waitFor(() => expect(refreshSession).toHaveBeenCalledOnce())
     })
 
+    it('asks to try again instead of reloading the lists when the stale session cannot be refreshed', async () => {
+        vi.mocked(fetchPending).mockResolvedValue([])
+        vi.mocked(refreshSession).mockRejectedValueOnce(new Error('auth down'))
+
+        render(<OnboardingDriver/>)
+        await waitFor(() => expect(fetchPending).toHaveBeenCalledOnce())
+        act(() => onboardingRequiredListener()())
+
+        fireEvent.click(await screen.findByRole('button', {name: 'Try again'}))
+        await waitFor(() => expect(fetchPending).toHaveBeenCalledTimes(3))
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        expect(notifyNotesChanged).not.toHaveBeenCalled()
+        // the retry is a plain reload: nothing was refused since, so no second refresh
+        expect(refreshSession).toHaveBeenCalledOnce()
+    })
+
     it('lets an onboarded user in when the steps fail to load', async () => {
         vi.mocked(tokenRequiresOnboarding).mockReturnValue(false)
         vi.mocked(fetchPending).mockRejectedValue(new Error('user-service down'))

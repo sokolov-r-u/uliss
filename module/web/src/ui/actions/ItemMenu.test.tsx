@@ -59,6 +59,33 @@ describe('ItemMenu', () => {
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toHaveFocus()
     })
 
+    it('jumps to the first and last item with Home and End', () => {
+        render(<ItemMenu anchor={anchorAt({})} label="Actions" onClose={vi.fn()}
+                         actions={[...actions(), {label: 'Open', onSelect: vi.fn()}]}/>)
+
+        fireEvent.keyDown(document.activeElement!, {key: 'End'})
+        expect(screen.getByRole('menuitem', {name: 'Open'})).toHaveFocus()
+        fireEvent.keyDown(document.activeElement!, {key: 'Home'})
+        expect(screen.getByRole('menuitem', {name: 'Rename'})).toHaveFocus()
+    })
+
+    it('closes on Tab, so focus never wanders behind the open menu', () => {
+        const onClose = vi.fn()
+        render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions()} onClose={onClose}/>)
+
+        expect(fireEvent.keyDown(document.activeElement!, {key: 'Tab'})).toBe(false)
+        expect(onClose).toHaveBeenCalledOnce()
+    })
+
+    it('closes when the page scrolls or resizes under it', () => {
+        const onClose = vi.fn()
+        render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions()} onClose={onClose}/>)
+
+        fireEvent.scroll(document.body)
+        fireEvent(window, new Event('resize'))
+        expect(onClose).toHaveBeenCalledTimes(2)
+    })
+
     it('runs the chosen action', () => {
         const remove = vi.fn()
         render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions(vi.fn(), remove)} onClose={vi.fn()}/>)

@@ -94,4 +94,55 @@ describe('MessageThread', () => {
             }
         }
     })
+
+    it('streamed text follows a reader at the end but leaves one reading further up where they are', () => {
+        function Harness() {
+            const [reply, setReply] = useState('Once')
+            return <>
+                <button onClick={() => setReply(`${reply} more`)}>grow</button>
+                <MessageThread messages={[message('m-1'), message('m-2', reply)]} hasMore={false} isLoadingOlder={false}
+                               onLoadOlder={() => undefined}/>
+            </>
+        }
+
+        const view = render(<Harness/>)
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        const grow = (height: number) => {
+            setDimensions(thread, height)
+            act(() => view.getByRole('button', {name: 'grow'}).click())
+        }
+        setDimensions(thread, 1000)
+        thread.scrollTop = 800
+        fireEvent.scroll(thread)
+
+        grow(1100)
+        expect(thread.scrollTop).toBe(1100)
+
+        // the reader scrolls up to read; the reply keeps growing below
+        thread.scrollTop = 300
+        fireEvent.scroll(thread)
+        grow(1300)
+        expect(thread.scrollTop).toBe(300)
+    })
+
+    it('still goes to the end for a new message, even when the reader was further up', () => {
+        function Harness() {
+            const [messages, setMessages] = useState([message('m-1'), message('m-2')])
+            return <>
+                <button onClick={() => setMessages([...messages, message('m-3')])}>send</button>
+                <MessageThread messages={messages} hasMore={false} isLoadingOlder={false} onLoadOlder={() => undefined}/>
+            </>
+        }
+
+        const view = render(<Harness/>)
+        const thread = view.container.querySelector('.message-thread') as HTMLDivElement
+        setDimensions(thread, 1000)
+        thread.scrollTop = 100
+        fireEvent.scroll(thread)
+
+        setDimensions(thread, 1200)
+        act(() => view.getByRole('button', {name: 'send'}).click())
+
+        expect(thread.scrollTop).toBe(1200)
+    })
 })

@@ -86,6 +86,33 @@ describe('SideNav', () => {
         expect(screen.queryByRole('tab')).not.toBeInTheDocument()
     })
 
+    it('tells a failed load apart from an empty account and loads again on Retry', async () => {
+        vi.mocked(listChats).mockRejectedValueOnce(new Error('offline')).mockResolvedValue([])
+        vi.mocked(listNotes).mockRejectedValueOnce(new Error('offline'))
+        renderNav('/chats/c1')
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Your chats and notes did not load.')
+        expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        expect(await screen.findByRole('tab', {name: /Notes/})).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('switches the list tabs with the arrows; the selected tab is the only tab stop', async () => {
+        renderNav('/chats/c1')
+        const chats = await screen.findByRole('tab', {name: /Chats/})
+        expect(screen.getAllByRole('tab').filter((tab) => tab.tabIndex === 0)).toEqual([chats])
+        chats.focus()
+
+        await userEvent.keyboard('{ArrowRight}')
+
+        const notes = screen.getByRole('tab', {name: /Notes/})
+        expect(notes).toHaveAttribute('aria-selected', 'true')
+        await waitFor(() => expect(notes).toHaveFocus())
+        expect(screen.getAllByRole('tab').filter((tab) => tab.tabIndex === 0)).toEqual([notes])
+    })
+
     it('shows the note count in the footer and leaves Sign out to Settings', async () => {
         renderNav('/chats/c1')
 

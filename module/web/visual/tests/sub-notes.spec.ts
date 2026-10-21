@@ -89,7 +89,8 @@ test('deleting a parent keeps its sub-notes in its place when asked to', async (
     await nestUnderParent(page)
     await notePanel(page).getByRole('link', {name: PARENT}).click()
 
-    await page.getByRole('button', {name: `Actions for ${PARENT}`}).click()
+    // the note's own header, not the same row in the side navigation's recent notes
+    await page.getByRole('main').getByRole('button', {name: `Actions for ${PARENT}`}).click()
     await page.getByRole('menuitem', {name: 'Delete'}).click()
     const dialog = page.getByRole('dialog', {name: `Delete “${PARENT}”?`})
     await expect(dialog).toContainText('has a sub-note')
@@ -105,7 +106,8 @@ test('deleting a parent with all its sub-notes takes the whole branch', async ({
     await nestUnderParent(page)
     await notePanel(page).getByRole('link', {name: PARENT}).click()
 
-    await page.getByRole('button', {name: `Actions for ${PARENT}`}).click()
+    // the note's own header, not the same row in the side navigation's recent notes
+    await page.getByRole('main').getByRole('button', {name: `Actions for ${PARENT}`}).click()
     await page.getByRole('menuitem', {name: 'Delete'}).click()
     const dialog = page.getByRole('dialog', {name: `Delete “${PARENT}”?`})
     await dialog.getByRole('radio', {name: /Delete all/}).click()

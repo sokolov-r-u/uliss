@@ -338,6 +338,25 @@ describe('ConstellationsPage', () => {
         expect(screen.queryByRole('button', {name: /^Music/})).not.toBeInTheDocument()
     })
 
+    it('creates once even when Enter is pressed again while the tree refreshes', async () => {
+        await renderPage([])
+        vi.mocked(createConstellation).mockResolvedValue(node('music', null, 'Music'))
+        let refreshed!: (items: Constellation[]) => void
+        vi.mocked(listConstellations).mockReturnValueOnce(new Promise((resolve) => {
+            refreshed = resolve
+        }))
+
+        await userEvent.click(await screen.findByRole('button', {name: 'New constellation'}))
+        const field = within(screen.getByRole('dialog', {name: 'New constellation'})).getByRole('textbox')
+        await userEvent.type(field, 'Music{Enter}')
+        await waitFor(() => expect(createConstellation).toHaveBeenCalledOnce())
+        await userEvent.type(field, '{Enter}')
+
+        refreshed([node('music', null, 'Music')])
+        expect(await screen.findByRole('complementary', {name: 'Constellation'})).toHaveTextContent('Music')
+        expect(createConstellation).toHaveBeenCalledOnce()
+    })
+
     it('offers a retry when the tree cannot be loaded', async () => {
         vi.mocked(listConstellations).mockRejectedValueOnce(new Error('down')).mockResolvedValue(TREE)
         render(<MemoryRouter><ConstellationsPage/></MemoryRouter>)
