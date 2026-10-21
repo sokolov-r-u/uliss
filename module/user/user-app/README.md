@@ -28,8 +28,9 @@ user's state with the composite user/message identifier.
 
 Current commands are:
 
-- `SET_DISPLAY_NAME`: blocking; requires a non-empty display name without control or invisible characters (stored in
-  NFC) and completes the message.
+- `SET_DISPLAY_NAME`: blocking; requires a display name with a visible character and without control or invisible
+  characters, except the zero-width joiners Persian names and emoji sequences need (stored in NFC), and completes the
+  message.
 - `COMPLETE_PROFILE`: optional; stores birth date and gender when supplied, otherwise records the step as skipped.
 
 Pending messages are returned blocking-first (then by code). Only a pending step can be submitted: the step's row is

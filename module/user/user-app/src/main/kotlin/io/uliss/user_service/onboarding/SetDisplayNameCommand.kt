@@ -20,7 +20,7 @@ class SetDisplayNameCommand : OnboardingCommand {
         val displayName = input.displayName?.let { Normalizer.normalize(it, Normalizer.Form.NFC) }?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?: throw BadRequestException("displayName is required")
-        if (INVISIBLE.containsMatchIn(displayName)) {
+        if (INVISIBLE.containsMatchIn(displayName) || !VISIBLE.containsMatchIn(displayName)) {
             throw BadRequestException("displayName contains invisible or control characters")
         }
         user.displayName = displayName
@@ -28,6 +28,8 @@ class SetDisplayNameCommand : OnboardingCommand {
     }
 
     private companion object {
-        val INVISIBLE = Regex("\\p{C}")
+        // control, format, private use and unassigned characters, except the joiners Persian names and emoji need
+        val INVISIBLE = Regex("[\\p{C}&&[^\\u200C\\u200D]]")
+        val VISIBLE = Regex("[\\p{L}\\p{N}\\p{P}\\p{S}]")
     }
 }

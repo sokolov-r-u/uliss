@@ -34,10 +34,27 @@ class SetDisplayNameCommandTest {
 
     @Test
     fun `control and invisible characters are rejected`() {
-        // a right-to-left override, a zero-width space, a newline
-        listOf("Bob\u202Eevil", "Bo\u200Bb", "Bob\nAdmin").forEach { name ->
+        // a right-to-left override, a bidi isolate, a zero-width space, a byte order mark, a newline, private use
+        listOf("Bob\u202Eevil", "Bob\u2066x", "Bo\u200Bb", "\uFEFFBob", "Bob\nAdmin", "Bob\uE000").forEach { name ->
             assertFailsWith<BadRequestException>(name) { command.apply(user(), request(name)) }
         }
+    }
+
+    @Test
+    fun `the joiners that names and emoji need are allowed`() {
+        // a Persian name with a zero-width non-joiner, an emoji sequence held together by a zero-width joiner
+        listOf("\u0645\u06CC\u200C\u062E\u0648\u0627\u0647\u0645", "Ann \uD83D\uDC69\u200D\uD83D\uDCBB").forEach { name ->
+            val user = user()
+
+            command.apply(user, request(name))
+
+            assertEquals(name, user.displayName)
+        }
+    }
+
+    @Test
+    fun `a name of joiners only is rejected`() {
+        assertFailsWith<BadRequestException> { command.apply(user(), request("\u200D\u200C")) }
     }
 
     @Test
