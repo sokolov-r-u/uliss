@@ -15,3 +15,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (404 → `NOT_FOUND_ERROR`, other 4xx → `BAD_REQUEST_ERROR`; an unreadable body never echoes the input). A 4xx
   `ServerException` without details returns its message in `details.message`. The library no longer depends on JPA.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 5.
+
+## 2026-10-21 — Only a constraint race is a 409
+
+- **Replaces:** "`DataIntegrityViolationException` → 409 `CONFLICT`" of "One error format, conflicts are 409, client
+  errors log no user content" (2026-10-21).
+- **Context:** every integrity violation answered 409 and was logged at INFO without a stack trace, so a not null,
+  length or check violation (missing validation) looked to the client like a race to reload, and nobody saw the bug.
+- **Decision:** a violation whose SQL state is 23505 (unique) or 23503 (foreign key) is a race and answers 409
+  `CONFLICT`; any other answers 500 and is logged as a server error. The database message stays out of the response.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, code review round.

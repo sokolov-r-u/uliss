@@ -26,6 +26,8 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.client.ResourceAccessException
+import java.sql.SQLException
+import org.springframework.web.bind.annotation.PathVariable
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -58,9 +60,11 @@ class GlobalExceptionHandlerTest {
         // JPA throws the ObjectOptimisticLockingFailureException subclass
         fun stale(): String = throw OptimisticLockingFailureException("Row was updated by another transaction")
 
-        @GetMapping("/duplicate")
-        fun duplicate(): String =
-            throw DataIntegrityViolationException("duplicate key value violates unique constraint \"uq_secret\"")
+        @GetMapping("/integrity/{sqlState}")
+        fun integrity(@PathVariable sqlState: String): String = throw DataIntegrityViolationException(
+            "could not execute statement [constraint \"uq_secret\"]",
+            SQLException("ERROR: violates constraint \"uq_secret\"", sqlState),
+        )
 
         @GetMapping("/bad-request")
         fun badRequest(): String = throw BadRequestException("displayName is required")
@@ -162,11 +166,24 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
-    fun `data integrity violation returns 409 without the database message`() {
-        mockMvc.get("/duplicate").andExpect {
-            status { isConflict() }
-            jsonPath("$.code") { value("CONFLICT") }
-            content { string(Matchers.not(Matchers.containsString("uq_secret"))) }
+    fun `a unique or foreign key violation is a race and returns 409 without the database message`() {
+        for (sqlState in listOf("23505", "23503")) {
+            mockMvc.get("/integrity/$sqlState").andExpect {
+                status { isConflict() }
+                jsonPath("$.code") { value("CONFLICT") }
+                content { string(Matchers.not(Matchers.containsString("uq_secret"))) }
+            }
+        }
+    }
+
+    @Test
+    fun `any other constraint violation is a server bug and returns 500`() {
+        // not null, value too long, check constraint: missing validation, not a race the client could retry
+        for (sqlState in listOf("23502", "22001", "23514")) {
+            mockMvc.get("/integrity/$sqlState").andExpect {
+                status { isInternalServerError() }
+                content { string(Matchers.not(Matchers.containsString("uq_secret"))) }
+            }
         }
     }
 

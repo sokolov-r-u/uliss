@@ -6,6 +6,7 @@ import io.uliss.exception.utils.ErrorCode
 import io.uliss.exception.utils.MESSAGE_KEY
 import io.uliss.exception.utils.UNKNOWN_PATH
 import io.uliss.exception.utils.URI_PREFIX
+import io.uliss.exception.utils.isConstraintRace
 import io.uliss.logging.logger.AppLogger
 import jakarta.validation.ConstraintViolationException
 import org.springframework.dao.DataIntegrityViolationException
@@ -56,10 +57,13 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
     fun handleOptimisticLock(ex: OptimisticLockingFailureException, request: WebRequest): ResponseEntity<Any>? =
         handleException(ex, HttpStatus.CONFLICT, request)
 
-    /** A constraint refused the write; the database message (table and constraint names) stays in the log. */
+    /**
+     * A unique or foreign key violation lost a race: 409, the client reloads. Any other violation is missing validation,
+     * logged as a server error. The database message (table and constraint names) stays in the log either way.
+     */
     @ExceptionHandler(DataIntegrityViolationException::class)
     fun handleDataIntegrityViolation(ex: DataIntegrityViolationException, request: WebRequest): ResponseEntity<Any>? =
-        handleException(ex, HttpStatus.CONFLICT, request)
+        handleException(ex, if (ex.isConstraintRace()) HttpStatus.CONFLICT else HttpStatus.INTERNAL_SERVER_ERROR, request)
 
     @ExceptionHandler(RuntimeException::class)
     fun handleRuntimeException(ex: RuntimeException, request: WebRequest): ResponseEntity<Any>? {
@@ -136,7 +140,7 @@ class GlobalExceptionHandler : ResponseEntityExceptionHandler() {
         ex is ConstraintViolationException -> ErrorCode.VALIDATION_ERROR
         ex is ResourceAccessException -> ErrorCode.INTERNAL_ERROR
         ex is OptimisticLockingFailureException -> ErrorCode.VERSION_CONFLICT
-        ex is DataIntegrityViolationException -> ErrorCode.CONFLICT
+        ex is DataIntegrityViolationException && httpStatus == HttpStatus.CONFLICT -> ErrorCode.CONFLICT
         httpStatus == HttpStatus.NOT_FOUND -> ErrorCode.NOT_FOUND_ERROR
         httpStatus.is4xxClientError -> ErrorCode.BAD_REQUEST_ERROR
         else -> ErrorCode.UNKNOWN_ERROR
