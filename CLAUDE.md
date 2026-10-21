@@ -53,6 +53,10 @@
 ## Commits
 
 - Never commit to `main`. If the current branch is `main`, stop and ask the user which branch to create or switch to.
+- Branch names: `<PREFIX>-<short-kebab-name>` with the task-type prefix (e.g. `FE-constellations-tree`). No `claude/`
+  or other folder prefix, no hash or random suffix.
+- Work in the main checkout, not in worktrees: no `git worktree`/`EnterWorktree`, and start sessions with
+  `use_worktree: false`. Never switch the checkout's branch (including back to `main`) without the user asking.
 - Work on the current branch. One commit per logical block, containing the block's code and its tests; the touched
   modules' tests are green at every commit. No commits with failing tests.
 - Stage explicit paths, never `git add -A`. Task files are gitignored and never committed.
