@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.grpc.client.interceptor.security.BearerTokenAuthenticationInterceptor
 import java.time.Duration
+import java.util.function.Supplier
 
 @Configuration
 class GrpcConfig(
@@ -25,7 +26,7 @@ class GrpcConfig(
             .intercept(
                 DefaultDeadlineInterceptor(userServiceDeadline),
                 // user-service accepts only this service token (see UserServiceAuth)
-                BearerTokenAuthenticationInterceptor(tokenProvider::getToken),
+                BearerTokenAuthenticationInterceptor(Supplier(tokenProvider::getToken)),
             )
             .build()
 

@@ -678,3 +678,19 @@ a synchronous pre-solve of a fresh view: fine for hundreds of stars, slow from a
 Canvas and the layout to a Web Worker when real skies get there. Positions are not kept between visits either, so a
 sky can open a little differently after its notes change; cache the last positions per device (next to the sky
 settings) if users miss their bearings.
+
+## Deferred dependency migrations
+
+**Status:** deferred 2026-10-21 from the first grouped Dependabot PR. They are not ignored in
+`.github/dependabot.yml`: the monthly review reverts each one in the bot branch until its migration is done.
+
+- **Kotlin 2.3 → 2.4.** Every `compileKotlin` failed with `getPluginClasspaths() is null`; check what Spring Boot 4.1
+  supports first. Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
+- **protobuf-gradle-plugin 0.9 → 0.10.** A 0.x minor may break the `user-api` build; move it with or after Kotlin.
+- **Vite 6 → 8 with `@vitejs/plugin-react` 4 → 6.** Plugin 6 does not type-check against Vite 6; both move together.
+  Task `docs/tasks/2026-10-21-vite-upgrade.md`.
+- **Playwright 1.62 → 1.64.** `@playwright/test` and the `mcr.microsoft.com/playwright` image in `pr-checks.yml`
+  must match, and visual snapshots may need a refresh. Task `docs/tasks/2026-10-21-playwright-upgrade.md`.
+- **Web toolchain majors:** TypeScript 7, Vitest 5, jsdom 30, `@testing-library/jest-dom` 7, esbuild 0.28,
+  `@types/node` 26, `postcss-cli` 12. The design-system checks passed with them; `@uliss/web` was not reached.
+  Task `docs/tasks/2026-10-21-web-toolchain-majors.md`.

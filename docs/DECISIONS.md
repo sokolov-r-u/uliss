@@ -144,3 +144,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** an access token already issued to another device or a tab without `BroadcastChannel` stays valid
   until it expires (at most 15 minutes); resource servers do not check revocation.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 23.
+
+## 2026-10-21 — Dependency updates arrive as two monthly Dependabot PRs reviewed by hand
+
+- **Context:** one PR per dependency produced 14 open PRs a week, and a single grouped PR is all-or-nothing: a major
+  upgrade that breaks the build blocks every safe patch in it.
+- **Decision:** `.github/dependabot.yml` sends one monthly PR for GitHub Actions (merged when CI is green, then the
+  first `docker-publish` run on `main` is checked) and one monthly multi-ecosystem PR for Gradle, npm and Docker.
+  The second is reviewed in the bot branch: each update is taken (fixed there if needed) or reverted and recorded in
+  `docs/TECH_DEBT.md` ("Deferred dependency migrations") with a task file. Majors are not ignored, so every one stays
+  visible; the only ignore is `eclipse-temurin` majors, because the runtime moves between Java LTS releases by hand.
+- **Consequences:** while a migration is deferred, the monthly PR arrives red and the same revert is repeated by hand.
+- **Source:** Dependabot PR #80 review; commits `1e0fc15`, `3a97a5a` and the commit that dropped the major ignores.
