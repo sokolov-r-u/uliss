@@ -681,8 +681,8 @@ settings) if users miss their bearings.
 
 ## Deferred dependency migrations
 
-**Status:** deferred 2026-10-21 from the first grouped Dependabot PR; each line is ignored in
-`.github/dependabot.yml` until its migration is done.
+**Status:** deferred 2026-10-21 from the first grouped Dependabot PR. They are not ignored in
+`.github/dependabot.yml`: the monthly review reverts each one in the bot branch until its migration is done.
 
 - **Kotlin 2.3 → 2.4.** Every `compileKotlin` failed with `getPluginClasspaths() is null`; check what Spring Boot 4.1
   supports first. Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
