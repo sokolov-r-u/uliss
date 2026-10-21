@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
@@ -60,6 +61,13 @@ tasks.withType<KotlinCompile>().configureEach {
             "-Xannotation-default-target=param-property",
             "-Xmulti-dollar-interpolation",
         )
+    }
+}
+
+// a CI failure shows expected/actual in the log; the runner keeps no test reports
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
 
