@@ -32,9 +32,16 @@
     outline: none;
 }
 
-.sky-node:focus-visible circle:last-of-type {
+.sky-focus-ring {
+    fill: none;
+    stroke: none;
+    pointer-events: none;
+}
+
+.sky-node:focus-visible .sky-focus-ring {
     stroke: var(--accent);
     stroke-width: 1.5;
+    stroke-dasharray: 3 3;
 }
 
 .sky-name {

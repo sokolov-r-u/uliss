@@ -212,6 +212,40 @@ export function nearestStars(
         .map((p) => p.id)
 }
 
+export type ArrowKey = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown'
+
+const ARROW_AXES: Record<ArrowKey, { x: number; y: number }> = {
+    ArrowLeft: {x: -1, y: 0},
+    ArrowRight: {x: 1, y: 0},
+    ArrowUp: {x: 0, y: -1},
+    ArrowDown: {x: 0, y: 1},
+}
+
+/**
+ * The point an arrow key moves to from [fromId] on screen: the nearest one in that direction, preferring the 90° cone
+ * around the arrow and then anything on that side. `null` when nothing lies that way.
+ */
+export function nextInDirection(
+    points: readonly { id: string; x: number; y: number }[],
+    fromId: string,
+    key: ArrowKey,
+): string | null {
+    const from = points.find((p) => p.id === fromId)
+    if (!from) return points[0]?.id ?? null
+    const axis = ARROW_AXES[key]
+    let best: { id: string; score: number } | null = null
+    for (const p of points) {
+        if (p.id === fromId) continue
+        const along = (p.x - from.x) * axis.x + (p.y - from.y) * axis.y
+        if (along <= 0) continue
+        const across = Math.abs((p.x - from.x) * axis.y - (p.y - from.y) * axis.x)
+        // outside the cone only wins when the cone is empty
+        const score = along + 2 * across + (across > along ? 1e6 : 0)
+        if (!best || score < best.score) best = {id: p.id, score}
+    }
+    return best?.id ?? null
+}
+
 /** Distance in px from [p] to the segment [a]–[b]. */
 export function segmentDistance(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }): number {
     const dx = b.x - a.x

@@ -1,6 +1,6 @@
 import {type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
-import {labelLines, nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
+import {type ArrowKey, labelLines, nearestStars, nextInDirection, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
@@ -370,12 +370,14 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const pickableIds = nodes.filter((n) => n.node.kind !== 'you' && !off(n.node)).map((n) => n.id)
     const tabStopId = rovingId && pickableIds.includes(rovingId) ? rovingId
         : selectedId && pickableIds.includes(selectedId) ? selectedId : pickableIds[0]
+    const isArrow = (key: string): key is ArrowKey =>
+        key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' || key === 'ArrowDown'
     const moveRoving = (event: KeyboardEvent<SVGGElement>, id: string) => {
-        const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
-            : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
-        if (step === 0 || pickableIds.length === 0) return false
+        if (!isArrow(event.key)) return false
         event.preventDefault()
-        const next = pickableIds[(pickableIds.indexOf(id) + step + pickableIds.length) % pickableIds.length]
+        const points = nodes.filter((n) => pickableIds.includes(n.id)).map((n) => ({id: n.id, x: sx(n), y: sy(n)}))
+        const next = nextInDirection(points, id, event.key)
+        if (next == null) return true
         setRovingId(next)
         const svg = event.currentTarget.ownerSVGElement
         requestAnimationFrame(() => svg?.querySelector<SVGGElement>(`[data-node-id="${CSS.escape(next)}"]`)?.focus())
@@ -472,12 +474,20 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               onClick={pickable ? () => activate(node) : undefined}
                               onKeyDown={pickable ? (event) => {
                                   if (moveRoving(event, n.id)) return
+                                  if (event.key === 'Escape') {
+                                      // first out of Focus to the whole sky, then off the star
+                                      event.preventDefault()
+                                      if (view === 'focus') props.onExitFocus()
+                                      else event.currentTarget.blur()
+                                      return
+                                  }
                                   if (event.key === 'Enter' || event.key === ' ') {
                                       event.preventDefault()
                                       activate(node)
                                   }
                               } : undefined}>
                         {pickable && <circle cx={x} cy={y} r={HIT_RADIUS} fill="transparent"/>}
+                        {pickable && <circle className="sky-focus-ring" cx={x} cy={y} r={r + 8}/>}
                         {(n.id === selectedId || edgeEnds.has(n.id)) &&
                             <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)"
                                     strokeWidth={1} opacity={n.id === selectedId ? 1 : 0.7}/>}
