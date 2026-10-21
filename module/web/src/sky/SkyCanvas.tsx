@@ -173,6 +173,21 @@ export function SkyCanvas(props: SkyCanvasProps) {
         if (layoutRef.current) applyPhysics(layoutRef.current, physics)
     }, [physics])
 
+    // On the sky screen Tab always lands on the graph, never on the nav or the controls around it; inside the graph
+    // arrows move and Escape leaves. Open panels and dialogs keep their own Tab order.
+    useEffect(() => {
+        const onKeyDown = (event: globalThis.KeyboardEvent) => {
+            if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
+            const active = document.activeElement
+            const inGraph = active instanceof Element && active.closest('.sky-svg') != null
+            if (!inGraph && active instanceof Element && active.closest('.context-panel, .sky-panel, .side-nav.open, [role="dialog"], [role="menu"]')) return
+            event.preventDefault()
+            if (!inGraph) frameRef.current?.querySelector<SVGGElement>('[data-sky-entry]')?.focus()
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+    }, [])
+
     // a resize re-frames the sky until the user has moved it
     useEffect(() => {
         if (box && !touched.current) {
@@ -471,7 +486,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               opacity={dimmed ? isConstellation ? 0.16 : 0.14 : 1}
                               role={pickable ? 'button' : undefined}
                               tabIndex={pickable ? n.id === tabStopId ? 0 : -1 : undefined}
-                              data-skip-target={pickable && n.id === tabStopId ? '' : undefined}
+                              data-sky-entry={pickable && n.id === tabStopId ? '' : undefined}
                               onFocus={pickable ? () => {
                                   setRovingId(n.id)
                                   setFocusedId(n.id)

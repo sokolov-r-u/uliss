@@ -1,4 +1,4 @@
-import {type MouseEvent, useEffect, useRef, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {Outlet, useLocation} from 'react-router-dom'
 import {OnboardingDriver} from '../onboarding/OnboardingDriver'
 import {returnsToNavDialog} from './actions/deleteDialogReturn'
@@ -17,16 +17,6 @@ export function AppShell() {
     const [navCollapsed, setNavCollapsed] = useState(false)
     const location = useLocation()
     const restoreFocusRef = useRef<HTMLElement | null>(null)
-    const mainRef = useRef<HTMLElement>(null)
-
-    // The skip link jumps past the nav: to the screen's own keyboard entry (the sky's star) or else the main column.
-    const skipToContent = (event: MouseEvent<HTMLAnchorElement>) => {
-        event.preventDefault()
-        const main = mainRef.current
-        if (!main) return
-        const target: HTMLElement | SVGElement = main.querySelector<HTMLElement | SVGElement>('[data-skip-target]') ?? main
-        target.focus()
-    }
 
     const openNav = () => {
         restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
@@ -59,10 +49,9 @@ export function AppShell() {
 
     return (
         <div className="app-shell">
-            <a className="skip-link" href="#main" onClick={skipToContent}>Skip to content</a>
             <SideNav open={navOpen} collapsed={navCollapsed} onClose={closeNav}
                      onToggleCollapsed={() => setNavCollapsed((value) => !value)}/>
-            <main id="main" ref={mainRef} className="app-main" tabIndex={-1}>
+            <main className="app-main">
                 <ShellNavContext.Provider value={openNav}><Outlet/></ShellNavContext.Provider>
             </main>
             <OnboardingDriver/>
