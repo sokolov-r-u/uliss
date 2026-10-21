@@ -16,19 +16,21 @@ type TokenResponse = {
   refresh_token: string | null
   expires_in: number
   token_type: string
+  id_token?: string | null
 }
 
-function toTokens(json: TokenResponse): Tokens {
+function toTokens(json: TokenResponse, previousIdToken: string | null): Tokens {
   return {
     accessToken: json.access_token,
     refreshToken: json.refresh_token ?? null,
     expiresAt: Date.now() + json.expires_in * 1000,
+    idToken: json.id_token ?? previousIdToken,
   }
 }
 
-async function readTokens(res: Response, what: string): Promise<Tokens> {
+async function readTokens(res: Response, what: string, previousIdToken: string | null = null): Promise<Tokens> {
   if (!res.ok) throw new Error(`${what} failed (${res.status})`)
-  const tokens = toTokens((await res.json()) as TokenResponse)
+  const tokens = toTokens((await res.json()) as TokenResponse, previousIdToken)
   setTokens(tokens)
   return tokens
 }
@@ -40,7 +42,7 @@ async function readTokens(res: Response, what: string): Promise<Tokens> {
  */
 export function login(): void {
   // a login restarted from /callback keeps the route saved by the login it replaces
-  if (!window.location.pathname.startsWith('/callback')) {
+  if (!window.location.pathname.startsWith('/callback') && !window.location.pathname.startsWith('/signed-out')) {
     sessionStorage.setItem(RETURN_TO_KEY, window.location.pathname + window.location.search)
   }
   window.location.href = '/user/oauth2/login'
@@ -66,12 +68,20 @@ export function clearLoginRetry(): void {
   sessionStorage.removeItem(LOGIN_RETRIED_KEY)
 }
 
-/** One-shot read of the saved pre-login route; falls back to home and never loops back to /callback. */
+/**
+ * One-shot read of the saved pre-login route; falls back to home and never loops back to /callback or
+ * /signed-out. Only a path of this origin passes: `//host` and `/\host` would leave it.
+ */
 export function takeReturnTo(): string {
   const to = sessionStorage.getItem(RETURN_TO_KEY)
   sessionStorage.removeItem(RETURN_TO_KEY)
-  if (to && to.startsWith('/') && !to.startsWith('/callback')) return to
-  return '/'
+  if (!to || !to.startsWith('/') || to.startsWith('//') || to.startsWith('/\\')) return '/'
+  // resolved against a stand-in origin: anything that leaves it (another host, a protocol) is not an in-app path
+  const base = 'https://in.app'
+  const url = new URL(to, base)
+  if (url.origin !== base) return '/'
+  if (url.pathname.startsWith('/callback') || url.pathname.startsWith('/signed-out')) return '/'
+  return url.pathname + url.search
 }
 
 /**
@@ -106,7 +116,7 @@ export class RefreshRejectedError extends Error {
 }
 
 /** Rotates the tokens. Throws `RefreshRejectedError` on 400/401; network and server failures stay plain errors. */
-export async function refreshTokens(refreshToken: string): Promise<Tokens> {
+export async function refreshTokens(refreshToken: string, idToken: string | null = null): Promise<Tokens> {
   const res = await fetch('/user/oauth2/refresh', {
     method: 'POST',
     credentials: 'include',
@@ -114,22 +124,31 @@ export async function refreshTokens(refreshToken: string): Promise<Tokens> {
     body: JSON.stringify({ refreshToken }),
   })
   if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
-  return readTokens(res, 'token refresh')
+  return readTokens(res, 'token refresh', idToken)
 }
 
-/** Best-effort refresh-token revocation on the service; always clears local tokens. */
-export async function logout(refreshToken: string | null): Promise<void> {
+/**
+ * Best-effort refresh-token revocation on the service; always clears local tokens. Returns where the browser must go
+ * to end the auth server's own session (its end-session endpoint), or null when there is nothing to hint with.
+ */
+export async function logout(refreshToken: string | null, idToken: string | null = null): Promise<string | null> {
+  let redirectUrl: string | null = null
   if (refreshToken) {
     try {
-      await fetch('/user/oauth2/logout', {
+      const res = await fetch('/user/oauth2/logout', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refreshToken }),
+        body: JSON.stringify({ refreshToken, idToken }),
       })
+      if (res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { redirectUrl?: unknown }
+        if (typeof body.redirectUrl === 'string') redirectUrl = body.redirectUrl
+      }
     } catch {
       // ignore — logout is best-effort
     }
   }
   clearTokens()
+  return redirectUrl
 }

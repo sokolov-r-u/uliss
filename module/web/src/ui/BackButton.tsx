@@ -8,8 +8,10 @@ import {IconButton} from '@uliss/design-system'
 export function BackButton() {
     const location = useLocation()
     const navigate = useNavigate()
-    // the router keys the first entry of a session 'default'; every in-app navigation gets a key of its own
-    if (location.key === 'default') return null
+    // the router keys the first entry of a session 'default'; every in-app navigation gets a key of its own.
+    // The screen a login lands on has a key too, but behind it are only the auth server's pages.
+    const fromLogin = (location.state as { fromLogin?: boolean } | null)?.fromLogin === true
+    if (location.key === 'default' || fromLogin) return null
     return <span className="screen-head-back">
         <IconButton s={44} title="Back" onClick={() => navigate(-1)}><span aria-hidden className="screen-head-back-glyph">←</span></IconButton>
     </span>

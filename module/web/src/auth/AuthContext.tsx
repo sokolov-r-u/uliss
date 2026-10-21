@@ -7,7 +7,7 @@ type AuthState = {
   isAuthenticated: boolean
   /** Full-page handoff to the service login flow. */
   login: () => void
-  /** Revoke the refresh token (best-effort) and drop local tokens. */
+  /** Revoke the refresh token (best-effort), drop local tokens and end the auth server session (full page). */
   logout: () => Promise<void>
   /** Re-read tokens from storage into React state (call after a successful code exchange). */
   syncFromStore: () => void
@@ -20,11 +20,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const syncFromStore = useCallback(() => setIsAuthenticated(getTokens() != null), [])
 
+  // The auth server keeps its own browser session after a revocation: the whole page goes to its end-session endpoint,
+  // which comes back to /signed-out. React state is left alone so RequireAuth does not start a new login meanwhile.
   const logout = useCallback(async () => {
     const tokens = getTokens()
-    await revokeAndClear(tokens?.refreshToken ?? null)
+    const endSession = await revokeAndClear(tokens?.refreshToken ?? null, tokens?.idToken ?? null)
     clearTokens()
-    setIsAuthenticated(false)
+    window.location.assign(endSession ?? '/signed-out')
   }, [])
 
   const value = useMemo<AuthState>(

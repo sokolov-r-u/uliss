@@ -28,13 +28,18 @@ function isKnownStep(message: OnboardingMessage): boolean {
 }
 
 /**
- * A failed refresh is not fatal: the next refused request starts the onboarding again and refreshes once more.
- * The lists refused with the old token are reloaded.
+ * Refreshes the token and reloads the lists refused with the old one. Returns false when the refresh failed: the lists
+ * are then left alone, since reloading them with the stale token would be refused again and loop.
  */
-async function refreshQuietly(): Promise<void> {
-    await refreshSession().catch(() => undefined)
+async function refreshQuietly(): Promise<boolean> {
+    try {
+        await refreshSession()
+    } catch {
+        return false
+    }
     notifyChatListChanged()
     notifyNotesChanged()
+    return true
 }
 
 type State =
@@ -67,7 +72,15 @@ export function OnboardingDriver() {
                     return
                 }
                 const messages = pending.filter(isKnownStep)
-                if (refused.current && !pending.some((message) => message.blocking)) await refreshQuietly()
+                if (refused.current && !pending.some((message) => message.blocking)) {
+                    refused.current = false
+                    // the token still says onboarding and cannot be renewed (auth down): ask, instead of retrying
+                    // in a loop of refused requests
+                    if (!(await refreshQuietly())) {
+                        if (active) setState({status: 'error'})
+                        return
+                    }
+                }
                 refused.current = false
                 if (active) setState(messages.length ? {status: 'active', messages, index: 0} : {status: 'done'})
             })

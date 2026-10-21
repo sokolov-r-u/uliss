@@ -41,7 +41,8 @@ export function Callback() {
       .then(() => {
         clearLoginRetry()
         syncFromStore()
-        navigate(takeReturnTo(), { replace: true })
+        // marked so the first screen offers no Back into the OAuth redirects
+        navigate(takeReturnTo(), { replace: true, state: { fromLogin: true } })
       })
       .catch((e: unknown) => {
         if (e instanceof LoginRejectedError) {
@@ -65,7 +66,7 @@ export function Callback() {
             <button
               type="button"
               className="link-btn"
-              onClick={() => void logout().then(() => login())}
+              onClick={() => void logout()}
             >
               sign out
             </button>

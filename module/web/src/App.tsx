@@ -3,6 +3,7 @@ import {Navigate, Route, Routes} from 'react-router-dom'
 import {useAuth} from './auth/AuthContext'
 import {getTokens} from './auth/tokenStore'
 import {Callback} from './pages/Callback'
+import {SignedOut} from './pages/SignedOut'
 import {Shell} from './ui/Shell'
 import {AppShell} from './ui/AppShell'
 import {ChatListPage} from './chat/ChatListPage'
@@ -43,6 +44,7 @@ export function App() {
   return (
     <Routes>
       <Route path="/callback" element={<Callback />} />
+      <Route path="/signed-out" element={<SignedOut />} />
       <Route
         path="/"
         element={

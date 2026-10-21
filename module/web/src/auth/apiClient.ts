@@ -50,18 +50,18 @@ function signInAgain(): never {
   throw new AuthRequiredError()
 }
 
-async function runRefresh(refreshToken: string | null): Promise<Tokens> {
+async function runRefresh(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
   if (!refreshToken) signInAgain()
   try {
-    return await refreshTokens(refreshToken)
+    return await refreshTokens(refreshToken, idToken)
   } catch (error) {
     if (error instanceof RefreshRejectedError) signInAgain()
     throw new SessionRefreshError(error)
   }
 }
 
-function refreshOnce(refreshToken: string | null): Promise<Tokens> {
-  refreshing ??= runRefresh(refreshToken).finally(() => {
+function refreshOnce(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
+  refreshing ??= runRefresh(refreshToken, idToken).finally(() => {
     refreshing = null
   })
   return refreshing
@@ -76,7 +76,7 @@ export async function getAccessToken(rejected?: string): Promise<string> {
   const tokens = getTokens()
   if (!tokens) signInAgain()
   if (tokens.accessToken !== rejected && !isExpired(tokens)) return tokens.accessToken
-  return (await refreshOnce(tokens.refreshToken)).accessToken
+  return (await refreshOnce(tokens.refreshToken, tokens.idToken ?? null)).accessToken
 }
 
 /**

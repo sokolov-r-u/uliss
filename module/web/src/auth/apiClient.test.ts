@@ -48,7 +48,8 @@ describe('authFetch refresh', () => {
         expect(a.status).toBe(200)
         expect(b.status).toBe(200)
         expect(refreshTokens).toHaveBeenCalledOnce()
-        expect(refreshTokens).toHaveBeenCalledWith('refresh-1')
+        // the second argument is the id token kept for sign-out; none was stored here
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-1', null)
         expect(login).not.toHaveBeenCalled()
     })
 
@@ -147,7 +148,7 @@ describe('refreshSession', () => {
 
         await refreshSession()
 
-        expect(refreshTokens).toHaveBeenCalledWith('refresh-2')
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-2', null)
         expect(getTokens()?.accessToken).toBe('access-3')
     })
     it('does not settle for a refresh that started before it was asked', async () => {
