@@ -176,4 +176,5 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `infra/docker/base-jre/Dockerfile` deletes `/usr/bin/pebble` and `/var/lib/pebble`; Jib sets the
   entrypoint and nothing runs Pebble. The `base-jre` tag in `gradle.properties.example` follows the temurin tag
   (`25.0.4.1_1`) instead of republishing new content under the old one.
+- **Consequences:** Dependabot bumps only the `FROM` line; the tag is updated by hand in the same PR.
 - **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 2.

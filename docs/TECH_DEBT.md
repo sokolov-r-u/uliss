@@ -701,4 +701,5 @@ settings) if users miss their bearings.
 2.21.5 (HIGH), which fail `scan-images`. `io.uliss.kotlin-conventions` overrides the BOM properties `tomcat.version`,
 `jackson-bom.version` and `jackson-2-bom.version` from `tomcat`, `jackson`, `jackson2` in `gradle/libs.versions.toml`.
 Remove the three properties and the catalog entries with the Boot upgrade that ships these versions or newer
-(expected 4.1.2); otherwise they hold back the BOM's later patches. Task `docs/tasks/2026-10-21-image-security-fixes.md`.
+(expected 4.1.2); otherwise they hold back the BOM's later patches. A `check` on the Boot version in the plugin fails
+the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-security-fixes.md`.
