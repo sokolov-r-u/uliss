@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { clearTokens, getTokens } from './tokenStore'
 import { login as startLogin, logout as revokeAndClear } from './authApi'
+import { announceSignOut, onSignOutElsewhere } from './signOutBroadcast'
 
 type AuthState = {
   /** Whether the SPA currently holds tokens. */
@@ -26,8 +27,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const tokens = getTokens()
     const endSession = await revokeAndClear(tokens?.refreshToken ?? null, tokens?.idToken ?? null)
     clearTokens()
+    announceSignOut()
     window.location.assign(endSession ?? '/signed-out')
   }, [])
+
+  // Signed out in another tab: this tab's tokens belong to the same user and go too.
+  useEffect(() => onSignOutElsewhere(() => {
+    if (getTokens() == null) return
+    clearTokens()
+    window.location.assign('/signed-out')
+  }), [])
 
   const value = useMemo<AuthState>(
     () => ({ isAuthenticated, login: startLogin, logout, syncFromStore }),

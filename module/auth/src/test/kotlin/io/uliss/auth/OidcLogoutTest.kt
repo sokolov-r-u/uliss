@@ -81,6 +81,34 @@ class OidcLogoutTest {
     }
 
     @Test
+    fun `end-session revokes every authorization of the browser session`() {
+        val session = signedInSession()
+        val firstTab = exchange(authorizeWithSession(session))
+        // a second tab signs in silently through the same browser session and gets its own authorization
+        val secondTab = exchange(authorizeWithSession(session))
+
+        mockMvc.get(endSessionUri(JsonPath.read(firstTab, "$.id_token"), POST_LOGOUT_URI)) { this.session = session }
+            .andExpect { redirectedUrl(POST_LOGOUT_URI) }
+
+        refresh(JsonPath.read(secondTab, "$.refresh_token")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+    }
+
+    @Test
+    fun `end-session leaves the user's other browser sessions signed in`() {
+        val session = signedInSession()
+        val signedOutTab = exchange(authorizeWithSession(session))
+        val otherBrowser = exchange(authorizeWithSession(signedInSession()))
+
+        mockMvc.get(endSessionUri(JsonPath.read(signedOutTab, "$.id_token"), POST_LOGOUT_URI)) { this.session = session }
+            .andExpect { redirectedUrl(POST_LOGOUT_URI) }
+
+        refresh(JsonPath.read(otherBrowser, "$.refresh_token")).andExpect { status { isOk() } }
+    }
+
+    @Test
     fun `end-session rejects a post-logout page that is not registered`() {
         val session = signedInSession()
         val idToken = JsonPath.read<String>(exchange(authorizeWithSession(session)), "$.id_token")
@@ -126,6 +154,12 @@ class OidcLogoutTest {
         assertTrue(location.startsWith(REDIRECT_URI), "expected a code redirect, was $location")
         return UriComponentsBuilder.fromUriString(location).build().queryParams.getFirst("code")
             ?: error("no code in $location")
+    }
+
+    private fun refresh(refreshToken: String) = mockMvc.post("/oauth2/token") {
+        param("grant_type", "refresh_token")
+        param("refresh_token", refreshToken)
+        with(httpBasic(WEB_CLIENT, WEB_SECRET))
     }
 
     private fun exchange(code: String): String = mockMvc.post("/oauth2/token") {

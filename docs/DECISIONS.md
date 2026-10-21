@@ -131,3 +131,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `security.yml` sets `spring.security.oauth2.resourceserver.jwt.audiences` to `FRONTEND_CLIENT_ID`;
   auth issues user access tokens with `aud` = the web client id.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 4.
+
+## 2026-10-21 — Signing out in one tab signs out the whole browser
+
+- **Context:** every tab keeps its own tokens in `sessionStorage`. A tab that signed in silently through the auth
+  server session has its own authorization, which end-session left alone (Spring Authorization Server only ends the
+  HTTP session), so it kept refreshing for up to 90 days; a duplicated tab kept its copied access token for 15 minutes.
+- **Decision:** auth remembers the ID token's `sid` of every authorization (`SessionTrackingAuthorizationService`,
+  `auth.authorization_session`, V8) and its end-session handler removes all authorizations of that `sid` before
+  ending the HTTP session. Other browsers of the same user are untouched. The SPA announces the sign-out on a
+  `BroadcastChannel`; other tabs drop their tokens and open `/signed-out` at once.
+- **Consequences:** an access token already issued to another device or a tab without `BroadcastChannel` stays valid
+  until it expires (at most 15 minutes); resource servers do not check revocation.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 23.

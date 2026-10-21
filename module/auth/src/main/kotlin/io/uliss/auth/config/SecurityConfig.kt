@@ -1,6 +1,8 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.handler.BrowserSessionLogoutHandler
 import io.uliss.auth.handler.TokenErrorResponseHandler
+import io.uliss.auth.service.BrowserSessionLogoutService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -11,9 +13,9 @@ import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OidcConfigurer
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint
 import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler
@@ -32,13 +34,21 @@ class SecurityConfig(
 
     @Bean
     @Order(1)
-    fun authorizationServerSecurityFilterChain(http: HttpSecurity): SecurityFilterChain {
+    fun authorizationServerSecurityFilterChain(
+        http: HttpSecurity,
+        browserSessionLogoutService: BrowserSessionLogoutService,
+    ): SecurityFilterChain {
         // every endpoint the server advertises, incl. OIDC /userinfo and /connect/logout, not only /oauth2/**
         val authorizationServer = OAuth2AuthorizationServerConfigurer()
         return http
             .securityMatcher(authorizationServer.endpointsMatcher)
             .with(authorizationServer) { server ->
-                server.oidc { Customizer.withDefaults<OidcConfigurer>() }
+                server.oidc { oidc ->
+                    // end-session also revokes the other tabs' authorizations of this browser session
+                    val logoutResponse = OidcLogoutAuthenticationSuccessHandler()
+                    logoutResponse.setLogoutHandler(BrowserSessionLogoutHandler(browserSessionLogoutService))
+                    oidc.logoutEndpoint { it.logoutResponseHandler(logoutResponse) }
+                }
                 server.tokenEndpoint { it.errorResponseHandler(TokenErrorResponseHandler()) }
             }
             .authorizeHttpRequests { it.anyRequest().authenticated() }
