@@ -156,3 +156,25 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   visible; the only ignore is `eclipse-temurin` majors, because the runtime moves between Java LTS releases by hand.
 - **Consequences:** while a migration is deferred, the monthly PR arrives red and the same revert is repeated by hand.
 - **Source:** Dependabot PR #80 review; commits `1e0fc15`, `3a97a5a` and the commit that dropped the major ignores.
+
+## 2026-10-21 — Security patches ahead of Spring Boot override BOM properties
+
+- **Context:** a patched Tomcat or Jackson can be out weeks before the Boot release that manages it, while
+  `scan-images` fails on the published images.
+- **Decision:** such a version goes to `gradle/libs.versions.toml` and `io.uliss.kotlin-conventions` sets the matching
+  Boot BOM property as a project property (`extra["tomcat.version"]`). `mavenBom { bomProperty(...) }` does not work
+  here: the Spring Boot plugin re-imports the BOM without it. Every override is listed in `docs/TECH_DEBT.md` with the
+  Boot version that removes it.
+- **Consequences:** one place for all modules; an override left behind pins the library below later BOM patches.
+- **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 1.
+
+## 2026-10-21 — base-jre removes the Pebble binary of the Ubuntu base
+
+- **Context:** `ubuntu:26.04`, under `eclipse-temurin`, is a rockcraft build that ships Canonical's Pebble
+  (`/usr/bin/pebble`, a Go binary) outside dpkg. Its Go runtime fails `scan-images`, and `apt-get upgrade` cannot
+  patch it.
+- **Decision:** `infra/docker/base-jre/Dockerfile` deletes `/usr/bin/pebble` and `/var/lib/pebble`; Jib sets the
+  entrypoint and nothing runs Pebble. The `base-jre` tag in `gradle.properties.example` follows the temurin tag
+  (`25.0.4.1_1`) instead of republishing new content under the old one.
+- **Consequences:** Dependabot bumps only the `FROM` line; the tag is updated by hand in the same PR.
+- **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 2.

@@ -225,7 +225,8 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   published by `.github/workflows/docker-publish.yml`'s `base-jre` job (only when
   `infra/docker/base-jre/**` changes) as a multi-arch `linux/amd64,linux/arm64`
   manifest, since the same tag is pulled both locally on Apple Silicon and by CI on amd64). It's
-  `eclipse-temurin:25.0.3_9-jre` (Ubuntu/glibc) plus `curl`, kept installed — Adoptium's own
+  `eclipse-temurin:25.0.4.1_1-jre` (Ubuntu/glibc) minus the unused `/usr/bin/pebble` (the Ubuntu base ships it
+  outside dpkg, so `apt` never patches its Go runtime) plus `curl`, kept installed — Adoptium's own
   Dockerfile installs `wget`/`gnupg` only to download the JDK, then purges both before publishing,
   so the stock tag has no HTTP client for `infra/docker-compose.yml`'s `auth`/`user`/`note`
   healthchecks (`curl -f http://localhost:<port>/actuator/health`) to use. The `-alpine` tag would

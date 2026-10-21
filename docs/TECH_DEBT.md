@@ -694,3 +694,12 @@ settings) if users miss their bearings.
 - **Web toolchain majors:** TypeScript 7, Vitest 5, jsdom 30, `@testing-library/jest-dom` 7, esbuild 0.28,
   `@types/node` 26, `postcss-cli` 12. The design-system checks passed with them; `@uliss/web` was not reached.
   Task `docs/tasks/2026-10-21-web-toolchain-majors.md`.
+
+## Tomcat and Jackson pinned over the Spring Boot BOM (`gradle-plugins`)
+
+**Status:** added 2026-10-21. Boot 4.1.1 brings Tomcat 11.0.24 (CRITICAL CVE-2026-65182), Jackson 3.1.5 and Jackson 2
+2.21.5 (HIGH), which fail `scan-images`. `io.uliss.kotlin-conventions` overrides the BOM properties `tomcat.version`,
+`jackson-bom.version` and `jackson-2-bom.version` from `tomcat`, `jackson`, `jackson2` in `gradle/libs.versions.toml`.
+Remove the three properties and the catalog entries with the Boot upgrade that ships these versions or newer
+(expected 4.1.2); otherwise they hold back the BOM's later patches. A `check` on the Boot version in the plugin fails
+the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-security-fixes.md`.
