@@ -17,7 +17,7 @@
     "visual:update:container": "playwright test --update-snapshots"
   },
   "dependencies": {
-    "@tiptap/core": "3.31.4",
+    "@tiptap/core": "3.32.0",
     "@tiptap/extension-table": "3.31.4",
     "@tiptap/markdown": "3.31.4",
     "@tiptap/pm": "3.31.4",
