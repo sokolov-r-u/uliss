@@ -25,7 +25,7 @@ Confirmation before anything irreversible.
 ```
 
 - `confirmDisabled` greys the confirm action; `busy` sets `aria-busy` while the action runs.
-- The overlay is an `aria-modal` dialog labelled by its title. On mount it focuses its `[autofocus]` element or the
-  first focusable one (a field in `children` comes before the buttons), traps Tab/Shift+Tab, closes on Escape or
+- The overlay is an `aria-modal` dialog labelled by its title. On mount it keeps focus on a child that took it (`autoFocus`), or
+  focuses its `[autofocus]` element or the first focusable one (a field in `children` comes before the buttons), traps Tab/Shift+Tab, closes on Escape or
   backdrop activation, and restores the previously focused control on unmount (`useFocusTrap`). A parent re-render
   with a new `onCancel` does not move focus.

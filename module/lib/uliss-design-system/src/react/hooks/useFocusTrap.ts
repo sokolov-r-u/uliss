@@ -16,8 +16,8 @@ export interface FocusTrapOptions {
 }
 
 /**
- * Keeps keyboard focus inside `ref` while mounted: focuses its `[autofocus]` element or first focusable on the next
- * frame, wraps Tab and Shift+Tab, and returns focus to the previously focused element on unmount. Escape calls
+ * Keeps keyboard focus inside `ref` while mounted: on the next frame, unless an element inside already took focus
+ * (React `autoFocus`), focuses its `[autofocus]` element or first focusable; wraps Tab and Shift+Tab, and returns focus to the previously focused element on unmount. Escape calls
  * `onEscape` unless an inner control already handled it (`defaultPrevented`, e.g. an open Select).
  *
  * The effect runs once per mount: `onEscape` is read through a ref, so a parent passing a new arrow function on every
@@ -33,6 +33,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, {onEscape}: Foc
         const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
         const focusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
         const frame = requestAnimationFrame(() => {
+            // React's `autoFocus` focuses on mount without rendering the attribute: keep that focus
+            if (ref.current?.contains(document.activeElement)) return
             const autoFocus = ref.current?.querySelector<HTMLElement>('[autofocus]')
             ;(autoFocus ?? focusable()[0])?.focus()
         })
