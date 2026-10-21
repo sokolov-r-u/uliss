@@ -77,25 +77,27 @@ describe('ItemMenu', () => {
         expect(onClose).toHaveBeenCalledOnce()
     })
 
-    it('closes when its anchor scrolls away or the page resizes, not on other scrolls', () => {
+    it('closes when its anchor moves or the page resizes, not on a scroll that leaves the anchor in place', () => {
         const onClose = vi.fn()
-        const anchor = anchorAt({})
-        const list = document.createElement('div')
-        document.body.appendChild(list)
-        list.appendChild(anchor)
-        const thread = document.body.appendChild(document.createElement('div'))
+        const rect = {top: 100, bottom: 120}
+        const anchor = anchorAt(rect)
+        anchor.getBoundingClientRect = () => ({
+            top: rect.top, bottom: rect.bottom, left: 300, right: 344, width: 44, height: 20, x: 300, y: rect.top,
+            toJSON: () => ({}),
+        })
         render(<ItemMenu anchor={anchor} label="Actions" actions={actions()} onClose={onClose}/>)
 
-        // a chat thread following a streamed reply
-        fireEvent.scroll(thread)
+        // a chat thread following a streamed reply, or a late scroll event of a drawer that just slid in
+        fireEvent.scroll(document)
         expect(onClose).not.toHaveBeenCalled()
 
-        fireEvent.scroll(list)
+        rect.top = 60
+        rect.bottom = 80
         fireEvent.scroll(document)
+        expect(onClose).toHaveBeenCalledOnce()
+
         fireEvent(window, new Event('resize'))
-        expect(onClose).toHaveBeenCalledTimes(3)
-        list.remove()
-        thread.remove()
+        expect(onClose).toHaveBeenCalledTimes(2)
     })
 
     it('runs the chosen action', () => {
