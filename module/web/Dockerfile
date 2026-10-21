@@ -14,6 +14,8 @@ COPY module/lib/uliss-design-system module/lib/uliss-design-system
 RUN npm run build -w @uliss/web
 
 FROM nginx:1.31.7-alpine@sha256:892bb2152464f0c5d8972593a5f5afaf8054552580b699d95f8ff4af08c2d33d
+# Alpine fixes land before a new nginx image; the layer refreshes when this file or the digest changes
+RUN apk upgrade --no-cache
 # the image entrypoint renders /etc/nginx/templates/*.template into /etc/nginx/conf.d/
 ENV WEB_CANONICAL_HOST=uliss.home
 ENV WEB_AUTH_HOST=auth.uliss.home

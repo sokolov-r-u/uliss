@@ -184,3 +184,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** on the sky screen the side navigation and the controls around the graph are not reachable by
   keyboard (mouse only), against WCAG 2.1.2 (No Keyboard Trap); revisit when keyboard access to them is needed.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, manual test rounds 1–3 and the code review round.
+
+## 2026-10-21 — The web image upgrades its Alpine packages
+
+- **Context:** Alpine publishes package fixes before a new `nginx:*-alpine` image, and `scan-images` fails on them
+  (`libexpat`, `libx11` in `nginx:1.31.7-alpine`).
+- **Decision:** the final stage of `module/web/Dockerfile` runs `apk upgrade --no-cache` on top of the pinned digest.
+- **Consequences:** the image is no longer fully defined by the digest: the same Dockerfile built on another day may
+  carry newer packages. The GitHub Actions layer cache keeps the upgraded layer until the Dockerfile or the digest
+  changes, so later Alpine fixes arrive with the monthly Dependabot digest bump.
+- **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 3.
