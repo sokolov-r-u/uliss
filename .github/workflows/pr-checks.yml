@@ -76,6 +76,9 @@ jobs:
       - name: Typecheck design system
         run: npm run typecheck -w @uliss/design-system
 
+      - name: Test design system
+        run: npm run test -w @uliss/design-system
+
       - name: Typecheck web
         run: npm run typecheck -w @uliss/web
 

@@ -61,6 +61,7 @@ authoritative; the "Uliss DS (code)" project is generated from them by `/design-
 
 ```bash
 npm run typecheck -w @uliss/design-system
+npm run test -w @uliss/design-system
 npm run build -w @uliss/design-system
 ./gradlew :uliss-design-system:jar
 ```

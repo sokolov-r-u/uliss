@@ -12,5 +12,6 @@
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true
   },
-  "include": ["src/react"]
+  "include": ["src/react"],
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx"]
 }
