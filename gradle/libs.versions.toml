@@ -1,5 +1,5 @@
 [versions]
-kotlin = "2.4.21"
+kotlin = "2.3.21"
 java = "25"
 java-compile = "25"
 spring-boot = "4.1.1"
@@ -12,7 +12,7 @@ jqwik = "1.10.2"
 # protoc and the gRPC codegen plugin: keep equal to protobuf-java and grpc-* in the Spring Boot BOM (runtime)
 protobuf = "4.34.2"
 grpc = "1.80.0"
-protobufPlugin = "0.10.0"
+protobufPlugin = "0.9.6"
 tomcat-annotations = "6.0.53"
 jib = "3.5.4"
 spring-ai = "2.0.1"
