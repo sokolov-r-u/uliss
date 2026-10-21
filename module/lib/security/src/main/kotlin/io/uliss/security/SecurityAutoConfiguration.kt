@@ -8,6 +8,7 @@ import io.uliss.security.config.SecurityProperties
 import io.uliss.security.config.WebMvcPathPrefixConfig
 import io.uliss.security.controller.AuthController
 import io.uliss.security.service.AuthService
+import io.uliss.security.service.SignOutService
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigureBefore
 import org.springframework.context.annotation.Import
@@ -22,6 +23,7 @@ import org.springframework.resilience.annotation.EnableResilientMethods
     AuditorConfig::class,
     AuthController::class,
     AuthService::class,
+    SignOutService::class,
     SecurityProperties::class,
     WebMvcPathPrefixConfig::class,
     OnboardingGuardConfig::class,

@@ -600,25 +600,26 @@ class AuthMediatorTest {
     }
 
     @Test
-    fun `logout retries on 5xx and finally maps to 500`() {
+    fun `logout still signs the browser out when revocation keeps failing on 5xx`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(aResponse().withStatus(500))
         )
 
+        // revocation is best-effort: an auth server that is down must not keep its browser session alive
         mockMvc.post("/oauth2/logout") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"refreshToken":"some-refresh"}"""
+            content = """{"refreshToken":"some-refresh","idToken":"id-123"}"""
         }.andExpect {
-            status { isInternalServerError() }
-            jsonPath("$.code") { value("INTERNAL_ERROR") }
+            status { isOk() }
+            jsonPath("$.redirectUrl") { value(org.hamcrest.Matchers.startsWith("${wireMock.baseUrl()}/connect/logout?")) }
         }
 
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
     }
 
     @Test
-    fun `logout retries a dropped connection because revocation is idempotent`() {
+    fun `logout retries a dropped connection and still returns the end-session redirect`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
@@ -626,9 +627,10 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/logout") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"refreshToken":"some-refresh"}"""
+            content = """{"refreshToken":"some-refresh","idToken":"id-123"}"""
         }.andExpect {
-            status { isServiceUnavailable() }
+            status { isOk() }
+            jsonPath("$.redirectUrl") { exists() }
         }
 
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))

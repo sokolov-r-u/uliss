@@ -36,7 +36,8 @@ note-service. These mediator routes are distinct from the real authorization ser
 5. `POST /user/oauth2/logout` (`{refreshToken, idToken}`) performs best-effort refresh-token revocation and answers
    `{redirectUrl}`: the auth server's OIDC end-session endpoint (`/connect/logout` with `id_token_hint`, `client_id` and
    `post_logout_redirect_uri` = `FRONTEND_URL/signed-out`). The browser must go there, because revocation does not end
-   the auth server's own session; without an `idToken` the URL is absent.
+   the auth server's own session; without an `idToken` the URL is absent. A revocation that still fails after the
+   retries (auth down) is logged and the URL is returned anyway (`SignOutService`).
 
 Calls to the authorization server use `RestClient` and retry 5xx responses and connect failures. The code exchange
 and refresh grant are one-time, so a read timeout or reset after the request was sent is not retried; logout is
