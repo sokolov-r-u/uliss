@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {Button, Dialog, TextField} from '@uliss/design-system'
+import {describeError} from '../lib/apiHelpers'
 import {AuthRequiredError} from '../auth/apiClient'
 import {normalizeTitle, TITLE_LIMIT} from '../lib/titleRule'
 import {ChatComposer} from '../chat/ChatComposer'
@@ -36,7 +37,7 @@ function saveFailure(error: unknown): string {
         if (error.status === 404 || error.code === 'NOTE_NOT_READY') return 'This note can no longer be edited.'
         if (error.status === 400) return 'Use a title of 1 to 50 characters and a text of up to 100,000 characters.'
     }
-    return error instanceof Error ? error.message : String(error)
+    return describeError(error)
 }
 
 /** Examples of what the command field is for; shown one at a time as its placeholder. */

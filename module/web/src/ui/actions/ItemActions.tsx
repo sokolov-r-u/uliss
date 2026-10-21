@@ -1,5 +1,6 @@
 import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {Dialog, ItemMenu, type ItemMenuAction, OptionList, TextField} from '@uliss/design-system'
+import {describeError} from '../../lib/apiHelpers'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
 import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
@@ -75,7 +76,7 @@ function failureMessage(target: ItemActionTarget, error: unknown): string {
     }
     if (status === 404) return target.kind === 'chat' ? 'This chat no longer exists.' : 'This note no longer exists.'
     if (status === 400) return 'Use a title of 1 to 50 characters.'
-    return error instanceof Error ? error.message : String(error)
+    return describeError(error)
 }
 
 /** Rename · Delete for one chat or note: menu, dialogs, API calls and in-dialog errors. */

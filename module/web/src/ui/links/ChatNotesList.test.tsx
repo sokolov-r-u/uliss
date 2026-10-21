@@ -83,7 +83,8 @@ describe('ChatNotesList', () => {
 
         expect(screen.queryByRole('button', {name: /From chat one/})).not.toBeInTheDocument()
         await waitFor(() => expect(mockedList).toHaveBeenCalledWith('chat-2', expect.any(AbortSignal)))
-        expect(screen.getByText('No notes')).toBeInTheDocument()
+        // a failed load says so instead of claiming the list is empty
+        expect(await screen.findByText('Could not load the notes.')).toBeInTheDocument()
     })
 
     it('reloads once a generating note settles', async () => {

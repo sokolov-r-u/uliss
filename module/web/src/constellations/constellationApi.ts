@@ -1,5 +1,6 @@
 import type {ConstellationLightness} from '@uliss/design-system'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
+import {errorCode, isRecord, segment} from '../lib/apiHelpers'
 
 /** One node of the user's tree as the note service returns it; `hue` is the root's, a root's lightness is `BASE`. */
 export interface Constellation {
@@ -80,9 +81,6 @@ export class ConstellationApiError extends Error {
 
 const LIGHTNESS: readonly ConstellationLightness[] = ['DEEP', 'BASE', 'LIGHT', 'PALE']
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function protocolError(field: string): ConstellationApiError {
     return new ConstellationApiError('protocol', `invalid ${field} in constellation response`)
@@ -180,15 +178,6 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
     return response
 }
 
-/** The `code` of the service's error body; undefined for an empty or non-JSON body (a proxy error page). */
-async function errorCode(response: Response): Promise<string | undefined> {
-    try {
-        const body: unknown = await response.json()
-        return isRecord(body) && typeof body.code === 'string' ? body.code : undefined
-    } catch {
-        return undefined
-    }
-}
 
 async function readJson(response: Response): Promise<unknown> {
     try {
@@ -215,17 +204,17 @@ export async function createConstellation(name: string, parentId: string | null)
 }
 
 export async function updateConstellation(id: string, patch: ConstellationPatch): Promise<Constellation> {
-    return parseConstellation(await readJson(await send(`/note/constellations/${id}`, jsonInit('PATCH', patch))))
+    return parseConstellation(await readJson(await send(`/note/constellations/${segment(id)}`, jsonInit('PATCH', patch))))
 }
 
 /** Moves the whole branch under [parentId]; null makes it a root. */
 export async function moveConstellation(id: string, parentId: string | null): Promise<Constellation> {
-    return parseConstellation(await readJson(await send(`/note/constellations/${id}/move`, jsonInit('POST', {parentId}))))
+    return parseConstellation(await readJson(await send(`/note/constellations/${segment(id)}/move`, jsonInit('POST', {parentId}))))
 }
 
 /** How many notes have no place outside the branch, so deleting it has to move them. */
 export async function getConstellationDeletion(id: string, signal?: AbortSignal): Promise<{ notesToMove: number }> {
-    const value = await readJson(await send(`/note/constellations/${id}/deletion`, {signal}))
+    const value = await readJson(await send(`/note/constellations/${segment(id)}/deletion`, {signal}))
     if (!isRecord(value) || !isCount(value.notesToMove)) throw protocolError('notesToMove')
     return {notesToMove: value.notesToMove}
 }
@@ -236,17 +225,17 @@ export async function getConstellationDeletion(id: string, signal?: AbortSignal)
  */
 export async function deleteConstellation(id: string, moveTo: string | null = null): Promise<void> {
     const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''
-    await send(`/note/constellations/${id}${query}`, {method: 'DELETE'})
+    await send(`/note/constellations/${segment(id)}${query}`, {method: 'DELETE'})
 }
 
 /** The note's constellations, main first. */
 export async function listNoteConstellations(noteId: string, signal?: AbortSignal): Promise<NoteMembership[]> {
-    return parseMemberships(await readJson(await send(`/note/notes/${noteId}/constellations`, {signal})))
+    return parseMemberships(await readJson(await send(`/note/notes/${segment(noteId)}/constellations`, {signal})))
 }
 
 /** Adds the note to a constellation; the first one becomes main. Returns the note's constellations. */
 export async function addNoteConstellation(noteId: string, constellationId: string): Promise<NoteMembership[]> {
-    return parseMemberships(await readJson(await send(`/note/notes/${noteId}/constellations`,
+    return parseMemberships(await readJson(await send(`/note/notes/${segment(noteId)}/constellations`,
         jsonInit('POST', {constellationId}))))
 }
 
@@ -256,19 +245,19 @@ export async function setMainNoteConstellation(
     constellationId: string,
     replace: boolean,
 ): Promise<NoteMembership[]> {
-    return parseMemberships(await readJson(await send(`/note/notes/${noteId}/constellations/main`,
+    return parseMemberships(await readJson(await send(`/note/notes/${segment(noteId)}/constellations/main`,
         jsonInit('PUT', {constellationId, replace}))))
 }
 
 /** Removes the note from a constellation; a removed main promotes the oldest remaining one. */
 export async function removeNoteConstellation(noteId: string, constellationId: string): Promise<NoteMembership[]> {
-    return parseMemberships(await readJson(await send(`/note/notes/${noteId}/constellations/${constellationId}`,
+    return parseMemberships(await readJson(await send(`/note/notes/${segment(noteId)}/constellations/${segment(constellationId)}`,
         {method: 'DELETE'})))
 }
 
 /** Where the note lives; a sub-note's constellations are its top note's. */
 export async function getNotePlace(noteId: string, signal?: AbortSignal): Promise<NotePlace> {
-    return parsePlace(await readJson(await send(`/note/notes/${noteId}/place`, {signal})))
+    return parsePlace(await readJson(await send(`/note/notes/${segment(noteId)}/place`, {signal})))
 }
 
 /**
@@ -276,13 +265,13 @@ export async function getNotePlace(noteId: string, signal?: AbortSignal): Promis
  * or its sub-notes fails with code `NOTE_MOVE_CYCLE`, a missing parent with `PARENT_NOTE_NOT_FOUND`.
  */
 export async function moveNoteUnder(noteId: string, parentNoteId: string): Promise<NotePlace> {
-    return parsePlace(await readJson(await send(`/note/notes/${noteId}/parent`, jsonInit('PUT', {parentNoteId}))))
+    return parsePlace(await readJson(await send(`/note/notes/${segment(noteId)}/parent`, jsonInit('PUT', {parentNoteId}))))
 }
 
 /** Takes a sub-note out from under its parent: into [moveTo] as its only, main place, or without a place. */
 export async function moveNoteOut(noteId: string, moveTo: string | null): Promise<NotePlace> {
     const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''
-    return parsePlace(await readJson(await send(`/note/notes/${noteId}/parent${query}`, {method: 'DELETE'})))
+    return parsePlace(await readJson(await send(`/note/notes/${segment(noteId)}/parent${query}`, {method: 'DELETE'})))
 }
 
 /** Titled notes whose title contains [query]; [exclude] leaves out a moving note and its sub-notes. */

@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
-import {Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {listNotes, type Note, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
@@ -46,12 +46,20 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     useEffect(() => subscribeToChatListChanges(() => setChatsRevision((value) => value + 1)), [])
     useEffect(() => subscribeToNotesChanges(() => setNotesRevision((value) => value + 1)), [])
 
+    // a failed load is told apart from an empty account: "Nothing here yet" would be a lie
+    const [chatsFailed, setChatsFailed] = useState(false)
+    const [notesFailed, setNotesFailed] = useState(false)
+
     // Each list refetches only on its own event: a chat turn does not reload the notes.
     useEffect(() => {
         let active = true
         listChats().then((items) => {
-            if (active) setChats(items)
-        }).catch(() => undefined)
+            if (!active) return
+            setChats(items)
+            setChatsFailed(false)
+        }).catch(() => {
+            if (active) setChatsFailed(true)
+        })
         return () => {
             active = false
         }
@@ -60,12 +68,21 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     useEffect(() => {
         let active = true
         listNotes().then((items) => {
-            if (active) setNotes(items)
-        }).catch(() => undefined)
+            if (!active) return
+            setNotes(items)
+            setNotesFailed(false)
+        }).catch(() => {
+            if (active) setNotesFailed(true)
+        })
         return () => {
             active = false
         }
     }, [notesRevision])
+
+    const retryLists = () => {
+        setChatsRevision((value) => value + 1)
+        setNotesRevision((value) => value + 1)
+    }
 
     const go = (to: string) => () => {
         onClose()
@@ -113,16 +130,32 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                 </div>
 
                 <div className="side-nav-body">
-                    {empty ? (
+                    {empty && (chatsFailed || notesFailed) ? (
+                        <div className="side-nav-empty" role="alert">
+                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Could not load</Kicker>
+                            <p className="side-nav-body-note">Your chats and notes did not load. Check the connection.</p>
+                            <Button size="sm" variant="quiet" onClick={retryLists}>Retry</Button>
+                        </div>
+                    ) : empty ? (
                         <div className="side-nav-empty">
                             <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Nothing here yet</Kicker>
                             <p className="side-nav-body-note">Chats and notes will collect here as you talk.</p>
                         </div>
                     ) : (
                         <>
-                            <div className="side-nav-tabs" role="tablist" aria-label="Side panel list">
+                            <div className="side-nav-tabs" role="tablist" aria-label="Side panel list"
+                                 onKeyDown={(event) => {
+                                     // tabs pattern: arrows switch, the selected tab is the only tab stop
+                                     if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+                                     event.preventDefault()
+                                     const next: ListTab = tab === 'chats' ? 'notes' : 'chats'
+                                     setTab(next)
+                                     const group = event.currentTarget
+                                     requestAnimationFrame(() => group.querySelector<HTMLButtonElement>(`[data-tab="${next}"]`)?.focus())
+                                 }}>
                                 {(['chats', 'notes'] as ListTab[]).map((id) => (
                                     <button key={id} type="button" role="tab" aria-selected={tab === id}
+                                            data-tab={id} tabIndex={tab === id ? 0 : -1}
                                             className="side-nav-tab" onClick={() => setTab(id)}>
                                         {id === 'chats' ? 'Chats' : 'Notes'}
                                     </button>

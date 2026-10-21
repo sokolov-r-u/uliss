@@ -15,7 +15,7 @@ export function ChatNotesList({chatId, onOpen, empty}: {
     onOpen: (noteId: string) => void
     empty: ReactNode
 }) {
-    const {items: notes, reload} = useLinkedItems(chatId, listChatNotes, SUBSCRIPTIONS)
+    const {items: notes, reload, status} = useLinkedItems(chatId, listChatNotes, SUBSCRIPTIONS)
     const pendingIds = notes.filter((note) => note.status === 'GENERATING' || note.updating).map((note) => note.id)
     const pendingKey = pendingIds.join(',')
 
@@ -34,7 +34,11 @@ export function ChatNotesList({chatId, onOpen, empty}: {
         // pendingKey stands for pendingIds.
     }, [pendingKey, reload])
 
-    if (notes.length === 0) return <>{empty}</>
+    // the empty text only once the list is known to be empty, not while loading or after a failure
+    if (notes.length === 0) {
+        if (status === 'failed') return <p className="context-text" role="alert">Could not load the notes.</p>
+        return status === 'ready' ? <>{empty}</> : null
+    }
     return (
         <div className="context-links">
             {toNoteViewModels(notes).map((view) => (

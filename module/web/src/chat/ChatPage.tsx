@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
+import {describeError} from '../lib/apiHelpers'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
@@ -372,7 +373,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             })
             .catch((error: unknown) => {
                 if (!active || error instanceof AuthRequiredError) return
-                setLoadError(error instanceof Error ? error.message : String(error))
+                setLoadError(describeError(error))
                 setPagePhase('error')
             })
         return () => {
@@ -403,7 +404,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         } catch (error) {
             if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                 || error instanceof AuthRequiredError || isAbortError(error)) return
-            setStreamNotice(error instanceof Error ? error.message : String(error))
+            setStreamNotice(describeError(error))
         } finally {
             if (olderAbortRef.current === controller) {
                 olderAbortRef.current = null
@@ -686,7 +687,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     .catch(() => undefined)
                 return
             }
-            setSummaryError(error instanceof Error ? error.message : String(error))
+            setSummaryError(describeError(error))
         } finally {
             if (summaryRequestIdRef.current === requestId) {
                 summaryPendingRef.current = false

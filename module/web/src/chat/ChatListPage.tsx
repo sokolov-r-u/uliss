@@ -1,5 +1,6 @@
 /** Post-login landing page: the user's chats (`GET /note/chats`) with a "new chat" action. */
 import {useEffect, useRef, useState} from 'react'
+import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
 import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -39,7 +40,7 @@ export function ChatListPage() {
                 if (e instanceof AuthRequiredError) return
                 // A failed background refresh keeps the loaded rows; the next list change retries.
                 if (loadedRef.current) return
-                setState({status: 'error', message: e instanceof Error ? e.message : String(e)})
+                setState({status: 'error', message: describeError(e)})
             })
         return () => {
             active = false

@@ -1,4 +1,5 @@
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
+import {isRecord} from '../lib/apiHelpers'
 
 /** Used until the settings answer, and when they cannot be read; mirrors `note.speech.max-duration`. */
 export const DEFAULT_MAX_RECORDING_SECONDS = 300
@@ -16,9 +17,6 @@ export class SpeechApiError extends Error {
     }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 async function send(path: string, init?: RequestInit): Promise<Response> {
     try {

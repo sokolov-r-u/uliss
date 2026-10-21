@@ -1,5 +1,6 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
+import {describeError} from '../lib/apiHelpers'
 import {Button, Icon, IconButton} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
@@ -164,7 +165,7 @@ export function NoteDetailPage() {
             if (error instanceof NoteApiError && error.kind === 'http' && error.status === 404) {
                 setState({status: 'not-found'})
             } else {
-                setState({status: 'error', message: error instanceof Error ? error.message : String(error)})
+                setState({status: 'error', message: describeError(error)})
             }
         }
     }, [noteId])

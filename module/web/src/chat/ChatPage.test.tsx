@@ -1,5 +1,6 @@
 import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {describeError} from '../lib/apiHelpers'
 import {Link, MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
@@ -422,7 +423,8 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
 
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
-        expect(await screen.findByText(failure.message)).toBeInTheDocument()
+        // the user's wording, not the technical message
+        expect(await screen.findByText(describeError(failure))).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBe(firstKey)
 
@@ -451,7 +453,7 @@ describe('ChatPage summary flow', () => {
         const page = renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
-        expect(await screen.findByText('connection lost')).toBeInTheDocument()
+        expect(await screen.findByText(describeError(new NoteApiError('transport', '')))).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
 
         // The lost request may have been applied; a request covering newer messages needs its own key.
@@ -477,7 +479,7 @@ describe('ChatPage summary flow', () => {
         const page = renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
-        expect(await screen.findByText('connection lost')).toBeInTheDocument()
+        expect(await screen.findByText(describeError(new NoteApiError('transport', '')))).toBeInTheDocument()
         const firstKey = mockedSummary.mock.calls[0]?.[1]
 
         page.unmount()
@@ -500,7 +502,7 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(screen.getByRole('button', {name: 'Skip for now'}))
         expect(await screen.findByText(status === 409
             ? 'A summary of this chat is already in progress. Try again in a moment.'
-            : `summary request failed (${status})`)).toBeInTheDocument()
+            : describeError(new NoteApiError('http', '', status)))).toBeInTheDocument()
         const rejectedKey = mockedSummary.mock.calls[0]?.[1]
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
 
