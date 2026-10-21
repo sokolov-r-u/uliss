@@ -29,9 +29,6 @@
     "Button": {
       "cardMode": "column"
     },
-    "Greek": {
-      "cardMode": "column"
-    },
     "PostBadge": {
       "cardMode": "column"
     },

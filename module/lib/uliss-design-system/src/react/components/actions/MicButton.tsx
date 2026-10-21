@@ -38,6 +38,7 @@ export function MicButton({
                 background: 'transparent',
                 opacity: disabled ? 0.5 : 1,
                 cursor: disabled ? 'not-allowed' : 'pointer',
+                ...buttonProps.style,
             }}
         >
             {pulse &&

@@ -1,23 +1,17 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.ConstellationEntity
 import io.uliss.note_service.model.ConstellationLightness
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.repository.NoteRepository
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.core.io.ClassPathResource
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.jdbc.datasource.DataSourceUtils
 import org.springframework.jdbc.datasource.init.ScriptUtils
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.transaction.support.TransactionTemplate
 import java.sql.Timestamp
 import java.time.Instant
@@ -26,10 +20,7 @@ import javax.sql.DataSource
 import kotlin.test.assertEquals
 
 /** Runs the V12 script again over memberships that break the one-place-per-line rule. */
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class OnePlacePerLineMigrationIntegrationTest {
+class OnePlacePerLineMigrationIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var dataSource: DataSource
@@ -49,8 +40,6 @@ class OnePlacePerLineMigrationIntegrationTest {
     @Autowired
     lateinit var store: NoteConstellationStore
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
     private val t0: Instant = Instant.parse("2026-10-19T10:00:00Z")
@@ -76,25 +65,27 @@ class OnePlacePerLineMigrationIntegrationTest {
         insert(clean, jazz.id, main = true, minute = 0)
         insert(clean, rock.id, main = false, minute = 1)
 
-        transactionTemplate.executeWithoutResult {
+        // the script touches every user's rows in the shared database: check inside its transaction, then roll back
+        transactionTemplate.executeWithoutResult { transaction ->
             ScriptUtils.executeSqlScript(
                 DataSourceUtils.getConnection(dataSource),
                 ClassPathResource("db/migration/V12__dml_one_place_per_line.sql"),
             )
-        }
 
-        assertEquals(
-            listOf(miles.id to true, films.id to false, bebop.id to false),
-            store.findByNote(userId, mainAbove).map { it.constellationId to it.main },
-        )
-        assertEquals(
-            listOf(films.id to true, miles.id to false),
-            store.findByNote(userId, secondaryAbove).map { it.constellationId to it.main },
-        )
-        assertEquals(
-            listOf(jazz.id to true, rock.id to false),
-            store.findByNote(userId, clean).map { it.constellationId to it.main },
-        )
+            assertEquals(
+                listOf(miles.id to true, films.id to false, bebop.id to false),
+                store.findByNote(userId, mainAbove).map { it.constellationId to it.main },
+            )
+            assertEquals(
+                listOf(films.id to true, miles.id to false),
+                store.findByNote(userId, secondaryAbove).map { it.constellationId to it.main },
+            )
+            assertEquals(
+                listOf(jazz.id to true, rock.id to false),
+                store.findByNote(userId, clean).map { it.constellationId to it.main },
+            )
+            transaction.setRollbackOnly()
+        }
     }
 
     private fun insert(noteId: UUID, constellationId: UUID, main: Boolean, minute: Long) {

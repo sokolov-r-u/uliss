@@ -42,7 +42,9 @@ system.
 
 ## Verification
 
-- Use `npm run typecheck -w @uliss/design-system` for TypeScript changes.
+- Use `npm run typecheck -w @uliss/design-system` for TypeScript changes (tests included through
+  `tsconfig.test.json`; `tsconfig.json` stays the publish config without tests).
+- Use `npm run test -w @uliss/design-system` (Vitest, jsdom) for component behavior: focus, keyboard, states.
 - Use `npm run build -w @uliss/design-system` for CSS output.
 - Use `./gradlew :uliss-design-system:jar` when resources or packaging change, and inspect the jar entries when path
   behavior is relevant.

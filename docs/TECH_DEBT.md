@@ -73,17 +73,6 @@ Keep the one-second per-connection polling implementation for the initial releas
 batch polling and Redis using observed concurrent SSE connections, database load, deployment
 topology, and whether Redis is already part of the production infrastructure.
 
-## Markdown rendering for AI-generated content (`web`)
-
-**Status:** not implemented. Chat replies and generated note content are currently rendered as
-plain text even though an AI provider may return Markdown.
-
-Add a shared frontend Markdown renderer for persisted assistant messages and generated note
-content. Raw HTML must remain disabled or be explicitly sanitized; links need safe external-link
-handling. Cover headings, paragraphs, lists, emphasis, links, inline code, fenced code blocks, and
-malicious input in component tests. Keep the persisted source text unchanged so rendering rules can
-evolve without rewriting stored content.
-
 ## Record successful summarization in chat history (`note-service`)
 
 **Status:** not implemented. A completed chat summary creates a note, but the source chat does not
@@ -218,9 +207,9 @@ Opened 2026-08-31 during the design-system integration refresh
 - **Backend-less product screens ship as empty states.** `/notes`, `/constellations`, `/sky`,
   `/updates`, `/search` (waves 7–10) render only a DS `EmptyState` — there is no notes list,
   tag tree, graph renderer, updates log or search backend. When those land, attach the populated
-  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). Same for the Notice
-  mechanism's `useNotice().confirm` (DS `Dialog`) — wired but has no caller until a
-  delete/summarise action exists.
+  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). The unused
+  `NotificationProvider`/`useNotice().confirm` was removed on 2026-10-21; confirmations use the
+  item-action dialogs.
 - **Settings: Sky / Account / Language are static.** Only Settings › Appearance
   (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
   Account has no editable fields (`user-service` has no profile read endpoint yet), Language is
@@ -290,7 +279,8 @@ diagnosed; suspects, most likely first:
    refreshed reuses the stored tokens (`auth/apiClient.test.ts`). 2026-10-14: `getAccessToken()` is the single
    owner of the session, and only a 400/401 refresh rejection signs the user out; network/5xx failures keep the
    tokens. Duplicated tabs still share one copied refresh token (needs shared storage plus Web Locks). If
-   sign-outs continue, check suspect 2.
+   sign-outs continue, check suspect 2. Since 2026-10-21 refresh-token reuse detection revokes the whole
+   authorization when a rotated-out token comes back, so a duplicated tab ends the session of both tabs.
 2. **Stale client token settings.** `DataInitializer` creates the `uliss-web` client once; when the client already
    exists it only adds redirect URIs, so a client row saved before the 15 min / 30 day settings keeps Spring's
    defaults (refresh token 60 min). Check the stored `token_settings` and update them on startup.
@@ -409,6 +399,11 @@ without limit, and every call is paid to OpenAI.
 - Over the limit: `429 Too Many Requests`, code `QUOTA_EXCEEDED`, `Retry-After` until the next UTC midnight; `web`
   shows the remaining allowance and a clear message.
 - Long-running task (schema, token contract, 3+ modules): create a `docs/tasks/` file first.
+- Not covered by the plan above (found in the 2026-10-20 review): `POST /notes/{id}/ai-edit` sends up to 30,000
+  client-supplied characters plus an instruction to the model for any READY note, and `POST /speech/transcriptions`
+  sends up to 10 MB of audio to `gpt-4o-transcribe`. Both are unlimited paid calls. Open questions: separate counters
+  or one cost budget across chat, summary, ai-edit and speech; how a transcription counts (per call, per second, per
+  byte); whether an nginx `limit_req` on these paths comes first as a cheap backstop.
 
 ## Rate limiting and brute-force protection (`infra`, `auth`)
 
@@ -416,8 +411,8 @@ without limit, and every call is paid to OpenAI.
 not Kubernetes, so Ingress annotations do not apply.
 
 - In Compose, browsers reach `auth`, `/user` and `/note` through the TLS `web` nginx (since 2026-10-18; `auth`
-  `:9000` is published on loopback only). `user` `:8080` and `note` `:8081` are still published to the host — stop
-  publishing them.
+  `:9000` is published on loopback only). Since 2026-10-21 `user` `:8080` and `note` `:8081` are on loopback only
+  too.
 - Per-IP limits there with nginx `limit_req_zone $binary_remote_addr ...` / `limit_req`: strict on `POST /login` and
   `POST /register` (a few requests per minute with a small burst), looser on `/user/oauth2/*` and `/note/*`.
   Behind another proxy, restore the client address with `real_ip_header` / `set_real_ip_from`.
@@ -480,23 +475,18 @@ Direction to discuss:
 `LoggingAspect` traces every `@Service`/`@Repository` call at DEBUG with arguments and results, and
 `infra/env.example.properties` sets `LOG_LEVEL_ULISS=debug`. Secrets are masked (`@Sensitive` plus a name regex), but
 user content is not: chat prompts and replies, note content and email addresses reach stdout, `infra/volumes/logs`
-and Dozzle. Dozzle is published on `8888` on all interfaces without authentication.
+and Dozzle. Since 2026-10-21 Dozzle listens on `127.0.0.1:8888` only, with actions and shell off, and starts with
+the `full` or `tools` profile.
 
 Before production:
 
 - User prompts and other user content must never be logged. Decide between disabling argument/result tracing for
   content-carrying methods and an explicit allowlist of loggable types; keep `@Sensitive` for secrets.
 - Default `LOG_LEVEL_ULISS` to `info` in production configuration.
-- Restrict Dozzle (bind to `127.0.0.1` or put it behind authentication) or drop it from the production Compose file.
-
-## Registered clients missing from config stay active (`auth`)
-
-**Status:** not implemented (pre-existing; found in the 2026-10-15 review).
-
-`DataInitializer` rebuilds only the two configured clients (`app.clients.authorization-code`, `app.clients.m2m`).
-A client whose id was renamed or removed from config keeps its row in `oauth2_registered_client` with its old secret,
-grants and redirect URIs and can still obtain tokens. Decide whether startup should delete, disable (e.g. expire the
-secret) or only warn about unknown clients; deleting needs care because `oauth2_authorization` rows reference them.
+- Drop Dozzle from the production Compose file or put it behind authentication (it reads the Docker socket).
+- `GlobalExceptionHandler` logs every 4xx with `ex.message`; for binding errors that message holds the rejected value
+  (`rejected value [...]`), so an over-long prompt is logged in full. Keep only field names and error codes in the
+  log; the rejected values may stay at DEBUG while debugging and go with the rest of the user content.
 
 ## Abandon an outbox worker once its lease is lost (`note-service`)
 
@@ -539,6 +529,46 @@ settling → …) that is testable without rendering.
 `GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
 pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.
 `GET /note/chats` is ordered by `updated_at DESC, id DESC` and already indexed for it.
+
+Agreed order of the loading optimisations (2026-10-21 review discussion):
+
+1. Keyset pagination and a list DTO without `content` (this item) — the main cost today is the full text of every
+   note in every list response.
+2. Deep `ETag` on `/note/sky` and `/note/constellations`: the tag comes from a cheap per-user version query (or a
+   version counter bumped on every change), `WebRequest.checkNotModified` answers `304` before the heavy queries run;
+   `Cache-Control: private, no-cache`. `ShallowEtagHeaderFilter` is not enough: it still builds the whole response.
+3. An in-memory request cache in `web` (TanStack Query or an own store) on top of the shared API client: dedupes
+   identical requests of several components and refetches only what a change touched. Memory only — no
+   `localStorage`/IndexedDB — and cleared on sign-out. Streams (SSE) and token handling stay outside it.
+
+## Constellation tree size limits (`note-service`)
+
+**Status:** decided not to limit for now (2026-10-21). The domain allows sub-constellations "at any depth" and any
+number of them. The recursive `ancestry` CTE that cost O(Σ depth) rows per tree view was replaced by direct
+membership counts aggregated over the loaded tree in Kotlin, plus an index on `note_constellation (user_id,
+constellation_id)`. What remains: in-memory work is O(nodes × depth) per view, and nothing stops one user from
+building a very deep or huge tree. If that shows up, revisit server-side limits (depth ≈ 8–10, ≈ 300–500 nodes per
+user, checked in `create`/`move` under the tree lock) — that replaces the "any depth" domain decision.
+
+## Consistent design-system component API (`uliss-design-system`, `web`)
+
+**Status:** deferred (2026-10-21 review, DS-22). Prop names differ between components for the same idea: size (`s`
+in `IconButton`, `size` elsewhere), state (`on`, `active`, `selected`, `value`), callbacks (`onPick`, `onChange`,
+`onSelect`); no component forwards a ref. Renaming breaks every consumer in `web`, the `.prompt.md` files and the
+Claude Design previews, so do it as its own task together with a design sync.
+
+## Chat history budget for the model (`note-service`)
+
+**Status:** deferred (2026-10-21 review, NOTE-6). Every chat turn sends the whole chat history and summaries send the
+whole transcript; chat length is unlimited (8,000 characters per message). A very long chat overflows the model's
+context: turns fail and a summary spends three paid attempts. Needs a product decision: trim old messages to a token
+budget, lean on the chat's summary note, or refuse with a clear error code.
+
+## Neutral registration response (`auth`)
+
+**Status:** deferred to "Email verification at registration" (2026-10-21 review, AUTH-6). Registration answers
+"Email already in use", which lets anyone check whether an account exists, while login hides the difference. With
+email verification in place, answer "check your inbox" in both cases and mail the owner of an existing account.
 
 ## Security headers in the `web` nginx (`web`, `infra`)
 
@@ -615,11 +645,6 @@ saved and returns to it after login, which answers 404 problem+json. A `/` handl
 `app.frontend-url` (and a friendly 404 page for HTML requests) would close it. Recorded from
 `docs/tasks/2026-10-17-auth-login-glitches.md`.
 
-## `build` and `integrationTest` cannot run in one Gradle invocation
-
-**Status:** not implemented. `./gradlew build :auth:integrationTest` fails task validation: `:auth:jacocoTestReport`
-reads `build/jacoco/integrationTest.exec` without depending on `:auth:integrationTest`. Run them as separate
-invocations until the jacoco report task declares that input (or `mustRunAfter`).
 ## Edit a selected fragment of a note with the model (`note-service`, `web`)
 
 **Status:** not implemented. The note edit command always sends and rewrites the whole text (up to 30,000
@@ -653,9 +678,3 @@ a synchronous pre-solve of a fresh view: fine for hundreds of stars, slow from a
 Canvas and the layout to a Web Worker when real skies get there. Positions are not kept between visits either, so a
 sky can open a little differently after its notes change; cache the last positions per device (next to the sky
 settings) if users miss their bearings.
-
-## Arrow keys lose focus in `StepControl` and `OptionList` (`uliss-design-system`)
-
-**Status:** found while testing `docs/tasks/2026-10-20-sky.md`. Both move the choice with the arrow keys and then
-focus the new option in `requestAnimationFrame` through `event.currentTarget`, which React has already reset to null:
-the choice moves, the focus stays on the old option. Capture the element before the frame.

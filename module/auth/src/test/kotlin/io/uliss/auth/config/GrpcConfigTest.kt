@@ -46,7 +46,7 @@ class GrpcConfigTest {
     @Test
     fun `user-service calls carry the service token`() {
         val config = GrpcConfig("localhost", server.port, Duration.ofSeconds(3))
-        val channel = config.userServiceChanel(tokenProvider)
+        val channel = config.userServiceChannel(tokenProvider)
 
         try {
             config.userServiceBlockingStub(channel).getUserInfo(UserInfoRequest.newBuilder().setAuthId("id").build())

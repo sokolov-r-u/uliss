@@ -1,26 +1,17 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.repository.NoteConstellationStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.ConstellationService
 import io.uliss.note_service.service.NotePlacementService
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ConstellationNotesIntegrationTest {
+class ConstellationNotesIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var constellationService: ConstellationService
@@ -34,8 +25,6 @@ class ConstellationNotesIntegrationTest {
     @Autowired
     lateinit var store: NoteConstellationStore
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     private val userId = UUID.randomUUID()
 

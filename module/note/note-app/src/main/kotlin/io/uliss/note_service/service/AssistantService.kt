@@ -19,20 +19,12 @@ import org.springframework.ai.chat.messages.Message
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.openai.OpenAiChatOptions
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.stereotype.Service
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.Sinks
 import reactor.core.scheduler.Schedulers
 import java.util.UUID
-
-/** OpenAI per-call options for chat replies; values are passed to the provider as-is. */
-@ConfigurationProperties("note.assistant")
-data class AssistantProperties(
-    val reasoningEffort: String = "low",
-    val verbosity: String = "low",
-)
 
 @Service
 class AssistantService(

@@ -6,6 +6,7 @@ import io.uliss.auth.model.UserEntity
 import io.uliss.auth.model.UserStatus
 import io.uliss.auth.model.toUserDetails
 import io.uliss.auth.repository.UserRepository
+import org.hibernate.exception.ConstraintViolationException
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UserDetailsService
@@ -35,8 +36,16 @@ class UserService(
         )
         try {
             userRepository.save(user)
-        } catch (_: DataIntegrityViolationException) {
-            throw EmailAlreadyExistsException()
+        } catch (ex: DataIntegrityViolationException) {
+            // other violations (a too long value, a check constraint) are not a taken email
+            if (ex.isUniqueEmailViolation()) throw EmailAlreadyExistsException()
+            throw ex
         }
     }
 }
+private fun DataIntegrityViolationException.isUniqueEmailViolation(): Boolean =
+    generateSequence<Throwable>(this) { it.cause }
+        .filterIsInstance<ConstraintViolationException>()
+        .any { it.constraintName == USERS_EMAIL_UNIQUE }
+
+private const val USERS_EMAIL_UNIQUE = "users_email_unique"

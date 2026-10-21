@@ -46,7 +46,7 @@ class UserServiceTokenProvider(
         val now = clock.instant()
         val claims = JwtClaimsSet.builder()
             .issuer(issuer)
-            .subject(SUBJECT)
+            .subject(UserServiceAuth.SUBJECT)
             .audience(listOf(UserServiceAuth.AUDIENCE))
             .claim("scope", UserServiceAuth.USER_INFO_SCOPE)
             .id(UUID.randomUUID().toString())
@@ -57,7 +57,6 @@ class UserServiceTokenProvider(
     }
 
     private companion object {
-        const val SUBJECT = "auth-service"
         val TTL: Duration = Duration.ofMinutes(5)
         val RENEW_BEFORE: Duration = Duration.ofMinutes(1)
     }

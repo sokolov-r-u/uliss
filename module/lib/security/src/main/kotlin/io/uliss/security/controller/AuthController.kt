@@ -3,8 +3,10 @@ package io.uliss.security.controller
 import io.uliss.security.annotation.AllowedDuringOnboarding
 import io.uliss.security.dto.request.LogoutRequest
 import io.uliss.security.dto.request.RefreshRequest
+import io.uliss.security.dto.response.LogoutResponse
 import io.uliss.security.dto.response.TokenResponse
 import io.uliss.security.service.AuthService
+import io.uliss.security.service.SignOutService
 import io.uliss.security.utils.CODE_VERIFIER
 import io.uliss.security.utils.OAUTH_STATE
 import jakarta.servlet.http.HttpServletResponse
@@ -23,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/oauth2")
 class AuthController(
     val authService: AuthService,
+    val signOutService: SignOutService,
 ) {
 
     @GetMapping("/login")
@@ -59,8 +62,7 @@ class AuthController(
     }
 
     @PostMapping("/logout")
-    fun logout(@RequestBody request: LogoutRequest): ResponseEntity<Void> {
-        authService.logout(request.refreshToken)
-        return ResponseEntity.noContent().build()
+    fun logout(@RequestBody request: LogoutRequest): ResponseEntity<LogoutResponse> {
+        return ResponseEntity.ok(signOutService.signOut(request.refreshToken, request.idToken))
     }
 }

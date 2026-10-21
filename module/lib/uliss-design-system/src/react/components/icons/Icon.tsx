@@ -91,6 +91,9 @@ export function Icon({name, size = 18, fill = false, active = false, rotate = 0,
     const g = GLYPHS[name]
     if (!g) return null
     const common = {
+        // decorative: the button or link around an icon carries the name
+        'aria-hidden': true as const,
+        focusable: 'false' as const,
         width: size,
         height: size,
         viewBox: '0 0 24 24',

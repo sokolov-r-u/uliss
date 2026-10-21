@@ -34,7 +34,11 @@ class OutboxPoller(
      * exception reaching this class means that failure bookkeeping itself could not finish; the
      * visibility deadline then makes the event claimable again.
      */
-    @Scheduled(fixedDelayString = $$"${note.outbox.poll-interval-ms}")
+    // the first poll waits one interval too: tests set a long interval and share one database between contexts
+    @Scheduled(
+        fixedDelayString = $$"${note.outbox.poll-interval-ms}",
+        initialDelayString = $$"${note.outbox.poll-interval-ms}",
+    )
     fun poll() {
         val reservedSlots = permits.drainPermits()
         if (reservedSlots == 0) return

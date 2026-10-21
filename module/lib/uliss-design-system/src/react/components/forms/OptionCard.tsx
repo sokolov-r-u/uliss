@@ -152,14 +152,23 @@ export function OptionList({
                                label,
                                disabled = false
                            }: OptionListProps) {
+    const enabled = options.map((o) => !disabled && !(typeof o !== 'string' && o.disabled))
+    // the selected row is the tab stop; a missing or disabled selection hands it to the first enabled row
+    const tabStop = enabled[selected] ? selected : enabled.indexOf(true)
     return (
         <div role="radiogroup" aria-label={label} onKeyDown={(event) => {
-            if (!onPick || disabled || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
+            if (!onPick || tabStop < 0 || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
             event.preventDefault()
             const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
-            const next = (selected + delta + options.length) % options.length
+            // disabled rows are skipped; at least one row (the tab stop) is enabled
+            let next = tabStop
+            do {
+                next = (next + delta + options.length) % options.length
+            } while (!enabled[next])
             onPick(next)
-            requestAnimationFrame(() => event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
+            // React clears currentTarget after the handler: take the group now, focus next frame
+            const group = event.currentTarget
+            requestAnimationFrame(() => group.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
         }} style={{display: 'flex', flexDirection: 'column', gap: 8}}>
             {options.map((o, i) => {
                 const c = typeof o === 'string' ? {label: o} : o
@@ -171,7 +180,7 @@ export function OptionList({
                         on={i === selected}
                         onPick={onPick ? () => onPick(i) : undefined}
                         disabled={disabled || c.disabled}
-                        tabIndex={i === selected ? 0 : -1}
+                        tabIndex={i === tabStop ? 0 : -1}
                     />
                 )
             })}

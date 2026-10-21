@@ -28,6 +28,6 @@ class NoteEntity(
 ) : AuditEntity() {
 
     override fun toString(): String {
-        return "NoteEntity(id=$id, userId=$userId, source=$source, status=$status" + super.toString()
+        return "NoteEntity(id=$id, userId=$userId, source=$source, status=$status" + auditFields()
     }
 }

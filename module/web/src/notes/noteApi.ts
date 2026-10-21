@@ -1,5 +1,6 @@
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {parseSseStream} from '../lib/sse'
+import {errorCode, isRecord, segment} from '../lib/apiHelpers'
 
 export type NoteStatus = 'GENERATING' | 'READY' | 'FAILED'
 export type NoteSource = 'MANUAL' | 'CHAT_SUMMARY'
@@ -63,9 +64,6 @@ export function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-    return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
 
 function requiredString(value: unknown, field: string): string {
     if (typeof value !== 'string' || value === '') {
@@ -159,15 +157,6 @@ async function requireOk(response: Response, operation: string): Promise<void> {
         await errorCode(response))
 }
 
-/** The `code` of the service's error body; undefined for an empty or non-JSON body (a proxy error page). */
-async function errorCode(response: Response): Promise<string | undefined> {
-    try {
-        const body: unknown = await response.json()
-        return isRecord(body) && typeof body.code === 'string' ? body.code : undefined
-    } catch {
-        return undefined
-    }
-}
 
 async function responseJson(response: Response): Promise<unknown> {
     try {
@@ -213,7 +202,7 @@ export async function requestChatSummary(
             body: JSON.stringify(body),
         }
         : {method: 'POST', headers: {'Idempotency-Key': idempotencyKey}}
-    const response = await fetchNotes(`/note/chats/${chatId}/summarize`, init)
+    const response = await fetchNotes(`/note/chats/${segment(chatId)}/summarize`, init)
     await requireOk(response, 'summary request')
     if (response.status !== 202) throw new NoteApiError('protocol', `unexpected summary status (${response.status})`)
     const summary = parseSummary(await responseJson(response))
@@ -234,7 +223,7 @@ export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
 
 /** The notes written from a chat, newest first. */
 export async function listChatNotes(chatId: string, signal?: AbortSignal): Promise<Note[]> {
-    const response = await fetchNotes(`/note/chats/${chatId}/notes`, {signal})
+    const response = await fetchNotes(`/note/chats/${segment(chatId)}/notes`, {signal})
     await requireOk(response, 'chat notes fetch')
     const value = await responseJson(response)
     if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid chat notes response')
@@ -246,7 +235,7 @@ export async function listChatNotes(chatId: string, signal?: AbortSignal): Promi
  * them by `parentNoteId`.
  */
 export async function listConstellationNotes(constellationId: string, signal?: AbortSignal): Promise<Note[]> {
-    const response = await fetchNotes(`/note/constellations/${constellationId}/notes`, {signal})
+    const response = await fetchNotes(`/note/constellations/${segment(constellationId)}/notes`, {signal})
     await requireOk(response, 'constellation notes fetch')
     const value = await responseJson(response)
     if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid constellation notes response')
@@ -255,7 +244,7 @@ export async function listConstellationNotes(constellationId: string, signal?: A
 
 /** The note's direct sub-notes, newest first. */
 export async function listSubNotes(noteId: string, signal?: AbortSignal): Promise<Note[]> {
-    const response = await fetchNotes(`/note/notes/${noteId}/sub-notes`, {signal})
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/sub-notes`, {signal})
     await requireOk(response, 'sub-notes fetch')
     const value = await responseJson(response)
     if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid sub-notes response')
@@ -272,7 +261,7 @@ export async function listNotesWithoutConstellation(signal?: AbortSignal): Promi
 }
 
 export async function getNote(noteId: string, signal?: AbortSignal): Promise<Note> {
-    const response = await fetchNotes(`/note/notes/${noteId}`, {signal})
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}`, {signal})
     await requireOk(response, 'note fetch')
     const note = parseNote(await responseJson(response))
     if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
@@ -280,7 +269,7 @@ export async function getNote(noteId: string, signal?: AbortSignal): Promise<Not
 }
 
 export async function renameNote(noteId: string, title: string): Promise<Note> {
-    const response = await fetchNotes(`/note/notes/${noteId}`, {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}`, {
         method: 'PATCH',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title}),
@@ -293,7 +282,7 @@ export async function renameNote(noteId: string, title: string): Promise<Note> {
 
 /** Saves a user edit made against [edit.version]; a newer stored note fails with code `NOTE_VERSION_CONFLICT`. */
 export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> {
-    const response = await fetchNotes(`/note/notes/${noteId}`, {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({title: edit.title, content: edit.content, version: edit.version}),
@@ -311,7 +300,7 @@ export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> 
  */
 export async function deleteNote(noteId: string, subNotes?: SubNoteFate): Promise<void> {
     const query = subNotes ? `?subNotes=${subNotes}` : ''
-    const response = await fetchNotes(`/note/notes/${noteId}${query}`, {method: 'DELETE'})
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}${query}`, {method: 'DELETE'})
     await requireOk(response, 'note delete')
 }
 
@@ -320,7 +309,7 @@ export async function streamNoteStatus(
     noteId: string,
     options: { signal?: AbortSignal; onStatus: (event: NoteStatusEvent) => void },
 ): Promise<NoteStatus | null> {
-    const response = await fetchNotes(`/note/notes/${noteId}/status/stream`, {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/status/stream`, {
         headers: {'Accept': 'text/event-stream, application/json'},
         signal: options.signal,
     })
@@ -378,7 +367,7 @@ export async function streamNoteAiEdit(
     request: NoteAiEditRequest,
     options: { signal?: AbortSignal; onText: (text: string) => void },
 ): Promise<'done' | 'error'> {
-    const response = await fetchNotes(`/note/notes/${noteId}/ai-edit`, {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/ai-edit`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json', 'Accept': 'text/event-stream, application/json'},
         body: JSON.stringify({instruction: request.instruction, content: request.content}),

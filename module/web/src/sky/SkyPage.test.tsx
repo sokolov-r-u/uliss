@@ -1,9 +1,9 @@
-import {render, screen, within} from '@testing-library/react'
+import {act, render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {getSky, type Sky} from '../constellations/constellationApi'
-import {getNote} from '../notes/noteApi'
+import {getNote, notifyNotesChanged} from '../notes/noteApi'
 import {skyMemory} from './skyMemory'
 import {SkyPage} from './SkyPage'
 
@@ -176,5 +176,23 @@ describe('SkyPage', () => {
 
         expect(await screen.findByRole('complementary', {name: 'Note'})).toBeInTheDocument()
         expect(screen.getByRole('group', {name: 'Depth'})).toBeInTheDocument()
+    })
+
+    it('keeps the newest sky when an older load answers last', async () => {
+        let firstLoad!: (sky: Sky) => void
+        mockedSky.mockReturnValueOnce(new Promise((resolve) => {
+            firstLoad = resolve
+        }))
+        const newer: Sky = {...SKY, notes: [...SKY.notes, {id: 'heroes', title: 'Heroes', parentNoteId: null,
+            createdAt: '2026-10-21T09:00:00Z', memberships: []}]}
+        mockedSky.mockResolvedValueOnce(newer)
+        renderSky()
+
+        // a note written meanwhile reloads the sky; that newer answer lands first
+        act(() => notifyNotesChanged())
+        expect(await star('Heroes')).toBeInTheDocument()
+
+        await act(async () => firstLoad(SKY))
+        expect(screen.getByRole('button', {name: 'Heroes'})).toBeInTheDocument()
     })
 })

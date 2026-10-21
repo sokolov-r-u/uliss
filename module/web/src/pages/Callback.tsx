@@ -12,7 +12,7 @@ import { Shell } from '../ui/Shell'
 export function Callback() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  const { syncFromStore, logout } = useAuth()
+  const { syncFromStore } = useAuth()
   const [error, setError] = useState<string | null>(null)
   const ran = useRef(false)
 
@@ -41,7 +41,8 @@ export function Callback() {
       .then(() => {
         clearLoginRetry()
         syncFromStore()
-        navigate(takeReturnTo(), { replace: true })
+        // marked so the first screen offers no Back into the OAuth redirects
+        navigate(takeReturnTo(), { replace: true, state: { fromLogin: true } })
       })
       .catch((e: unknown) => {
         if (e instanceof LoginRejectedError) {
@@ -59,15 +60,9 @@ export function Callback() {
         <>
           <p className="auth-error">{error}</p>
           <div className="panel-actions">
+            {/* no "sign out" here: without tokens there is no id token, and the auth server will not end its session */}
             <button type="button" className="link-btn" onClick={() => login()}>
               try again
-            </button>
-            <button
-              type="button"
-              className="link-btn"
-              onClick={() => void logout().then(() => login())}
-            >
-              sign out
             </button>
           </div>
         </>

@@ -30,18 +30,10 @@ class DataInitializerPropertyTest {
             )
             assertEquals(setOf("openid", "profile"), client.scopes)
             assertEquals(CALLBACKS.toSet(), client.redirectUris)
+            assertEquals(setOf("http://new/signed-out"), client.postLogoutRedirectUris)
             assertTrue(client.clientSettings.isRequireProofKey)
             assertEquals(Duration.ofMinutes(15), client.tokenSettings.accessTokenTimeToLive)
             assertEquals(Duration.ofDays(30), client.tokenSettings.refreshTokenTimeToLive)
-        }
-    }
-
-    @Property(tries = 50)
-    fun `any stored m2m client ends up exactly as configured and stays so`(@ForAll("storedClients") stored: StoredClient) {
-        assertSyncedAndStable(stored.toRegisteredClient(M2M)) { client ->
-            assertEquals(setOf(AuthorizationGrantType.CLIENT_CREDENTIALS), client.authorizationGrantTypes)
-            assertEquals(setOf("internal"), client.scopes)
-            assertTrue(client.redirectUris.isEmpty())
         }
     }
 
@@ -57,9 +49,7 @@ class DataInitializerPropertyTest {
         expectConfigured(synced)
         assertEquals(stored.id, synced.id)
         assertEquals(setOf(ClientAuthenticationMethod.CLIENT_SECRET_BASIC), synced.clientAuthenticationMethods)
-        assertTrue(synced.postLogoutRedirectUris.isEmpty())
-        val secret = if (stored.clientId == WEB) "web-secret" else "m2m-secret"
-        assertTrue(TEST_ENCODER.matches(secret, synced.clientSecret))
+        assertTrue(TEST_ENCODER.matches("web-secret", synced.clientSecret))
         assertEquals(savesAfterSync, repository.saves, "a startup in sync with config must not write")
         assertEquals(synced, repository.findByClientId(stored.clientId))
     }
@@ -73,7 +63,7 @@ class DataInitializerPropertyTest {
         Arbitraries.of("http://new/callback", "http://old/callback", "http://evil/callback").set().ofMinSize(1),
         Arbitraries.of("http://old/logout").set(),
         Arbitraries.of(true, false),
-        Arbitraries.of("web-secret", "m2m-secret", "old-secret"),
+        Arbitraries.of("web-secret", "old-secret"),
         Arbitraries.integers().between(1, 120),
     ).`as` { grants, scopes, methods, redirects, logouts, proofKey, secret, ttlMinutes ->
         StoredClient(grants, scopes, methods, redirects, logouts, proofKey, secret, ttlMinutes)
@@ -111,8 +101,8 @@ class DataInitializerPropertyTest {
         webClientId = WEB,
         webClientSecret = "web-secret",
         callbackUrls = CALLBACKS,
-        m2mClientId = M2M,
-        m2mClientSecret = "m2m-secret",
+        postLogoutUrls = listOf("http://new/signed-out"),
+        retiredClientRepository = NO_RETIRED_CLIENTS,
     )
 
     private companion object {

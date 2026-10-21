@@ -5,7 +5,8 @@ registered clients, authorization state, and signing keys.
 
 ## Security and clients
 
-`SecurityConfig` defines two filter chains. The first matches authorization-server and discovery endpoints. The second
+`SecurityConfig` defines two filter chains. The first matches every endpoint of the authorization server
+(`endpointsMatcher`: `/oauth2/**`, discovery, OIDC `/userinfo` with a bearer access token, `/connect/logout`). The second
 handles the application UI, including the custom `/login` and `/register` pages, static `/ds/**` resources, error
 handling, and actuator health. Form pages eagerly load the CSRF token so the session exists before a large response
 commits.
@@ -14,12 +15,16 @@ Authorizations (codes, access and refresh tokens) and consents are stored in the
 (`AuthServerConfig`), so sessions survive restarts and work across replicas. `AuthorizationCleanupService` deletes
 authorizations whose every code and token has expired, daily by `AUTH_AUTHORIZATION_CLEANUP_CRON` (default 03:00).
 
-Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`:
+Registered clients are stored in Spring Authorization Server JDBC tables and seeded by `DataInitializer`; a stored
+client that config no longer has is deleted at startup with its authorizations and consents:
 
 - `uliss-web` is confidential, uses HTTP Basic client authentication, Authorization Code, PKCE, and refresh tokens. It
-  accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`. Access tokens last 15 minutes; refresh tokens last 30 days and
-  rotate on use.
-- `uliss-internal` uses Client Credentials with the `internal` scope for service traffic.
+  accepts every URI from `AUTH_CLIENT_CALLBACK_URLS`, and the OIDC end-session endpoint returns only to
+  `AUTH_CLIENT_POST_LOGOUT_URLS` (default `FRONTEND_URL/signed-out`). Access tokens last 15 minutes; refresh tokens
+  last 30 days and rotate on use. `RefreshGrantPolicy` refuses a refresh for a missing or disabled user and 90 days
+  after sign-in; a rotated-out refresh token presented again revokes the whole authorization
+  (`ReuseDetectingAuthorizationService`). End-session removes every authorization signed in through the same browser
+  session (the ID token's `sid`, kept in `auth.authorization_session`), so other tabs cannot refresh either.
 
 Config is the source of truth: at startup an existing client is rebuilt from config, keeping only its id and issue time
 (stored authorizations reference the id). Grant types, scopes, authentication methods, redirect and logout URIs, and
@@ -33,8 +38,9 @@ authorization server's JWKS endpoint.
 
 `TokenConfig` adds roles, `userId`, and an optional `displayName` to user access tokens. It calls user-service over gRPC
 with the auth UUID; user-service lazily creates the profile and returns its identifier. A failed user-service call
-blocks user login because a token without the profile identity is incomplete. Client Credentials tokens do not use this
-path.
+blocks the token because a token without the profile identity is incomplete; the token endpoint then answers 503
+`temporarily_unavailable` (`TokenErrorResponseHandler`), so the code or refresh token stays valid for a retry. Client
+Credentials tokens do not use this path.
 
 The gRPC client is configured by `GrpcConfig` from `USER_SERVICE_HOST` and `USER_GRPC_PORT`. Every call carries a
 service token from `UserServiceTokenProvider`: a JWT auth signs with its own key (`aud=user-service`, `scope=user.info`,

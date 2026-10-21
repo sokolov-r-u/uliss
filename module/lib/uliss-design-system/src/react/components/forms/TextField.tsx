@@ -92,6 +92,7 @@ export function TextField({
                         color: empty ? 'var(--text-faint)' : 'var(--cream)',
                         caretColor: 'var(--accent-2)',
                         opacity: disabled ? 0.5 : 1,
+                        ...inputProps.style,
                     }}
                 />
             </div>

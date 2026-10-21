@@ -1,4 +1,4 @@
-import {type CSSProperties, type ReactNode, useEffect, useRef, useState} from 'react'
+import {type CSSProperties, type ReactNode, useEffect, useMemo, useRef, useState} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {Button} from '../actions/Button'
@@ -129,11 +129,18 @@ export function ConstellationPicker({
 
     const byId = new Map(items.map((item) => [item.id, item]))
     const excluded = new Set(exclude ?? [])
-    const ancestorsOf = (item: ConstellationPickerItem) => {
-        const chain: string[] = []
-        for (let id = item.parentId; id; id = byId.get(id)?.parentId ?? null) chain.push(id)
-        return chain
-    }
+    // computed once per items, not per item on every keystroke; a cycle in bad data stops instead of hanging
+    const ancestors = useMemo(() => {
+        const parents = new Map(items.map((item) => [item.id, item.parentId]))
+        return new Map(items.map((item) => {
+            const chain: string[] = []
+            for (let id = item.parentId; id && id !== item.id && !chain.includes(id); id = parents.get(id) ?? null) {
+                chain.push(id)
+            }
+            return [item.id, chain]
+        }))
+    }, [items])
+    const ancestorsOf = (item: ConstellationPickerItem) => ancestors.get(item.id) ?? []
     const pickable = items.filter((item) => !excluded.has(item.id) && !ancestorsOf(item).some((id) => excluded.has(id)))
     const hasChildren = new Set(pickable.map((item) => item.parentId).filter((id): id is string => id != null))
     const selected = selectedId ? pickable.find((item) => item.id === selectedId) ?? null : null
@@ -448,11 +455,11 @@ export function ConstellationPicker({
     )
 }
 
+// no inline outline: the global :focus-visible ring must show on these inputs
 const FIELD: CSSProperties = {
     flex: 1,
     minWidth: 0,
     background: 'transparent',
-    outline: 'none',
     color: 'var(--cream)',
     fontFamily: 'var(--font-text)',
     fontSize: 12,

@@ -1,23 +1,18 @@
 package io.uliss.note_service.repository
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.model.NoteEntity
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.transaction.annotation.Transactional
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
 @Transactional
-class JdbcRagChunkStoreIntegrationTest {
+class JdbcRagChunkStoreIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var store: JdbcRagChunkStore
@@ -34,16 +29,13 @@ class JdbcRagChunkStoreIntegrationTest {
         val otherUserId = UUID.randomUUID()
         val note = saveNote(userId)
         val otherNote = saveNote(otherUserId)
-        store.replace(
-            userId,
-            note.id,
-            listOf(
+        store.replace(userId, note.id, 0, listOf(
                 chunk(0, "exact", 1.0f, 0.0f),
                 chunk(1, "close", 0.8f, 0.6f),
                 chunk(2, "below threshold", 0.0f, 1.0f),
             ),
         )
-        store.replace(otherUserId, otherNote.id, listOf(chunk(0, "other user's exact", 1.0f, 0.0f)))
+        store.replace(otherUserId, otherNote.id, 0, listOf(chunk(0, "other user's exact", 1.0f, 0.0f)))
 
         val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7)
 
@@ -56,8 +48,8 @@ class JdbcRagChunkStoreIntegrationTest {
         val userId = UUID.randomUUID()
         val titled = noteRepository.saveAndFlush(NoteEntity(userId = userId, content = "note", title = "Satori"))
         val untitled = saveNote(userId)
-        store.replace(userId, titled.id, listOf(chunk(0, "titled", 1.0f, 0.0f)))
-        store.replace(userId, untitled.id, listOf(chunk(0, "untitled", 0.8f, 0.6f)))
+        store.replace(userId, titled.id, 0, listOf(chunk(0, "titled", 1.0f, 0.0f)))
+        store.replace(userId, untitled.id, 0, listOf(chunk(0, "untitled", 0.8f, 0.6f)))
 
         val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7)
 
@@ -73,8 +65,8 @@ class JdbcRagChunkStoreIntegrationTest {
         val userId = UUID.randomUUID()
         val excluded = saveNote(userId)
         val kept = saveNote(userId)
-        store.replace(userId, excluded.id, listOf(chunk(0, "excluded", 1.0f, 0.0f)))
-        store.replace(userId, kept.id, listOf(chunk(0, "kept", 0.8f, 0.6f)))
+        store.replace(userId, excluded.id, 0, listOf(chunk(0, "excluded", 1.0f, 0.0f)))
+        store.replace(userId, kept.id, 0, listOf(chunk(0, "kept", 0.8f, 0.6f)))
 
         val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7, excludeNoteId = excluded.id)
 
@@ -82,16 +74,42 @@ class JdbcRagChunkStoreIntegrationTest {
     }
 
     @Test
+    fun `an index of an older note version does not replace a newer one`() {
+        // two index events of one note handled out of order: the slower one read the older text
+        val userId = UUID.randomUUID()
+        val note = saveNote(userId)
+        note.content = "newer text"
+        val newer = noteRepository.saveAndFlush(note)
+        val newerVersion = assertNotNull(newer.version)
+
+        store.replace(userId, note.id, newerVersion, listOf(chunk(0, "newer", 1.0f, 0.0f)))
+        store.replace(userId, note.id, newerVersion - 1, listOf(chunk(0, "older", 1.0f, 0.0f)))
+
+        val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7)
+        assertEquals(listOf("newer"), result.map { it.content })
+    }
+
+    @Test
+    fun `an index is stored when the note changed since without newer text being indexed`() {
+        // the note moved after the handler read it: its version grew, but nothing newer was indexed
+        val userId = UUID.randomUUID()
+        val note = saveNote(userId)
+        note.parentNoteId = null
+        note.title = "moved"
+        noteRepository.saveAndFlush(note)
+
+        assertEquals(true, store.replace(userId, note.id, 0, listOf(chunk(0, "only index", 1.0f, 0.0f))))
+        assertEquals(listOf("only index"), store.search(userId, vector(1.0f, 0.0f), 10, 0.7).map { it.content })
+    }
+
+    @Test
     fun `replace removes previous chunks of the selected note`() {
         val userId = UUID.randomUUID()
         val note = saveNote(userId)
-        store.replace(
-            userId,
-            note.id,
-            listOf(chunk(0, "old first", 1.0f, 0.0f), chunk(1, "old second", 0.0f, 1.0f)),
+        store.replace(userId, note.id, 0, listOf(chunk(0, "old first", 1.0f, 0.0f), chunk(1, "old second", 0.0f, 1.0f)),
         )
 
-        store.replace(userId, note.id, listOf(chunk(0, "new", 1.0f, 0.0f)))
+        store.replace(userId, note.id, 0, listOf(chunk(0, "new", 1.0f, 0.0f)))
 
         assertEquals(listOf("new"), contents(note.id))
     }
@@ -102,8 +120,8 @@ class JdbcRagChunkStoreIntegrationTest {
         val firstNote = saveNote(userId)
         val secondNote = saveNote(userId)
 
-        store.replace(userId, firstNote.id, listOf(chunk(0, "first", 1.0f, 0.0f)))
-        store.replace(userId, secondNote.id, listOf(chunk(0, "second", 0.0f, 1.0f)))
+        store.replace(userId, firstNote.id, 0, listOf(chunk(0, "first", 1.0f, 0.0f)))
+        store.replace(userId, secondNote.id, 0, listOf(chunk(0, "second", 0.0f, 1.0f)))
 
         assertEquals(listOf("first"), contents(firstNote.id))
         assertEquals(listOf("second"), contents(secondNote.id))
@@ -113,7 +131,7 @@ class JdbcRagChunkStoreIntegrationTest {
     fun `deleting a note cascades to its chunks`() {
         val userId = UUID.randomUUID()
         val note = saveNote(userId)
-        store.replace(userId, note.id, listOf(chunk(0, "content", 1.0f, 0.0f)))
+        store.replace(userId, note.id, 0, listOf(chunk(0, "content", 1.0f, 0.0f)))
 
         noteRepository.delete(note)
         noteRepository.flush()

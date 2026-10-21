@@ -11,9 +11,11 @@ version = "0.0.2"
 node {
 	// npm workspaces live in the repo root package.json
 	nodeProjectDir.set(rootProject.layout.projectDirectory)
-	// Use the Node/npm already installed on the machine (set to true to let Gradle manage Node, e.g. on CI)
+	// Gradle downloads the Node version pinned in the repo-root .nvmrc, the same one CI and local development use
 	download.set(true)
-	version.set("24.15.0")
+	version.set(rootProject.layout.projectDirectory.file(".nvmrc").asFile.readText().trim())
+	// npm ci: install exactly the lockfile, never rewrite it during a Gradle build
+	npmInstallCommand.set("ci")
 }
 
 // Runs the design-system npm build (postcss autoprefixer -> dist/**, structure preserved)
@@ -22,6 +24,8 @@ val buildDesignSystem = tasks.register<NpmTask>("buildDesignSystem") {
 	dependsOn(tasks.named("npmInstall"))
 	workingDir.set(rootProject.layout.projectDirectory.asFile)
 	args.set(listOf("run", "build", "-w", "@uliss/design-system"))
+	// a deleted or renamed source must not survive in dist/ and the jar
+	doFirst { delete(layout.projectDirectory.dir("dist")) }
 	inputs.dir(layout.projectDirectory.dir("src"))
 	inputs.file(layout.projectDirectory.file("package.json"))
 	outputs.dir(layout.projectDirectory.dir("dist"))

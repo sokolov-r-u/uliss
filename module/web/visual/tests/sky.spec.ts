@@ -50,3 +50,37 @@ test('the settings sheet over the sky and Settings › Sky are one, and remember
     await openRoute(page, '/settings/sky')
     await expect(page.getByRole('switch', {name: /Mix colours/})).toHaveAttribute('aria-checked', 'true')
 })
+
+test('the keyboard reaches the sky with one Tab, moves by direction, names the star and leaves with Escape', async ({page}) => {
+    await page.setViewportSize({width: 1280, height: 800})
+    await openRoute(page, '/sky')
+    const focusedId = () => page.evaluate(() => document.activeElement?.getAttribute('data-node-id') ?? null)
+
+    // from the nav, Tab goes straight to the graph instead of the next of twenty sidebar controls
+    await expect(page.locator('[data-sky-entry]')).toHaveCount(1)
+    await page.getByRole('link', {name: 'Notes'}).focus()
+    await page.keyboard.press('Tab')
+    const entry = await focusedId()
+    expect(entry).not.toBeNull()
+    await page.keyboard.press('Tab')
+    expect(await focusedId()).toBe(entry)
+
+    await page.locator('[data-node-id="k-music"]').focus()
+    await page.keyboard.press('ArrowLeft')
+    await expect(page.locator('[data-node-id="k-jazz"]')).toBeFocused()
+    await page.keyboard.press('ArrowUp')
+    await expect(page.locator('[data-node-id="k-noir"]')).toBeFocused()
+    await expect(page.locator('[data-node-id="k-noir"] .sky-focus-ring')).toHaveCSS('stroke-dasharray', '3px, 3px')
+
+    // a rim star's name is faint until the keyboard reaches it
+    await page.locator('[data-node-id="k-films"]').focus()
+    const rimName = page.locator('[data-node-id="n3"] text')
+    await expect(rimName).not.toHaveAttribute('opacity', '1')
+    await page.keyboard.press('ArrowRight')
+    await expect(page.locator('[data-node-id="n3"]')).toBeFocused()
+    await expect(rimName).toHaveAttribute('opacity', '1')
+
+    await page.keyboard.press('Escape')
+    expect(await focusedId()).toBeNull()
+    await expect(rimName).not.toHaveAttribute('opacity', '1')
+})

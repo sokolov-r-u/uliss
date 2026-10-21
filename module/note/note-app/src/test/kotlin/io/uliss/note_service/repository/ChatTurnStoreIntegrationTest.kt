@@ -1,14 +1,11 @@
 package io.uliss.note_service.repository
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.projection.RequestFingerprint
 import jakarta.persistence.EntityManager
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.transaction.IllegalTransactionStateException
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import org.springframework.transaction.support.TransactionTemplate
@@ -21,10 +18,7 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ChatTurnStoreIntegrationTest {
+class ChatTurnStoreIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var store: ChatTurnStore

@@ -12,5 +12,7 @@ object ErrorCode {
     const val INTERNAL_ERROR = "INTERNAL_ERROR"
     const val BAD_REQUEST_ERROR = "BAD_REQUEST_ERROR"
     const val VALIDATION_ERROR = "VALIDATION_ERROR"
+    const val VERSION_CONFLICT = "VERSION_CONFLICT"
+    const val CONFLICT = "CONFLICT"
     const val UNKNOWN_ERROR = "UNKNOWN_ERROR"
 }

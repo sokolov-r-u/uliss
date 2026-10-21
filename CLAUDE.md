@@ -89,7 +89,7 @@
 - Diagnose failures and fix issues within the agreed scope. IntelliJ diagnostics are a fast signal when available, never
   the final authority.
 - During blocks run the narrowest relevant check. Final verification: `./gradlew build` plus `integrationTest` of every
-  touched JVM module; for web changes `typecheck`, `test`, and `build`; for design-system changes its `typecheck`.
+  touched JVM module; for web changes `typecheck`, `test`, and `build`; for design-system changes its `typecheck` and `test`.
 - Common commands:
   - `./gradlew :<module>:test`
   - `./gradlew :<module>:integrationTest` (requires Docker/Testcontainers)
@@ -98,6 +98,7 @@
   - `npm run test -w @uliss/web`
   - `npm run build -w @uliss/web`
   - `npm run typecheck -w @uliss/design-system`
+  - `npm run test -w @uliss/design-system`
 
 ## Subagents and skills
 

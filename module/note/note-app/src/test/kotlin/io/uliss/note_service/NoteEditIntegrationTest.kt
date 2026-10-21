@@ -1,6 +1,6 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -15,17 +15,11 @@ import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.NoteService
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.put
@@ -34,17 +28,16 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class NoteEditIntegrationTest {
+class NoteEditIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var noteRepository: NoteRepository
@@ -61,8 +54,6 @@ class NoteEditIntegrationTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @Test
     fun `saving an edit stores it, bumps the version and requests reindexing`() {
@@ -113,9 +104,9 @@ class NoteEditIntegrationTest {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         val through = message(chat, "new")
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, UUID.randomUUID())
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, UUID.randomUUID())
         val version = noteRepository.findById(note.id).orElseThrow().version
 
         put(userId, note.id, "Title", "edited", version).andExpect {
@@ -130,15 +121,15 @@ class NoteEditIntegrationTest {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
         val version = noteRepository.findById(note.id).orElseThrow().version
         put(userId, note.id, "Title", "edited by hand", version).andExpect { status { isOk() } }
         val through = message(chat, "new")
         val key = UUID.randomUUID()
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
 
         assertTrue(
-            noteService.applyChatSummaryUpdate(
+            noteSummaryService.applyChatSummaryUpdate(
                 userId, key, note.id, chat.id, covered.id, through.id, "Added.", LocalDate.of(2026, 10, 17),
             ),
         )

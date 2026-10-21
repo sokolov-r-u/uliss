@@ -1,15 +1,11 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
 import io.uliss.note_service.model.projection.ChatTurnStatus
 import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.facade.ChatFacade
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.Timestamp
 import java.time.Duration
@@ -18,10 +14,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ChatActivityOrderIntegrationTest {
+class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var chatFacade: ChatFacade

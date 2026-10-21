@@ -77,13 +77,15 @@ export function AppearanceSettings() {
 
             <SectionLabel>Accent</SectionLabel>
             <div className="settings-swatches" role="radiogroup" aria-label="Accent">
-                {ACCENTS.map((a) => (
+                {ACCENTS.map((a, index) => (
                     <Swatch
                         key={a}
                         label={ACCENT_META[a].label}
                         color={ACCENT_META[a].color}
                         on={theme.accent === a}
                         onPick={() => set({accent: a})}
+                        // one tab stop: the chosen accent, or the first when none matches
+                        tabIndex={theme.accent === a || (!ACCENTS.includes(theme.accent) && index === 0) ? 0 : -1}
                     />
                 ))}
             </div>

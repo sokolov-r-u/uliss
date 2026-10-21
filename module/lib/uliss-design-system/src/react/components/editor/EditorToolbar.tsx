@@ -69,7 +69,15 @@ export function EditorToolbar({
                                   style,
                               }: EditorToolbarProps) {
     return (
-        <div role="toolbar" aria-label="Formatting" style={{
+        <div role="toolbar" aria-label="Formatting" onKeyDown={(event) => {
+            // toolbar pattern: arrows move between the enabled tools
+            const tools = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
+            const index = tools.indexOf(document.activeElement as HTMLButtonElement)
+            const next = {ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: tools.length - 1}[event.key]
+            if (index < 0 || next === undefined) return
+            event.preventDefault()
+            tools[(next + tools.length) % tools.length]?.focus()
+        }} style={{
             display: 'flex',
             flexWrap: 'wrap',
             alignItems: 'center',

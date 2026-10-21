@@ -64,7 +64,8 @@ export function ChatDock({
     const recording = voiceState === 'recording'
     const transcribing = voiceState === 'transcribing'
     const fieldLocked = disabled || generationActive || transcribing
-    const micLocked = voiceDisabled || disabled || generationActive || transcribing
+    // a mic with nothing to start would be an enabled button that does nothing
+    const micLocked = voiceDisabled || disabled || generationActive || transcribing || (!voice && !onMic)
 
     // The field remounts after a recording, so its height is measured again then too.
     useLayoutEffect(() => {
@@ -135,7 +136,7 @@ export function ChatDock({
                             minHeight: TEXTAREA_MIN_HEIGHT,
                             maxHeight: TEXTAREA_MAX_HEIGHT,
                             border: 0,
-                            outline: 0,
+                            // no inline outline: the global :focus-visible ring must show on the message field
                             padding: '7px 0',
                             resize: 'none',
                             overflowX: 'hidden',
@@ -154,10 +155,10 @@ export function ChatDock({
                 )}
                 {recording ? (
                     <>
-                        <IconButton s={34} title="Stop recording" onClick={voice?.onStop} style={tile}>
+                        <IconButton s={34} title="Stop recording" disabled={disabled} onClick={voice?.onStop} style={tile}>
                             <Icon name="stop" size={18}/>
                         </IconButton>
-                        <IconButton s={34} title="Send recording" onClick={voice?.onSend} style={tile}>
+                        <IconButton s={34} title="Send recording" disabled={disabled || generationActive} onClick={voice?.onSend} style={tile}>
                             <Icon name="arrowUp" size={18}/>
                         </IconButton>
                     </>

@@ -24,6 +24,7 @@ describe('NoteChatsList', () => {
 
         expect(screen.queryByRole('button', {name: /Chat of note one/})).not.toBeInTheDocument()
         await waitFor(() => expect(mockedList).toHaveBeenCalledWith('n-3', expect.any(AbortSignal)))
-        expect(screen.getByText('Written by hand')).toBeInTheDocument()
+        // a failed load says so instead of claiming the list is empty
+        expect(await screen.findByText('Could not load the chats.')).toBeInTheDocument()
     })
 })

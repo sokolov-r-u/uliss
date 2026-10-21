@@ -8,6 +8,8 @@ import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.logging.logger.AppLogger
 import io.uliss.user_service.service.MessageService
 import io.uliss.user_service.service.UserProfileService
+import org.springframework.dao.DataAccessResourceFailureException
+import org.springframework.dao.TransientDataAccessException
 import org.springframework.stereotype.Component
 import java.util.UUID
 
@@ -24,8 +26,13 @@ class UserGrpcService(
         request: UserInfoRequest,
         responseObserver: StreamObserver<UserInfoResponse>
     ) {
+        val authId = runCatching { UUID.fromString(request.authId) }.getOrNull()
+        if (authId == null) {
+            log.warn("invalid authId={}", "getUserInfo", request.authId)
+            responseObserver.onError(Status.INVALID_ARGUMENT.withDescription("invalid authId").asRuntimeException())
+            return
+        }
         try {
-            val authId = UUID.fromString(request.authId)
             val user = userProfileService.getOrCreate(authId)
 
             val response = UserInfoResponse.newBuilder()
@@ -36,16 +43,15 @@ class UserGrpcService(
 
             responseObserver.onNext(response)
             responseObserver.onCompleted()
-        } catch (ex: IllegalArgumentException) {
-            log.error("invalid authId=${request.authId}", "getUserInfo", ex)
-            responseObserver.onError(
-                Status.INVALID_ARGUMENT.withDescription("invalid authId").withCause(ex).asRuntimeException()
-            )
         } catch (ex: Exception) {
-            log.error("internal error", "getUserInfo", ex)
-            responseObserver.onError(
-                Status.INTERNAL.withDescription("internal error").withCause(ex).asRuntimeException()
-            )
+            // UNAVAILABLE tells auth the failure is temporary (its token endpoint answers 503 either way)
+            val status = if (ex is TransientDataAccessException || ex is DataAccessResourceFailureException) {
+                Status.UNAVAILABLE
+            } else {
+                Status.INTERNAL
+            }
+            log.error("getUserInfo failed with ${status.code}", "getUserInfo", ex)
+            responseObserver.onError(status.withDescription("internal error").withCause(ex).asRuntimeException())
         }
     }
 }

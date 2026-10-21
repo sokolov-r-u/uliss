@@ -135,6 +135,19 @@ class ChatTurnStore(
         ).isNotEmpty()
     }
 
+    /** Fails a generating turn whose lease expired, whatever its attempt; `false` when the lease is live again. */
+    fun failExpired(turnId: UUID, userId: UUID, chatId: UUID): Boolean =
+        jdbcTemplate.query(
+            FAIL_EXPIRED_AT_LIMIT_SQL,
+            { _, _ -> true },
+            ChatTurnStatus.FAILED.name,
+            turnId,
+            userId,
+            chatId,
+            ChatTurnStatus.GENERATING.name,
+            0,
+        ).isNotEmpty()
+
     fun cancelGenerating(turnId: UUID, userId: UUID, chatId: UUID): Boolean =
         jdbcTemplate.query(
             CANCEL_GENERATING_SQL,

@@ -39,10 +39,14 @@ export async function* parseSseStream(
 
     const decoder = new TextDecoder()
     let buffer = ''
+    let finished = false
     try {
         while (true) {
             const {done, value} = await reader.read()
-            if (done) break
+            if (done) {
+                finished = true
+                break
+            }
             buffer += decoder.decode(value, {stream: true}).replace(/\r\n/g, '\n')
             let sep: number
             while ((sep = buffer.indexOf('\n\n')) !== -1) {
@@ -58,5 +62,7 @@ export async function* parseSseStream(
         if (last) yield last
     } finally {
         signal?.removeEventListener('abort', onAbort)
+        // a consumer that stops early (`return` out of `for await`) must not leave the connection open
+        if (!finished) void reader.cancel().catch(() => undefined)
     }
 }

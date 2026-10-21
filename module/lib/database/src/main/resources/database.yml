@@ -6,6 +6,8 @@ spring:
     hikari:
       maximum-pool-size: ${uliss.database.pool.maximum-size:${DB_POOL_MAX_SIZE:5}}
       minimum-idle: ${uliss.database.pool.minimum-idle:${DB_POOL_MIN_IDLE:1}}
+      # fail a request after 5 s without a free connection instead of Hikari's 30 s
+      connection-timeout: ${DB_POOL_CONNECTION_TIMEOUT_MS:5000}
   jpa:
     open-in-view: false
     hibernate:

@@ -2,12 +2,14 @@ package io.uliss.security
 
 import io.uliss.security.config.AuditorConfig
 import io.uliss.security.config.CorsProperties
+import io.uliss.security.config.JwkSetClientConfig
 import io.uliss.security.config.OnboardingGuardConfig
 import io.uliss.security.config.SecurityConfig
 import io.uliss.security.config.SecurityProperties
 import io.uliss.security.config.WebMvcPathPrefixConfig
 import io.uliss.security.controller.AuthController
 import io.uliss.security.service.AuthService
+import io.uliss.security.service.SignOutService
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.AutoConfigureBefore
 import org.springframework.context.annotation.Import
@@ -18,10 +20,12 @@ import org.springframework.resilience.annotation.EnableResilientMethods
 @EnableResilientMethods
 @Import(
     SecurityConfig::class,
+    JwkSetClientConfig::class,
     CorsProperties::class,
     AuditorConfig::class,
     AuthController::class,
     AuthService::class,
+    SignOutService::class,
     SecurityProperties::class,
     WebMvcPathPrefixConfig::class,
     OnboardingGuardConfig::class,

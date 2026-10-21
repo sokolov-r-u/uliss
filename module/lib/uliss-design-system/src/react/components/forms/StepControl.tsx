@@ -31,6 +31,9 @@ export function StepControl({
                                 label,
                                 disabled = false
                             }: StepControlProps) {
+    // the checked step is the group's tab stop; with none checked (value not loaded yet) the first one is
+    const checkedIndex = steps.findIndex((s) => s.id === value)
+    const tabStop = checkedIndex >= 0 ? checkedIndex : 0
     return (
         <div
             role="radiogroup"
@@ -51,14 +54,16 @@ export function StepControl({
                         disabled={disabled}
                         key={s.id}
                         onClick={onPick ? () => onPick(s.id) : undefined}
-                        tabIndex={on ? 0 : -1}
+                        tabIndex={i === tabStop ? 0 : -1}
                         onKeyDown={(event) => {
                             if (!onPick || disabled || !['ArrowDown', 'ArrowRight', 'ArrowUp', 'ArrowLeft'].includes(event.key)) return
                             event.preventDefault()
                             const delta = event.key === 'ArrowDown' || event.key === 'ArrowRight' ? 1 : -1
                             const next = (i + delta + steps.length) % steps.length
                             onPick(steps[next].id)
-                            requestAnimationFrame(() => event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
+                            // React clears currentTarget after the handler: take the group now, focus next frame
+                            const group = event.currentTarget.parentElement
+                            requestAnimationFrame(() => group?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus())
                         }}
                         style={{
                             display: 'flex',

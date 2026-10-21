@@ -1,9 +1,16 @@
 package io.uliss.auth
 
 import com.jayway.jsonpath.JsonPath
+import com.nimbusds.jwt.JWTClaimsSet
+import com.nimbusds.jwt.SignedJWT
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.TestContainersConfiguration
+import io.uliss.auth.model.UserEntity
+import io.uliss.auth.model.UserStatus
+import io.uliss.auth.repository.UserRepository
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -46,13 +53,28 @@ class OAuth2ErrorContractTests {
     @Autowired
     lateinit var registeredClientRepository: RegisteredClientRepository
 
+    @Autowired
+    lateinit var userRepository: UserRepository
+
     @MockitoBean
     lateinit var userServiceBlockingStub: UserServiceGrpc.UserServiceBlockingStub
 
+    /** The auth-user id, as a real login sets it; refresh checks that user. */
+    private lateinit var userIdName: String
+
+    @BeforeEach
+    fun createUser() {
+        val user = userRepository.save(
+            UserEntity(email = "contract-${UUID.randomUUID()}@example.com", passwordHash = "hash", status = UserStatus.ACTIVE)
+        )
+        userIdName = user.id.toString()
+    }
+
     @BeforeEach
     fun stubUserService() {
-        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
-            .thenReturn(UserInfoResponse.newBuilder().setUserId(UUID.randomUUID().toString()).build())
+        // doReturn: re-stubbing after a thenThrow must not call the throwing stub
+        Mockito.doReturn(UserInfoResponse.newBuilder().setUserId(UUID.randomUUID().toString()).build())
+            .`when`(userServiceBlockingStub).getUserInfo(Mockito.any())
     }
 
     @Test
@@ -159,18 +181,6 @@ class OAuth2ErrorContractTests {
     }
 
     @Test
-    fun `m2m client requesting scope outside internal is invalid_scope`() {
-        mockMvc.post("/oauth2/token") {
-            param("grant_type", "client_credentials")
-            param("scope", "profile")
-            with(httpBasic(M2M_CLIENT, M2M_SECRET))
-        }.andExpect {
-            status { isBadRequest() }
-            jsonPath("$.error") { value("invalid_scope") }
-        }
-    }
-
-    @Test
     fun `refresh with invalid refresh token is invalid_grant`() {
         mockMvc.post("/oauth2/token") {
             param("grant_type", "refresh_token")
@@ -193,7 +203,7 @@ class OAuth2ErrorContractTests {
             "scope" to "openid",
         )
         val location = mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andReturn().response.redirectedUrl
 
         assertNotNull(location, "authorize must redirect to redirect_uri")
@@ -212,7 +222,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andExpect {
             status { isBadRequest() }
         }
@@ -229,7 +239,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andExpect {
             status { isBadRequest() }
         }
@@ -348,24 +358,125 @@ class OAuth2ErrorContractTests {
         val authorization = restarted.findByToken(refreshToken, OAuth2TokenType.REFRESH_TOKEN)
 
         assertNotNull(authorization, "refresh token must survive an authorization server restart")
-        assertEquals("alice@example.com", authorization.principalName)
+        assertEquals(userIdName, authorization.principalName)
+    }
+
+    // ---------- access token contents ----------
+
+    @Test
+    fun `user access token carries the profile claims from user-service`() {
+        val userId = UUID.randomUUID().toString()
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any())).thenReturn(
+            UserInfoResponse.newBuilder()
+                .setUserId(userId)
+                .setDisplayName("Alice")
+                .setOnboardingRequired(true)
+                .build()
+        )
+
+        val claims = accessTokenClaims(exchange(obtainAuthorizationCode(VERIFIER)))
+
+        assertEquals(userId, claims.getStringClaim("userId"))
+        assertEquals("Alice", claims.getStringClaim("displayName"))
+        assertEquals(true, claims.getBooleanClaim("onboardingRequired"))
+        assertEquals(listOf("ROLE_USER"), claims.getStringListClaim("roles"))
+        assertEquals(listOf(WEB_CLIENT), claims.audience)
+    }
+
+    // ---------- user-service outage ----------
+
+    @Test
+    fun `code exchange answers 503 while user-service is unavailable and the code stays usable`() {
+        val code = obtainAuthorizationCode(VERIFIER)
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
+            .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
+
+        exchangeRequest(code).andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.error") { value("temporarily_unavailable") }
+        }
+
+        stubUserService()
+        exchangeRequest(code).andExpect { status { isOk() } }
     }
 
     @Test
-    fun `m2m client_credentials issues access token without refresh`() {
-        val json = mockMvc.post("/oauth2/token") {
-            param("grant_type", "client_credentials")
-            param("scope", "internal")
-            with(httpBasic(M2M_CLIENT, M2M_SECRET))
-        }.andExpect {
-            status { isOk() }
-        }.andReturn().response.contentAsString
+    fun `refresh answers 503 while user-service is unavailable and the refresh token stays valid`() {
+        val refreshToken = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refreshToken)
+        Mockito.`when`(userServiceBlockingStub.getUserInfo(Mockito.any()))
+            .thenThrow(StatusRuntimeException(Status.UNAVAILABLE))
 
-        assertNotNull(readOrNull(json, "$.access_token"), "expected access_token")
-        assertEquals(null, readOrNull(json, "$.refresh_token"), "client_credentials -> no refresh")
+        refreshRequest(refreshToken).andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.error") { value("temporarily_unavailable") }
+        }
+
+        stubUserService()
+        refreshRequest(refreshToken).andExpect { status { isOk() } }
+    }
+
+    // ---------- refresh policy ----------
+
+    @Test
+    fun `a disabled user cannot refresh`() {
+        val refreshToken = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refreshToken)
+        val user = userRepository.findById(UUID.fromString(userIdName)).orElseThrow()
+        user.status = UserStatus.DISABLED
+        userRepository.save(user)
+
+        refreshRequest(refreshToken).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+    }
+
+    @Test
+    fun `reusing a rotated refresh token revokes the whole session`() {
+        val refresh1 = readOrNull(exchange(obtainAuthorizationCode(VERIFIER)), "$.refresh_token")
+        assertNotNull(refresh1)
+        val refresh2 = readOrNull(
+            refreshRequest(refresh1).andExpect { status { isOk() } }.andReturn().response.contentAsString,
+            "$.refresh_token",
+        )
+        assertNotNull(refresh2)
+
+        // a stolen copy of the old token shows up: the session cannot tell who is legitimate and ends
+        refreshRequest(refresh1).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+        refreshRequest(refresh2).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
     }
 
     // ---------- helpers ----------
+
+    private fun exchangeRequest(code: String) = mockMvc.post("/oauth2/token") {
+        param("grant_type", "authorization_code")
+        param("code", code)
+        param("redirect_uri", REDIRECT_URI)
+        param("code_verifier", VERIFIER)
+        with(httpBasic(WEB_CLIENT, WEB_SECRET))
+    }
+
+    private fun exchange(code: String): String =
+        exchangeRequest(code).andExpect { status { isOk() } }.andReturn().response.contentAsString
+
+    private fun refreshRequest(refreshToken: String) = mockMvc.post("/oauth2/token") {
+        param("grant_type", "refresh_token")
+        param("refresh_token", refreshToken)
+        with(httpBasic(WEB_CLIENT, WEB_SECRET))
+    }
+
+    private fun accessTokenClaims(tokenJson: String): JWTClaimsSet {
+        val accessToken = readOrNull(tokenJson, "$.access_token")
+        assertNotNull(accessToken, "expected access_token")
+        return SignedJWT.parse(accessToken).jwtClaimsSet
+    }
 
     // non-openid scope: OIDC id_token needs a real login (authenticationTime), not the synthetic user()
     private fun obtainAuthorizationCode(verifier: String, scope: String = "profile"): String {
@@ -378,7 +489,7 @@ class OAuth2ErrorContractTests {
             "code_challenge_method" to "S256",
         )
         val response = mockMvc.get(uri) {
-            with(user("alice@example.com").roles("USER"))
+            with(user(userIdName).roles("USER"))
         }.andReturn().response
 
         val location = response.redirectedUrl
@@ -411,9 +522,7 @@ class OAuth2ErrorContractTests {
 
     companion object {
         const val WEB_CLIENT = "test-web-client"
-        const val WEB_SECRET = "test-web-secret"
-        const val M2M_CLIENT = "test-m2m-client"
-        const val M2M_SECRET = "test-m2m-secret"
+        const val WEB_SECRET = "test-web-secret-0123456789abcdef0123"
         const val REDIRECT_URI = "http://localhost:3000/callback"
 
         // PKCE code_verifier: 43-128 unreserved chars

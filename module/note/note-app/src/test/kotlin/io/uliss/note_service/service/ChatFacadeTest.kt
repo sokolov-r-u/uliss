@@ -34,9 +34,10 @@ class ChatFacadeTest {
     private val chatService = Mockito.mock(ChatService::class.java)
     private val assistantService = Mockito.mock(AssistantService::class.java)
     private val noteService = Mockito.mock(NoteService::class.java)
+    private val noteSummaryService = Mockito.mock(NoteSummaryService::class.java)
     private val chatTurnService = Mockito.mock(ChatTurnService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
-    private val chatFacade = ChatFacade(chatService, assistantService, noteService, chatTurnService, ragService)
+    private val chatFacade = ChatFacade(chatService, assistantService, noteService, noteSummaryService, chatTurnService, ragService)
 
     @Test
     fun `streamReply creates a missing chat and exposes its backend identity`() {
@@ -69,7 +70,7 @@ class ChatFacadeTest {
         val idempotencyKey = UUID.randomUUID()
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
         val assistantReply = AssistantReplyStream(turnId, Flux.empty(), chatId)
-        Mockito.`when`(chatService.requireOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
         Mockito.`when`(
             assistantService.streamReply(
                 eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(),
@@ -87,7 +88,7 @@ class ChatFacadeTest {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        Mockito.`when`(chatService.requireOwnedChat(userId, chatId))
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
         assertFailsWith<NotFoundException> {
@@ -106,8 +107,8 @@ class ChatFacadeTest {
         val currentNoteId = UUID.randomUUID()
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
         val found = listOf(RetrievedChunk(UUID.randomUUID(), 0, "Loves Satori.", 0.9, "Satori", Instant.EPOCH))
-        Mockito.`when`(chatService.requireOwnedChat(userId, chatId)).thenReturn(chat)
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId))
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId))
             .thenReturn(null, CurrentChatSummary(currentNoteId, "Trip", null))
         Mockito.`when`(ragService.search(userId, "music", 5, 0.7)).thenReturn(found)
         Mockito.`when`(ragService.searchExcluding(userId, "music", 5, 0.7, currentNoteId)).thenReturn(found)
@@ -147,14 +148,14 @@ class ChatFacadeTest {
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(throughMessageId)
         val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
         Mockito.`when`(
-            noteService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
+            noteSummaryService.requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
         ).thenReturn(savedNote)
 
         val result = chatFacade.requestSummary(userId, chatId, idempotencyKey, SummaryMode.CREATE, null)
 
         assertSame(savedNote, result)
         Mockito.verify(chatService).getLatestMessageId(userId, chatId)
-        Mockito.verify(noteService).requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
+        Mockito.verify(noteSummaryService).requestChatSummary(userId, chatId, throughMessageId, idempotencyKey)
         Mockito.verify(chatService).touchActivity(userId, chatId)
     }
 
@@ -167,7 +168,7 @@ class ChatFacadeTest {
         val constellationId = UUID.randomUUID()
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
         val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteService.requestChatSummary(userId, chatId, latest, key, constellationId)).thenReturn(savedNote)
+        Mockito.`when`(noteSummaryService.requestChatSummary(userId, chatId, latest, key, constellationId)).thenReturn(savedNote)
 
         val result = chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null, constellationId)
 
@@ -183,7 +184,7 @@ class ChatFacadeTest {
         val parentNoteId = UUID.randomUUID()
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
         val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteService.requestChatSummary(userId, chatId, latest, key, null, parentNoteId)).thenReturn(savedNote)
+        Mockito.`when`(noteSummaryService.requestChatSummary(userId, chatId, latest, key, null, parentNoteId)).thenReturn(savedNote)
 
         val result = chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null, null, parentNoteId)
 
@@ -196,7 +197,7 @@ class ChatFacadeTest {
         val chatId = UUID.randomUUID()
         val current = CurrentChatSummary(UUID.randomUUID(), "Trip", UUID.randomUUID())
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
 
         assertFailsWith<BadRequestException> {
             chatFacade.requestSummary(
@@ -208,7 +209,7 @@ class ChatFacadeTest {
                 userId, chatId, UUID.randomUUID(), SummaryMode.UPDATE, current.noteId, null, UUID.randomUUID(),
             )
         }
-        Mockito.verify(noteService, Mockito.never()).findSummaryReplay(anyValue(), anyValue(), anyValue())
+        Mockito.verify(noteSummaryService, Mockito.never()).findSummaryReplay(anyValue(), anyValue(), anyValue())
         Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }
 
@@ -219,12 +220,12 @@ class ChatFacadeTest {
         val key = UUID.randomUUID()
         val current = CurrentChatSummary(UUID.randomUUID(), "Trip", UUID.randomUUID())
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
 
         assertFailsWith<BadRequestException> {
             chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId, UUID.randomUUID())
         }
-        Mockito.verify(noteService, Mockito.never()).requestChatSummaryUpdate(
+        Mockito.verify(noteSummaryService, Mockito.never()).requestChatSummaryUpdate(
             anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
         )
         Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
@@ -249,7 +250,7 @@ class ChatFacadeTest {
     fun `getChat returns an owned chat with its note count`() {
         val userId = UUID.randomUUID()
         val chat = ChatEntity(userId, "Trip planning")
-        Mockito.`when`(chatService.requireOwnedChat(userId, chat.id)).thenReturn(chat)
+        Mockito.`when`(chatService.getOwnedChat(userId, chat.id)).thenReturn(chat)
         Mockito.`when`(noteService.getNoteCounts(listOf(chat.id))).thenReturn(mapOf(chat.id to 1))
 
         val result = chatFacade.getChat(userId, chat.id)
@@ -301,10 +302,10 @@ class ChatFacadeTest {
         val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
-        Mockito.`when`(noteService.findSummaryReplay(userId, chatId, key)).thenReturn(note)
+        Mockito.`when`(noteSummaryService.findSummaryReplay(userId, chatId, key)).thenReturn(note)
 
         assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, UUID.randomUUID()))
-        Mockito.verify(noteService, Mockito.never()).findCurrentChatSummary(anyValue())
+        Mockito.verify(noteSummaryService, Mockito.never()).findCurrentChatSummary(anyValue())
         Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }
 
@@ -312,7 +313,7 @@ class ChatFacadeTest {
     fun `requestSummary rejects create when the chat already has a current note`() {
         val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId))
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId))
             .thenReturn(CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID()))
 
         assertFailsWith<SummaryNoteConflictException> {
@@ -325,7 +326,7 @@ class ChatFacadeTest {
     fun `requestSummary rejects an update of a note that is no longer current`() {
         val (userId, chatId, key) = Triple(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID())
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId))
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId))
             .thenReturn(CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID()))
 
         assertFailsWith<SummaryNoteConflictException> {
@@ -339,7 +340,7 @@ class ChatFacadeTest {
         val latest = UUID.randomUUID()
         val current = CurrentChatSummary(UUID.randomUUID(), "Title", latest)
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
 
         assertFailsWith<BadRequestException> {
             chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId)
@@ -356,9 +357,9 @@ class ChatFacadeTest {
         val current = CurrentChatSummary(UUID.randomUUID(), "Title", UUID.randomUUID())
         val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
         Mockito.`when`(
-            noteService.requestChatSummaryUpdate(userId, chatId, current.noteId, current.throughMessageId, latest, key)
+            noteSummaryService.requestChatSummaryUpdate(userId, chatId, current.noteId, current.throughMessageId, latest, key)
         ).thenReturn(note)
 
         assertSame(note, chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId))
@@ -373,7 +374,7 @@ class ChatFacadeTest {
         val before = UUID.randomUUID()
         Mockito.`when`(chatService.getMessages(userId, chatId, null, 50)).thenReturn(page)
         Mockito.`when`(chatService.getMessages(userId, chatId, before, 50)).thenReturn(page)
-        Mockito.`when`(noteService.findCurrentChatSummary(chatId)).thenReturn(current)
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
 
         assertEquals(current, chatFacade.getMessages(userId, chatId, null, 50).summary)
         assertNull(chatFacade.getMessages(userId, chatId, before, 50).summary)
@@ -383,7 +384,7 @@ class ChatFacadeTest {
     fun `chat notes of a missing or foreign chat are not found without reading notes`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatService.requireOwnedChat(userId, chatId)).thenThrow(NotFoundException("chat not found"))
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenThrow(NotFoundException("chat not found"))
 
         assertFailsWith<NotFoundException> { chatFacade.getChatNotes(userId, chatId) }
         Mockito.verify(noteService, Mockito.never()).getChatNotes(anyValue(), anyValue())

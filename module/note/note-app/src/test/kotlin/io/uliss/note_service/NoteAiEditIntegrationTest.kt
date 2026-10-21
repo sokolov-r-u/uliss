@@ -1,6 +1,6 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -16,19 +16,14 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.NoteService
 import org.hamcrest.Matchers
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
-import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt
-import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
 import org.springframework.test.web.servlet.post
@@ -36,17 +31,16 @@ import reactor.core.publisher.Flux
 import java.util.UUID
 import kotlin.test.assertEquals
 
-@Tag("integration")
-@SpringBootTest
-@AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
-class NoteAiEditIntegrationTest {
+class NoteAiEditIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var mockMvc: MockMvc
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var noteRepository: NoteRepository
@@ -63,8 +57,6 @@ class NoteAiEditIntegrationTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
-    @MockitoBean
-    lateinit var chatClient: ChatClient
 
     @Test
     fun `a rewrite streams the model's text and leaves the stored note untouched`() {
@@ -103,8 +95,8 @@ class NoteAiEditIntegrationTest {
         val chat = chatRepository.save(ChatEntity(userId, "Chat"))
         val covered = message(chat, "covered")
         val note = readyNote(userId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), covered.id))
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, message(chat, "new").id, UUID.randomUUID())
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, covered.id))
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, message(chat, "new").id, UUID.randomUUID())
 
         aiEdit(userId, note.id).andExpect {
             status { isConflict() }

@@ -59,6 +59,47 @@ describe('ItemMenu', () => {
         expect(screen.getByRole('menuitem', {name: 'Delete'})).toHaveFocus()
     })
 
+    it('jumps to the first and last item with Home and End', () => {
+        render(<ItemMenu anchor={anchorAt({})} label="Actions" onClose={vi.fn()}
+                         actions={[...actions(), {label: 'Open', onSelect: vi.fn()}]}/>)
+
+        fireEvent.keyDown(document.activeElement!, {key: 'End'})
+        expect(screen.getByRole('menuitem', {name: 'Open'})).toHaveFocus()
+        fireEvent.keyDown(document.activeElement!, {key: 'Home'})
+        expect(screen.getByRole('menuitem', {name: 'Rename'})).toHaveFocus()
+    })
+
+    it('closes on Tab, so focus never wanders behind the open menu', () => {
+        const onClose = vi.fn()
+        render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions()} onClose={onClose}/>)
+
+        expect(fireEvent.keyDown(document.activeElement!, {key: 'Tab'})).toBe(false)
+        expect(onClose).toHaveBeenCalledOnce()
+    })
+
+    it('closes when its anchor moves or the page resizes, not on a scroll that leaves the anchor in place', () => {
+        const onClose = vi.fn()
+        const rect = {top: 100, bottom: 120}
+        const anchor = anchorAt(rect)
+        anchor.getBoundingClientRect = () => ({
+            top: rect.top, bottom: rect.bottom, left: 300, right: 344, width: 44, height: 20, x: 300, y: rect.top,
+            toJSON: () => ({}),
+        })
+        render(<ItemMenu anchor={anchor} label="Actions" actions={actions()} onClose={onClose}/>)
+
+        // a chat thread following a streamed reply, or a late scroll event of a drawer that just slid in
+        fireEvent.scroll(document)
+        expect(onClose).not.toHaveBeenCalled()
+
+        rect.top = 60
+        rect.bottom = 80
+        fireEvent.scroll(document)
+        expect(onClose).toHaveBeenCalledOnce()
+
+        fireEvent(window, new Event('resize'))
+        expect(onClose).toHaveBeenCalledTimes(2)
+    })
+
     it('runs the chosen action', () => {
         const remove = vi.fn()
         render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions(vi.fn(), remove)} onClose={vi.fn()}/>)

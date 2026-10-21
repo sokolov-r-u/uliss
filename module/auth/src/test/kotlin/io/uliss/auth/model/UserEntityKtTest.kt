@@ -18,13 +18,6 @@ class UserEntityKtTest {
     }
 
     @Test
-    fun `password is passed through unchanged`() {
-        val entity = user(UserStatus.ACTIVE)
-
-        assertEquals("hashed-password", entity.toUserDetails().password)
-    }
-
-    @Test
     fun `ACTIVE status maps to an unlocked account`() {
         assertTrue(user(UserStatus.ACTIVE).toUserDetails().isAccountNonLocked)
     }

@@ -3,12 +3,13 @@ package io.uliss.note_service.service.handler
 import io.uliss.exception.common.NotFoundException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.service.ChatService
-import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.SummaryRetrievalQuery
@@ -25,8 +26,7 @@ class NoteSummaryUpdateRequestedHandler(
     private val chatClient: ChatClient,
     private val chatService: ChatService,
     private val ragService: RagService,
-    private val noteService: NoteService,
-    private val terminalFailureHandler: NoteSummaryUpdateTerminalFailureHandler,
+    private val noteSummaryService: NoteSummaryService,
     private val properties: NoteSummaryProperties,
     /** Addendum dates are UTC; tests pass a fixed clock. */
     private val clock: Clock = Clock.systemUTC(),
@@ -43,16 +43,10 @@ class NoteSummaryUpdateRequestedHandler(
                 payload.userId, payload.chatId, payload.afterMessageId, payload.throughMessageId,
             )
         } catch (_: NotFoundException) {
-            log.warn("chat id=${payload.chatId} not found, failing summary update of note id=${payload.noteId}", "handle")
-            terminalFailureHandler.handleTerminalFailure(event)
-            return
+            throw NonRetryableOutboxException("chat id=${payload.chatId} was deleted before the update of note id=${payload.noteId}")
         }
-        val note = noteService.findReadyNote(payload.userId, payload.noteId)
-        if (note == null) {
-            log.warn("note id=${payload.noteId} is gone or not ready, failing its summary update", "handle")
-            terminalFailureHandler.handleTerminalFailure(event)
-            return
-        }
+        val note = noteSummaryService.findReadyNote(payload.userId, payload.noteId)
+            ?: throw NonRetryableOutboxException("note id=${payload.noteId} is gone or not ready for its summary update")
         val relatedChunks = ragService.searchExcluding(
             userId = payload.userId,
             query = SummaryRetrievalQuery.build(context, properties.retrievalQueryMaxChars),
@@ -71,7 +65,7 @@ class NoteSummaryUpdateRequestedHandler(
             .call()
             .entity(NoteAddendumDraft::class.java) { it.useProviderStructuredOutput() }
         val addendum = checkNotNull(draft) { "summary update model returned no draft" }.toAddendumContent()
-        noteService.applyChatSummaryUpdate(
+        noteSummaryService.applyChatSummaryUpdate(
             payload.userId,
             payload.idempotencyKey,
             payload.noteId,

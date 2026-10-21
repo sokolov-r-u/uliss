@@ -1,5 +1,6 @@
 import {useEffect, useState} from 'react'
 import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
+import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
 import type {NoteViewModel} from '../views/models'
@@ -120,7 +121,7 @@ export function NotesPage() {
             .then((notes) => setState({status: 'ready', notes: toNoteViewModels(notes)}))
             .catch((error: unknown) => {
                 if (controller.signal.aborted || error instanceof AuthRequiredError) return
-                setState({status: 'error', message: error instanceof Error ? error.message : String(error)})
+                setState({status: 'error', message: describeError(error)})
             })
         return () => controller.abort()
     }, [revision])

@@ -21,6 +21,7 @@ import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
+import java.time.Duration
 import java.time.Instant
 import java.util.Date
 import java.util.UUID
@@ -56,9 +57,25 @@ class JwtValidationTest {
         requestWith(token(ISSUER, "not-a-uuid")).andExpect { status { isUnauthorized() } }
     }
 
+    @Test
+    fun `token issued to another client is rejected`() {
+        // e.g. the service token auth signs for user-service gRPC: same key and issuer, other audience
+        requestWith(token(ISSUER, UUID.randomUUID().toString(), audience = "user-service"))
+            .andExpect { status { isUnauthorized() } }
+    }
+
+    @Test
+    fun `expired token is rejected`() {
+        requestWith(token(ISSUER, UUID.randomUUID().toString(), expiresIn = Duration.ofMinutes(-5)))
+            .andExpect { status { isUnauthorized() } }
+    }
+
     companion object {
         // the issuer configured in security-test.yml
         private const val ISSUER = "http://localhost:9000"
+
+        // the web client id configured in security-test.yml; user tokens carry it as `aud`
+        private const val WEB_CLIENT = "test-web-client"
         private val signingKey: RSAKey = RSAKeyGenerator(2048).keyID("test-key").generate()
 
         private val wireMock = WireMockServer(options().dynamicPort()).apply {
@@ -66,11 +83,17 @@ class JwtValidationTest {
             stubFor(stubGet(urlPathEqualTo("/oauth2/jwks")).willReturn(okJson(JWKSet(signingKey.toPublicJWK()).toString())))
         }
 
-        private fun token(issuer: String, userId: String?): String {
+        private fun token(
+            issuer: String,
+            userId: String?,
+            audience: String = WEB_CLIENT,
+            expiresIn: Duration = Duration.ofMinutes(5),
+        ): String {
             val claims = JWTClaimsSet.Builder()
                 .issuer(issuer)
                 .subject(UUID.randomUUID().toString())
-                .expirationTime(Date.from(Instant.now().plusSeconds(300)))
+                .audience(audience)
+                .expirationTime(Date.from(Instant.now().plus(expiresIn)))
                 .apply { if (userId != null) claim("userId", userId) }
                 .build()
             return SignedJWT(JWSHeader.Builder(JWSAlgorithm.RS256).keyID(signingKey.keyID).build(), claims)

@@ -1,14 +1,17 @@
+import fc from 'fast-check'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     clearLoginRetry,
     exchangeCode,
     login,
     LoginRejectedError,
+    logout,
     RefreshRejectedError,
     refreshTokens,
     retryLoginOnce,
     takeReturnTo,
 } from './authApi'
+import {getTokens, setTokens} from './tokenStore'
 
 function respondWith(status: number, body = '{}') {
     vi.stubGlobal('fetch', vi.fn(async () => new Response(body, {status})))
@@ -137,5 +140,69 @@ describe('retryLoginOnce', () => {
         clearLoginRetry()
 
         expect(retryLoginOnce()).toBe(true)
+    })
+})
+
+describe('takeReturnTo', () => {
+    beforeEach(() => sessionStorage.clear())
+
+    const returnTo = (saved: string) => {
+        sessionStorage.setItem('uliss.returnTo', saved)
+        return takeReturnTo()
+    }
+
+    it('returns an in-app path once, then home', () => {
+        expect(returnTo('/notes/n1?tab=chats')).toBe('/notes/n1?tab=chats')
+        expect(takeReturnTo()).toBe('/')
+    })
+
+    it.each(['//evil.example/x', '/\\evil.example', 'https://evil.example/', 'javascript:alert(1)', 'notes',
+        '/callback?code=c', '/signed-out'])('sends %s home', (saved) => {
+        expect(returnTo(saved)).toBe('/')
+    })
+
+    it('never leaves the app, whatever was saved', () => {
+        fc.assert(fc.property(fc.string(), (saved) => {
+            const to = returnTo(saved)
+            expect(new URL(to, 'https://in.app').origin).toBe('https://in.app')
+            expect(to.startsWith('/')).toBe(true)
+            expect(to.startsWith('//')).toBe(false)
+        }))
+    })
+})
+
+describe('logout', () => {
+    beforeEach(() => sessionStorage.clear())
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('revokes with the id token and returns the end-session address', async () => {
+        const fetchMock = vi.fn(async () => new Response('{"redirectUrl":"https://auth/connect/logout?id_token_hint=i"}'))
+        vi.stubGlobal('fetch', fetchMock)
+        setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: 1, idToken: 'i'})
+
+        expect(await logout('r', 'i')).toBe('https://auth/connect/logout?id_token_hint=i')
+        expect(JSON.parse(String((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body)))
+            .toEqual({refreshToken: 'r', idToken: 'i'})
+        expect(getTokens()).toBeNull()
+    })
+
+    it('still clears the tokens and has nowhere to go when the service is down', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => {
+            throw new TypeError('offline')
+        }))
+        setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: 1})
+
+        expect(await logout('r')).toBeNull()
+        expect(getTokens()).toBeNull()
+    })
+})
+
+describe('refreshTokens keeps the id token', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('when the refresh answer carries none', async () => {
+        respondWith(200, '{"access_token":"a2","refresh_token":"r2","expires_in":900,"token_type":"Bearer"}')
+
+        expect((await refreshTokens('r1', 'id-1')).idToken).toBe('id-1')
     })
 })

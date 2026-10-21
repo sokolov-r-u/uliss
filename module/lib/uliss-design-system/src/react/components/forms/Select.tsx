@@ -35,6 +35,7 @@ export function Select<T extends string = string>({
                                                   }: SelectProps<T>) {
     const generatedId = useId()
     const listboxId = `${generatedId}-listbox`
+    const containerRef = useRef<HTMLDivElement>(null)
     const triggerRef = useRef<HTMLButtonElement>(null)
     const listboxRef = useRef<HTMLDivElement>(null)
     const [internalOpen, setInternalOpen] = useState(false)
@@ -100,14 +101,15 @@ export function Select<T extends string = string>({
     }
 
     return (
-        <div style={{position: 'relative'}}>
+        <div ref={containerRef} style={{position: 'relative'}}>
             {label && <LabelRow label={label}/>}
             {name && <input type="hidden" name={name} value={value ?? ''}/>}
             <button
                 ref={triggerRef}
                 type="button"
                 disabled={disabled}
-                aria-label={ariaLabel ?? label}
+                // the name says the field and its current value; a label alone would hide the choice
+                aria-label={(ariaLabel ?? label) ? `${ariaLabel ?? label}, ${current?.label ?? placeholder}` : undefined}
                 aria-haspopup="listbox"
                 aria-expanded={isOpen}
                 aria-controls={listboxId}
@@ -159,6 +161,10 @@ export function Select<T extends string = string>({
                     aria-label={ariaLabel ?? label}
                     aria-activedescendant={options[activeIndex] ? `${listboxId}-${activeIndex}` : undefined}
                     onKeyDown={onListKeyDown}
+                    // a click or Tab anywhere else closes the list; the trigger toggles it itself
+                    onBlur={(event) => {
+                        if (!containerRef.current?.contains(event.relatedTarget as Node | null)) setOpen(false)
+                    }}
                     style={{
                         background: 'var(--bg-panel)',
                         border: '1px solid var(--line-strong)',

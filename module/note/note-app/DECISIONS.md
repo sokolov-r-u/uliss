@@ -327,3 +327,60 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the client builds the sky without further requests and fetches a note's text only when a star is
   opened. Like the trees, the snapshot is loaded whole, which assumes thousands of notes per user.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 1.
+
+## 2026-10-21 — An abandoned turn does not block its chat; chat streams send heartbeats
+
+- **Context:** a turn whose lease expired (the service restarted mid-stream) could be resumed or failed only by a
+  request with its own idempotency key. A client that had lost the key got 409 for every new message until the chat
+  was deleted. The chat reply stream had no heartbeat, unlike ai-edit and status streams.
+- **Decision:** when a new turn finds another `GENERATING` turn with an expired lease, that turn becomes `FAILED`
+  with an empty `FAILED` assistant message (fenced like the attempt-limit path) and the new turn starts; a live lease
+  still answers 409. Chat reply streams use `withHeartbeat`; the interval of all SSE heartbeats is
+  `note.sse.heartbeat-interval` (default 15 s).
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 10.
+
+## 2026-10-21 — Note indexing is serialized per note and never goes back in time
+
+- **Context:** index events of one note (a rename, then an edit) could run in parallel; the slower one, holding the
+  older text, overwrote the newer index, and parallel replaces collided on the chunk unique key.
+- **Decision:** the handler passes the note version it read; `JdbcRagChunkStore.replace` takes a per-note advisory
+  lock and drops an index whose version is older than the stored index's `rag_chunks.content_version`. The stored
+  index, not the note, is the reference, so a note changed since without new text keeps its index.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 11.
+
+## 2026-10-21 — Constellation note counts are aggregated in memory
+
+- **Context:** the counting query paired every constellation with each of its ancestors in a recursive CTE, so its
+  rows grew with the square of the tree depth, on every tree and sky view; no limit bounds the depth.
+- **Decision:** `countNotes` reads two flat lists (constellation parents, placed notes with sub-notes) and
+  `ConstellationNoteCounter` walks each placement up its ancestors in memory, stopping where the note is already
+  counted. `note_constellation` gets an index on `(user_id, constellation_id)`. Tree size limits stay undecided
+  (`docs/TECH_DEBT.md`, "Constellation tree size limits").
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 12.
+
+## 2026-10-21 — Note status streams read a projection and are limited per user
+
+- **Context:** every open status stream loaded the whole note (content included) each second, and a user could open
+  any number of them against an 8-connection pool.
+- **Decision:** `NoteStatusService` (split out of `NoteService`) polls `findStatusByIdAndUserId` (id, status,
+  `updated_at`) and refuses a stream beyond `note.status-stream.max-per-user` (default 5) with 429
+  `TOO_MANY_STATUS_STREAMS`; a slot is freed when the stream ends, fails or is cancelled. The count is per instance.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 13.
+
+## 2026-10-21 — Chat-note links carry their owner; renames follow the edit rules
+
+- **Decision:** `chat_note` gets `user_id` with composite foreign keys to `chat (id, user_id)` and
+  `notes (id, user_id)`, like the other cross-table references; the migration drops links across users (none can be
+  created by code). A rename is refused while a summary update is pending and maps a lost concurrent write to the
+  version conflict, as an edit does. A summary addendum that would grow a note past 100,000 characters fails the
+  request instead of making the note uneditable. `OutboxService` reads time from an injected `Clock`.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.
+
+## 2026-10-21 — Unfixable outbox failures fail the event at once
+
+- **Context:** summary handlers called their terminal failure handler themselves, outside a transaction, and then
+  returned normally, so the event ended `COMPLETED`; a summary whose note was deleted still paid for a model call.
+- **Decision:** a handler throws `NonRetryableOutboxException`; `OutboxService.recordFailure` fails the event on that
+  attempt and runs the terminal handler in its transaction. The summary handler skips a note that no longer waits
+  for its summary before any provider call.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.

@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {act, fireEvent, render, screen} from '@testing-library/react'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import type {Sky} from '../constellations/constellationApi'
 import {SkyCanvas} from './SkyCanvas'
@@ -16,12 +16,13 @@ const SKY: Sky = {
     ],
 }
 
-function renderCanvas(settings: Partial<SkySettings> = {}, onPickStar = vi.fn()) {
+function renderCanvas(settings: Partial<SkySettings> = {}, onPickStar = vi.fn(), onExitFocus = vi.fn(),
+                      view: 'full' | 'focus' = 'full') {
     const graph = buildSkyGraph(SKY)
     const all = {...DEFAULT_SKY_SETTINGS, ...settings}
-    render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null} settings={all}
-                      physics={skyPhysics(all)} selectedId={null} onPickStar={onPickStar} onFocus={vi.fn()}
-                      onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
+    render(<SkyCanvas graph={graph} sub={subgraph(graph, view, view === 'focus' ? 'music' : null, 3)} view={view}
+                      filter={null} settings={all} physics={skyPhysics(all)} selectedId={null} onPickStar={onPickStar}
+                      onFocus={vi.fn()} onExitFocus={onExitFocus} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
     return onPickStar
 }
 
@@ -111,5 +112,102 @@ describe('SkyCanvas', () => {
         off.unmount()
         draw(true)
         expect(screen.getByRole('button', {name: 'Bowie'}).querySelectorAll('path')).toHaveLength(2)
+    })
+})
+
+describe('SkyCanvas keyboard', () => {
+    beforeEach(() => {
+        skyMemory.canvas = null
+    })
+
+    const nodes = () => [...document.querySelectorAll<SVGGElement>('g.sky-node.pickable')]
+    const nextFrame = () => act(() => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined))))
+    const tab = (target: Element, shiftKey = false) => fireEvent.keyDown(target, {key: 'Tab', shiftKey})
+
+    it('is one Tab stop, whatever the number of stars', () => {
+        renderCanvas()
+
+        const stops = nodes().filter((node) => node.tabIndex === 0)
+        expect(stops).toHaveLength(1)
+        expect(stops[0]).toHaveAttribute('data-sky-entry')
+    })
+
+    it('sends Tab and Shift+Tab from anywhere on the screen to the graph, and keeps them there', () => {
+        renderCanvas()
+        const outside = document.body.appendChild(document.createElement('button'))
+        outside.focus()
+
+        expect(tab(outside)).toBe(false)
+        const entry = document.querySelector<SVGGElement>('[data-sky-entry]')!
+        expect(entry).toHaveFocus()
+
+        expect(tab(entry, true)).toBe(false)
+        expect(entry).toHaveFocus()
+        outside.remove()
+    })
+
+    it('keeps the normal Tab order when the sky has nothing to pick', () => {
+        const graph = buildSkyGraph({constellations: [], notes: []})
+        render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null}
+                          settings={DEFAULT_SKY_SETTINGS} physics={skyPhysics(DEFAULT_SKY_SETTINGS)} selectedId={null}
+                          onPickStar={vi.fn()} onFocus={vi.fn()} onExitFocus={vi.fn()} onSettings={vi.fn()}
+                          panelOpen={false} footer={null}/>)
+        const outside = document.body.appendChild(document.createElement('button'))
+        outside.focus()
+
+        expect(tab(outside)).toBe(true)
+        outside.remove()
+    })
+
+    it('leaves Tab to an open panel of the sky', () => {
+        renderCanvas()
+        const panel = document.body.appendChild(document.createElement('aside'))
+        panel.className = 'sky-panel'
+        const control = panel.appendChild(document.createElement('button'))
+        control.focus()
+
+        expect(tab(control)).toBe(true)
+        expect(control).toHaveFocus()
+        panel.remove()
+    })
+
+    it('moves focus with the arrows to a star on that side and names it instead', async () => {
+        renderCanvas()
+        const bowie = screen.getByRole('button', {name: 'Bowie'})
+        act(() => bowie.focus())
+        expect(named('Bowie')).toBe(true)
+
+        const right = at('Loose thought').clientX > at('Bowie').clientX
+        fireEvent.keyDown(bowie, {key: right ? 'ArrowRight' : 'ArrowLeft'})
+        await nextFrame()
+
+        const focused = document.activeElement as SVGGElement
+        expect(focused).not.toBe(bowie)
+        const label = focused.getAttribute('aria-label')!.replace(/^Focus on /, '')
+        const moved = Number(focused.querySelector('circle')!.getAttribute('cx')) - at('Bowie').clientX
+        expect(right ? moved : -moved).toBeGreaterThan(0)
+        expect(named(label)).toBe(true)
+        expect(named('Bowie')).toBe(false)
+        expect(focused.tabIndex).toBe(0)
+    })
+
+    it('Escape leaves Focus first, then the star', () => {
+        const onExitFocus = vi.fn()
+        renderCanvas({}, vi.fn(), onExitFocus, 'focus')
+        const music = screen.getByRole('button', {name: 'Focus on Music'})
+        music.focus()
+
+        fireEvent.keyDown(music, {key: 'Escape'})
+        expect(onExitFocus).toHaveBeenCalledOnce()
+        expect(music).toHaveFocus()
+    })
+
+    it('Escape in the whole sky takes focus off the star', () => {
+        renderCanvas()
+        const bowie = screen.getByRole('button', {name: 'Bowie'})
+        bowie.focus()
+
+        fireEvent.keyDown(bowie, {key: 'Escape'})
+        expect(bowie).not.toHaveFocus()
     })
 })

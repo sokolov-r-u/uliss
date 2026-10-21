@@ -14,8 +14,8 @@ val javaCompileVersion = libs.findVersion("java-compile").get().requiredVersion.
 val springBootVersion = libs.findVersion("spring-boot").get().requiredVersion
 val jacocoVersion = libs.findVersion("jacoco").get().requiredVersion
 
+// actuator comes from :monitoring, which every application uses; libraries and the gRPC contract do not need it
 dependencies {
-    implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation(libs.findLibrary("kotlin-reflect").get())
 }
 
@@ -63,7 +63,7 @@ tasks.named<Test>("test") {
 }
 
 tasks.register<Test>("integrationTest") {
-    description = "./gradlew integrationTest - now starts "
+    description = "Runs the tests tagged integration (Docker/Testcontainers)."
     testClassesDirs = sourceSets["test"].output.classesDirs
     classpath = sourceSets["test"].runtimeClasspath
     useJUnitPlatform() {
@@ -80,6 +80,8 @@ tasks.register<Test>("integrationTest") {
 // docs/TECH_DEBT.md for the tracked follow-up.
 tasks.named<JacocoReport>("jacocoTestReport") {
     dependsOn(tasks.named("test"))
+    // reads integrationTest.exec when present: run after it, so build + integrationTest work in one invocation
+    mustRunAfter(tasks.named("integrationTest"))
     executionData(
         fileTree(layout.buildDirectory.dir("jacoco")) {
             include("test.exec", "integrationTest.exec")

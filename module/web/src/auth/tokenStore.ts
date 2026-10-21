@@ -9,6 +9,8 @@ export type Tokens = {
   refreshToken: string | null
   /** epoch millis when the access token expires */
   expiresAt: number
+  /** OIDC id token: the hint the auth server's end-session endpoint needs to sign the browser out */
+  idToken?: string | null
 }
 
 const KEY = 'uliss.tokens'
@@ -34,7 +36,8 @@ export function clearTokens(): void {
   sessionStorage.removeItem(KEY)
     for (let index = sessionStorage.length - 1; index >= 0; index -= 1) {
         const key = sessionStorage.key(index)
-        if (key?.startsWith('uliss.chat-turn.') || key?.startsWith('uliss.chat-summary.')) {
+        // every chat draft and pending turn belongs to the signed-in user, not to the next one in this tab
+        if (key?.startsWith('uliss.chat-')) {
             sessionStorage.removeItem(key)
         }
     }

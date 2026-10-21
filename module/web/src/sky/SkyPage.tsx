@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useState} from 'react'
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {Button, ConstellationPicker, EmptyState, Icon, IconButton, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -47,9 +47,13 @@ export function SkyPage() {
         setStarId(id)
     }
 
+    // only the latest reload may land: an older answer arriving last would put back a stale sky
+    const reloadTicket = useRef(0)
     const reload = useCallback(async (signal?: AbortSignal) => {
+        const ticket = ++reloadTicket.current
         try {
             const sky = await getSky(signal)
+            if (ticket !== reloadTicket.current) return
             setLoad({status: 'ready', sky})
         } catch (error) {
             if (error instanceof AuthRequiredError || signal?.aborted) return

@@ -6,10 +6,9 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
+import io.uliss.user_service.utils.DISPLAY_NAME_MAX_LENGTH
 import java.time.LocalDate
 import java.util.UUID
-
-const val DISPLAY_NAME_MAX_LENGTH = 32
 
 @Entity
 @Table(name = "users", schema = "profile")
@@ -23,6 +22,6 @@ class UserEntity(
 ) : UuidEntity() {
 
     override fun toString(): String {
-        return "UserEntity(id=${id}, authId=$authId, displayName='$displayName'" + super.toString()
+        return "UserEntity(id=${id}, authId=$authId, displayName='$displayName'" + auditFields()
     }
 }

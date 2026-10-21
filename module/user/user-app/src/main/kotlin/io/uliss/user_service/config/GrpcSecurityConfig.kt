@@ -18,7 +18,7 @@ import org.springframework.web.client.RestTemplate
 import java.time.Duration
 
 /**
- * gRPC accepts only the service token auth signs for user-service (`aud`, `scope` from [UserServiceAuth]).
+ * gRPC accepts only the service token auth signs for user-service (`aud`, `sub`, `scope` from [UserServiceAuth]).
  * The decoder is local, not a bean: the HTTP resource server keeps Boot's decoder, which requires `userId`,
  * so a service token is useless over REST and a user token is useless over gRPC.
  */
@@ -44,6 +44,7 @@ class GrpcSecurityConfig(
                     JwtValidators.createDefaultWithIssuer(issuer),
                     // the claim is null when absent
                     JwtClaimValidator<Any>(JwtClaimNames.AUD) { aud -> aud is Collection<*> && UserServiceAuth.AUDIENCE in aud },
+                    JwtClaimValidator<String>(JwtClaimNames.SUB) { it == UserServiceAuth.SUBJECT },
                 )
             )
         }

@@ -22,6 +22,6 @@ class OutboxEventEntity(
 ) : OutboxAbstractEntity(payload, status, attempts, nextAttemptAt, lastError) {
 
     override fun toString(): String {
-        return "OutboxEventEntity(id=$id, type=$type" + super.toString()
+        return "OutboxEventEntity(id=$id, type=$type" + auditFields()
     }
 }

@@ -24,6 +24,6 @@ class ChatMessageEntity(
 
     override fun toString(): String {
         return "ChatMessageEntity(id=$id, chatId=$chatId, turnId=$turnId, role=$role, status=$status" +
-                super.toString()
+                auditFields()
     }
 }

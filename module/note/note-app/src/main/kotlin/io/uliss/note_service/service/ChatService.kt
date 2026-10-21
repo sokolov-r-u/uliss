@@ -1,6 +1,6 @@
 package io.uliss.note_service.service
 
-import io.uliss.database.entity.generateId
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
@@ -55,7 +55,7 @@ class ChatService(
     fun renameChat(userId: UUID, chatId: UUID, rawTitle: String): ChatEntity {
         val title = TitleNormalizer.normalizeUserTitle(rawTitle)
             ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
-        val chat = requireOwnedChat(userId, chatId)
+        val chat = getOwnedChat(userId, chatId)
         chat.title = title
         return chatRepository.save(chat)
     }
@@ -66,11 +66,11 @@ class ChatService(
      */
     @Transactional(propagation = Propagation.MANDATORY)
     fun deleteChat(userId: UUID, chatId: UUID) {
-        chatRepository.delete(requireOwnedChat(userId, chatId))
+        chatRepository.delete(getOwnedChat(userId, chatId))
     }
 
     fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
-        requireOwnedChat(userId, chatId)
+        getOwnedChat(userId, chatId)
         val pageable = PageRequest.of(0, limit + 1)
         val descendingMessages = if (before == null) {
             chatMessageRepository.findLatestPage(chatId, pageable)
@@ -87,12 +87,12 @@ class ChatService(
     }
 
     fun getLatestMessageId(userId: UUID, chatId: UUID): UUID? {
-        requireOwnedChat(userId, chatId)
+        getOwnedChat(userId, chatId)
         return chatMessageRepository.findLatestMessageId(chatId)
     }
 
     internal fun getSummaryContext(userId: UUID, chatId: UUID, throughMessageId: UUID): ChatSummaryContext {
-        val chat = requireOwnedChat(userId, chatId)
+        val chat = getOwnedChat(userId, chatId)
         val history = chatMessageRepository.findThroughMessage(chatId, throughMessageId)
         check(history.lastOrNull()?.id == throughMessageId) {
             "summary boundary message id=$throughMessageId not found in chat id=$chatId"
@@ -108,7 +108,7 @@ class ChatService(
         throughMessageId: UUID,
     ): ChatSummaryContext {
         if (afterMessageId == null) return getSummaryContext(userId, chatId, throughMessageId)
-        val chat = requireOwnedChat(userId, chatId)
+        val chat = getOwnedChat(userId, chatId)
         val messages = chatMessageRepository.findAfterThroughMessage(chatId, afterMessageId, throughMessageId)
         check(messages.lastOrNull()?.id == throughMessageId) {
             "summary boundary message id=$throughMessageId not found after id=$afterMessageId in chat id=$chatId"
@@ -116,7 +116,7 @@ class ChatService(
         return ChatSummaryContext(chat.title, messages)
     }
 
-    fun requireOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
+    fun getOwnedChat(userId: UUID, chatId: UUID): ChatEntity =
         chatRepository.findByIdAndUserId(chatId, userId)
             ?: throw NotFoundException("chat id=$chatId not found")
 }

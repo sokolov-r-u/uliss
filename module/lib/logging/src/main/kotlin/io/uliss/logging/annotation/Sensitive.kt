@@ -1,7 +1,10 @@
 package io.uliss.logging.annotation
 
-/** Masks the parameter's value in `LoggingAspect` call traces, for secrets whose name does not reveal them. */
+/**
+ * Masks a value in `LoggingAspect` call traces: on a parameter, its argument; on a function, its result. Found on the
+ * invoked method or the interface method it implements.
+ */
 @MustBeDocumented
-@Target(AnnotationTarget.VALUE_PARAMETER)
+@Target(AnnotationTarget.VALUE_PARAMETER, AnnotationTarget.FUNCTION)
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Sensitive

@@ -49,22 +49,41 @@ export function ItemMenu({anchor, actions, label, onClose}: ItemMenuProps) {
         )
         items()[0]?.focus()
         const onKeyDown = (event: KeyboardEvent) => {
-            if (event.key === 'Escape') {
+            // Tab leaves the menu like Escape: focus must not wander behind the backdrop with the menu still open
+            if (event.key === 'Escape' || event.key === 'Tab') {
                 event.preventDefault()
                 onCloseRef.current()
                 return
             }
-            if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
-            event.preventDefault()
             const list = items()
             if (list.length === 0) return
             const index = list.findIndex((item) => item === document.activeElement)
-            const step = event.key === 'ArrowDown' ? 1 : -1
-            list[(index + step + list.length) % list.length]?.focus()
+            const target = {
+                ArrowDown: (index + 1) % list.length,
+                ArrowUp: (index - 1 + list.length) % list.length,
+                Home: 0,
+                End: list.length - 1,
+            }[event.key]
+            if (target === undefined) return
+            event.preventDefault()
+            list[target]?.focus()
+        }
+        // the menu is fixed to where its anchor was: once the anchor moves or the page resizes it would float apart.
+        // A scroll that leaves the anchor in place (a chat thread following a streamed reply, a late scroll event of
+        // the drawer that just slid in) keeps the menu open.
+        const close = () => onCloseRef.current()
+        const origin = anchor.getBoundingClientRect()
+        const closeIfAnchorMoved = () => {
+            const now = anchor.getBoundingClientRect()
+            if (Math.abs(now.top - origin.top) > 1 || Math.abs(now.left - origin.left) > 1) close()
         }
         document.addEventListener('keydown', onKeyDown)
+        window.addEventListener('resize', close)
+        window.addEventListener('scroll', closeIfAnchorMoved, true)
         return () => {
             document.removeEventListener('keydown', onKeyDown)
+            window.removeEventListener('resize', close)
+            window.removeEventListener('scroll', closeIfAnchorMoved, true)
             if (anchor.isConnected) anchor.focus()
         }
     }, [anchor])

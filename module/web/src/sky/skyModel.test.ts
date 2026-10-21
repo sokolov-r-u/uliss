@@ -1,3 +1,4 @@
+import fc from 'fast-check'
 import {describe, expect, it} from 'vitest'
 import type {Constellation, Sky, SkyStar} from '../constellations/constellationApi'
 import {
@@ -7,6 +8,7 @@ import {
     labelLines,
     LABEL_WRAP_AT,
     nearestStars,
+    nextInDirection,
     rimRadius,
     segmentDistance,
     subgraph,
@@ -188,5 +190,45 @@ describe('labelLines', () => {
                 expect(gap).toBeLessThanOrEqual(Math.abs(i - (title.length - i - 1)) + 1)
             }
         }
+    })
+})
+
+describe('nextInDirection', () => {
+    const from = {id: 'from', x: 100, y: 100}
+
+    it('goes to the nearest point the arrow points at, preferring the cone over a nearer point off it', () => {
+        const points = [from, {id: 'right-far', x: 200, y: 105}, {id: 'diagonal-near', x: 130, y: 160}, {id: 'left', x: 40, y: 100}]
+
+        expect(nextInDirection(points, 'from', 'ArrowRight')).toBe('right-far')
+        expect(nextInDirection(points, 'from', 'ArrowLeft')).toBe('left')
+        expect(nextInDirection(points, 'from', 'ArrowDown')).toBe('diagonal-near')
+    })
+
+    it('takes a point off the cone when the cone is empty, and nothing when that side is empty', () => {
+        const points = [from, {id: 'low-right', x: 120, y: 190}]
+
+        expect(nextInDirection(points, 'from', 'ArrowRight')).toBe('low-right')
+        expect(nextInDirection(points, 'from', 'ArrowUp')).toBeNull()
+    })
+
+    it('starts at the first point when the current one is gone', () => {
+        expect(nextInDirection([{id: 'a', x: 0, y: 0}], 'gone', 'ArrowRight')).toBe('a')
+    })
+
+    it('never stays put and always moves to the side the arrow names', () => {
+        const point = fc.record({x: fc.integer({min: -500, max: 500}), y: fc.integer({min: -500, max: 500})})
+        const key = fc.constantFrom('ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown' as const)
+        fc.assert(fc.property(fc.array(point, {minLength: 1, maxLength: 12}), key, (raw, arrow) => {
+            const points = raw.map((p, i) => ({id: `p${i}`, ...p}))
+            const start = points[0]
+            const next = nextInDirection(points, start.id, arrow)
+            if (next === null) return
+            const target = points.find((p) => p.id === next)!
+            expect(next).not.toBe(start.id)
+            if (arrow === 'ArrowRight') expect(target.x).toBeGreaterThan(start.x)
+            if (arrow === 'ArrowLeft') expect(target.x).toBeLessThan(start.x)
+            if (arrow === 'ArrowDown') expect(target.y).toBeGreaterThan(start.y)
+            if (arrow === 'ArrowUp') expect(target.y).toBeLessThan(start.y)
+        }))
     })
 })

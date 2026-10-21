@@ -1,6 +1,6 @@
-import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
+import {type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
-import {labelLines, nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
+import {type ArrowKey, labelLines, nearestStars, nextInDirection, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
@@ -77,6 +77,10 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const [, repaint] = useReducer((x: number) => x + 1, 0)
     const [reveal, setReveal] = useState<number | null>(null)
     const [namesOpen, setNamesOpen] = useState(false)
+    /** The one star or constellation in the Tab order; arrows move it (roving tabindex, not hundreds of stops). */
+    const [rovingId, setRovingId] = useState<string | null>(null)
+    /** The node holding keyboard focus is named like the one under the mouse. */
+    const [focusedId, setFocusedId] = useState<string | null>(null)
     // the mouse over the sky: names the star under it and the ones around it
     const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
     const all = useMemo(() => subgraph(graph, 'full'), [graph])
@@ -168,6 +172,24 @@ export function SkyCanvas(props: SkyCanvasProps) {
         }
         if (layoutRef.current) applyPhysics(layoutRef.current, physics)
     }, [physics])
+
+    // On the sky screen Tab always lands on the graph, never on the nav or the controls around it; inside the graph
+    // arrows move and Escape leaves. Open panels and dialogs keep their own Tab order.
+    useEffect(() => {
+        const onKeyDown = (event: globalThis.KeyboardEvent) => {
+            if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
+            const active = document.activeElement
+            const inGraph = active instanceof Element && active.closest('.sky-svg') != null
+            if (!inGraph && active instanceof Element && active.closest('.context-panel, .sky-panel, .side-nav.open, [role="dialog"], [role="menu"]')) return
+            // a sky with nothing to pick (all filtered out) keeps the normal Tab order
+            const entry = frameRef.current?.querySelector<SVGGElement>('[data-sky-entry]')
+            if (!entry) return
+            event.preventDefault()
+            if (!inGraph) entry.focus()
+        }
+        document.addEventListener('keydown', onKeyDown)
+        return () => document.removeEventListener('keydown', onKeyDown)
+    }, [])
 
     // a resize re-frames the sky until the user has moved it
     useEffect(() => {
@@ -365,6 +387,22 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const you = layout?.byId.get(YOU_ID)
     const cx = you ? sx(you) : w / 2
     const nodes = (layout?.nodes ?? []).filter((n) => visible.has(n.id) && shown(n.id))
+    const pickableIds = nodes.filter((n) => n.node.kind !== 'you' && !off(n.node)).map((n) => n.id)
+    const tabStopId = rovingId && pickableIds.includes(rovingId) ? rovingId
+        : selectedId && pickableIds.includes(selectedId) ? selectedId : pickableIds[0]
+    const isArrow = (key: string): key is ArrowKey =>
+        key === 'ArrowLeft' || key === 'ArrowRight' || key === 'ArrowUp' || key === 'ArrowDown'
+    const moveRoving = (event: KeyboardEvent<SVGGElement>, id: string) => {
+        if (!isArrow(event.key)) return false
+        event.preventDefault()
+        const points = nodes.filter((n) => pickableIds.includes(n.id)).map((n) => ({id: n.id, x: sx(n), y: sy(n)}))
+        const next = nextInDirection(points, id, event.key)
+        if (next == null) return true
+        setRovingId(next)
+        const svg = event.currentTarget.ownerSVGElement
+        requestAnimationFrame(() => svg?.querySelector<SVGGElement>(`[data-node-id="${CSS.escape(next)}"]`)?.focus())
+        return true
+    }
     // the star under the mouse and the ones around it are always named
     const stars = nodes.filter((n) => n.node.kind === 'star')
     const near = pointer && settings.nearCount > 0
@@ -390,7 +428,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
         }
         ends?.forEach((id) => edgeEnds.add(id))
     }
-    const lit = (id: string) => id === hovered || edgeEnds.has(id)
+    const lit = (id: string) => id === hovered || id === focusedId || edgeEnds.has(id)
 
     return (
         <div ref={frameRef} className={props.panelOpen ? 'sky-frame panel-open' : 'sky-frame'}
@@ -449,16 +487,32 @@ export function SkyCanvas(props: SkyCanvasProps) {
                     const sectors = !mono && settings.mixColours && node.colors.length > 1 ? node.colors : null
                     return <g key={n.id} data-node-id={n.id} className={pickable ? 'sky-node pickable' : 'sky-node'}
                               opacity={dimmed ? isConstellation ? 0.16 : 0.14 : 1}
-                              role={pickable ? 'button' : undefined} tabIndex={pickable ? 0 : undefined}
+                              role={pickable ? 'button' : undefined}
+                              tabIndex={pickable ? n.id === tabStopId ? 0 : -1 : undefined}
+                              data-sky-entry={pickable && n.id === tabStopId ? '' : undefined}
+                              onFocus={pickable ? () => {
+                                  setRovingId(n.id)
+                                  setFocusedId(n.id)
+                              } : undefined}
+                              onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
                               aria-label={pickable ? isConstellation ? `Focus on ${node.label}` : node.label : undefined}
                               onClick={pickable ? () => activate(node) : undefined}
                               onKeyDown={pickable ? (event) => {
+                                  if (moveRoving(event, n.id)) return
+                                  if (event.key === 'Escape') {
+                                      // first out of Focus to the whole sky, then off the star
+                                      event.preventDefault()
+                                      if (view === 'focus') props.onExitFocus()
+                                      else event.currentTarget.blur()
+                                      return
+                                  }
                                   if (event.key === 'Enter' || event.key === ' ') {
                                       event.preventDefault()
                                       activate(node)
                                   }
                               } : undefined}>
                         {pickable && <circle cx={x} cy={y} r={HIT_RADIUS} fill="transparent"/>}
+                        {pickable && <circle className="sky-focus-ring" cx={x} cy={y} r={r + 8}/>}
                         {(n.id === selectedId || edgeEnds.has(n.id)) &&
                             <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)"
                                     strokeWidth={1} opacity={n.id === selectedId ? 1 : 0.7}/>}

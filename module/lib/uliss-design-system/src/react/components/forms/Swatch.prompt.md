@@ -15,3 +15,5 @@ Four accents: Ochre `#d99a4e`, Terracotta `#c8643c`, Patina `#5c8a72`, Bone `#b9
 Each swatch is a native button radio with `aria-checked`; place the four-button grid in a labelled `radiogroup`.
 Keyboard focus, Space/Enter and `disabled` are native and must remain visible/testable.
 Arrow keys move to and choose the adjacent enabled swatch in its radiogroup.
+- In a group, pass `tabIndex={0}` to the chosen swatch (or the first, when none is chosen) and `-1` to the rest, so
+  the group is one tab stop; arrows move and pick.

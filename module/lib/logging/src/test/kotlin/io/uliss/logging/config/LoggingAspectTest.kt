@@ -28,6 +28,21 @@ open class SampleService {
     open fun fail(): String = throw IllegalStateException("boom")
 }
 
+interface CodeExchange {
+    fun exchange(@Sensitive grant: String): String
+}
+
+/** Spring proxies with CGLIB by default: the invoked method is the class's, the annotation is on the interface. */
+@Service
+open class CodeExchangeService : CodeExchange {
+    override fun exchange(grant: String): String = "ok"
+
+    @Sensitive
+    open fun issue(clientId: String): String = "issued-secret-for-$clientId"
+
+    open fun callback(state: String, authorizationCode: String, sessionCookie: String): String = "ok"
+}
+
 class BrokenToString {
     override fun toString(): String = throw IllegalStateException("toString failed")
 }
@@ -54,6 +69,17 @@ class LoggingAspectTest {
 
     private fun messages() = appender.list.map { it.formattedMessage }
 
+    private fun exchangeService(): CodeExchangeService {
+        LoggerFactory.getLogger(CodeExchangeService::class.java).let { it as Logger }.apply {
+            addAppender(appender)
+            level = Level.DEBUG
+        }
+        return AspectJProxyFactory(CodeExchangeService()).apply {
+            isProxyTargetClass = true
+            addAspect(LoggingAspect())
+        }.getProxy()
+    }
+
     private fun keyValues(index: Int) =
         appender.list[index].keyValuePairs.orEmpty().associate { it.key to it.value.toString() }
 
@@ -77,6 +103,32 @@ class LoggingAspectTest {
         assertFalse("secret-refresh" in args, args)
         assertContains(args, "refreshToken=***")
         assertContains(args, "clientId=web")
+    }
+
+    @Test
+    fun `masks a parameter annotated on the interface method behind a class proxy`() {
+        exchangeService().exchange("one-time-grant")
+
+        val args = keyValues(0).getValue("args")
+        assertFalse("one-time-grant" in args, args)
+        assertContains(args, "grant=***")
+    }
+
+    @Test
+    fun `masks the result of a method annotated as sensitive`() {
+        exchangeService().issue("web")
+
+        val values = keyValues(0)
+        assertEquals("***", values.getValue("result"))
+        assertContains(values.getValue("args"), "clientId=web")
+    }
+
+    @Test
+    fun `masks oauth state, codes and cookies by parameter name`() {
+        exchangeService().callback("state-123", "code-456", "cookie-789")
+
+        val args = keyValues(0).getValue("args")
+        listOf("state-123", "code-456", "cookie-789").forEach { assertFalse(it in args, args) }
     }
 
     @Test

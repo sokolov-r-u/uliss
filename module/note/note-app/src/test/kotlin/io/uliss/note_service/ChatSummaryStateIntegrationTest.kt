@@ -1,6 +1,6 @@
 package io.uliss.note_service
 
-import io.uliss.note_service.config.TestContainersConfiguration
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -17,11 +17,8 @@ import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteService
-import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.context.annotation.Import
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -29,13 +26,13 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-@Tag("integration")
-@SpringBootTest
-@Import(TestContainersConfiguration::class)
-class ChatSummaryStateIntegrationTest {
+class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var noteService: NoteService
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
 
     @Autowired
     lateinit var noteHierarchyService: NoteHierarchyService
@@ -66,7 +63,7 @@ class ChatSummaryStateIntegrationTest {
         linkNote(chat, NoteStatus.GENERATING, null, null)
         linkNote(chat, NoteStatus.FAILED, null, null)
 
-        val current = noteService.findCurrentChatSummary(chat.id)
+        val current = noteSummaryService.findCurrentChatSummary(chat.id)
 
         assertEquals(latest.id, current?.noteId)
         assertEquals("Latest", current?.noteTitle)
@@ -83,7 +80,7 @@ class ChatSummaryStateIntegrationTest {
 
         noteHierarchyService.delete(userId, latest.id, null)
 
-        assertEquals(older.id, noteService.findCurrentChatSummary(chat.id)?.noteId)
+        assertEquals(older.id, noteSummaryService.findCurrentChatSummary(chat.id)?.noteId)
     }
 
     @Test
@@ -91,7 +88,7 @@ class ChatSummaryStateIntegrationTest {
         val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "Empty"))
         message(chat, "only")
 
-        assertNull(noteService.findCurrentChatSummary(chat.id))
+        assertNull(noteSummaryService.findCurrentChatSummary(chat.id))
     }
 
     @Test
@@ -99,7 +96,7 @@ class ChatSummaryStateIntegrationTest {
         val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "Legacy"))
         val legacy = linkNote(chat, NoteStatus.READY, null, null)
 
-        val current = noteService.findCurrentChatSummary(chat.id)
+        val current = noteSummaryService.findCurrentChatSummary(chat.id)
 
         assertEquals(legacy.id, current?.noteId)
         assertNull(current?.throughMessageId)
@@ -113,7 +110,7 @@ class ChatSummaryStateIntegrationTest {
 
         chatMessageRepository.deleteById(boundary.id)
 
-        val current = noteService.findCurrentChatSummary(chat.id)
+        val current = noteSummaryService.findCurrentChatSummary(chat.id)
         assertEquals(note.id, current?.noteId)
         assertNull(current?.throughMessageId)
     }
@@ -144,14 +141,14 @@ class ChatSummaryStateIntegrationTest {
         val note = linkNote(chat, NoteStatus.READY, "Title", covered.id)
         val through = message(chat, "new")
         val key = UUID.randomUUID()
-        noteService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
+        noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
         val day = LocalDate.of(2026, 10, 8)
 
-        assertTrue(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Added.", day))
-        assertFalse(noteService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Again.", day))
+        assertTrue(noteSummaryService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Added.", day))
+        assertFalse(noteSummaryService.applyChatSummaryUpdate(userId, key, note.id, chat.id, covered.id, through.id, "Again.", day))
 
         assertEquals("body\n\n---\n\n## 2026-10-08\n\nAdded.", noteRepository.findById(note.id).orElseThrow().content)
-        assertEquals(through.id, noteService.findCurrentChatSummary(chat.id)?.throughMessageId)
+        assertEquals(through.id, noteSummaryService.findCurrentChatSummary(chat.id)?.throughMessageId)
     }
 
     private fun message(chat: ChatEntity, content: String): ChatMessageEntity = chatMessageRepository.save(
@@ -162,7 +159,7 @@ class ChatSummaryStateIntegrationTest {
         val note = noteRepository.save(
             NoteEntity(chat.userId, if (status == NoteStatus.READY) "body" else null, NoteSource.CHAT_SUMMARY, status, title),
         )
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), throughMessageId))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, throughMessageId))
         return note
     }
 }

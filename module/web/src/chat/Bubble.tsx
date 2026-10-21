@@ -1,4 +1,5 @@
 import {Bubble as DesignBubble, PendingStatus} from '@uliss/design-system'
+import {memo} from 'react'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import type {ChatMessageRole, ChatMessageStatus} from './chatApi'
 import type {ChatActivity} from './streamChatReply'
@@ -31,9 +32,10 @@ function statusLabel(status: ChatMessageStatus): string | null {
  * A conversation turn as a 2px rule + alignment (DS `Bubble`) — never a capsule, never labelled on
  * the user's side. Extends the DS component with the streaming caret, the pending activity line
  * shown until the reply's first text, and an incomplete status line, all of which reflect real
- * backend state (see `ChatPage` / `chatApi`).
+ * backend state (see `ChatPage` / `chatApi`). Memoized: while a reply streams only its own bubble re-renders, not
+ * the markdown of every earlier message.
  */
-export function Bubble({role, status, content, pending, activity}: DisplayMessage) {
+export const Bubble = memo(function Bubble({role, status, content, pending, activity}: DisplayMessage) {
     const label = pending ? null : statusLabel(status)
     const waiting = pending && role === 'ASSISTANT' && content === ''
 
@@ -50,4 +52,4 @@ export function Bubble({role, status, content, pending, activity}: DisplayMessag
                 <span className={role === 'USER' ? 'bubble-status bubble-status-user' : 'bubble-status'}>{label}</span>}
         </div>
     )
-}
+})

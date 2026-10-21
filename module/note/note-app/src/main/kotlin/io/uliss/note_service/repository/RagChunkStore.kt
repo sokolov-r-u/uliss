@@ -7,25 +7,7 @@ import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.sql.PreparedStatement
-import java.sql.Timestamp
-import java.time.Instant
 import java.util.UUID
-
-class EmbeddedChunk(
-    val index: Int,
-    val content: String,
-    val metadata: Map<String, Any>,
-    val embedding: FloatArray,
-)
-
-data class RetrievedChunk(
-    val noteId: UUID,
-    val chunkIndex: Int,
-    val content: String,
-    val similarity: Double,
-    val noteTitle: String?,
-    val noteCreatedAt: Instant,
-)
 
 @Repository
 class JdbcRagChunkStore(
@@ -33,12 +15,21 @@ class JdbcRagChunkStore(
     private val objectMapper: ObjectMapper,
 ) {
 
+    /**
+     * Replaces the note's chunks with an index of its text at [contentVersion]. Index events of one note may run
+     * concurrently and out of order: they are serialized per note, and an index older than the one stored is dropped.
+     * Comparing with the stored index, not the note, keeps an index whose note changed since without new text
+     * (a move, a status). Returns `false` when it was dropped.
+     */
     @Transactional
-    fun replace(userId: UUID, noteId: UUID, chunks: List<EmbeddedChunk>) {
-        jdbcTemplate.update(DELETE_BY_NOTE_SQL, userId, noteId)
-        if (chunks.isEmpty()) return
+    fun replace(userId: UUID, noteId: UUID, contentVersion: Long, chunks: List<EmbeddedChunk>): Boolean {
+        jdbcTemplate.query(LOCK_NOTE_INDEX_SQL, { _ -> }, noteId.toString())
+        val indexed = jdbcTemplate.queryForObject(INDEXED_VERSION_SQL, Long::class.java, noteId, userId)
+        if (indexed != null && indexed > contentVersion) return false
 
-        val createdAt = Instant.now()
+        jdbcTemplate.update(DELETE_BY_NOTE_SQL, userId, noteId)
+        if (chunks.isEmpty()) return true
+
         jdbcTemplate.batchUpdate(INSERT_SQL, object : BatchPreparedStatementSetter {
             override fun setValues(statement: PreparedStatement, index: Int) {
                 val chunk = chunks[index]
@@ -48,11 +39,12 @@ class JdbcRagChunkStore(
                 statement.setString(4, chunk.content)
                 statement.setString(5, objectMapper.writeValueAsString(chunk.metadata))
                 statement.setObject(6, PGvector(chunk.embedding))
-                statement.setTimestamp(7, Timestamp.from(createdAt))
+                statement.setLong(7, contentVersion)
             }
 
             override fun getBatchSize(): Int = chunks.size
         })
+        return true
     }
 
     @Transactional(readOnly = true)
@@ -90,6 +82,10 @@ class JdbcRagChunkStore(
     }
 
     private companion object {
+        const val LOCK_NOTE_INDEX_SQL = "SELECT pg_advisory_xact_lock(hashtextextended('rag:' || ?, 0))"
+
+        const val INDEXED_VERSION_SQL = "SELECT MAX(content_version) FROM note.rag_chunks WHERE note_id = ? AND user_id = ?"
+
         const val DELETE_BY_NOTE_SQL = """
             DELETE FROM note.rag_chunks
             WHERE user_id = ? AND note_id = ?
@@ -97,8 +93,8 @@ class JdbcRagChunkStore(
 
         const val INSERT_SQL = """
             INSERT INTO note.rag_chunks
-                (user_id, note_id, chunk_index, content, metadata, embedding, created_at)
-            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?)
+                (user_id, note_id, chunk_index, content, metadata, embedding, content_version, created_at)
+            VALUES (?, ?, ?, ?, ?::jsonb, ?, ?, CURRENT_TIMESTAMP)
         """
 
         const val SEARCH_SQL = """

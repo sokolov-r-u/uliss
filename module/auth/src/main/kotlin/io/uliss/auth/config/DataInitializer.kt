@@ -1,5 +1,7 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.repository.RetiredClientRepository
+import io.uliss.logging.logger.AppLogger
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
@@ -22,13 +24,16 @@ class DataInitializer(
     @Value($$"${app.clients.authorization-code.client-id}") private val webClientId: String,
     @Value($$"${app.clients.authorization-code.client-secret}") private val webClientSecret: String,
     @Value($$"${app.clients.authorization-code.callback-urls}") private val callbackUrls: List<String>,
-    @Value($$"${app.clients.m2m.client-id}") private val m2mClientId: String,
-    @Value($$"${app.clients.m2m.client-secret}") private val m2mClientSecret: String
+    @Value($$"${app.clients.authorization-code.post-logout-urls}") private val postLogoutUrls: List<String>,
+    private val retiredClientRepository: RetiredClientRepository,
 ) : ApplicationRunner {
+    private val log = AppLogger.of(DataInitializer::class)
 
     override fun run(args: ApplicationArguments) {
         saveOrUpdateAuthCodeClient(webClientId, webClientSecret, callbackUrls)
-        saveOrUpdateClientCredentialsClient(m2mClientId, m2mClientSecret)
+        // a client renamed or removed in config must stop working, not keep its old secret and grants
+        val retired = retiredClientRepository.deleteAllExcept(listOf(webClientId))
+        if (retired > 0) log.warn("deleted {} registered clients missing from config", "run", retired)
     }
 
     /**
@@ -44,6 +49,7 @@ class DataInitializer(
                 .scope(OidcScopes.OPENID)
                 .scope(OidcScopes.PROFILE)
                 .redirectUris { it.addAll(callbackUrls) }
+                .postLogoutRedirectUris { it.addAll(postLogoutUrls) }
                 .clientSettings(ClientSettings.builder().requireProofKey(true).build())
                 .tokenSettings(
                     TokenSettings.builder()
@@ -52,14 +58,6 @@ class DataInitializer(
                         .reuseRefreshTokens(false)
                         .build()
                 )
-        }
-    }
-
-    private fun saveOrUpdateClientCredentialsClient(clientId: String, clientSecret: String) {
-        saveIfChanged(clientId) { existing ->
-            configuredClient(existing, clientId, clientSecret)
-                .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("internal")
         }
     }
 

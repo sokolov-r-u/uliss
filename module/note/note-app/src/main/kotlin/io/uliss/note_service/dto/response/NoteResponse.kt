@@ -42,5 +42,3 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     parentNoteId = parentNoteId,
 )
 
-fun NoteEntity.toStatusResponse(updating: Boolean): NoteStatusResponse =
-    NoteStatusResponse(id, status, updatedAt, updating)

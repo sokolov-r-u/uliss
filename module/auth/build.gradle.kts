@@ -8,6 +8,7 @@ version = "0.0.1"
 
 dependencies {
     implementation(project(":database"))
+    testImplementation(testFixtures(project(":database")))
     implementation(project(":exception"))
     implementation(project(":logging"))
     implementation(project(":validation"))

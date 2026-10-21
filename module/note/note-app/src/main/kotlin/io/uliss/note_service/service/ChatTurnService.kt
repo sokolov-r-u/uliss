@@ -1,6 +1,6 @@
 package io.uliss.note_service.service
 
-import io.uliss.database.entity.generateId
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
@@ -193,10 +193,17 @@ class ChatTurnService(
         return resolveExistingTurn(existing)
     }
 
+    /**
+     * Another turn with a live lease blocks the chat. One whose lease expired has no worker left (e.g. a restart
+     * mid-stream) and only its own key could resume it, which a client that lost the key never sends: it is failed
+     * here, so the chat is not blocked forever.
+     */
     private fun ensureNoOtherTurnIsGenerating(userId: UUID, chatId: UUID) {
-        chatTurnStore.findGenerating(userId, chatId)?.let { active ->
+        val active = chatTurnStore.findGenerating(userId, chatId) ?: return
+        if (active.retryAfterMs > 0 || !chatTurnStore.failExpired(active.id, userId, chatId)) {
             throw ChatTurnAlreadyGeneratingException(chatId, active.id)
         }
+        saveFailedAssistantMessage(active)
     }
 
     private fun startNewTurn(
@@ -265,15 +272,7 @@ class ChatTurnService(
                     executionPolicy.maxAttempts,
                 )
             ) {
-                chatMessageRepository.save(
-                    ChatMessageEntity(
-                        chatId = existing.chatId,
-                        role = ChatMessageRole.ASSISTANT,
-                        content = "",
-                        status = ChatMessageStatus.FAILED,
-                        turnId = existing.id,
-                    )
-                )
+                saveFailedAssistantMessage(existing)
             }
             return ChatTurnRequestResolution.AlreadyFinished(
                 loadTurn(existing.userId, existing.id, "chat turn disappeared after reaching its attempt limit")
@@ -305,6 +304,19 @@ class ChatTurnService(
         }
         throw InternalException(
             "chat turn id=${existing.id} remained expired after its attempt=${existing.attempt} reclaim was rejected"
+        )
+    }
+
+    /** The terminal assistant outcome of a turn that failed before producing content. */
+    private fun saveFailedAssistantMessage(turn: ChatTurn) {
+        chatMessageRepository.save(
+            ChatMessageEntity(
+                chatId = turn.chatId,
+                role = ChatMessageRole.ASSISTANT,
+                content = "",
+                status = ChatMessageStatus.FAILED,
+                turnId = turn.id,
+            )
         )
     }
 

@@ -7,8 +7,9 @@ applications or infrastructure.
 ## Running the full stack locally (Docker Compose, no minikube)
 
 An alternative to minikube for everyday local dev — no cluster, no `kubectl`/`skaffold`. Runs the
-same images the k8s path builds, orchestrated by plain Docker Compose instead. **The minikube/skaffold
-path below is unchanged and still fully supported** — this is an additional option, not a replacement.
+same images the k8s path builds, orchestrated by plain Docker Compose instead. Production runs on Docker Compose;
+**the minikube/skaffold path below is not maintained** (no TLS on the Ingress, no probes or limits, the m2m client
+and newer settings such as `AUTH_CLIENT_POST_LOGOUT_URLS` are not reflected) — treat it as an outdated example.
 
 - Add `127.0.0.1 uliss.home` to your real `/etc/hosts` (see `infra/etc.hosts` for the full list,
   including `auth.uliss.home` etc., already needed for host-based `bootRun` dev).
@@ -41,10 +42,16 @@ path below is unchanged and still fully supported** — this is an additional op
 - `auth`/`user`/`note` log Logstash-format JSON (compose only; `bootRun` keeps plain text), to stdout
   and to `infra/volumes/logs/<service>.log` (gitignored). Files roll daily or at 10 MB into `archive/` as plain text,
   kept 7 days (1 GB cap).
-- `postgres` (`5432`) and the `user` gRPC port (`9090`) are published on `127.0.0.1` only: host-based `bootRun`
-  still reaches them, other machines do not. Containers talk over the Compose network (`user:9090`).
-- `dozzle` (no profile, starts with any `up`) is a live log viewer for all containers at
-  `http://localhost:8888`.
+- `postgres` (`5432`), `user` (`8080`, gRPC `9090`) and `note` (`8081`) are published on `127.0.0.1` only:
+  host-based `bootRun` and the Vite dev proxy still reach them, other machines do not. Browsers go through the web
+  nginx; containers talk over the Compose network (`user:9090`).
+- `dozzle` (profiles `full` and `tools`) is a live log viewer for all containers at `http://localhost:8888`, this
+  machine only; actions and shell are off because it reads the Docker socket.
+- Every service restarts `unless-stopped`; container logs rotate (10 MB × 3); JVM services have a memory limit
+  (`AUTH_MEM_LIMIT`, `USER_MEM_LIMIT`, `NOTE_MEM_LIMIT`, default 768m/768m/1g) with `MaxRAMPercentage=75` and 35 s to
+  shut down gracefully.
+- `infra/.env` must set `POSTGRES_PASSWORD` (compose refuses to start without it) and a `FRONTEND_CLIENT_SECRET` of at
+  least 32 characters (auth refuses to start with a shorter one); generate them, e.g. `openssl rand -hex 32`.
 - Rebuild + `docker compose -f infra/docker-compose.yml --profile full up -d` again to pick up new
   images (`:latest` + Compose recreates a service when its image content changes).
 
@@ -167,7 +174,10 @@ note-service does not discard queued events. Multiple replicas can claim work co
 `FOR UPDATE SKIP LOCKED`; keep all replicas on compatible code and database migrations because the
 outbox payloads are consumed by any instance.
 
-## Deploying to Kubernetes (minikube)
+## Deploying to Kubernetes (minikube) — not maintained
+
+> Kept as a historical example only; it lags behind the Compose setup (see the note at the top). Do not deploy
+> from it without bringing it up to date first.
 
 Manifests and kustomize live under `infra/`, deployed with one command: `kubectl apply -k infra`.
 
@@ -223,7 +233,7 @@ Manifests and kustomize live under `infra/`, deployed with one command: `kubectl
   history of issues in `ndots`/search-domain-heavy `resolv.conf` setups like k8s's, and glibc was
   preferred deliberately.
 - **Workflow under minikube — `skaffold run`** (`skaffold.yaml` at repo root). One command: builds
-  all three images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
+  all four images **straight into minikube's docker daemon** (Skaffold auto-detects the context —
   `eval $(minikube docker-env)` isn't needed), deploys via kustomize (`infra/`), and rolls out
   automatically. The rollout triggers by itself because Skaffold tags images with a unique digest and
   swaps `uliss/<svc>:latest` in the manifests for `uliss/<svc>:<digest>` — changing the reference means

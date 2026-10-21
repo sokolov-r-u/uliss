@@ -15,8 +15,12 @@ export function NoteChatsList({noteId, onOpen, empty}: {
     onOpen: (chatId: string) => void
     empty: ReactNode
 }) {
-    const {items: chats} = useLinkedItems(noteId, listNoteChats, SUBSCRIPTIONS)
-    if (chats.length === 0) return <>{empty}</>
+    const {items: chats, status} = useLinkedItems(noteId, listNoteChats, SUBSCRIPTIONS)
+    // the empty text ("Written by hand") only once the list is known to be empty
+    if (chats.length === 0) {
+        if (status === 'failed') return <p className="context-text" role="alert">Could not load the chats.</p>
+        return status === 'ready' ? <>{empty}</> : null
+    }
     return (
         <div className="context-links">
             {chats.map((chat) => (

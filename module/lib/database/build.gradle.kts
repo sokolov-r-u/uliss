@@ -1,6 +1,8 @@
 plugins {
     id("io.uliss.kotlin-conventions")
     id("io.uliss.jpa-conventions")
+    // database-test.yml (test datasource settings) reaches consumers' tests only, not their jars
+    `java-test-fixtures`
 }
 
 

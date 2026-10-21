@@ -8,6 +8,7 @@ import org.aspectj.lang.annotation.Pointcut
 import org.aspectj.lang.reflect.MethodSignature
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.core.annotation.AnnotatedMethod
 import org.springframework.stereotype.Component
 
 /**
@@ -36,7 +37,8 @@ class LoggingAspect {
 
         // One line per call, written when it ends; the class is the logger name and the rest are separate fields.
         val method = signature.name
-        val args = renderArgs(proceedingJoinPoint)
+        val annotated = (signature as? MethodSignature)?.method?.let(::AnnotatedMethod)
+        val args = renderArgs(proceedingJoinPoint, annotated)
         val start = System.nanoTime()
         val result = try {
             proceedingJoinPoint.proceed()
@@ -47,21 +49,24 @@ class LoggingAspect {
             throw ex
         }
         logger.atDebug().addKeyValue("method", method).addKeyValue("args", args)
-            .addKeyValue("result", renderResult(result)).addKeyValue("durationMs", elapsedMs(start))
+            .addKeyValue("result", if (annotated?.hasMethodAnnotation(Sensitive::class.java) == true) MASK else renderResult(result))
+            .addKeyValue("durationMs", elapsedMs(start))
             .log("call")
         return result
     }
 
     private fun elapsedMs(start: Long): Long = (System.nanoTime() - start) / NANOS_PER_MILLI
 
-    /** Masks a parameter that is annotated [Sensitive] or whose name looks like a secret. */
-    private fun renderArgs(joinPoint: ProceedingJoinPoint): String {
-        val signature = joinPoint.signature as? MethodSignature
-        val names = signature?.parameterNames
-        val parameters = signature?.method?.parameters
+    /**
+     * Masks a parameter that is annotated [Sensitive] or whose name looks like a secret. Parameter annotations are not
+     * inherited, and a class proxy invokes the class's method, so [AnnotatedMethod] also looks at interface methods.
+     */
+    private fun renderArgs(joinPoint: ProceedingJoinPoint, annotated: AnnotatedMethod?): String {
+        val names = (joinPoint.signature as? MethodSignature)?.parameterNames
+        val parameters = annotated?.methodParameters
         return joinPoint.args.withIndex().joinToString(", ") { (index, value) ->
             val name = names?.getOrNull(index) ?: "arg$index"
-            val sensitive = parameters?.getOrNull(index)?.isAnnotationPresent(Sensitive::class.java) == true
+            val sensitive = parameters?.getOrNull(index)?.hasParameterAnnotation(Sensitive::class.java) == true
             "$name=${if (sensitive || SECRET_NAME.containsMatchIn(name)) MASK else render(value)}"
         }
     }
@@ -91,6 +96,9 @@ class LoggingAspect {
         const val NANOS_PER_MILLI = 1_000_000L
         const val MASK = "***"
         const val REACTOR_PACKAGE = "reactor.core.publisher."
-        val SECRET_NAME = Regex("password|secret|token|verifier|privatekey|apikey", RegexOption.IGNORE_CASE)
+        val SECRET_NAME = Regex(
+            "password|secret|token|verifier|privatekey|apikey|credential|cookie|jwt|otp|state|code$",
+            RegexOption.IGNORE_CASE,
+        )
     }
 }

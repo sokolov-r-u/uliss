@@ -1,5 +1,9 @@
-node_modules
-dist
+# patterns match at any depth: host node_modules (darwin binaries), build outputs and agent files stay out of the context
+**/node_modules
+**/dist
+**/visual-dist
+**/test-results
+**/.claude
 .git
 .gradle
 .idea

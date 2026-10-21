@@ -1,6 +1,6 @@
 package io.uliss.user_service.service
 
-import io.uliss.database.entity.generateId
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
@@ -39,11 +39,13 @@ class UserProfileService(
     fun submit(userId: UUID, request: OnboardingRequest) {
         val command = commands[request.command]
             ?: throw BadRequestException("unknown onboarding command=${request.command}")
+        // locked first: a concurrent submit of the same step waits here and then finds it no longer pending
+        val step = messageService.getPendingStepForUpdate(userId, request.command)
         val user = userRepository.findById(userId)
             .orElseThrow { NotFoundException("user id=$userId not found") }
 
-        val status = command.apply(user, request)
+        val status = command.apply(user, request.toInput())
         userRepository.save(user)
-        messageService.transition(userId, request.command, status)
+        messageService.finish(step, status)
     }
 }

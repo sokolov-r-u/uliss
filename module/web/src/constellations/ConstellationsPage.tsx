@@ -1,5 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
+import {describeError} from '../lib/apiHelpers'
 import {Button, Dialog, EmptyState, TextField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {listNotesWithoutConstellation, type Note, notifyNotesChanged} from '../notes/noteApi'
@@ -76,15 +77,19 @@ export function ConstellationsPage() {
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const pendingRef = useRef(false)
+    // only the latest reload may land: an older answer arriving last would put back a stale tree
+    const reloadTicket = useRef(0)
     const navigate = useNavigate()
 
     const reload = useCallback(async (signal?: AbortSignal) => {
+        const ticket = ++reloadTicket.current
         try {
             const [items, unplaced] = await Promise.all([listConstellations(signal), listNotesWithoutConstellation(signal)])
+            if (ticket !== reloadTicket.current) return
             setLoad({status: 'ready', items, unplaced})
         } catch (e) {
             if (e instanceof AuthRequiredError || signal?.aborted) return
-            setLoad({status: 'error', message: e instanceof Error ? e.message : String(e)})
+            setLoad({status: 'error', message: describeError(e)})
         }
     }, [])
 
@@ -137,14 +142,24 @@ export function ConstellationsPage() {
         })
     }
 
-    /** Runs one change at a time; refreshes the tree after it, failures stay in the dialog or the panel. */
-    async function run<T>(kind: ConstellationChange, change: () => Promise<T>, name?: string): Promise<T | undefined> {
+    /**
+     * Runs one change at a time; failures stay in the dialog or the panel. [after] (the tree refresh) runs while still
+     * pending, so a second Enter in the open dialog cannot send the change again.
+     */
+    async function run<T>(
+        kind: ConstellationChange,
+        change: () => Promise<T>,
+        name?: string,
+        after?: (result: T) => Promise<void>,
+    ): Promise<T | undefined> {
         if (pendingRef.current) return undefined
         pendingRef.current = true
         setPending(true)
         setError(null)
         try {
-            return await change()
+            const result = await change()
+            await after?.(result)
+            return result
         } catch (e) {
             // A 404 keeps the stale tree: reloading would close the panel or dialog together with this message.
             if (!(e instanceof AuthRequiredError)) setError(constellationFailureMessage(e, kind, name))
@@ -183,9 +198,8 @@ export function ConstellationsPage() {
         if (name === null) return
         const saved = await run('name', () => dialog.kind === 'create'
             ? createConstellation(name, dialog.parentId)
-            : updateConstellation(dialog.id, {name}), name)
+            : updateConstellation(dialog.id, {name}), name, (result) => refreshAfter(result.parentId))
         if (!saved) return
-        await refreshAfter(saved.parentId)
         setDialog(null)
         if (dialog.kind === 'create') {
             setSelectedId(saved.id)
@@ -199,26 +213,24 @@ export function ConstellationsPage() {
         const done = await run('delete', async () => {
             await deleteConstellation(id, target && target !== 'none' ? target : null)
             return true
-        })
+        }, undefined, () => reload())
         if (!done) return
         setDialog(null)
         if (selectedId === id) closePanel()
-        await reload()
         // Notes moved or lost their place: open "Notes here" lists re-read them.
         if (target) notifyNotesChanged()
     }
 
     async function recolor(node: ConstellationNode, change: { hue: number } | { lightness: Constellation['lightness'] }) {
-        const saved = await run('colour', () => updateConstellation(node.id, change))
+        const saved = await run('colour', () => updateConstellation(node.id, change), undefined, () => refreshAfter(null))
         if (!saved) return
-        await refreshAfter(null)
         setTool(null)
     }
 
     async function move(node: ConstellationNode, parentId: string | null) {
-        const saved = await run('move', () => moveConstellation(node.id, parentId), node.name)
+        const saved = await run('move', () => moveConstellation(node.id, parentId), node.name,
+            (result) => refreshAfter(result.parentId))
         if (!saved) return
-        await refreshAfter(saved.parentId)
         setTool(null)
     }
 

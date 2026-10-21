@@ -20,12 +20,14 @@ import io.uliss.note_service.service.NoteAiEditService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteStatusService
 import io.uliss.note_service.service.facade.NoteFacade
 import io.uliss.note_service.util.withHeartbeat
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
 import java.time.Duration
 import java.util.UUID
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerSentEvent
@@ -52,6 +54,8 @@ class NoteController(
     private val noteAiEditService: NoteAiEditService,
     private val notePlacementService: NotePlacementService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val noteStatusService: NoteStatusService,
+    @param:Value($$"${note.sse.heartbeat-interval:15s}") private val heartbeatInterval: Duration,
 ) {
 
     @GetMapping
@@ -177,7 +181,7 @@ class NoteController(
     ): Flux<ServerSentEvent<Any>> =
         noteAiEditService.streamRewrite(jwt.getUserId(), noteId, request.instruction, request.content)
             .map(::toServerSentEvent)
-            .withHeartbeat(STREAM_HEARTBEAT_INTERVAL)
+            .withHeartbeat(heartbeatInterval)
 
     /** A note with sub-notes needs [subNotes]: keep them in its place or delete the whole subtree. */
     @DeleteMapping("/{noteId}")
@@ -195,9 +199,9 @@ class NoteController(
         @AuthenticationPrincipal jwt: Jwt,
         @PathVariable noteId: UUID,
     ): Flux<ServerSentEvent<NoteStatusResponse>> =
-        noteService.streamNoteStatus(jwt.getUserId(), noteId)
+        noteStatusService.streamNoteStatus(jwt.getUserId(), noteId)
             .map { status -> ServerSentEvent.builder(status).event("status").build() }
-            .withHeartbeat(STREAM_HEARTBEAT_INTERVAL)
+            .withHeartbeat(heartbeatInterval)
 
     private fun toServerSentEvent(event: NoteAiEditEvent): ServerSentEvent<Any> = when (event) {
         is NoteAiEditEvent.AppendText ->
@@ -207,7 +211,4 @@ class NoteController(
         NoteAiEditEvent.Failed -> ServerSentEvent.builder<Any>("FAILED").event("error").build()
     }
 
-    private companion object {
-        val STREAM_HEARTBEAT_INTERVAL: Duration = Duration.ofSeconds(15)
-    }
 }

@@ -69,6 +69,17 @@ class AuthorizationCleanupServiceTest @Autowired constructor(
         assertNotNull(authorizationService.findById("live-code"))
     }
 
+    @Test
+    fun `keeps authorizations that have no token yet`() {
+        // an authorize request in progress: nothing has an expiry, so greatest() is null
+        save("pending")
+
+        val deleted = cleanupService.deleteExpired()
+
+        assertEquals(0, deleted)
+        assertNotNull(authorizationService.findById("pending"))
+    }
+
     private fun save(
         id: String,
         codeExpiresIn: Duration? = null,

@@ -42,6 +42,8 @@ export async function submit(request: OnboardingSubmit): Promise<void> {
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify(request),
     })
+    // 409: the step is no longer pending (a double submit, another tab) — it is done either way
+    if (res.status === 409) return
     if (!res.ok) throw new OnboardingSubmitError(await errorMessage(res))
 }
 

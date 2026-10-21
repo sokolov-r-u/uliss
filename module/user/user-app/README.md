@@ -28,10 +28,14 @@ user's state with the composite user/message identifier.
 
 Current commands are:
 
-- `SET_DISPLAY_NAME`: blocking; requires a non-empty display name and completes the message.
+- `SET_DISPLAY_NAME`: blocking; requires a display name with a visible character and without control or invisible
+  characters, except the zero-width joiners Persian names and emoji sequences need (stored in NFC), and completes the
+  message.
 - `COMPLETE_PROFILE`: optional; stores birth date and gender when supplied, otherwise records the step as skipped.
 
-Pending messages are returned blocking-first. A new step consists of a catalog migration, an `OnboardingCommand`
+Pending messages are returned blocking-first (then by code). Only a pending step can be submitted: the step's row is
+locked first, so a double submit applies once, and a step already completed, skipped or never seeded for the user
+answers 409 `ONBOARDING_STEP_NOT_PENDING` (the endpoint is not a profile editor). A new step consists of a catalog migration, an `OnboardingCommand`
 component, tests, and corresponding client handling; the dispatcher does not require a new conditional branch.
 
 ## REST API

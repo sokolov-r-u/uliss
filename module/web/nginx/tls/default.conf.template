@@ -7,6 +7,13 @@
 ssl_certificate /etc/nginx/tls/uliss.home.pem;
 ssl_certificate_key /etc/nginx/tls/uliss.home-key.pem;
 
+# Shared by both variants (http context): no version in error pages and headers; text assets compressed.
+server_tokens off;
+gzip on;
+gzip_vary on;
+gzip_min_length 1024;
+gzip_types text/plain text/css application/javascript application/json image/svg+xml;
+
 server {
     listen 80 default_server;
     server_name _;

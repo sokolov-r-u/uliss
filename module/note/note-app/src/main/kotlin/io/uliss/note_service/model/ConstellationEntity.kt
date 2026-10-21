@@ -24,6 +24,6 @@ class ConstellationEntity(
 
     override fun toString(): String {
         return "ConstellationEntity(id=$id, userId=$userId, parentId=$parentId, name='$name', hue=$hue, " +
-            "lightness=$lightness" + super.toString()
+            "lightness=$lightness" + auditFields()
     }
 }

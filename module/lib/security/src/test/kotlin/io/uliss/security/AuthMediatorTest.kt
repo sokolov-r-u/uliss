@@ -1,6 +1,7 @@
 package io.uliss.security
 
 import com.github.tomakehurst.wiremock.WireMockServer
+import com.jayway.jsonpath.JsonPath
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.exactly
@@ -12,6 +13,7 @@ import com.github.tomakehurst.wiremock.core.WireMockConfiguration.options
 import com.github.tomakehurst.wiremock.http.Fault
 import com.github.tomakehurst.wiremock.stubbing.Scenario
 import jakarta.servlet.http.Cookie
+import org.hamcrest.Matchers
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
@@ -25,12 +27,17 @@ import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
+import org.springframework.web.util.UriComponentsBuilder
+import java.net.URLDecoder
+import java.nio.charset.StandardCharsets
+import kotlin.test.assertEquals
 
 // a login form may stay open as long as the auth-server session (30 min) lives
 private const val LOGIN_COOKIE_AGE = 1800
 
 @Tag("integration")
-@SpringBootTest
+// the retry count is the contract under test, not the backoff: no real waiting
+@SpringBootTest(properties = ["uliss.security.auth-retry.delay-ms=1", "uliss.security.auth-retry.jitter-ms=0"])
 @AutoConfigureMockMvc
 class AuthMediatorTest {
 
@@ -63,6 +70,8 @@ class AuthMediatorTest {
         assert(location.contains("response_type=code")) { "redirect: $location" }
         assert(location.contains("code_challenge_method=S256")) { "redirect: $location" }
         assert(location.contains("client_id=$WEB_CLIENT")) { "redirect: $location" }
+        // openid: the id_token is the hint for the end-session (logout) endpoint
+        assert(location.contains("scope=openid%20profile")) { "redirect: $location" }
     }
 
     @Test
@@ -134,6 +143,7 @@ class AuthMediatorTest {
             jsonPath("$.access_token") { value("access-abc") }
             jsonPath("$.refresh_token") { value("refresh-xyz") }
             jsonPath("$.expires_in") { value(900) }
+            jsonPath("$.id_token") { value("id-123") }
         }
 
         wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/token")))
@@ -154,7 +164,8 @@ class AuthMediatorTest {
             status { isBadRequest() }
             jsonPath("$.code") { value("AUTHORIZATION_CODE_ERROR") }
             jsonPath("$.status") { value(400) }
-            jsonPath("$.details") { isEmpty() }
+            jsonPath("$.details.message") { value("authorization code is invalid or expired") }
+            content { string(Matchers.not(Matchers.containsString("code expired"))) }
         }
     }
 
@@ -180,7 +191,7 @@ class AuthMediatorTest {
     fun `callback retries on 5xx and finally maps to 500`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/token"))
-                .willReturn(aResponse().withStatus(503))
+                .willReturn(aResponse().withStatus(500))
         )
 
         mockMvc.post("/oauth2/callback") {
@@ -443,7 +454,7 @@ class AuthMediatorTest {
             post(urlPathEqualTo("/oauth2/token")).inScenario("throttled")
                 .whenScenarioStateIs("recovered")
                 .willReturn(
-                    jsonResponse(200, """{"access_token":"a2","refresh_token":"r2","expires_in":900,"token_type":"Bearer"}""")
+                    jsonResponse(200, """{"access_token":"a2","refresh_token":"r2","expires_in":900,"token_type":"Bearer","id_token":"id-123"}""")
                 )
         )
 
@@ -494,6 +505,25 @@ class AuthMediatorTest {
     }
 
     @Test
+    fun `refresh maps a temporarily unavailable auth server to 503 keeping the session`() {
+        // auth answers 503 when user-service is down: no token was issued and the refresh token is still valid
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/token"))
+                .willReturn(jsonResponse(503, """{"error":"temporarily_unavailable"}"""))
+        )
+
+        mockMvc.post("/oauth2/refresh") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"still-valid"}"""
+        }.andExpect {
+            status { isServiceUnavailable() }
+            jsonPath("$.code") { value("INTERNAL_ERROR") }
+        }
+
+        wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/token")))
+    }
+
+    @Test
     fun `refresh does not retry a read timeout because the token may be rotated`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/token"))
@@ -513,7 +543,33 @@ class AuthMediatorTest {
     // ---------- POST /oauth2/logout ----------
 
     @Test
-    fun `logout revokes token and returns 204`() {
+    fun `logout revokes token and returns the end-session redirect`() {
+        wireMock.stubFor(
+            post(urlPathEqualTo("/oauth2/revoke"))
+                .willReturn(aResponse().withStatus(200))
+        )
+
+        val body = mockMvc.post("/oauth2/logout") {
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"refreshToken":"some-refresh","idToken":"id-123"}"""
+        }.andExpect {
+            status { isOk() }
+        }.andReturn().response.contentAsString
+
+        // the auth server's session survives a revocation; only its end-session endpoint signs the browser out
+        val redirect = UriComponentsBuilder.fromUriString(JsonPath.read(body, "$.redirectUrl")).build()
+        assertEquals("${wireMock.baseUrl()}/connect/logout", redirect.toUriString().substringBefore("?"))
+        assertEquals("id-123", redirect.queryParams.getFirst("id_token_hint"))
+        assertEquals(WEB_CLIENT, redirect.queryParams.getFirst("client_id"))
+        assertEquals(
+            "http://localhost:3000/signed-out",
+            URLDecoder.decode(redirect.queryParams.getFirst("post_logout_redirect_uri"), StandardCharsets.UTF_8),
+        )
+        wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
+    }
+
+    @Test
+    fun `logout without an id token revokes and returns no redirect`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(aResponse().withStatus(200))
@@ -523,14 +579,13 @@ class AuthMediatorTest {
             contentType = MediaType.APPLICATION_JSON
             content = """{"refreshToken":"some-refresh"}"""
         }.andExpect {
-            status { isNoContent() }
+            status { isOk() }
+            jsonPath("$.redirectUrl") { doesNotExist() }
         }
-
-        wireMock.verify(exactly(1), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
     }
 
     @Test
-    fun `logout swallows 4xx from AS and still returns 204`() {
+    fun `logout swallows 4xx from AS and still succeeds`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(jsonResponse(400, """{"error":"invalid_token"}"""))
@@ -540,30 +595,31 @@ class AuthMediatorTest {
             contentType = MediaType.APPLICATION_JSON
             content = """{"refreshToken":"already-invalid"}"""
         }.andExpect {
-            status { isNoContent() }
+            status { isOk() }
         }
     }
 
     @Test
-    fun `logout retries on 5xx and finally maps to 500`() {
+    fun `logout still signs the browser out when revocation keeps failing on 5xx`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(aResponse().withStatus(500))
         )
 
+        // revocation is best-effort: an auth server that is down must not keep its browser session alive
         mockMvc.post("/oauth2/logout") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"refreshToken":"some-refresh"}"""
+            content = """{"refreshToken":"some-refresh","idToken":"id-123"}"""
         }.andExpect {
-            status { isInternalServerError() }
-            jsonPath("$.code") { value("INTERNAL_ERROR") }
+            status { isOk() }
+            jsonPath("$.redirectUrl") { value(org.hamcrest.Matchers.startsWith("${wireMock.baseUrl()}/connect/logout?")) }
         }
 
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
     }
 
     @Test
-    fun `logout retries a dropped connection because revocation is idempotent`() {
+    fun `logout retries a dropped connection and still returns the end-session redirect`() {
         wireMock.stubFor(
             post(urlPathEqualTo("/oauth2/revoke"))
                 .willReturn(aResponse().withFault(Fault.CONNECTION_RESET_BY_PEER))
@@ -571,9 +627,10 @@ class AuthMediatorTest {
 
         mockMvc.post("/oauth2/logout") {
             contentType = MediaType.APPLICATION_JSON
-            content = """{"refreshToken":"some-refresh"}"""
+            content = """{"refreshToken":"some-refresh","idToken":"id-123"}"""
         }.andExpect {
-            status { isServiceUnavailable() }
+            status { isOk() }
+            jsonPath("$.redirectUrl") { exists() }
         }
 
         wireMock.verify(exactly(4), postRequestedFor(urlPathEqualTo("/oauth2/revoke")))
@@ -588,7 +645,7 @@ class AuthMediatorTest {
         private const val OAUTH_STATE = "oauth_state"
         private const val STATE = "state-123"
         private const val TOKEN_JSON =
-            """{"access_token":"access-abc","refresh_token":"refresh-xyz","expires_in":900,"token_type":"Bearer"}"""
+            """{"access_token":"access-abc","refresh_token":"refresh-xyz","expires_in":900,"token_type":"Bearer","id_token":"id-123"}"""
 
         private val wireMock = WireMockServer(options().dynamicPort()).apply { start() }
 

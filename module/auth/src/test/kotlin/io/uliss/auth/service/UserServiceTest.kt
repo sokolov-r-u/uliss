@@ -9,9 +9,12 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import io.uliss.auth.exception.EmailAlreadyExistsException
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 
 @Tag("integration")
 @SpringBootTest
@@ -32,6 +35,26 @@ class UserServiceTest @Autowired constructor(
         val expected = userService.loadUserByUsername("user@example.com").username
 
         assertEquals(expected, userService.loadUserByUsername("USER@example.COM").username)
+    }
+
+    @Test
+    fun `a second registration with the same email is a duplicate`() {
+        userService.register(RegisterUserRequest(email = "same@example.com", password = "Passw0rd!"))
+
+        assertFailsWith<EmailAlreadyExistsException> {
+            userService.register(RegisterUserRequest(email = "SAME@example.com", password = "Passw0rd!"))
+        }
+    }
+
+    @Test
+    fun `a database error other than a duplicate email is not reported as a duplicate`() {
+        // longer than the column: a data error, not a taken email
+        val tooLong = "a".repeat(250) + "@example.com"
+
+        val ex = assertFailsWith<DataIntegrityViolationException> {
+            userService.register(RegisterUserRequest(email = tooLong, password = "Passw0rd!"))
+        }
+        assertFalse(ex is EmailAlreadyExistsException)
     }
 
     @Test

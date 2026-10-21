@@ -13,7 +13,5 @@ abstract class AuditEntity(
     @LastModifiedBy
     var updatedBy: String? = null
 
-    override fun toString(): String {
-        return ", createdBy='$createdBy', updatedBy='$updatedBy'" + super.toString()
-    }
+    override fun auditFields(): String = ", createdBy='$createdBy', updatedBy='$updatedBy'" + super.auditFields()
 }

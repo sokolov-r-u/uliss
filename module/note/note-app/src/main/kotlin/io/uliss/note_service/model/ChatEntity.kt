@@ -15,6 +15,6 @@ class ChatEntity(
 ) : UuidEntity() {
 
     override fun toString(): String {
-        return "ChatEntity(id=$id, userId=$userId, title='$title'" + super.toString()
+        return "ChatEntity(id=$id, userId=$userId, title='$title'" + auditFields()
     }
 }

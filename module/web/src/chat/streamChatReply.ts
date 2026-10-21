@@ -5,6 +5,7 @@
  * `opts.signal`) propagate to the caller unchanged — this module only interprets the SSE protocol.
  */
 import {authFetch} from '../auth/apiClient'
+import {segment} from '../lib/apiHelpers'
 import {parseSseStream} from '../lib/sse'
 
 export type StreamOutcome = 'done' | 'error' | 'pending'
@@ -41,7 +42,7 @@ export async function streamAssistantReply(
     idempotencyKey: string,
     opts: StreamOptions,
 ): Promise<StreamOutcome> {
-    return streamReply(`/note/chats/${chatId}/messages`, content, idempotencyKey, opts)
+    return streamReply(`/note/chats/${segment(chatId)}/messages`, content, idempotencyKey, opts)
 }
 
 export async function streamInitialAssistantReply(
@@ -121,6 +122,6 @@ async function streamReply(
 }
 
 export async function cancelChatTurn(chatId: string, turnId: string, signal?: AbortSignal): Promise<void> {
-    const res = await authFetch(`/note/chats/${chatId}/turns/${turnId}/cancel`, {method: 'POST', signal})
+    const res = await authFetch(`/note/chats/${segment(chatId)}/turns/${segment(turnId)}/cancel`, {method: 'POST', signal})
     if (!res.ok) throw new ChatStreamHttpError(res.status)
 }

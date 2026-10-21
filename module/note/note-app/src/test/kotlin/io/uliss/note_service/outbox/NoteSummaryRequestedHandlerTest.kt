@@ -5,6 +5,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteDraft
+import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
@@ -12,11 +13,10 @@ import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.service.ChatService
-import io.uliss.note_service.service.NoteService
+import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
-import io.uliss.note_service.service.handler.NoteSummaryTerminalFailureHandler
 import io.uliss.note_service.util.ChatPrompts
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -38,8 +38,7 @@ class NoteSummaryRequestedHandlerTest {
     private val chatClient = Mockito.mock(ChatClient::class.java)
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
-    private val noteService = Mockito.mock(NoteService::class.java)
-    private val terminalFailureHandler = Mockito.mock(NoteSummaryTerminalFailureHandler::class.java)
+    private val noteService = Mockito.mock(NoteSummaryService::class.java)
     private val properties = NoteSummaryProperties(
         retrievalQueryMaxChars = 400,
         retrievalTopK = 3,
@@ -53,9 +52,13 @@ class NoteSummaryRequestedHandlerTest {
         chatService,
         ragService,
         noteService,
-        terminalFailureHandler,
         properties,
     )
+
+    init {
+        // the placeholder still waits for its summary unless a test says otherwise
+        Mockito.`when`(noteService.isAwaitingSummary(anyValue(), anyValue())).thenReturn(true)
+    }
 
     @Test
     fun `handle retrieves user context summarizes the bounded chat and completes the note`() {
@@ -184,7 +187,8 @@ class NoteSummaryRequestedHandlerTest {
         assertFailsWith<IllegalStateException> {
             handleWithDraft(payload, null)
         }
-        Mockito.verifyNoInteractions(noteService)
+        // nothing is stored from a failed draft; the readiness check before the model is the only call
+        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue())
     }
 
     @Test
@@ -230,136 +234,13 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
-    fun `retrieval query preserves unicode and multiline text when the chat fits`() {
-        val chatId = UUID.randomUUID()
-        val context = ChatSummaryContext(
-            title = "Архитектура заметок 📝",
-            messages = listOf(
-                message(chatId, ChatMessageRole.USER, "Первая строка\nВторая строка"),
-                message(chatId, ChatMessageRole.ASSISTANT, "Используем PostgreSQL и pgvector ✅"),
-            ),
-        )
-
-        val query = buildRetrievalQuery(context, maxChars = 500)
-
-        assertEquals(
-            "Chat title: Архитектура заметок 📝\n" +
-                    "Transcript:\n" +
-                    "USER: Первая строка\nВторая строка\n" +
-                    "ASSISTANT: Используем PostgreSQL и pgvector ✅",
-            query,
-        )
-    }
-
-    @Test
-    fun `retrieval query skips assistant replies without content, as the chat prompt to the provider does`() {
-        val chatId = UUID.randomUUID()
-        val context = ChatSummaryContext(
-            title = "Plan",
-            messages = listOf(
-                message(chatId, ChatMessageRole.USER, "first"),
-                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.FAILED),
-                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "", ChatMessageStatus.CANCELED),
-                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "  ", ChatMessageStatus.COMPLETE),
-                message(chatId, ChatMessageRole.USER, "second"),
-                ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "half", ChatMessageStatus.PARTIAL),
-            ),
-        )
-
-        val query = buildRetrievalQuery(context, maxChars = 500)
-
-        assertEquals("Chat title: Plan\nTranscript:\nUSER: first\nUSER: second\nASSISTANT: half", query)
-    }
-
-    @Test
-    fun `retrieval query uses the complete transcript when its rendered length exactly matches the limit`() {
-        val chatId = UUID.randomUUID()
-        val context = ChatSummaryContext(
-            title = "Boundary",
-            messages = listOf(
-                message(chatId, ChatMessageRole.USER, "question"),
-                message(chatId, ChatMessageRole.ASSISTANT, "answer"),
-            ),
-        )
-        val expected = "Chat title: Boundary\nTranscript:\nUSER: question\nASSISTANT: answer"
-
-        val query = buildRetrievalQuery(context, maxChars = expected.length)
-
-        assertEquals(expected, query)
-        assertTrue("[Earlier messages omitted]" !in query)
-    }
-
-    @Test
-    fun `retrieval query keeps the beginning of an oversized initial message and the recent conversation`() {
-        val chatId = UUID.randomUUID()
-        val context = ChatSummaryContext(
-            title = "Large initial request",
-            messages = listOf(
-                message(
-                    chatId,
-                    ChatMessageRole.USER,
-                    "INITIAL_MARKER " + "initial details ".repeat(30) + "DROPPED_INITIAL_END",
-                ),
-                message(chatId, ChatMessageRole.ASSISTANT, "middle ".repeat(30)),
-                message(chatId, ChatMessageRole.USER, "RECENT_USER_DECISION"),
-                message(chatId, ChatMessageRole.ASSISTANT, "FINAL_ASSISTANT_CONCLUSION"),
-            ),
-        )
-
-        val query = buildRetrievalQuery(context, maxChars = 320)
-
-        assertEquals(320, query.length)
-        assertTrue(query.contains("Initial user messages:\nUSER: INITIAL_MARKER"))
-        assertTrue(query.substringBefore("\n\n[Earlier messages omitted]").endsWith("…"))
-        assertTrue("DROPPED_INITIAL_END" !in query)
-        assertTrue(query.contains("USER: RECENT_USER_DECISION"))
-        assertTrue(query.endsWith("FINAL_ASSISTANT_CONCLUSION"))
-    }
-
-    @Test
-    fun `retrieval query keeps the end of an oversized final message`() {
-        val chatId = UUID.randomUUID()
-        val finalContent = "DROPPED_FINAL_START " + "latest details ".repeat(40) + "FINAL_MARKER"
-        val context = ChatSummaryContext(
-            title = "Large final response",
-            messages = listOf(
-                message(chatId, ChatMessageRole.USER, "initial request"),
-                message(chatId, ChatMessageRole.ASSISTANT, "middle ".repeat(30)),
-                message(chatId, ChatMessageRole.ASSISTANT, finalContent),
-            ),
-        )
-
-        val query = buildRetrievalQuery(context, maxChars = 280)
-
-        assertEquals(280, query.length)
-        assertTrue(query.contains("Initial user messages:\nUSER: initial request"))
-        assertTrue(query.contains("Recent conversation:\nASSISTANT: …"))
-        assertTrue("DROPPED_FINAL_START" !in query)
-        assertTrue(query.endsWith("FINAL_MARKER"))
-    }
-
-    @Test
-    fun `retrieval query never exceeds a limit smaller than its structural prefixes`() {
-        val chatId = UUID.randomUUID()
-        val context = ChatSummaryContext(
-            title = "A title that is longer than the available query budget",
-            messages = listOf(message(chatId, ChatMessageRole.USER, "content")),
-        )
-
-        val query = buildRetrievalQuery(context, maxChars = 24)
-
-        assertEquals(24, query.length)
-        assertEquals("Chat title: A title that", query)
-    }
-
-    @Test
     fun `handle treats a blank main thought as retryable failure`() {
         val payload = payload()
 
         assertFailsWith<IllegalStateException> {
             handleWithDraft(payload, NoteDraft("Title", "   ", listOf("Orphan secondary thought")))
         }
-        Mockito.verifyNoInteractions(noteService)
+        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue())
     }
 
     private fun handleWithDraft(payload: NoteSummaryRequestedPayload, draft: NoteDraft?) {
@@ -392,10 +273,22 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
             .thenThrow(NotFoundException("chat id=${payload.chatId} not found"))
 
-        handler.handle(event)
+        Mockito.`when`(noteService.isAwaitingSummary(payload.userId, payload.noteId)).thenReturn(true)
 
-        Mockito.verify(terminalFailureHandler).handleTerminalFailure(event)
-        Mockito.verifyNoInteractions(chatClient, ragService, noteService)
+        assertFailsWith<NonRetryableOutboxException> { handler.handle(event) }
+
+        Mockito.verifyNoInteractions(chatClient, ragService)
+    }
+
+    @Test
+    fun `handle spends no model call on a note that no longer waits for its summary`() {
+        // deleted or already completed while the event waited
+        val payload = payload()
+        Mockito.`when`(noteService.isAwaitingSummary(payload.userId, payload.noteId)).thenReturn(false)
+
+        handler.handle(event(payload))
+
+        Mockito.verifyNoInteractions(chatClient, ragService, chatService)
     }
 
     private fun payload() = NoteSummaryRequestedPayload(
@@ -417,45 +310,4 @@ class NoteSummaryRequestedHandlerTest {
     private fun message(chatId: UUID, role: ChatMessageRole, content: String) =
         ChatMessageEntity(chatId, role, content, ChatMessageStatus.COMPLETE)
 
-    private fun buildRetrievalQuery(context: ChatSummaryContext, maxChars: Int): String {
-        val payload = payload()
-        val localChatClient = Mockito.mock(ChatClient::class.java)
-        val localChatService = Mockito.mock(ChatService::class.java)
-        val localRagService = Mockito.mock(RagService::class.java)
-        val localNoteService = Mockito.mock(NoteService::class.java)
-        val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
-        val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
-        val localHandler = NoteSummaryRequestedHandler(
-            objectMapper,
-            localChatClient,
-            localChatService,
-            localRagService,
-            localNoteService,
-            terminalFailureHandler,
-            NoteSummaryProperties(
-                retrievalQueryMaxChars = maxChars,
-                retrievalTopK = 3,
-                retrievalMinSimilarity = 0.75,
-            ),
-        )
-        Mockito.`when`(
-            localChatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId)
-        ).thenReturn(context)
-        Mockito.`when`(
-            localRagService.search(anyValue(), anyValue(), Mockito.anyInt(), Mockito.anyDouble())
-        ).thenReturn(emptyList())
-        Mockito.`when`(localChatClient.prompt()).thenReturn(requestSpec)
-        Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
-        Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
-        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
-        Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
-        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue()))
-            .thenReturn(NoteDraft("Title", "Summary", null))
-
-        localHandler.handle(event(payload))
-
-        return Mockito.mockingDetails(localRagService).invocations
-            .single { it.method.name == "search" }
-            .arguments[1] as String
-    }
 }

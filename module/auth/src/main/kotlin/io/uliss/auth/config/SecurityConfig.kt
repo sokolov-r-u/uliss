@@ -1,5 +1,8 @@
 package io.uliss.auth.config
 
+import io.uliss.auth.handler.BrowserSessionLogoutHandler
+import io.uliss.auth.handler.TokenErrorResponseHandler
+import io.uliss.auth.service.BrowserSessionLogoutService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -10,12 +13,12 @@ import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OAuth2AuthorizationServerConfigurer
-import org.springframework.security.config.annotation.web.configurers.oauth2.server.authorization.OidcConfigurer
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
+import org.springframework.security.oauth2.server.authorization.oidc.web.authentication.OidcLogoutAuthenticationSuccessHandler
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.LoginUrlAuthenticationEntryPoint
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler
+import org.springframework.security.web.csrf.XorCsrfTokenRequestAttributeHandler
 import org.springframework.security.web.util.matcher.MediaTypeRequestMatcher
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
@@ -31,14 +34,31 @@ class SecurityConfig(
 
     @Bean
     @Order(1)
-    fun authorizationServerSecurityFilterChain(http: HttpSecurity): SecurityFilterChain = http
-        .securityMatcher("/oauth2/**", "/.well-known/**")
-        .with(OAuth2AuthorizationServerConfigurer()) { it.oidc { Customizer.withDefaults<OidcConfigurer>() } }
-        .authorizeHttpRequests { it.anyRequest().authenticated() }
-        .cors(Customizer.withDefaults())
-        .formLogin(Customizer.withDefaults())
-        .configureExceptionHandling()
-        .build()
+    fun authorizationServerSecurityFilterChain(
+        http: HttpSecurity,
+        browserSessionLogoutService: BrowserSessionLogoutService,
+    ): SecurityFilterChain {
+        // every endpoint the server advertises, incl. OIDC /userinfo and /connect/logout, not only /oauth2/**
+        val authorizationServer = OAuth2AuthorizationServerConfigurer()
+        return http
+            .securityMatcher(authorizationServer.endpointsMatcher)
+            .with(authorizationServer) { server ->
+                server.oidc { oidc ->
+                    // end-session also revokes the other tabs' authorizations of this browser session
+                    val logoutResponse = OidcLogoutAuthenticationSuccessHandler()
+                    logoutResponse.setLogoutHandler(BrowserSessionLogoutHandler(browserSessionLogoutService))
+                    oidc.logoutEndpoint { it.logoutResponseHandler(logoutResponse) }
+                }
+                server.tokenEndpoint { it.errorResponseHandler(TokenErrorResponseHandler()) }
+            }
+            .authorizeHttpRequests { it.anyRequest().authenticated() }
+            // /userinfo authenticates with the access token
+            .oauth2ResourceServer { it.jwt(Customizer.withDefaults()) }
+            .cors(Customizer.withDefaults())
+            .formLogin(Customizer.withDefaults())
+            .configureExceptionHandling()
+            .build()
+    }
 
     @Bean
     @Order(2)
@@ -54,7 +74,8 @@ class SecurityConfig(
             it.loginPage("/login").defaultSuccessUrl(frontendUrl, false)
         }
         .csrf { csrf ->
-            val requestHandler = CsrfTokenRequestAttributeHandler()
+            // Xor masks the token per response (BREACH); a null attribute name keeps the eager loading
+            val requestHandler = XorCsrfTokenRequestAttributeHandler()
             requestHandler.setCsrfRequestAttributeName(null)
             csrf.csrfTokenRequestHandler(requestHandler)
         }

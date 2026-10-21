@@ -6,3 +6,7 @@ docker.jre.version=ghcr.io/sokolov-r-u/base-jre:25.0.3_9
 
 # Path to the docker executable used by Jib
 docker.executable=/usr/local/bin/docker
+
+# Gradle build performance: reuse task outputs between builds and run independent modules in parallel
+org.gradle.caching=true
+org.gradle.parallel=true

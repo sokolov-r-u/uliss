@@ -23,7 +23,7 @@ export interface StarFieldProps {
 }
 
 export function StarField({
-                              id = 'sf',
+                              id,
                               count = 460,
                               seed = 7,
                               aspect = 2,
@@ -33,6 +33,9 @@ export function StarField({
                               scale = 1,
                               nebula = true,
                           }: StarFieldProps) {
+    // unique per instance unless the host names it: two fields with one id would share gradients
+    const generatedId = React.useId().replace(/:/g, '')
+    const gid = id ?? `sf${generatedId}`
     const W = 400
     const H = Math.round(400 / aspect)
     const stars = React.useMemo(() => {
@@ -53,17 +56,19 @@ export function StarField({
     }, [count, seed, scale, H])
     return (
         <svg
+            aria-hidden="true"
+            focusable="false"
             viewBox={`0 0 ${W} ${H}`}
             preserveAspectRatio="xMidYMid slice"
             style={{width: '100%', height: '100%', opacity, display: 'block'}}
         >
             <defs>
-                <linearGradient id={`${id}-fade`} x1="0" y1="0" x2="0" y2="1">
+                <linearGradient id={`${gid}-fade`} x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor="var(--bg-deep)" stopOpacity="0"/>
                     <stop offset={`${fadeStart * 100}%`} stopColor="var(--bg-deep)" stopOpacity="0.18"/>
                     <stop offset={`${fadeEnd * 100}%`} stopColor="var(--bg-deep)" stopOpacity="1"/>
                 </linearGradient>
-                <radialGradient id={`${id}-neb`}>
+                <radialGradient id={`${gid}-neb`}>
                     <stop offset="0%" stopColor="var(--sky-nebula)" stopOpacity="0.13"/>
                     <stop offset="100%" stopColor="var(--sky-nebula)" stopOpacity="0"/>
                 </radialGradient>
@@ -71,8 +76,8 @@ export function StarField({
             <g>
                 {nebula && (
                     <React.Fragment>
-                        <ellipse cx="140" cy={H * 0.28} rx="150" ry={H * 0.4} fill={`url(#${id}-neb)`}/>
-                        <ellipse cx="310" cy={H * 0.5} rx="120" ry={H * 0.36} fill={`url(#${id}-neb)`}/>
+                        <ellipse cx="140" cy={H * 0.28} rx="150" ry={H * 0.4} fill={`url(#${gid}-neb)`}/>
+                        <ellipse cx="310" cy={H * 0.5} rx="120" ry={H * 0.36} fill={`url(#${gid}-neb)`}/>
                     </React.Fragment>
                 )}
                 {stars.map((s, i) => (
@@ -87,7 +92,7 @@ export function StarField({
                     />
                 ))}
             </g>
-            <rect width={W} height={H} fill={`url(#${id}-fade)`}/>
+            <rect width={W} height={H} fill={`url(#${gid}-fade)`}/>
         </svg>
     )
 }

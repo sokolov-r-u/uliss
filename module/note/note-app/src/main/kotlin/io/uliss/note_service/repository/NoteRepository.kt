@@ -1,6 +1,7 @@
 package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.projection.NoteStatusRow
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -10,6 +11,13 @@ import java.util.UUID
 @Repository
 interface NoteRepository : JpaRepository<NoteEntity, UUID> {
     fun findByIdAndUserId(id: UUID, userId: UUID): NoteEntity?
+
+    /** Status polls run every second per open stream: they read three columns, never the content. */
+    @Query(
+        "select new io.uliss.note_service.model.projection.NoteStatusRow(n.id, n.status, n.updatedAt) " +
+            "from NoteEntity n where n.id = :id and n.userId = :userId"
+    )
+    fun findStatusByIdAndUserId(@Param("id") id: UUID, @Param("userId") userId: UUID): NoteStatusRow?
     fun findByUserIdOrderByCreatedAtDescIdDesc(userId: UUID): List<NoteEntity>
 
     /**
