@@ -64,3 +64,6 @@ ds-bundle/
 
 # jqwik local run database
 .jqwik-database
+
+# Playwright MCP working directory
+/.playwright-mcp/
