@@ -27,7 +27,7 @@ done
 "$ROOT/node_modules/.bin/esbuild" "$DS/src/react/index.ts" --bundle --format=esm \
   --jsx=automatic --external:react --external:react-dom --outfile="$PKG/dist/index.js" --log-level=warning
 
-"$ROOT/node_modules/.bin/tsc" -p "$DS/tsconfig.json" --noEmit false --declaration --emitDeclarationOnly \
+"$ROOT/node_modules/.bin/tsc" -p "$DS/tsconfig.json" --noEmit false --declaration --emitDeclarationOnly --rootDir "$DS/src/react" \
   --outDir "$PKG/dist/types"
 
 # Autoprefixed token CSS in src/styles.css import order; ../fonts/ urls resolve from css/.
