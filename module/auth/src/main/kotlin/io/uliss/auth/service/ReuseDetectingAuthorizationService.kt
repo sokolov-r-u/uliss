@@ -21,7 +21,8 @@ class ReuseDetectingAuthorizationService(
     private val log = AppLogger.of(ReuseDetectingAuthorizationService::class)
 
     override fun save(authorization: OAuth2Authorization) {
-        val previous = delegate.findById(authorization.id)?.refreshToken?.token?.tokenValue
+        // the stored token only: loading the whole authorization would deserialize its attributes on every save
+        val previous = jdbcTemplate.queryForList(STORED_REFRESH_TOKEN, String::class.java, authorization.id).firstOrNull()
         delegate.save(authorization)
         if (previous != null && previous != authorization.refreshToken?.token?.tokenValue) {
             jdbcTemplate.update(REMEMBER_ROTATED, hash(previous), authorization.id)
@@ -46,5 +47,6 @@ class ReuseDetectingAuthorizationService(
         const val REMEMBER_ROTATED =
             "insert into rotated_refresh_token (token_hash, authorization_id) values (?, ?) on conflict do nothing"
         const val FIND_ROTATED = "select authorization_id from rotated_refresh_token where token_hash = ?"
+        const val STORED_REFRESH_TOKEN = "select refresh_token_value from oauth2_authorization where id = ?"
     }
 }
