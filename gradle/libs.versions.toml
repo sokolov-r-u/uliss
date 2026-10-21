@@ -15,7 +15,7 @@ grpc = "1.80.0"
 protobufPlugin = "0.9.6"
 tomcat-annotations = "6.0.53"
 jib = "3.5.4"
-spring-ai = "2.0.0"
+spring-ai = "2.0.1"
 pgvector = "0.1.6"
 jacoco = "0.8.15"
 
