@@ -6,7 +6,7 @@ import {exchangeCode, LoginRejectedError, retryLoginOnce, takeReturnTo} from '..
 import {Callback} from './Callback'
 
 const syncFromStore = vi.fn()
-vi.mock('../auth/AuthContext', () => ({useAuth: () => ({syncFromStore, logout: vi.fn()})}))
+vi.mock('../auth/AuthContext', () => ({useAuth: () => ({syncFromStore})}))
 vi.mock('../auth/authApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../auth/authApi')>()
     return {...actual, exchangeCode: vi.fn(), login: vi.fn(), retryLoginOnce: vi.fn(), takeReturnTo: vi.fn()}
