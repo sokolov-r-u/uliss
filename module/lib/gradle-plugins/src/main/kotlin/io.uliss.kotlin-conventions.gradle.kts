@@ -31,6 +31,12 @@ repositories {
     mavenCentral()
 }
 
+// CVE fixes over the BOM's versions; project properties, because the Spring Boot plugin re-imports the BOM without
+// mavenBom's bomProperty overrides. Drop at Boot >= 4.1.2 (docs/TECH_DEBT.md).
+extra["tomcat.version"] = libs.findVersion("tomcat").get().requiredVersion
+extra["jackson-bom.version"] = libs.findVersion("jackson").get().requiredVersion
+extra["jackson-2-bom.version"] = libs.findVersion("jackson2").get().requiredVersion
+
 dependencyManagement {
     imports {
         mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootVersion")
