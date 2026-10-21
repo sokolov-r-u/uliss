@@ -1,23 +1,34 @@
-# Weekly update PRs for every dependency source; CI checks each like any other PR.
+# Two monthly PRs: one for CI actions (merge when green), one for every app dependency (review by hand).
 version: 2
+multi-ecosystem-groups:
+  app-dependencies:
+    schedule:
+      interval: monthly
 updates:
   - package-ecosystem: gradle
     directory: /
-    schedule:
-      interval: weekly
+    patterns: ["*"]
+    multi-ecosystem-group: app-dependencies
   - package-ecosystem: npm
     directory: /
-    schedule:
-      interval: weekly
+    patterns: ["*"]
+    multi-ecosystem-group: app-dependencies
   - package-ecosystem: docker
     directories:
       - /module/web
       - /infra/docker/base-jre
-    schedule:
-      interval: weekly
+    patterns: ["*"]
+    multi-ecosystem-group: app-dependencies
+    # Move to the next Java LTS by hand.
+    ignore:
+      - dependency-name: eclipse-temurin
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directories:
       - /
       - /.github/actions/ghcr-login
     schedule:
-      interval: weekly
+      interval: monthly
+    groups:
+      ci-actions:
+        patterns: ["*"]
