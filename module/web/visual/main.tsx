@@ -9,7 +9,6 @@ import './visual.css'
 import {App} from '../src/App'
 import {AuthProvider} from '../src/auth/AuthContext'
 import {setTokens} from '../src/auth/tokenStore'
-import {NotificationProvider} from '../src/notifications/NotificationProvider'
 import {VisualHarness} from './VisualHarness'
 
 const params = new URLSearchParams(location.search)
@@ -24,7 +23,7 @@ if (route) setTokens({accessToken: 'visual', refreshToken: null, expiresAt: Date
 
 createRoot(document.getElementById('root')!).render(<StrictMode>
     {route
-        ? <MemoryRouter initialEntries={[route]}><AuthProvider><NotificationProvider><App/></NotificationProvider>
+        ? <MemoryRouter initialEntries={[route]}><AuthProvider><App/>
         </AuthProvider></MemoryRouter>
         : <MemoryRouter><VisualHarness scenario={params.get('scenario') ?? 'dialog'}/></MemoryRouter>}
 </StrictMode>)

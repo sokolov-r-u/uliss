@@ -207,9 +207,9 @@ Opened 2026-08-31 during the design-system integration refresh
 - **Backend-less product screens ship as empty states.** `/notes`, `/constellations`, `/sky`,
   `/updates`, `/search` (waves 7–10) render only a DS `EmptyState` — there is no notes list,
   tag tree, graph renderer, updates log or search backend. When those land, attach the populated
-  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). Same for the Notice
-  mechanism's `useNotice().confirm` (DS `Dialog`) — wired but has no caller until a
-  delete/summarise action exists.
+  state to the existing `ui/Screen.tsx` shells (don't fabricate mock data). The unused
+  `NotificationProvider`/`useNotice().confirm` was removed on 2026-10-21; confirmations use the
+  item-action dialogs.
 - **Settings: Sky / Account / Language are static.** Only Settings › Appearance
   (`ui/theme.ts`) is functional. Sky settings show inert controls (no renderer to drive),
   Account has no editable fields (`user-service` has no profile read endpoint yet), Language is

@@ -4,7 +4,6 @@ import {BrowserRouter} from 'react-router-dom'
 import '@uliss/design-system/styles.css'
 import './app.css'
 import {AuthProvider} from './auth/AuthContext'
-import {NotificationProvider} from './notifications/NotificationProvider'
 import {applyTheme, readTheme} from './ui/theme'
 import {App} from './App'
 
@@ -15,9 +14,7 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
       <AuthProvider>
-          <NotificationProvider>
-              <App/>
-          </NotificationProvider>
+          <App/>
       </AuthProvider>
     </BrowserRouter>
   </StrictMode>,

@@ -1,4 +1,4 @@
-import {type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
+import {type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
 import {labelLines, nearestStars, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
 import type {SkyPhysics, SkySettings} from './skySettings'
@@ -77,6 +77,8 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const [, repaint] = useReducer((x: number) => x + 1, 0)
     const [reveal, setReveal] = useState<number | null>(null)
     const [namesOpen, setNamesOpen] = useState(false)
+    /** The one star or constellation in the Tab order; arrows move it (roving tabindex, not hundreds of stops). */
+    const [rovingId, setRovingId] = useState<string | null>(null)
     // the mouse over the sky: names the star under it and the ones around it
     const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
     const all = useMemo(() => subgraph(graph, 'full'), [graph])
@@ -365,6 +367,20 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const you = layout?.byId.get(YOU_ID)
     const cx = you ? sx(you) : w / 2
     const nodes = (layout?.nodes ?? []).filter((n) => visible.has(n.id) && shown(n.id))
+    const pickableIds = nodes.filter((n) => n.node.kind !== 'you' && !off(n.node)).map((n) => n.id)
+    const tabStopId = rovingId && pickableIds.includes(rovingId) ? rovingId
+        : selectedId && pickableIds.includes(selectedId) ? selectedId : pickableIds[0]
+    const moveRoving = (event: KeyboardEvent<SVGGElement>, id: string) => {
+        const step = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1
+            : event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 0
+        if (step === 0 || pickableIds.length === 0) return false
+        event.preventDefault()
+        const next = pickableIds[(pickableIds.indexOf(id) + step + pickableIds.length) % pickableIds.length]
+        setRovingId(next)
+        const svg = event.currentTarget.ownerSVGElement
+        requestAnimationFrame(() => svg?.querySelector<SVGGElement>(`[data-node-id="${CSS.escape(next)}"]`)?.focus())
+        return true
+    }
     // the star under the mouse and the ones around it are always named
     const stars = nodes.filter((n) => n.node.kind === 'star')
     const near = pointer && settings.nearCount > 0
@@ -449,10 +465,13 @@ export function SkyCanvas(props: SkyCanvasProps) {
                     const sectors = !mono && settings.mixColours && node.colors.length > 1 ? node.colors : null
                     return <g key={n.id} data-node-id={n.id} className={pickable ? 'sky-node pickable' : 'sky-node'}
                               opacity={dimmed ? isConstellation ? 0.16 : 0.14 : 1}
-                              role={pickable ? 'button' : undefined} tabIndex={pickable ? 0 : undefined}
+                              role={pickable ? 'button' : undefined}
+                              tabIndex={pickable ? n.id === tabStopId ? 0 : -1 : undefined}
+                              onFocus={pickable ? () => setRovingId(n.id) : undefined}
                               aria-label={pickable ? isConstellation ? `Focus on ${node.label}` : node.label : undefined}
                               onClick={pickable ? () => activate(node) : undefined}
                               onKeyDown={pickable ? (event) => {
+                                  if (moveRoving(event, n.id)) return
                                   if (event.key === 'Enter' || event.key === ' ') {
                                       event.preventDefault()
                                       activate(node)

@@ -11,8 +11,23 @@ interface MessageThreadProps {
 
 interface ScrollSnapshot {
     firstMessageId?: string
+    messageCount: number
     scrollHeight: number
     scrollTop: number
+    /** The reader was at the end: a growing reply keeps them there; reading further up stays put. */
+    atBottom: boolean
+}
+
+const BOTTOM_SLACK_PX = 64
+
+function snapshotOf(el: HTMLDivElement, messages: DisplayMessage[]): ScrollSnapshot {
+    return {
+        firstMessageId: messages[0]?.id,
+        messageCount: messages.length,
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+        atBottom: el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_SLACK_PX,
+    }
 }
 
 /** Scrollable message list with an anchored prepend path and tail auto-scrolling. */
@@ -30,24 +45,18 @@ export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder}: 
             : -1
         if (previous && previousFirstIndex > 0) {
             el.scrollTop = previous.scrollTop + el.scrollHeight - previous.scrollHeight
-        } else if (!previous || previousFirstIndex === 0) {
+        } else if (!previous || (previousFirstIndex === 0
+            && (messages.length !== previous.messageCount || previous.atBottom))) {
+            // a new message goes to the end; streamed text follows only a reader who is at the end
             el.scrollTop = el.scrollHeight
         }
-        snapshotRef.current = {
-            firstMessageId: messages[0]?.id,
-            scrollHeight: el.scrollHeight,
-            scrollTop: el.scrollTop,
-        }
+        snapshotRef.current = snapshotOf(el, messages)
     }, [messages.length, lastContentLength])
 
     function handleScroll() {
         const el = containerRef.current
         if (!el) return
-        snapshotRef.current = {
-            firstMessageId: messages[0]?.id,
-            scrollHeight: el.scrollHeight,
-            scrollTop: el.scrollTop,
-        }
+        snapshotRef.current = snapshotOf(el, messages)
         if (el.scrollTop <= 48 && hasMore && !isLoadingOlder) onLoadOlder()
     }
 
