@@ -163,3 +163,24 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reloads its snapshot on it. The mouse on an edge lights up and names its two nodes; how many stars near the pointer
   are named (0–10) and how far (Close · Medium · Wide · Vast) are sky settings.
 - **Source:** task `docs/tasks/2026-10-20-sky.md`, block 8.
+
+## 2026-10-21 — The heavy screens load on first visit
+
+- **Context:** the first page carried the editor, the constellation tree and the sky renderer (1.14 MB).
+- **Decision:** `NoteDetailPage`, `ConstellationsPage` and `SkyPage` are `lazy` routes inside `ui/ScreenLoadBoundary`:
+  "Loading…" while the chunk arrives, and a Reload offer when it cannot (after a deploy an open tab asks for chunk
+  names that are gone), instead of a blank app.
+- **Consequences:** the first bundle is about half the size; the first visit to those screens waits for one chunk.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 22 and the code review round.
+
+## 2026-10-21 — On the sky screen Tab always lands on the graph
+
+- **Context:** the graph sat behind about twenty Tab stops (the side navigation and its lists); a missed star meant
+  going round them all again. A skip link was tried and dropped as no help.
+- **Decision:** the user's choice: on the sky screen Tab and Shift+Tab from anywhere move focus to the graph's single
+  tab stop (roving tabindex, arrows move by direction, Escape leaves Focus and then the star) and do not leave it.
+  Open panels of the sky, an open mobile drawer, dialogs and menus keep their own Tab order; a sky with nothing to
+  pick keeps the normal order.
+- **Consequences:** on the sky screen the side navigation and the controls around the graph are not reachable by
+  keyboard (mouse only), against WCAG 2.1.2 (No Keyboard Trap); revisit when keyboard access to them is needed.
+- **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, manual test rounds 1–3 and the code review round.

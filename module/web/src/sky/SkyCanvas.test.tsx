@@ -146,6 +146,19 @@ describe('SkyCanvas keyboard', () => {
         outside.remove()
     })
 
+    it('keeps the normal Tab order when the sky has nothing to pick', () => {
+        const graph = buildSkyGraph({constellations: [], notes: []})
+        render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null}
+                          settings={DEFAULT_SKY_SETTINGS} physics={skyPhysics(DEFAULT_SKY_SETTINGS)} selectedId={null}
+                          onPickStar={vi.fn()} onFocus={vi.fn()} onExitFocus={vi.fn()} onSettings={vi.fn()}
+                          panelOpen={false} footer={null}/>)
+        const outside = document.body.appendChild(document.createElement('button'))
+        outside.focus()
+
+        expect(tab(outside)).toBe(true)
+        outside.remove()
+    })
+
     it('leaves Tab to an open panel of the sky', () => {
         renderCanvas()
         const panel = document.body.appendChild(document.createElement('aside'))

@@ -1,4 +1,4 @@
-import {lazy, type ReactNode, Suspense, useEffect} from 'react'
+import {lazy, type ReactNode, useEffect} from 'react'
 import {Navigate, Route, Routes} from 'react-router-dom'
 import {useAuth} from './auth/AuthContext'
 import {getTokens} from './auth/tokenStore'
@@ -6,6 +6,7 @@ import {Callback} from './pages/Callback'
 import {SignedOut} from './pages/SignedOut'
 import {Shell} from './ui/Shell'
 import {AppShell} from './ui/AppShell'
+import {ScreenLoadBoundary} from './ui/ScreenLoadBoundary'
 import {ChatListPage} from './chat/ChatListPage'
 import {ChatPage} from './chat/ChatPage'
 import {NotesPage} from './notes/NotesPage'
@@ -22,10 +23,6 @@ const NoteDetailPage = lazy(() => import('./notes/NoteDetailPage').then((m) => (
 const ConstellationsPage = lazy(() =>
     import('./constellations/ConstellationsPage').then((m) => ({default: m.ConstellationsPage})))
 const SkyPage = lazy(() => import('./sky/SkyPage').then((m) => ({default: m.SkyPage})))
-
-function Loading() {
-    return <p className="auth-muted" aria-live="polite">Loading…</p>
-}
 
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
@@ -65,10 +62,10 @@ export function App() {
           <Route path="chats/new" element={<ChatPage newChat/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
           <Route path="notes" element={<NotesPage/>}/>
-          <Route path="notes/:noteId" element={<Suspense fallback={<Loading/>}><NoteDetailPage/></Suspense>}/>
+          <Route path="notes/:noteId" element={<ScreenLoadBoundary><NoteDetailPage/></ScreenLoadBoundary>}/>
           <Route path="search" element={<SearchPage/>}/>
-          <Route path="constellations" element={<Suspense fallback={<Loading/>}><ConstellationsPage/></Suspense>}/>
-          <Route path="sky" element={<Suspense fallback={<Loading/>}><SkyPage/></Suspense>}/>
+          <Route path="constellations" element={<ScreenLoadBoundary><ConstellationsPage/></ScreenLoadBoundary>}/>
+          <Route path="sky" element={<ScreenLoadBoundary><SkyPage/></ScreenLoadBoundary>}/>
           <Route path="updates" element={<UpdatesPage/>}/>
           <Route path="settings" element={<SettingsPage/>}>
               <Route index element={<AppearanceSettings/>}/>

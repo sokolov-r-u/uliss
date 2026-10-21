@@ -181,8 +181,11 @@ export function SkyCanvas(props: SkyCanvasProps) {
             const active = document.activeElement
             const inGraph = active instanceof Element && active.closest('.sky-svg') != null
             if (!inGraph && active instanceof Element && active.closest('.context-panel, .sky-panel, .side-nav.open, [role="dialog"], [role="menu"]')) return
+            // a sky with nothing to pick (all filtered out) keeps the normal Tab order
+            const entry = frameRef.current?.querySelector<SVGGElement>('[data-sky-entry]')
+            if (!entry) return
             event.preventDefault()
-            if (!inGraph) frameRef.current?.querySelector<SVGGElement>('[data-sky-entry]')?.focus()
+            if (!inGraph) entry.focus()
         }
         document.addEventListener('keydown', onKeyDown)
         return () => document.removeEventListener('keydown', onKeyDown)
