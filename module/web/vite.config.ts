@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
       proxy,
     },
     build: {
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           entryFileNames: 'assets/[name].[hash].js',
           chunkFileNames: 'assets/[name].[hash].js',
