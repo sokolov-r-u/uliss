@@ -9,10 +9,38 @@ updates:
     directory: /
     patterns: ["*"]
     multi-ecosystem-group: app-dependencies
+    # Migrations deferred in docs/TECH_DEBT.md ("Deferred dependency migrations"); drop an entry once it is done.
+    ignore:
+      - dependency-name: "org.jetbrains.kotlin*"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: com.google.protobuf:protobuf-gradle-plugin
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
   - package-ecosystem: npm
     directory: /
     patterns: ["*"]
     multi-ecosystem-group: app-dependencies
+    # Migrations deferred in docs/TECH_DEBT.md ("Deferred dependency migrations"); drop an entry once it is done.
+    ignore:
+      - dependency-name: "@playwright/test"
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: esbuild
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: vite
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@vitejs/plugin-react"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      - dependency-name: vitest
+        update-types: ["version-update:semver-major"]
+      - dependency-name: jsdom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@testing-library/jest-dom"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: postcss-cli
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: docker
     directories:
       - /module/web
