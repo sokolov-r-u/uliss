@@ -178,18 +178,20 @@ jobs:
       matrix:
         image: [ auth, user, note, web ]
     steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ github.token }}
+          persist-credentials: false
+
+      # the owner is lowercased there: an image reference with capitals is invalid
+      - name: Log in to GHCR
+        id: ghcr
+        uses: ./.github/actions/ghcr-login
 
       - name: Scan ${{ matrix.image }}
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           # web is pushed only when it changed; latest is then the current image
-          image-ref: ghcr.io/${{ github.repository_owner }}/${{ matrix.image }}:${{ matrix.image == 'web' && 'latest' || github.sha }}
+          image-ref: ${{ steps.ghcr.outputs.registry-path }}/${{ matrix.image }}:${{ matrix.image == 'web' && 'latest' || github.sha }}
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: "1"
