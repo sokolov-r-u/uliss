@@ -79,6 +79,8 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const [namesOpen, setNamesOpen] = useState(false)
     /** The one star or constellation in the Tab order; arrows move it (roving tabindex, not hundreds of stops). */
     const [rovingId, setRovingId] = useState<string | null>(null)
+    /** The node holding keyboard focus is named like the one under the mouse. */
+    const [focusedId, setFocusedId] = useState<string | null>(null)
     // the mouse over the sky: names the star under it and the ones around it
     const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null)
     const all = useMemo(() => subgraph(graph, 'full'), [graph])
@@ -408,7 +410,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
         }
         ends?.forEach((id) => edgeEnds.add(id))
     }
-    const lit = (id: string) => id === hovered || edgeEnds.has(id)
+    const lit = (id: string) => id === hovered || id === focusedId || edgeEnds.has(id)
 
     return (
         <div ref={frameRef} className={props.panelOpen ? 'sky-frame panel-open' : 'sky-frame'}
@@ -469,7 +471,12 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               opacity={dimmed ? isConstellation ? 0.16 : 0.14 : 1}
                               role={pickable ? 'button' : undefined}
                               tabIndex={pickable ? n.id === tabStopId ? 0 : -1 : undefined}
-                              onFocus={pickable ? () => setRovingId(n.id) : undefined}
+                              data-skip-target={pickable && n.id === tabStopId ? '' : undefined}
+                              onFocus={pickable ? () => {
+                                  setRovingId(n.id)
+                                  setFocusedId(n.id)
+                              } : undefined}
+                              onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
                               aria-label={pickable ? isConstellation ? `Focus on ${node.label}` : node.label : undefined}
                               onClick={pickable ? () => activate(node) : undefined}
                               onKeyDown={pickable ? (event) => {
