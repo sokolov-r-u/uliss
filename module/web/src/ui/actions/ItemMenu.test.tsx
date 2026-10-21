@@ -77,13 +77,25 @@ describe('ItemMenu', () => {
         expect(onClose).toHaveBeenCalledOnce()
     })
 
-    it('closes when the page scrolls or resizes under it', () => {
+    it('closes when its anchor scrolls away or the page resizes, not on other scrolls', () => {
         const onClose = vi.fn()
-        render(<ItemMenu anchor={anchorAt({})} label="Actions" actions={actions()} onClose={onClose}/>)
+        const anchor = anchorAt({})
+        const list = document.createElement('div')
+        document.body.appendChild(list)
+        list.appendChild(anchor)
+        const thread = document.body.appendChild(document.createElement('div'))
+        render(<ItemMenu anchor={anchor} label="Actions" actions={actions()} onClose={onClose}/>)
 
-        fireEvent.scroll(document.body)
+        // a chat thread following a streamed reply
+        fireEvent.scroll(thread)
+        expect(onClose).not.toHaveBeenCalled()
+
+        fireEvent.scroll(list)
+        fireEvent.scroll(document)
         fireEvent(window, new Event('resize'))
-        expect(onClose).toHaveBeenCalledTimes(2)
+        expect(onClose).toHaveBeenCalledTimes(3)
+        list.remove()
+        thread.remove()
     })
 
     it('runs the chosen action', () => {

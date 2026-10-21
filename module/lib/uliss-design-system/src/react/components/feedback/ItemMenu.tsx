@@ -68,15 +68,20 @@ export function ItemMenu({anchor, actions, label, onClose}: ItemMenuProps) {
             event.preventDefault()
             list[target]?.focus()
         }
-        // the menu is fixed to where its anchor was: once the page scrolls or resizes it would float apart
+        // the menu is fixed to where its anchor was: once the anchor scrolls or the page resizes it would float apart.
+        // Other scrolls (a chat thread following a streamed reply) leave the anchor in place.
         const close = () => onCloseRef.current()
+        const closeIfAnchorMoved = (event: Event) => {
+            const target = event.target
+            if (target === document || (target instanceof Node && target.contains(anchor))) close()
+        }
         document.addEventListener('keydown', onKeyDown)
         window.addEventListener('resize', close)
-        window.addEventListener('scroll', close, true)
+        window.addEventListener('scroll', closeIfAnchorMoved, true)
         return () => {
             document.removeEventListener('keydown', onKeyDown)
             window.removeEventListener('resize', close)
-            window.removeEventListener('scroll', close, true)
+            window.removeEventListener('scroll', closeIfAnchorMoved, true)
             if (anchor.isConnected) anchor.focus()
         }
     }, [anchor])
