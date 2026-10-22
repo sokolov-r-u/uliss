@@ -154,6 +154,36 @@ describe('SkyPage', () => {
         expect(screen.getByRole('button', {name: 'Loose thought'})).toBeInTheDocument()
     })
 
+    it('shows a note found in the filter: its main constellation, its star in Full and its panel', async () => {
+        renderSky()
+        await userEvent.click(await screen.findByRole('button', {name: 'Skeleton'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Filter by constellation'}))
+
+        // a sub-note lives where its top note lives
+        await userEvent.type(screen.getByRole('textbox', {name: 'Find a constellation or a note'}), 'low')
+        await userEvent.click(screen.getByRole('button', {name: 'Show Low'}))
+
+        expect(screen.getByRole('button', {name: /· Music/})).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Full'})).toHaveAttribute('aria-pressed', 'true')
+        const panel = screen.getByRole('complementary', {name: 'Note'})
+        expect(within(panel).getByRole('heading', {name: 'Low'})).toBeInTheDocument()
+    })
+
+    it('shows the whole sky for a note found in the filter without a constellation', async () => {
+        renderSky()
+        await userEvent.click(await screen.findByRole('button', {name: 'Filter by constellation'}))
+        await userEvent.click(screen.getByRole('button', {name: /^Music/}))
+        await userEvent.click(screen.getByRole('button', {name: 'Show Music'}))
+
+        await userEvent.click(screen.getByRole('button', {name: 'Filter by constellation'}))
+        await userEvent.type(screen.getByRole('textbox', {name: 'Find a constellation or a note'}), 'loose')
+        await userEvent.click(screen.getByRole('button', {name: 'Show Loose thought'}))
+
+        expect(screen.queryByRole('button', {name: /· Music/})).not.toBeInTheDocument()
+        expect(within(screen.getByRole('complementary', {name: 'Note'}))
+            .getByRole('heading', {name: 'Loose thought'})).toBeInTheDocument()
+    })
+
     it('opens the settings in the panel slot instead of a star, and a change is remembered', async () => {
         renderSky()
         await userEvent.click(await star('Bowie'))
