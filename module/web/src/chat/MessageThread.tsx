@@ -7,6 +7,9 @@ interface MessageThreadProps {
     hasMore: boolean
     isLoadingOlder: boolean
     onLoadOlder: () => void
+    /** The failed or interrupted latest reply the user may regenerate. */
+    retryableId?: string
+    onRetry?: () => void
 }
 
 interface ScrollSnapshot {
@@ -31,7 +34,7 @@ function snapshotOf(el: HTMLDivElement, messages: DisplayMessage[]): ScrollSnaps
 }
 
 /** Scrollable message list with an anchored prepend path and tail auto-scrolling. */
-export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder}: MessageThreadProps) {
+export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder, retryableId, onRetry}: MessageThreadProps) {
     const containerRef = useRef<HTMLDivElement>(null)
     const snapshotRef = useRef<ScrollSnapshot | null>(null)
     const lastContentLength = messages.at(-1)?.content.length ?? 0
@@ -73,7 +76,7 @@ export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder}: 
                     body="Write a thought below. Uliss keeps the thread and pulls out a note when one is worth keeping."
                 />
             ) : (
-                messages.map((m) => <Bubble key={m.id} {...m} />)
+                messages.map((m) => <Bubble key={m.id} {...m} onRetry={m.id === retryableId ? onRetry : undefined}/>)
             )}
         </div>
     )

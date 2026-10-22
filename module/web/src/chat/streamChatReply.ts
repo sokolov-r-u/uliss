@@ -1,5 +1,6 @@
 /**
- * Drives the streaming reply endpoints (`POST /note/chats` and `POST /note/chats/{id}/messages`). Native
+ * Drives the streaming reply endpoints (`POST /note/chats`, `POST /note/chats/{id}/messages` and
+ * `POST /note/chats/{id}/turns/{turnId}/retry`). Native
  * `EventSource` can't send the Bearer header, so this goes through `authFetch` + `response.body`
  * fed into the generic `parseSseStream` (see lib/sse.ts). `AuthRequiredError`/`AbortError` (from
  * `opts.signal`) propagate to the caller unchanged — this module only interprets the SSE protocol.
@@ -42,7 +43,18 @@ export async function streamAssistantReply(
     idempotencyKey: string,
     opts: StreamOptions,
 ): Promise<StreamOutcome> {
-    return streamReply(`/note/chats/${segment(chatId)}/messages`, content, idempotencyKey, opts)
+    return streamReply(`/note/chats/${segment(chatId)}/messages`, {content, idempotencyKey}, opts)
+}
+
+/** Regenerates the failed or interrupted reply [messageId] of turn [turnId] in place; the same events follow. */
+export async function streamRetriedReply(
+    chatId: string,
+    turnId: string,
+    messageId: string,
+    opts: StreamOptions,
+): Promise<StreamOutcome> {
+    const query = new URLSearchParams({messageId})
+    return streamReply(`/note/chats/${segment(chatId)}/turns/${segment(turnId)}/retry?${query}`, {}, opts)
 }
 
 export async function streamInitialAssistantReply(
@@ -50,7 +62,7 @@ export async function streamInitialAssistantReply(
     idempotencyKey: string,
     opts: StreamOptions & { onChatId: (chatId: string) => void },
 ): Promise<StreamOutcome> {
-    return streamReply('/note/chats', content, idempotencyKey, opts)
+    return streamReply('/note/chats', {content, idempotencyKey}, opts)
 }
 
 /**
@@ -70,22 +82,21 @@ function appendText(data: string): string {
     return data
 }
 
+/** A send carries its text and key; a retry has neither. */
 async function streamReply(
     path: string,
-    content: string,
-    idempotencyKey: string,
+    send: { content?: string, idempotencyKey?: string },
     opts: StreamOptions & { onChatId?: (chatId: string) => void },
 ): Promise<StreamOutcome> {
+    // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
+    // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
+    const headers: Record<string, string> = {'Accept': 'text/event-stream'}
+    if (send.content !== undefined) headers['Content-Type'] = 'application/json'
+    if (send.idempotencyKey !== undefined) headers['Idempotency-Key'] = send.idempotencyKey
     const res = await authFetch(path, {
         method: 'POST',
-        // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
-        // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/event-stream',
-            'Idempotency-Key': idempotencyKey,
-        },
-        body: JSON.stringify({content}),
+        headers,
+        body: send.content === undefined ? undefined : JSON.stringify({content: send.content}),
         signal: opts.signal,
     })
     if (!res.ok) throw new ChatStreamHttpError(res.status)
