@@ -307,7 +307,9 @@ class ChatControllerTest {
             content {
                 string(
                     Matchers.startsWith(
-                        "event:activity\ndata:SEARCHING_NOTES\n\nevent:activity\ndata:THINKING\n\nevent:append\n",
+                        // the opening heartbeat sends the response headers before the model's first event
+                        ":keepalive\n\nevent:activity\ndata:SEARCHING_NOTES\n\nevent:activity\ndata:THINKING\n\n" +
+                            "event:append\n",
                     ),
                 )
             }

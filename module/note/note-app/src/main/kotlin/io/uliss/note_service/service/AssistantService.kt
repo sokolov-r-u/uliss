@@ -20,11 +20,15 @@ import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.openai.OpenAiChatOptions
 import org.springframework.stereotype.Service
+import reactor.core.Disposable
+import reactor.core.Disposables
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
 import reactor.core.publisher.Sinks
 import reactor.core.scheduler.Schedulers
+import java.time.Duration
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 
 @Service
 class AssistantService(
@@ -34,6 +38,9 @@ class AssistantService(
     private val notesSearchProperties: NotesSearchProperties,
 ) {
     private val log = AppLogger.of(AssistantService::class)
+
+    /** Generations running on this instance, so canceling a turn stops its provider call instead of waiting it out. */
+    private val activeGenerations = ConcurrentHashMap<UUID, Disposable>()
 
     /** [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. */
     fun streamReply(
@@ -47,7 +54,7 @@ class AssistantService(
             is ChatTurnRequestResolution.StartGeneration ->
                 AssistantReplyStream(
                     resolution.turn.id,
-                    streamNewGeneration(resolution, noteSearch),
+                    detached(resolution.turn.id, streamNewGeneration(resolution, noteSearch)),
                     resolution.turn.chatId,
                 )
 
@@ -69,6 +76,28 @@ class AssistantService(
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
         chatTurnService.cancelTurn(userId, chatId, turnId)
+        activeGenerations[turnId]?.dispose()
+    }
+
+    /**
+     * Starts [generation] on the first subscription and runs it to its end on its own: a client that leaves (a reload,
+     * a phone suspending the tab) does not cancel it, so the turn ends by the provider's outcome, not the connection's.
+     * The subscriber gets the events while it listens; only [cancelTurn] stops the generation early.
+     */
+    private fun detached(turnId: UUID, generation: Flux<AssistantStreamEvent>): Flux<AssistantStreamEvent> = Flux.defer {
+        val events = Sinks.many().unicast().onBackpressureBuffer<AssistantStreamEvent>()
+        val subscription = Disposables.swap()
+        activeGenerations[turnId] = subscription
+        subscription.update(
+            generation
+                .doOnCancel {
+                    events.emitNext(AssistantStreamEvent.GenerationFailed(ChatTurnStatus.CANCELED), EMIT_RETRY)
+                    events.emitComplete(EMIT_RETRY)
+                }
+                .doFinally { activeGenerations.remove(turnId, subscription) }
+                .subscribe(events::tryEmitNext, events::tryEmitError, events::tryEmitComplete)
+        )
+        events.asFlux()
     }
 
     private fun streamNewGeneration(
@@ -215,4 +244,9 @@ class AssistantService(
                 ChatMessageRole.ASSISTANT -> AssistantMessage(it.content)
             }
         }
+
+    private companion object {
+        /** A cancel can race the generation's last event on another thread; the sink must not drop its outcome. */
+        val EMIT_RETRY: Sinks.EmitFailureHandler = Sinks.EmitFailureHandler.busyLooping(Duration.ofMillis(100))
+    }
 }

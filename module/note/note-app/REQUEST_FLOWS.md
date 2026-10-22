@@ -238,8 +238,13 @@ Important behavior:
   reconciles the durable assistant message from chat history.
 - The SPA uses `Chat-Turn-Id` for history reconciliation and cancellation. It uses the client key
   only to retry the same unresolved send.
-- Provider completion becomes `COMPLETE`. An interruption after some text becomes `PARTIAL`; an
-  interruption before any text becomes `FAILED`.
+- Provider completion becomes `COMPLETE`. A provider interruption after some text becomes `PARTIAL`; one
+  before any text becomes `FAILED`.
+- The generation starts with the first subscription to the stream and then runs on its own: a client that
+  disconnects (a reload, a phone suspending the tab) does not change the turn's outcome. It finds the reply by
+  repeating its request with the same key (`pending`, then history) or by reading history.
+- Every stream opens with a `:keepalive` comment, so the response headers (`Chat-Turn-Id`) reach the client before
+  the model's first event.
 
 ### Chat turn states
 
@@ -288,9 +293,9 @@ sequenceDiagram
     HC -->> C: 204 No Content
 ```
 
-The cancellation changes durable state; it does not directly terminate the provider's network
-request. Attempt fencing prevents a provider result that arrives later from changing the canceled
-turn.
+The cancellation changes durable state and then stops the turn's generation if it runs on this instance; its
+stream ends with `error: CANCELED`. Attempt fencing prevents a provider result that arrives later (a generation on
+another instance) from changing the canceled turn.
 
 ## Asynchronous chat summary request
 

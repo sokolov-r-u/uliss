@@ -454,3 +454,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   so the model judges a topic change from the text alone and loses earlier fragments on later turns. If the model
   still skips the search, the next step is a search before the first message of a topic in code.
 - **Source:** task `docs/tasks/2026-10-22-chat-prompt-contribution.md`.
+
+## 2026-10-22 — A chat reply does not depend on the client's connection
+
+- **Context:** a phone suspended the tab nine seconds into a reply, while the model was still choosing a notes
+  search. The disconnect cancelled the reply `Flux`, `usingWhen` saved the turn as `FAILED`, and the reloaded page
+  showed "failed to reply". The client also never got `Chat-Turn-Id`: Spring MVC 7 commits the response headers only
+  with the first SSE record, and nothing was sent before the model's first event.
+- **Decision:** `AssistantService` starts a generation on the first subscription and runs it to its end on its own
+  subscription; the HTTP stream reads its events from a unicast sink, and a subscriber that leaves no longer cancels
+  it. `cancelTurn` disposes the generation running on this instance after the turn is `CANCELED`, so Stop still
+  ends the provider call. `withHeartbeat` sends its first comment at once, so every SSE stream (chat, ai-edit,
+  status) commits its headers immediately.
+- **Consequences:** the outcome of a turn comes only from the provider stream (or a cancel, or an expired lease). A
+  cancel reaches only the instance that runs the generation; another instance's generation is still fenced out. SSE
+  streams begin with `:keepalive`.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 1.

@@ -36,6 +36,7 @@ import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.model.Generation
 import org.springframework.ai.openai.OpenAiChatOptions
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Sinks
 import reactor.test.StepVerifier
 import java.time.Duration
 import java.time.Instant
@@ -377,6 +378,64 @@ class AssistantServiceTest {
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
             .expectNext(AssistantStreamEvent.GenerationPending(60_000))
             .verifyComplete()
+    }
+
+    private fun startGeneration(userId: UUID, chatId: UUID, turnId: UUID, provider: Flux<ChatResponse>) {
+        val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
+        mockRequestChain()
+        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "hi")).thenReturn(
+            ChatTurnRequestResolution.StartGeneration(
+                turn(userId, chatId, turnId, ChatTurnStatus.GENERATING),
+                history(chatId, turnId),
+            )
+        )
+        Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
+        Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(provider)
+    }
+
+    @Test
+    fun `a client leaving the stream does not stop the reply, which is saved COMPLETE`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val provider = Sinks.many().unicast().onBackpressureBuffer<String>()
+        startGeneration(userId, chatId, turnId, provider.asFlux().map { ChatResponse(listOf(Generation(AssistantMessage(it)))) })
+        Mockito.`when`(
+            chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Half and the rest", ChatTurnStatus.COMPLETE)
+        ).thenReturn(true)
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
+            .then { provider.tryEmitNext("Half") }
+            .expectNext(AssistantStreamEvent.AppendText("Half"))
+            .thenCancel()
+            .verify()
+        provider.tryEmitNext(" and the rest")
+        provider.tryEmitComplete()
+
+        Mockito.verify(chatTurnService, Mockito.timeout(5_000))
+            .finishGenerationAttempt(userId, chatId, turnId, 1, "Half and the rest", ChatTurnStatus.COMPLETE)
+        Mockito.verify(chatTurnService, Mockito.never())
+            .finishGenerationAttempt(userId, chatId, turnId, 1, "Half", ChatTurnStatus.PARTIAL)
+    }
+
+    @Test
+    fun `canceling a turn stops its generation and ends its stream as canceled`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val providerCanceled = CountDownLatch(1)
+        startGeneration(userId, chatId, turnId, Flux.never<ChatResponse>().doOnCancel { providerCanceled.countDown() })
+        Mockito.`when`(chatTurnService.cancelTurn(userId, chatId, turnId))
+            .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.CANCELED))
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
+            .expectSubscription()
+            .then { assistantService.cancelTurn(userId, chatId, turnId) }
+            .expectNext(AssistantStreamEvent.GenerationFailed(ChatTurnStatus.CANCELED))
+            .expectComplete()
+            .verify(Duration.ofSeconds(5))
+
+        assertTrue(providerCanceled.await(5, TimeUnit.SECONDS))
     }
 }
 
