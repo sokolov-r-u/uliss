@@ -5,6 +5,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
+import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -15,6 +16,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
@@ -41,13 +43,19 @@ class NoteSummaryUpdateRequestedHandlerTest {
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteSummaryService::class.java)
+    private val hierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val properties = NoteSummaryProperties(retrievalQueryMaxChars = 400, retrievalTopK = 3, retrievalMinSimilarity = 0.75)
     private val clock = Clock.fixed(Instant.parse("2026-10-08T23:30:00Z"), ZoneOffset.UTC)
     private val handler = NoteSummaryUpdateRequestedHandler(
-        objectMapper, chatClient, chatService, ragService, noteService, properties, clock,
+        objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, properties, clock,
     )
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
     private val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
+
+    init {
+        Mockito.`when`(hierarchyService.getPlaceDescription(anyValue(), anyValue()))
+            .thenReturn(NotePlaceDescription(emptyList(), emptyList()))
+    }
 
     @Test
     fun `handle sends the note and only the new messages, excludes the note from RAG and applies the addendum`() {
@@ -56,6 +64,8 @@ class NoteSummaryUpdateRequestedHandlerTest {
         stubContext(payload, "Rather by train")
         Mockito.`when`(noteService.findReadyNote(payload.userId, payload.noteId)).thenReturn(note)
         stubModel(NoteAddendumDraft(false, "Go by night train.", emptyList()))
+        Mockito.`when`(hierarchyService.getPlaceDescription(payload.userId, payload.noteId))
+            .thenReturn(NotePlaceDescription(emptyList(), listOf("Italy")))
 
         handler.handle(event(payload))
 
@@ -65,6 +75,7 @@ class NoteSummaryUpdateRequestedHandlerTest {
         val userPrompt = Mockito.mockingDetails(requestSpec).invocations.single { it.method.name == "user" }
             .arguments[0] as String
         assertTrue(userPrompt.contains("EXISTING NOTE (already written; do not repeat):\nTitle: Trip\nFly to Rome."))
+        assertTrue(userPrompt.contains("Constellations: none\nParent notes: \"Italy\""))
         val systemPrompt = Mockito.mockingDetails(requestSpec).invocations.single { it.method.name == "system" }
             .arguments[0] as String
         assertEquals(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT, systemPrompt)

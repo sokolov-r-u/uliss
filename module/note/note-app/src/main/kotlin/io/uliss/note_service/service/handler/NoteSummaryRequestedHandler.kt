@@ -9,6 +9,7 @@ import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.util.ChatPrompts
@@ -26,6 +27,7 @@ class NoteSummaryRequestedHandler(
     private val chatService: ChatService,
     private val ragService: RagService,
     private val noteSummaryService: NoteSummaryService,
+    private val noteHierarchyService: NoteHierarchyService,
     private val properties: NoteSummaryProperties,
 ) : OutboxHandler {
 
@@ -45,6 +47,8 @@ class NoteSummaryRequestedHandler(
         } catch (_: NotFoundException) {
             throw NonRetryableOutboxException("chat id=${payload.chatId} was deleted before note id=${payload.noteId}")
         }
+        // read now, not at request time: the user may have moved the note while the event waited
+        val place = noteHierarchyService.getPlaceDescription(payload.userId, payload.noteId)
         val relatedChunks = ragService.search(
             userId = payload.userId,
             query = SummaryRetrievalQuery.build(context, properties.retrievalQueryMaxChars),
@@ -53,7 +57,7 @@ class NoteSummaryRequestedHandler(
         )
         val draft: NoteDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, relatedChunks))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

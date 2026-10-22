@@ -5,6 +5,7 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteDraft
+import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -13,6 +14,7 @@ import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
@@ -39,6 +41,7 @@ class NoteSummaryRequestedHandlerTest {
     private val chatService = Mockito.mock(ChatService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteSummaryService::class.java)
+    private val hierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val properties = NoteSummaryProperties(
         retrievalQueryMaxChars = 400,
         retrievalTopK = 3,
@@ -52,12 +55,15 @@ class NoteSummaryRequestedHandlerTest {
         chatService,
         ragService,
         noteService,
+        hierarchyService,
         properties,
     )
 
     init {
         // the placeholder still waits for its summary unless a test says otherwise
         Mockito.`when`(noteService.isAwaitingSummary(anyValue(), anyValue())).thenReturn(true)
+        Mockito.`when`(hierarchyService.getPlaceDescription(anyValue(), anyValue()))
+            .thenReturn(NotePlaceDescription(emptyList(), emptyList()))
     }
 
     @Test
@@ -91,6 +97,9 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteDraft::class.java), anyValue()))
             .thenReturn(NoteDraft("Ownership columns", "  Final summary  ", null))
 
+        Mockito.`when`(hierarchyService.getPlaceDescription(payload.userId, payload.noteId))
+            .thenReturn(NotePlaceDescription(listOf(listOf("Code", "Databases")), emptyList()))
+
         handler.handle(event(payload))
 
         val searchInvocation = Mockito.mockingDetails(ragService).invocations.single { it.method.name == "search" }
@@ -108,6 +117,9 @@ class NoteSummaryRequestedHandlerTest {
             .arguments[0] as String
         assertTrue(userPrompt.contains("CURRENT CHAT (authoritative)"))
         assertTrue(userPrompt.contains("The user prefers explicit ownership columns."))
+        assertTrue(
+            userPrompt.contains("NOTE PLACE (the user's own organization of notes):\nConstellations: Code / Databases")
+        )
         val systemPrompt = Mockito.mockingDetails(requestSpec).invocations
             .single { it.method.name == "system" }
             .arguments[0] as String
@@ -288,7 +300,7 @@ class NoteSummaryRequestedHandlerTest {
 
         handler.handle(event(payload))
 
-        Mockito.verifyNoInteractions(chatClient, ragService, chatService)
+        Mockito.verifyNoInteractions(chatClient, ragService, chatService, hierarchyService)
     }
 
     private fun payload() = NoteSummaryRequestedPayload(
