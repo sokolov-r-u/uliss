@@ -1,3 +1,4 @@
+import org.gradle.api.tasks.testing.logging.TestExceptionFormat
 import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
@@ -33,7 +34,10 @@ repositories {
 
 // CVE fixes over the BOM's versions; project properties, because in the apps the Spring Boot plugin re-imports the BOM
 // without mavenBom's bomProperty overrides. Drop when Boot manages these versions or newer (docs/TECH_DEBT.md).
-check(springBootVersion == "4.1.1") { "Spring Boot changed: review the Tomcat/Jackson overrides (docs/TECH_DEBT.md)" }
+// Kotlin in the catalog equals the BOM's kotlin.version and moves only with Boot (docs/DECISIONS.md).
+check(springBootVersion == "4.1.1") {
+    "Spring Boot changed: review the Tomcat/Jackson overrides (docs/TECH_DEBT.md) and set kotlin to the BOM's kotlin.version"
+}
 extra["tomcat.version"] = libs.findVersion("tomcat").get().requiredVersion
 extra["jackson-bom.version"] = libs.findVersion("jackson").get().requiredVersion
 extra["jackson-2-bom.version"] = libs.findVersion("jackson2").get().requiredVersion
@@ -60,6 +64,13 @@ tasks.withType<KotlinCompile>().configureEach {
             "-Xannotation-default-target=param-property",
             "-Xmulti-dollar-interpolation",
         )
+    }
+}
+
+// a CI failure shows expected/actual in the log; the runner keeps no test reports
+tasks.withType<Test>().configureEach {
+    testLogging {
+        exceptionFormat = TestExceptionFormat.FULL
     }
 }
 

@@ -26,6 +26,6 @@ export default defineConfig({
     build: {
         outDir: path.resolve(webRoot, 'visual-dist'),
         emptyOutDir: true,
-        rollupOptions: {input: path.resolve(webRoot, 'visual/index.html')},
+        rolldownOptions: {input: path.resolve(webRoot, 'visual/index.html')},
     },
 })

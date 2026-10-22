@@ -10,6 +10,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import java.sql.Timestamp
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -54,12 +55,12 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
         val chatId = startChat(userId, "Chat")
         val key = UUID.randomUUID()
         chatFacade.streamReply(userId, chatId, key, "Follow-up")
-        val past = Instant.now().minus(Duration.ofHours(1))
+        val past = anHourAgo()
         setActivity(chatId, past)
 
         chatFacade.streamReply(userId, chatId, key, "Follow-up")
 
-        assertEquals(past.toEpochMilli(), activity(chatId).toEpochMilli())
+        assertEquals(past, activity(chatId))
     }
 
     @Test
@@ -92,19 +93,19 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
         val chatId = startChat(userId, "Chat")
         val key = UUID.randomUUID()
         chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null)
-        val past = Instant.now().minus(Duration.ofHours(1))
+        val past = anHourAgo()
         setActivity(chatId, past)
 
         chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null)
 
-        assertEquals(past.toEpochMilli(), activity(chatId).toEpochMilli())
+        assertEquals(past, activity(chatId))
     }
 
     @Test
     fun `activity is newer than the backdated value after a message`() {
         val userId = UUID.randomUUID()
         val chatId = startChat(userId, "Chat")
-        val past = Instant.now().minus(Duration.ofHours(1))
+        val past = anHourAgo()
         setActivity(chatId, past)
 
         chatFacade.streamReply(userId, chatId, UUID.randomUUID(), "Follow-up")
@@ -126,6 +127,9 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
         setActivity(target, Instant.now().minus(Duration.ofHours(2)))
         setActivity(other, Instant.now().minus(Duration.ofHours(1)))
     }
+
+    /** Postgres keeps microseconds and rounds finer instants, which can move them into the next millisecond. */
+    private fun anHourAgo(): Instant = Instant.now().minus(Duration.ofHours(1)).truncatedTo(ChronoUnit.MICROS)
 
     private fun setActivity(chatId: UUID, at: Instant) {
         jdbcTemplate.update("UPDATE note.chat SET updated_at = ? WHERE id = ?", Timestamp.from(at), chatId)

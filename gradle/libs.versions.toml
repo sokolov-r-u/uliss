@@ -14,9 +14,9 @@ wiremock = "3.13.2"
 jqwik = "1.10.2"
 
 # protoc and the gRPC codegen plugin: keep equal to protobuf-java and grpc-* in the Spring Boot BOM (runtime)
-protobuf = "4.34.2"
-grpc = "1.80.0"
-protobufPlugin = "0.9.6"
+protobuf = "4.35.1"
+grpc = "1.83.1"
+protobufPlugin = "0.10.0"
 tomcat-annotations = "6.0.53"
 jib = "3.5.4"
 spring-ai = "2.0.1"

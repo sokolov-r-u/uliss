@@ -681,19 +681,14 @@ settings) if users miss their bearings.
 
 ## Deferred dependency migrations
 
-**Status:** deferred 2026-10-21 from the first grouped Dependabot PR. They are not ignored in
-`.github/dependabot.yml`: the monthly review reverts each one in the bot branch until its migration is done.
+**Status:** deferred 2026-10-21 from the first grouped Dependabot PR; all but Kotlin done in
+`docs/tasks/2026-10-21-dependency-majors.md`. Not ignored in `.github/dependabot.yml`: the monthly review reverts it
+in the bot branch.
 
-- **Kotlin 2.3 → 2.4.** Every `compileKotlin` failed with `getPluginClasspaths() is null`; check what Spring Boot 4.1
-  supports first. Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
-- **protobuf-gradle-plugin 0.9 → 0.10.** A 0.x minor may break the `user-api` build; move it with or after Kotlin.
-- **Vite 6 → 8 with `@vitejs/plugin-react` 4 → 6.** Plugin 6 does not type-check against Vite 6; both move together.
-  Task `docs/tasks/2026-10-21-vite-upgrade.md`.
-- **Playwright 1.62 → 1.64.** `@playwright/test` and the `mcr.microsoft.com/playwright` image in `pr-checks.yml`
-  must match, and visual snapshots may need a refresh. Task `docs/tasks/2026-10-21-playwright-upgrade.md`.
-- **Web toolchain majors:** TypeScript 7, Vitest 5, jsdom 30, `@testing-library/jest-dom` 7, esbuild 0.28,
-  `@types/node` 26, `postcss-cli` 12. The design-system checks passed with them; `@uliss/web` was not reached.
-  Task `docs/tasks/2026-10-21-web-toolchain-majors.md`.
+- **Kotlin 2.3 → 2.4, together with Spring Boot 4.2.** Kotlin follows the BOM's `kotlin.version` (`docs/DECISIONS.md`).
+  The 2.4 attempt failed every `compileKotlin` with `getPluginClasspaths() is null`, likely because
+  `io.spring.dependency-management` forces the BOM's 2.3.21 onto the Build Tools API classpath (not verified). Move
+  Kotlin when a stable Boot manages 2.4 (4.2.0-M2 has 2.4.20). Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
 
 ## Tomcat and Jackson pinned over the Spring Boot BOM (`gradle-plugins`)
 

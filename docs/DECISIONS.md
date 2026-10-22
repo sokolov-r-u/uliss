@@ -178,3 +178,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (`25.0.4.1_1`) instead of republishing new content under the old one.
 - **Consequences:** Dependabot bumps only the `FROM` line; the tag is updated by hand in the same PR.
 - **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 2.
+
+## 2026-10-21 — Kotlin follows the Spring Boot BOM
+
+- **Context:** Dependabot's Kotlin 2.4 update failed every `compileKotlin` with `getPluginClasspaths() is null`.
+  Likely cause (not verified): `io.spring.dependency-management` applies the BOM's `kotlin.version` (2.3.21 in Boot
+  4.1.1) to every configuration, including the Build Tools API classpath, so KGP 2.4 runs a 2.3 compiler.
+- **Decision:** `kotlin` in `gradle/libs.versions.toml` equals `kotlin.version` of the Spring Boot BOM and changes only
+  together with Spring Boot. Kotlin 2.4 waits for a stable Boot that manages it (expected 4.2). The Boot version check
+  in `io.uliss.kotlin-conventions` reminds of it; `.github/dependabot.yml` is unchanged and its Kotlin updates are
+  reverted in the monthly review.
+- **Source:** task `docs/tasks/2026-10-21-dependency-majors.md`, block 2.

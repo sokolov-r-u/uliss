@@ -91,8 +91,8 @@ jobs:
   visual-checks:
     runs-on: ubuntu-latest
     container:
-      # keep in step with @playwright/test in module/web/package.json (scripts/playwright-docker.sh reads it there)
-      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      # equal to @playwright/test in module/web/package.json (scripts/playwright-docker.sh reads it there); checked below
+      image: mcr.microsoft.com/playwright:v1.64.1-noble
       options: --ipc=host
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -104,6 +104,14 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
+
+      - name: Check the Playwright image matches @playwright/test
+        run: |
+          expected="mcr.microsoft.com/playwright:v$(node -p "require('./module/web/package.json').devDependencies['@playwright/test']")-noble"
+          if ! grep -qF "image: $expected" .github/workflows/pr-checks.yml; then
+            echo "::error file=.github/workflows/pr-checks.yml::visual-checks image must be $expected"
+            exit 1
+          fi
 
       - run: npm ci
 

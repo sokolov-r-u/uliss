@@ -13,9 +13,9 @@
   Permission denied`). Validate/capture/resync are excluded via `sandbox.excludedCommands` in
   `.claude/settings.local.json`
   (user-owned). The exclusion only matches a bare command from the repo root — no `cd ... &&`, no pipes.
-- Repo playwright 1.62.1 pins chromium build 1234, which is cached in `~/Library/Caches/ms-playwright`; `.ds-sync`
-  installs
-  the same version.
+- `.ds-sync` pins `playwright` to the repo's `@playwright/test` version (`module/web/package.json`), so its Chromium
+  build is the one cached in `~/Library/Caches/ms-playwright`; reinstall `.ds-sync` before a sync when that version
+  changed.
 - The DS is dark-only and assumes the host body from `module/web/src/app.css` (`--bg` ground, `--cream` text,
   `--font-text`, token focus ring). Preview cards hard-code `body{background:#fff}`, so every authored preview wraps its
   cells in `.design-sync/preview-kit/Ground.tsx`. The conventions header tells the design agent to set the same body.
@@ -36,4 +36,4 @@
 - `Ground.tsx` mirrors `app.css` body/focus rules by hand; if the app base changes, update it and the conventions
   header together. Edits to `Ground.tsx` do not re-key grades — recapture affected components deliberately.
 - Constellation previews use hand-picked `oklch(0.62 0.11 <hue>)` colours, not the app's colour function.
-- Converter deps in `.ds-sync/` were installed from the npm registry (playwright pinned to the repo's 1.62.1).
+- Converter deps in `.ds-sync/` were installed from the npm registry (playwright pinned to the repo's `@playwright/test` version).
