@@ -1,4 +1,4 @@
-/* Loading or failed tree in the Summarize place sheet (constellations/SummaryPlaceField.tsx) */
+/* Loading or failed tree in the Summarize dialog's place step (constellations/SummaryPlacePicker.tsx) */
 .summary-place-state {
     display: flex;
     flex-wrap: wrap;

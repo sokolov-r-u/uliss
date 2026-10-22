@@ -76,3 +76,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   upward opening.
 - **Consequences:** public props changed (`fill`); a Claude Design sync is due after merge.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, manual check.
+
+## 2026-10-22 — Choosing a place is a step of the same Notice
+
+- **Context:** the user's UI check: a separate sheet over the Summarize dialog looked like a jump between two windows
+  of different sizes and styles.
+- **Decision:** `Notice` takes `step`: a second step drawn in the same card over the first, which stays hidden and
+  inert to hold the size; the corner button becomes Back and Escape steps back. `PlaceField` is only the line: it
+  asks the host to open the picker (`onOpen`, `open`) and takes the focus back when the step closes. `useFocusTrap`
+  skips inert content. Replaces the sheet of "PlaceField opens a sheet instead of a dropdown"; `fill` stays and now
+  fills the step.
+- **Consequences:** `PlaceField` props changed (no `children`), `Notice` gained `step`; a Claude Design sync is due
+  after merge.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, manual check 2.

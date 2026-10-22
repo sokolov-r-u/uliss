@@ -1031,8 +1031,8 @@ describe('ChatPage summary place picker', () => {
         return screen.getByRole('dialog', {name: 'Create a summary note?'})
     }
 
-    /** The place sheet: a portal of its own over the dialog. */
-    const sheet = () => within(screen.getByRole('dialog', {name: 'Place'}))
+    /** The dialog's "Choose a place" step. */
+    const sheet = () => within(screen.getByRole('dialog', {name: 'Choose a place'}))
 
     async function openPlace(dialog: HTMLElement) {
         await userEvent.click(within(dialog).getByRole('button', {name: /^Place:/}))
@@ -1080,7 +1080,7 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.click(screen.getByRole('button', {name: 'Summarize'}))
         const again = screen.getByRole('dialog', {name: 'Create a summary note?'})
-        // the first Escape only folds the open place field
+        // the first Escape only steps back from choosing a place
         await openPlace(again)
         await userEvent.keyboard('{Escape}')
         expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
@@ -1148,6 +1148,8 @@ describe('ChatPage summary place picker', () => {
         expect(await screen.findByText('Could not load the constellations.')).toBeInTheDocument()
         await userEvent.click(sheet().getByRole('button', {name: 'Retry'}))
         expect(await screen.findByRole('button', {name: /^Music/})).toBeInTheDocument()
+        await userEvent.click(sheet().getByRole('button', {name: 'Back'}))
+        expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'})).toHaveFocus()
 
         await userEvent.click(summarizeInDialog())
         await waitFor(() => expect(mockedSummary)

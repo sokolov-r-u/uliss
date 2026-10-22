@@ -47,6 +47,11 @@ export interface NoticeProps {
     busy?: boolean
     showClose?: boolean
     width?: number
+    /**
+     * A second step of the same question drawn in the same card at the same size: its title and content cover the
+     * first step, which stays (hidden, inert) only to hold the size. Its corner button and Escape call `onBack`.
+     */
+    step?: { title: ReactNode; children: ReactNode; onBack: () => void }
 }
 
 export function Notice({
@@ -68,8 +73,10 @@ export function Notice({
                            busy = false,
                            showClose = false,
                            width = 304,
+                           step,
                        }: NoticeProps) {
     const titleId = useId()
+    const stepTitleId = useId()
     const hasSkip = blocking && !!skip && !!onSkip
     const hasSecondary = !blocking && !!secondary && !!onSecondary
     const closable = !blocking && showClose && !!onClose
@@ -88,11 +95,26 @@ export function Notice({
         pad = 30
         shell = {background: 'var(--bg)', border: '1px solid var(--line-strong)', boxShadow: 'var(--shadow-modal)'}
     }
+    const titleStyle: CSSProperties = {
+        fontFamily: 'var(--font-text)',
+        fontSize: 21.5,
+        fontWeight: 'var(--w-ui)',
+        lineHeight: 1.2,
+        color: 'var(--cream)',
+        textWrap: 'balance',
+        marginBottom: variant === 'minimal' ? 10 : 12,
+        paddingRight: closable || step ? 22 : 0,
+    }
+    const corner: CSSProperties = {
+        position: 'absolute',
+        top: variant === 'framed' ? 14 : 12,
+        right: variant === 'framed' ? 14 : 12,
+    }
     return (
         <div
             role="dialog"
             aria-modal="true"
-            aria-labelledby={titleId}
+            aria-labelledby={step ? stepTitleId : titleId}
             aria-busy={busy || undefined}
             style={{
                 position: 'relative',
@@ -112,14 +134,9 @@ export function Notice({
                 )}
                 {variant === 'framed' && <CornerTicks/>}
                 <div style={{position: 'relative', padding: pad}}>
+                    <div inert={step != null || undefined} style={step ? {visibility: 'hidden'} : undefined}>
                     {closable && (
-                        <div
-                            style={{
-                                position: 'absolute',
-                                top: variant === 'framed' ? 14 : 12,
-                                right: variant === 'framed' ? 14 : 12,
-                            }}
-                        >
+                        <div style={corner}>
                             <IconButton title="Close" onClick={onClose} s={30}><Icon name="close"
                                                                                      size={17}/></IconButton>
                         </div>
@@ -130,19 +147,7 @@ export function Notice({
                             <StarMark size={20}/>
                         </div>
                     )}
-                    <div
-                        id={titleId}
-                        style={{
-                            fontFamily: 'var(--font-text)',
-                            fontSize: 21.5,
-                            fontWeight: 'var(--w-ui)',
-                            lineHeight: 1.2,
-                            color: 'var(--cream)',
-                            textWrap: 'balance',
-                            marginBottom: variant === 'minimal' ? 10 : 12,
-                            paddingRight: closable ? 22 : 0,
-                        }}
-                    >
+                    <div id={titleId} style={titleStyle}>
                         {title}
                     </div>
                     {variant === 'minimal' && (
@@ -200,6 +205,33 @@ export function Notice({
               >
                 {skip}
                             </button>
+                        </div>
+                    )}
+                    </div>
+                    {step && (
+                        <div
+                            onKeyDown={(event) => {
+                                if (event.key !== 'Escape') return
+                                // Escape steps back; the overlay must not close the notice with it
+                                event.preventDefault()
+                                event.stopPropagation()
+                                step.onBack()
+                            }}
+                            style={{position: 'absolute', inset: 0, padding: pad, display: 'flex', flexDirection: 'column'}}
+                        >
+                            <div style={corner}>
+                                <IconButton title="Back" onClick={step.onBack} s={30}>
+                                    <Icon name="chevron" size={17} rotate={90}/></IconButton>
+                            </div>
+                            {variant !== 'framed' && (
+                                <div style={{marginBottom: 14}}>
+                                    <StarMark size={20}/>
+                                </div>
+                            )}
+                            <div id={stepTitleId} style={titleStyle}>{step.title}</div>
+                            <div style={{flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column'}}>
+                                {step.children}
+                            </div>
                         </div>
                     )}
                 </div>

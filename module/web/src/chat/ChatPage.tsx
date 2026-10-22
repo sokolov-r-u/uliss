@@ -1,14 +1,15 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, Notice} from '@uliss/design-system'
+import {ActionChip, Button, Notice, PlaceField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {type SummaryPlace, SummaryPlaceField} from '../constellations/SummaryPlaceField'
+import {SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
+import {type SummaryPlace, useSummaryPlaces} from '../constellations/useSummaryPlaces'
 import {isSummaryNameTooLong, SummaryNameField} from './SummaryNameField'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
@@ -162,11 +163,21 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryNameDictating, setSummaryNameDictating] = useState(false)
     /** Where a new summary note goes; null leaves it without a constellation. */
     const [summaryPlace, setSummaryPlace] = useState<SummaryPlace | null>(null)
+    /** The dialog shows its "Choose a place" step. */
+    const [pickingPlace, setPickingPlace] = useState(false)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
     /** Bumped when a picked place turned out deleted, so the place field reloads the tree. */
     const [placeRevision, setPlaceRevision] = useState(0)
+    // read only while a first summary is being set up; an update keeps the note's place
+    const summaryPlaces = useSummaryPlaces(summaryDialog && summaryState == null, placeRevision, setSummaryError)
+    // a place gone from a fresh tree is emptied, so the line never hides a stale choice
+    const summaryPlaceGone = summaryPlace != null && summaryPlaces.load.status === 'ready'
+        && summaryPlaces.pathOf(summaryPlace) == null
+    useEffect(() => {
+        if (summaryPlaceGone) setSummaryPlace(null)
+    }, [summaryPlaceGone])
     const [acceptedSummary, setAcceptedSummary] = useState<{ noteId: string, update: boolean } | null>(null)
     const streamAbortRef = useRef<AbortController | null>(null)
     const olderAbortRef = useRef<AbortController | null>(null)
@@ -786,6 +797,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                       setSummaryError(null)
                                       setSummaryName('')
                                       setSummaryPlace(null)
+                                      setPickingPlace(false)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -819,11 +831,23 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         onClose={() => {
                             if (!summaryPendingRef.current) setSummaryDialog(false)
                         }}
-                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}>
+                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}
+                        step={pickingPlace ? {
+                            title: 'Choose a place',
+                            onBack: () => setPickingPlace(false),
+                            children: <SummaryPlacePicker places={summaryPlaces} busy={summaryPending}
+                                                          onPick={(place) => {
+                                                              setSummaryError(null)
+                                                              setSummaryPlace(place)
+                                                              setPickingPlace(false)
+                                                          }}/>,
+                        } : undefined}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}/>
-                        <SummaryPlaceField place={summaryPlace} onChange={setSummaryPlace} disabled={summaryPending}
-                                           revision={placeRevision} onError={setSummaryError}/>
+                        <PlaceField label="Place" placeholder="Choose a place" disabled={summaryPending}
+                                    value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
+                                    open={pickingPlace} onOpen={() => setPickingPlace(true)}
+                                    onClear={() => setSummaryPlace(null)}/>
                     </Notice>}
             </NoticeOverlay>}
         </div>

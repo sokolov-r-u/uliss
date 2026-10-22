@@ -1,124 +1,66 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {useRef, useState} from 'react'
+import {useState} from 'react'
 import {describe, expect, it, vi} from 'vitest'
-import {useFocusTrap} from '../../hooks/useFocusTrap'
 import {PlaceField} from './PlaceField'
 
-function Field({onClear = true, disabled = false}: { onClear?: boolean; disabled?: boolean }) {
+/** A host that shows the picker as its own step (the line stays, as under a Notice step) and puts a place back. */
+function Host({disabled = false}: { disabled?: boolean }) {
     const [place, setPlace] = useState<string | null>(null)
-    return <PlaceField label="Place" placeholder="Choose a place" value={place} disabled={disabled}
-                       onClear={onClear ? () => setPlace(null) : undefined}>
-        {(close) => <div>
-            <input aria-label="Search the tree" autoFocus/>
-            <button type="button" onClick={() => {
-                setPlace('Music › Jazz')
-                close()
-            }}>Pick Jazz</button>
-        </div>}
-    </PlaceField>
-}
-
-/** A modal host like the web Notice overlay: it traps the focus and closes on Escape. */
-function InDialog({onEscape}: { onEscape: () => void }) {
-    const ref = useRef<HTMLDivElement>(null)
-    useFocusTrap(ref, {onEscape})
-    return <div ref={ref}><Field/></div>
+    const [picking, setPicking] = useState(false)
+    return <>
+        <PlaceField label="Place" placeholder="Choose a place" value={place} disabled={disabled}
+                    open={picking} onOpen={() => setPicking(true)} onClear={() => setPlace(null)}/>
+        {picking && <button type="button" onClick={() => {
+            setPlace('Music › Jazz')
+            setPicking(false)
+        }}>Pick Jazz</button>}
+    </>
 }
 
 const field = (name: RegExp | string = /^Place/) => screen.getByRole('button', {name})
-const sheet = () => screen.queryByRole('dialog', {name: 'Place'})
 
 describe('PlaceField', () => {
-    it('is one collapsed line that opens the picker in a sheet of its own', async () => {
-        const {container} = render(<Field/>)
+    it('is one line with the placeholder that asks the host to open the picker', async () => {
+        const onOpen = vi.fn()
+        render(<PlaceField label="Place" value={null} open={false} onOpen={onOpen}/>)
 
-        expect(field()).toHaveTextContent('Choose a place')
+        expect(field('Place: Choose a place')).toHaveTextContent('Choose a place')
         expect(field()).toHaveAttribute('aria-expanded', 'false')
-        expect(sheet()).not.toBeInTheDocument()
-
         await userEvent.click(field())
 
-        expect(field()).toHaveAttribute('aria-expanded', 'true')
-        expect(sheet()).toBeInTheDocument()
-        // outside the field, so a host card never clips it
-        expect(container.contains(sheet())).toBe(false)
-        expect(screen.getByRole('textbox', {name: 'Search the tree'})).toHaveFocus()
+        expect(onOpen).toHaveBeenCalled()
     })
 
-    it('collapses on a pick, shows the chosen path and gives the focus back', async () => {
-        render(<Field/>)
+    it('shows the picked path and takes the focus back once the picker closes', async () => {
+        render(<Host/>)
 
         await userEvent.click(field())
         await userEvent.click(screen.getByRole('button', {name: 'Pick Jazz'}))
 
-        expect(sheet()).not.toBeInTheDocument()
         expect(field('Place: Music › Jazz')).toHaveTextContent('Music › Jazz')
         expect(field('Place: Music › Jazz')).toHaveFocus()
     })
 
-    it('collapses on Escape without letting the key reach the page, and gives the focus back', async () => {
-        const onPageKey = vi.fn()
-        document.addEventListener('keydown', onPageKey)
-        render(<Field/>)
-
-        await userEvent.click(field())
-        fireEvent.keyDown(screen.getByRole('textbox', {name: 'Search the tree'}), {key: 'Escape'})
-
-        expect(sheet()).not.toBeInTheDocument()
-        expect(field()).toHaveFocus()
-        expect(onPageKey).not.toHaveBeenCalled()
-        document.removeEventListener('keydown', onPageKey)
-    })
-
-    it('inside a modal dialog closes only itself on Escape', async () => {
-        const onEscape = vi.fn()
-        render(<InDialog onEscape={onEscape}/>)
-
-        await userEvent.click(field())
-        await userEvent.keyboard('{Escape}')
-
-        expect(sheet()).not.toBeInTheDocument()
-        expect(onEscape).not.toHaveBeenCalled()
-    })
-
-    it('collapses on a click on its backdrop', async () => {
-        render(<Field/>)
-
-        await userEvent.click(field())
-        await userEvent.click(screen.getByTestId('place-field-backdrop'))
-
-        expect(sheet()).not.toBeInTheDocument()
-        expect(field()).toHaveFocus()
-    })
-
     it('empties a chosen place with its clear button', async () => {
-        render(<Field/>)
+        render(<Host/>)
         expect(screen.queryByRole('button', {name: 'Clear the place'})).not.toBeInTheDocument()
 
         await userEvent.click(field())
         await userEvent.click(screen.getByRole('button', {name: 'Pick Jazz'}))
         await userEvent.click(screen.getByRole('button', {name: 'Clear the place'}))
 
-        expect(field('Place: Choose a place')).toHaveTextContent('Choose a place')
+        expect(field('Place: Choose a place')).toHaveFocus()
     })
 
-    it('does not open while disabled', async () => {
-        render(<Field disabled/>)
+    it('does not ask to open while disabled', async () => {
+        const onOpen = vi.fn()
+        render(<PlaceField label="Place" value="Music" open={false} onOpen={onOpen} onClear={vi.fn()} disabled/>)
 
         await userEvent.click(field())
 
         expect(field()).toBeDisabled()
-        expect(sheet()).not.toBeInTheDocument()
-    })
-
-    it('stays shut once disabled while open, even when enabled again', async () => {
-        const {rerender} = render(<Field/>)
-        await userEvent.click(field())
-
-        rerender(<Field disabled/>)
-        rerender(<Field/>)
-
-        expect(sheet()).not.toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Clear the place'})).toBeDisabled()
+        expect(onOpen).not.toHaveBeenCalled()
     })
 })

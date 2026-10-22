@@ -1,4 +1,4 @@
-import {ConstellationPicker, type ConstellationPickerItem, constellationColor, PlaceField} from '@uliss/design-system'
+import {ConstellationPicker, type ConstellationPickerItem, constellationColor, Notice, PlaceField} from '@uliss/design-system'
 import {useState} from 'react'
 import {Ground} from '../preview-kit/Ground'
 
@@ -8,26 +8,34 @@ const ITEMS: ConstellationPickerItem[] = [
     {id: 'films', parentId: null, name: 'Films', depth: 0, path: [], color: constellationColor(22), count: 4},
 ]
 
-function Live({initial}: { initial: string | null }) {
+function Live({initial, startPicking = false}: { initial: string | null; startPicking?: boolean }) {
     const [place, setPlace] = useState(initial)
-    return <PlaceField label="Place" value={place} onClear={() => setPlace(null)}>
-        {(close) => <ConstellationPicker fill items={ITEMS} action={(name) => `Choose ${name}`} onClose={close}
-                                         onPick={(id) => {
-                                             const item = ITEMS.find((candidate) => candidate.id === id)
-                                             setPlace(item ? [...item.path, item.name].join(' › ') : null)
-                                             close()
-                                         }}/>}
-    </PlaceField>
+    const [picking, setPicking] = useState(startPicking)
+    return <Notice width={360} title="Create a summary note?" primary="Summarize" onPrimary={() => undefined}
+                   showClose onClose={() => undefined}
+                   body="Name the note if you like and choose where it will live."
+                   step={picking ? {
+                       title: 'Choose a place', onBack: () => setPicking(false), children:
+                           <ConstellationPicker fill items={ITEMS} action={(name) => `Put in ${name}`}
+                                                onPick={(id) => {
+                                                    const item = ITEMS.find((candidate) => candidate.id === id)
+                                                    setPlace(item ? [...item.path, item.name].join(' › ') : null)
+                                                    setPicking(false)
+                                                }}/>,
+                   } : undefined}>
+        <PlaceField label="Place" value={place} open={picking} onOpen={() => setPicking(true)}
+                    onClear={() => setPlace(null)}/>
+    </Notice>
 }
 
-export const Empty = () => (
-    <Ground width={340}>
-        <Live initial={null}/>
+export const Chosen = () => (
+    <Ground pad={28}>
+        <Live initial="Music › Jazz"/>
     </Ground>
 )
 
-export const Chosen = () => (
-    <Ground width={340}>
-        <Live initial="Music › Jazz"/>
+export const PickingStep = () => (
+    <Ground pad={28}>
+        <Live initial={null} startPicking/>
     </Ground>
 )

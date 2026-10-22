@@ -97,8 +97,10 @@ the route with the persisted chat URL.
 
 The first Summarize of a chat asks for an optional name (`SummaryNameField`: DS `TextField` with a soft 50-character
 limit and a mic that dictates up to 30 seconds through `useDictation`'s own limit; chat dictation keeps the service
-limit) and a place (`SummaryPlaceField`: DS `PlaceField`, one collapsed line that opens the `ConstellationPicker` in a large sheet — full screen on a phone — with
-every constellation and note from `GET /note/sky`; a picked note becomes the parent). The dialog's one action,
+limit) and a place (DS `PlaceField`: one collapsed line; a click turns the same dialog into its "Choose a place"
+step — `Notice` `step`, same card and size — with `SummaryPlacePicker`, the `ConstellationPicker` over every
+constellation and note from `GET /note/sky` read by `useSummaryPlaces`; a picked note becomes the parent; Back and
+Escape return to the first step). The dialog's one action,
 Summarize, starts the summary; an empty place leaves the note without a constellation. Its close button, Escape and a
 click on the backdrop close it without a note. A name over 50 characters is never cut: the field turns terracotta and
 Summarize stays unavailable until it is shortened, as it does while the name is being dictated. A blank name lets Uliss name the note. A later Summarize asks to update the note. Summarize then accepts the asynchronous placeholder without waiting for generation and links to
