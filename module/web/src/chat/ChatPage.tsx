@@ -797,11 +797,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             ? <span className="chat-summary-error">{summaryError}</span>
                             : summaryPending
                                 ? 'Starting the summary…'
-                                : isSummaryNameTooLong(summaryName)
-                                    ? <span className="chat-summary-error">Shorten the name to 50 characters to start the summary.</span>
-                                    : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
+                                : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
                         primary=""
-                        secondary={summaryPending || summaryHeld ? undefined : 'Skip for now'}
+                        secondary={summaryPending ? undefined : 'Skip for now'}
+                        secondaryDisabled={summaryHeld}
                         busy={summaryPending}
                         onSecondary={() => void confirmSummary()}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}

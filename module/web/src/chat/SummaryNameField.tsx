@@ -48,6 +48,13 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange}:
         onDictatingChangeRef.current?.(dictating)
     }, [dictating])
 
+    const hint = dictation.state === 'recording'
+        ? {text: `Recording ${clock(dictation.elapsedSeconds)} / ${clock(dictation.maxSeconds)}`, tone: 'info'}
+        : dictation.state === 'transcribing' ? {text: 'Transcribing…', tone: 'info'}
+            : dictation.notice ?? (isSummaryNameTooLong(value)
+                ? {text: `Shorten the name to ${SUMMARY_NAME_LIMIT} characters.`, tone: 'error'}
+                : null)
+
     function onMic() {
         if (dictation.state === 'recording') dictation.stop()
         else if (dictation.state === 'failed') dictation.retry()
@@ -69,13 +76,10 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange}:
         <TextField label="Name" placeholder="Uliss names it if you leave this empty" value={value}
                    limit={SUMMARY_NAME_LIMIT} disabled={disabled || dictating}
                    onChange={(event) => onChange(event.target.value)} trailing={mic}/>
-        {dictation.state === 'recording' && <p className="summary-name-status" role="status">
-            Recording {clock(dictation.elapsedSeconds)} / {clock(dictation.maxSeconds)}
-        </p>}
-        {dictation.state === 'transcribing' && <p className="summary-name-status" role="status">Transcribing…</p>}
-        {dictation.notice && <p className={`chat-voice-notice chat-voice-notice-${dictation.notice.tone}`}
-                                role={dictation.notice.tone === 'error' ? 'alert' : 'status'}>
-            {dictation.notice.text}
-        </p>}
+        {/* One line kept for every hint, so the dialog never changes size as hints come and go. */}
+        <p className={`summary-name-hint${hint?.tone === 'error' ? ' summary-name-hint-error' : ''}`}
+           role={hint?.tone === 'error' ? 'alert' : 'status'}>
+            {hint?.text}
+        </p>
     </div>
 }

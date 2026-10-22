@@ -173,17 +173,21 @@
     margin-bottom: 14px;
 }
 
-.summary-name .chat-voice-notice,
-.summary-name-status {
+.summary-name-hint {
+    min-height: 1.5em;
     margin: 6px 0 0;
-    padding: 0;
     font-family: var(--font-text);
     font-size: 11px;
-}
-
-.summary-name-status {
+    line-height: 1.5;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.summary-name-hint-error {
+    color: var(--terracotta);
 }
 
 /* ── Composer (DS ChatDock shape) ────────────────────────────── */
