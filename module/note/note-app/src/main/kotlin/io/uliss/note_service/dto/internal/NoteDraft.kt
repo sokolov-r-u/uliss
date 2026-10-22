@@ -17,20 +17,10 @@ data class NoteDraft(
     )
     @field:JsonProperty(required = true)
     val title: String?,
-    @field:JsonPropertyDescription(
-        "The main thought: one or more paragraphs, as many as the thought needs, " +
-                "with the user's own reasoning if they gave any. The title is displayed separately: do not repeat " +
-                "it here and do not use headings."
-    )
+    @field:JsonPropertyDescription(MAIN_THOUGHT_DESCRIPTION)
     @field:JsonProperty(required = true)
     val mainThought: String?,
-    @field:JsonPropertyDescription(
-        "Other thoughts worth remembering on their own, each one or two sentences: a distinct opinion, " +
-                "conclusion, preference, decision, or intention of the user. Not passing remarks or details that " +
-                "only support the main thought. No fixed limit — as many as the chat really holds, usually a few; " +
-                "an empty list is fine. Each is shown as a list item, so use only inline formatting. Put open " +
-                "questions and intentions last."
-    )
+    @field:JsonPropertyDescription(SECONDARY_THOUGHTS_DESCRIPTION)
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,
 ) {
@@ -41,6 +31,16 @@ data class NoteDraft(
         return formatNoteThoughts(main, secondaryThoughts)
     }
 }
+
+internal const val MAIN_THOUGHT_DESCRIPTION = "The main thought: one or more paragraphs, as many as the thought " +
+        "needs, with the user's own reasoning if they gave any. The title is displayed separately: do not repeat " +
+        "it here and do not use headings."
+
+internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth remembering on their own, each one or " +
+        "two sentences: a distinct opinion, conclusion, preference, decision, or intention of the user. Not passing " +
+        "remarks or details that only support the main thought. No fixed limit — as many as the chat really holds, " +
+        "usually a few; an empty list is fine. Each is shown as a list item, so use only inline formatting. Put " +
+        "open questions and intentions last."
 
 // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
 private val LINE_BREAKS = Regex("\\s*\\R\\s*")

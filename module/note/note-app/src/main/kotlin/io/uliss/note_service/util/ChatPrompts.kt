@@ -174,11 +174,17 @@ object ChatPrompts {
         context: ChatSummaryContext,
         place: NotePlaceDescription,
         chunks: List<RetrievedChunk>,
+        /** The note's name when the user gave one; the model then writes only the body. */
+        userTitle: String? = null,
     ): String = buildString {
         appendLine("CURRENT CHAT (authoritative):")
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
         appendLine()
+        if (userTitle != null) {
+            appendLine("Note title (set by the user): $userTitle")
+            appendLine()
+        }
         appendNotePlace(place)
         appendLine()
         appendRelatedNotes(chunks)

@@ -10,4 +10,6 @@ data class SummarizeRequest(
     val constellationId: UUID? = null,
     /** The parent note of the new note (CREATE only, not with [constellationId]); it lives where the parent lives. */
     val parentNoteId: UUID? = null,
+    /** The user's name for the new note (CREATE only); blank lets the model name it. */
+    val title: String? = null,
 )

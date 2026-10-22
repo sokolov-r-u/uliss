@@ -606,6 +606,29 @@ class ChatControllerTest {
     }
 
     @Test
+    fun `summarizeChat passes the user's title of a new note`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING, "Giant Steps")
+        Mockito.`when`(
+            chatFacade.requestSummary(
+                userId, chatId, idempotencyKey, SummaryMode.CREATE, null, null, null, " Giant Steps ",
+            ),
+        ).thenReturn(note)
+
+        mockMvc.post("/note/chats/$chatId/summarize") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"mode":"CREATE","title":" Giant Steps "}"""
+        }.andExpect {
+            status { isAccepted() }
+            jsonPath("$.noteId") { value(note.id.toString()) }
+        }
+    }
+
+    @Test
     fun `summarizeChat requires an idempotency key`() {
         mockMvc.post("/note/chats/${UUID.randomUUID()}/summarize") {
             with(jwt())
@@ -709,7 +732,10 @@ class ChatControllerTest {
     fun `summarizeChat for a chat owned by another user returns 404`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull()))
+        Mockito.`when`(chatFacade.requestSummary(
+            anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull(),
+            Mockito.isNull(),
+        ))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {
@@ -724,7 +750,10 @@ class ChatControllerTest {
     fun `summarizeChat for a chat with no messages returns 400`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.requestSummary(anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull()))
+        Mockito.`when`(chatFacade.requestSummary(
+            anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull(),
+            Mockito.isNull(),
+        ))
             .thenThrow(BadRequestException("chat id=$chatId has no messages to summarize"))
 
         mockMvc.post("/note/chats/$chatId/summarize") {

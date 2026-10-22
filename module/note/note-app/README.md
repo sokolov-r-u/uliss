@@ -88,8 +88,10 @@ short transaction it creates a `GENERATING` note, links it to the chat, and publ
 note lies in the branch while it is still `GENERATING` and keeps the place if generation fails. A missing or foreign
 constellation is `404 CONSTELLATION_NOT_FOUND` and nothing is reserved. Instead of it (both at once are `400`), an
 optional `parentNoteId` makes the new note a sub-note of that note in the same transaction; a missing or foreign
-parent is `404 PARENT_NOTE_NOT_FOUND`. A replayed key returns the original note with
-its original place, whatever constellation the retry sends.
+parent is `404 PARENT_NOTE_NOT_FOUND`. An optional `title` (CREATE only, otherwise `400`) names the new note: the
+rename rule applies (whitespace collapsed, at most 50 code points, `400` over it before anything is reserved), a blank
+one means none, and the placeholder carries it while `GENERATING`. A replayed key returns the original note with
+its original place and title, whatever the retry sends.
 
 A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
 `chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
@@ -103,7 +105,11 @@ current note or `UPDATE` of a note that is not current is 409 `SUMMARY_NOTE_CONF
 
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The
-current chat is authoritative; related notes are delimited as untrusted secondary context. One
+current chat is authoritative; related notes are delimited as untrusted secondary context. Both the create and the
+update prompt carry a `NOTE PLACE` block read when the worker runs: the full name path of every constellation of the
+note's top note (main first) and its parent notes from the top down, or "none — the user has not applied any tags
+yet". A note the user named gets `Note title (set by the user)` in the prompt and a `NoteBodyDraft` (no `title`) from
+the same single call; its title is kept. Otherwise one
 non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
 Markdown `mainThought`, and `secondaryThoughts` without a fixed limit; field rules live in the `NoteDraft` JSON
 schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,

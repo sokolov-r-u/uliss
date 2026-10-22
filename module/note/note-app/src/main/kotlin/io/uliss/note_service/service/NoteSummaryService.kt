@@ -51,7 +51,8 @@ class NoteSummaryService(
      * Persists the user-visible placeholder and its durable generation request together. The
      * summary worker later replaces the placeholder content and queues indexing after success.
      * A [constellationId] becomes the new note's main place, or a [parentNoteId] its parent, in the same transaction;
-     * a replayed key keeps the place of its original request.
+     * a replayed key keeps the place of its original request. A [title] is the user's name for the note; the worker
+     * then keeps it instead of asking the model for one.
      */
     @Transactional
     fun requestChatSummary(
@@ -61,12 +62,14 @@ class NoteSummaryService(
         idempotencyKey: UUID,
         constellationId: UUID? = null,
         parentNoteId: UUID? = null,
+        title: String? = null,
     ): NoteEntity {
         val candidateNote = NoteEntity(
             userId = userId,
             content = null,
             source = NoteSource.CHAT_SUMMARY,
             status = NoteStatus.GENERATING,
+            title = title,
         )
         val reservation = summaryRequestStore.reserve(
             userId = userId,
@@ -126,6 +129,7 @@ class NoteSummaryService(
     /**
      * Saves a generated summary while the note is still GENERATING. A result arriving after the outbox failed the
      * note (its last attempt outlived the lease) is dropped: the user was already told to request a new summary.
+     * A title the user gave the placeholder stays; [title] names only an unnamed note.
      */
     @Transactional
     fun completeChatSummary(userId: UUID, noteId: UUID, title: String?, content: String): Boolean {
@@ -133,7 +137,7 @@ class NoteSummaryService(
         val note = noteRepository.findByIdAndUserId(noteId, userId) ?: return false
         if (note.status != NoteStatus.GENERATING) return false
 
-        note.title = title
+        if (note.title == null) note.title = title
         note.content = content
         note.status = NoteStatus.READY
         noteRepository.save(note)
@@ -144,9 +148,9 @@ class NoteSummaryService(
         return true
     }
 
-    /** Whether the summary placeholder still waits for its content: false once completed, failed or deleted. */
-    fun isAwaitingSummary(userId: UUID, noteId: UUID): Boolean =
-        noteRepository.findByIdAndUserId(noteId, userId)?.status == NoteStatus.GENERATING
+    /** The summary placeholder still waiting for its content; null once completed, failed or deleted. */
+    fun findGeneratingNote(userId: UUID, noteId: UUID): NoteEntity? =
+        noteRepository.findByIdAndUserId(noteId, userId)?.takeIf { it.status == NoteStatus.GENERATING }
 
     fun findReadyNote(userId: UUID, noteId: UUID): NoteEntity? =
         noteRepository.findByIdAndUserId(noteId, userId)?.takeIf { it.status == NoteStatus.READY }

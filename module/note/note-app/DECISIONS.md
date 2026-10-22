@@ -384,3 +384,24 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   attempt and runs the terminal handler in its transaction. The summary handler skips a note that no longer waits
   for its summary before any provider call.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 14.
+
+## 2026-10-22 — Summary prompts see the note's place
+
+- **Decision:** both summary prompts (create and update) carry a `NOTE PLACE` block after the chat: the full name
+  path of every constellation of the note's top note, main first, and its parent notes from the top down, or
+  "none — the user has not applied any tags yet". The worker reads it through
+  `NoteHierarchyService.getPlaceDescription` when it runs, not at request time, because the note may move while the
+  event waits. The system prompt tells the model to use the place for understanding and never mention it.
+- **Source:** task `docs/tasks/2026-10-22-summary-place-title.md`, blocks 1–2.
+
+## 2026-10-22 — The user may name a new summary note
+
+- **Decision:** `SummarizeRequest.title` (CREATE only, `UPDATE` with a title is 400) follows the rename rule (≤ 50
+  code points, whitespace collapsed; blank means none, over the limit 400 before anything is reserved) and is stored
+  on the `GENERATING` placeholder in the request transaction. No separate column: a GENERATING note with a title was
+  named by the user, since renames need `READY`. The worker then asks for a `NoteBodyDraft` (`NoteDraft` without
+  `title`) in the same single provider call and adds `Note title (set by the user)` to the prompt;
+  `completeChatSummary` never overwrites an existing title. A replay keeps the original title.
+- **Consequences:** this replaces "the title always comes from the `NoteDraft` call" for named notes; an unnamed note
+  still gets its title from `NoteDraft`.
+- **Source:** task `docs/tasks/2026-10-22-summary-place-title.md`, block 3.

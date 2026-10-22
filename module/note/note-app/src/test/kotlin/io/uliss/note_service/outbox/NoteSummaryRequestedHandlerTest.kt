@@ -4,12 +4,16 @@ import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
+import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
+import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.NoteSource
+import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.RetrievedChunk
@@ -61,7 +65,8 @@ class NoteSummaryRequestedHandlerTest {
 
     init {
         // the placeholder still waits for its summary unless a test says otherwise
-        Mockito.`when`(noteService.isAwaitingSummary(anyValue(), anyValue())).thenReturn(true)
+        Mockito.`when`(noteService.findGeneratingNote(anyValue(), anyValue()))
+            .thenReturn(NoteEntity(UUID.randomUUID(), null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING))
         Mockito.`when`(hierarchyService.getPlaceDescription(anyValue(), anyValue()))
             .thenReturn(NotePlaceDescription(emptyList(), emptyList()))
     }
@@ -138,6 +143,51 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.verify(entityParamSpec).useProviderStructuredOutput()
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
+    }
+
+    @Test
+    fun `a note the user named asks the model only for the body and keeps the user's title`() {
+        val payload = payload()
+        Mockito.`when`(noteService.findGeneratingNote(payload.userId, payload.noteId)).thenReturn(
+            NoteEntity(payload.userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING, "Giant Steps")
+        )
+        val requestSpec = stubRequest(payload)
+        val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
+        Mockito.`when`(requestSpec.call()).thenReturn(callResponseSpec)
+        Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteBodyDraft::class.java), anyValue()))
+            .thenReturn(NoteBodyDraft("Main thought.", listOf("Secondary.")))
+
+        handler.handle(event(payload))
+
+        val userPrompt = Mockito.mockingDetails(requestSpec).invocations
+            .single { it.method.name == "user" }
+            .arguments[0] as String
+        assertTrue(userPrompt.contains("Note title (set by the user): Giant Steps"))
+        // still one provider call, now without a title in the schema
+        val entityCall = Mockito.mockingDetails(callResponseSpec).invocations.single { it.method.name == "entity" }
+        assertEquals(NoteBodyDraft::class.java, entityCall.arguments[0])
+        @Suppress("UNCHECKED_CAST")
+        val entityParams = entityCall.arguments[1] as Consumer<ChatClient.EntityParamSpec>
+        val entityParamSpec = Mockito.mock(ChatClient.EntityParamSpec::class.java)
+        entityParams.accept(entityParamSpec)
+        Mockito.verify(entityParamSpec).useProviderStructuredOutput()
+        Mockito.verify(noteService).completeChatSummary(
+            payload.userId, payload.noteId, "Giant Steps", "Main thought.\n\n- Secondary.",
+        )
+    }
+
+    @Test
+    fun `a note without a user title asks for a title and does not mention one in the prompt`() {
+        val payload = payload()
+
+        handleWithDraft(payload, NoteDraft("Model title", "Summary", null))
+
+        val requestSpec = chatClient.prompt()
+        val userPrompt = Mockito.mockingDetails(requestSpec).invocations
+            .single { it.method.name == "user" }
+            .arguments[0] as String
+        assertTrue("Note title (set by the user)" !in userPrompt)
+        Mockito.verify(noteService).completeChatSummary(payload.userId, payload.noteId, "Model title", "Summary")
     }
 
     @Test
@@ -255,6 +305,23 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue())
     }
 
+    private fun stubRequest(payload: NoteSummaryRequestedPayload): ChatClient.ChatClientRequestSpec {
+        val context = ChatSummaryContext(
+            "Jazz",
+            listOf(message(payload.chatId, ChatMessageRole.USER, "Coltrane changed everything")),
+        )
+        val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
+        Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
+            .thenReturn(context)
+        Mockito.`when`(ragService.search(anyValue(), anyValue(), Mockito.anyInt(), Mockito.anyDouble()))
+            .thenReturn(emptyList())
+        Mockito.`when`(chatClient.prompt()).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.system(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.user(anyValue<String>())).thenReturn(requestSpec)
+        Mockito.`when`(requestSpec.options(anyValue<OpenAiChatOptions.Builder>())).thenReturn(requestSpec)
+        return requestSpec
+    }
+
     private fun handleWithDraft(payload: NoteSummaryRequestedPayload, draft: NoteDraft?) {
         val context = ChatSummaryContext(
             "Architecture",
@@ -285,8 +352,6 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.`when`(chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId))
             .thenThrow(NotFoundException("chat id=${payload.chatId} not found"))
 
-        Mockito.`when`(noteService.isAwaitingSummary(payload.userId, payload.noteId)).thenReturn(true)
-
         assertFailsWith<NonRetryableOutboxException> { handler.handle(event) }
 
         Mockito.verifyNoInteractions(chatClient, ragService)
@@ -296,7 +361,7 @@ class NoteSummaryRequestedHandlerTest {
     fun `handle spends no model call on a note that no longer waits for its summary`() {
         // deleted or already completed while the event waited
         val payload = payload()
-        Mockito.`when`(noteService.isAwaitingSummary(payload.userId, payload.noteId)).thenReturn(false)
+        Mockito.`when`(noteService.findGeneratingNote(payload.userId, payload.noteId)).thenReturn(null)
 
         handler.handle(event(payload))
 

@@ -2,6 +2,7 @@ package io.uliss.note_service.service.handler
 
 import io.uliss.exception.common.NotFoundException
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
@@ -37,11 +38,14 @@ class NoteSummaryRequestedHandler(
 
     override fun handle(event: OutboxEventEntity) {
         val payload = objectMapper.readValue(event.payload, NoteSummaryRequestedPayload::class.java)
-        if (!noteSummaryService.isAwaitingSummary(payload.userId, payload.noteId)) {
+        val note = noteSummaryService.findGeneratingNote(payload.userId, payload.noteId)
+        if (note == null) {
             // deleted or finished while the event waited: a model call would be paid for nothing
             log.warn("note id=${payload.noteId} no longer waits for its summary, skipping", "handle")
             return
         }
+        // only the user can title a GENERATING note: the request stores it, renames need READY
+        val userTitle = note.title
         val context = try {
             chatService.getSummaryContext(payload.userId, payload.chatId, payload.throughMessageId)
         } catch (_: NotFoundException) {
@@ -55,18 +59,23 @@ class NoteSummaryRequestedHandler(
             limit = properties.retrievalTopK,
             minSimilarity = properties.retrievalMinSimilarity,
         )
-        val draft: NoteDraft? = chatClient.prompt()
+        val request = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, userTitle))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)
                     .verbosity(properties.verbosity)
             )
             .call()
-            .entity(NoteDraft::class.java) { it.useProviderStructuredOutput() }
-        val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
-        val title = TitleNormalizer.normalizeNoteTitle(draft.title, content)
+        val (title, content) = if (userTitle != null) {
+            val draft: NoteBodyDraft? = request.entity(NoteBodyDraft::class.java) { it.useProviderStructuredOutput() }
+            userTitle to checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
+        } else {
+            val draft: NoteDraft? = request.entity(NoteDraft::class.java) { it.useProviderStructuredOutput() }
+            val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
+            TitleNormalizer.normalizeNoteTitle(draft.title, content) to content
+        }
         noteSummaryService.completeChatSummary(payload.userId, payload.noteId, title, content)
     }
 }

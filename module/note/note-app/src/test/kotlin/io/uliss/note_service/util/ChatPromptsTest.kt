@@ -68,6 +68,16 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `summary user prompt names the user's title before the note place only when there is one`() {
+        val named = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userTitle = "Giant Steps")
+        val unnamed = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList())
+
+        val title = named.indexOf("Note title (set by the user): Giant Steps\n")
+        assertTrue(title in 0 until named.indexOf("NOTE PLACE"))
+        assertTrue("Note title (set by the user)" !in unnamed)
+    }
+
+    @Test
     fun `the note place block names what is missing`() {
         assertEquals(
             "NOTE PLACE (the user's own organization of notes):\nnone — the user has not applied any tags yet\n",

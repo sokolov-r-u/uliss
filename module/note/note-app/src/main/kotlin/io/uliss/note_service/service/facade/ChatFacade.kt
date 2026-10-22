@@ -16,6 +16,7 @@ import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.service.tool.NoteSearch
+import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
@@ -93,8 +94,8 @@ class ChatFacade(
     /**
      * A known key replays its earlier result before the mode rules, so a retry after the boundary moved still gets
      * its note. CREATE needs a chat without a current note and may place the new note in [constellationId] or under
-     * [parentNoteId] (not both); UPDATE must target the current note and have new messages, and takes no place. A new
-     * request, not a replay, lifts the chat in chat lists.
+     * [parentNoteId] (not both) and take the user's [title]; UPDATE must target the current note and have new
+     * messages, and takes no place or title. A new request, not a replay, lifts the chat in chat lists.
      */
     @Transactional
     fun requestSummary(
@@ -105,10 +106,16 @@ class ChatFacade(
         targetNoteId: UUID?,
         constellationId: UUID? = null,
         parentNoteId: UUID? = null,
+        title: String? = null,
     ): NoteEntity {
         if (mode == SummaryMode.UPDATE && (constellationId != null || parentNoteId != null)) {
             throw BadRequestException("an update keeps the note's place; change it on the note")
         }
+        if (mode == SummaryMode.UPDATE && title != null) {
+            throw BadRequestException("an update keeps the note's title; rename the note instead")
+        }
+        val userTitle = title?.takeIf { it.isNotBlank() }
+            ?.let { TitleNormalizer.normalizeUserTitle(it) ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE) }
         if (constellationId != null && parentNoteId != null) {
             throw BadRequestException("a new note takes one place: a constellation or a parent note")
         }
@@ -122,7 +129,7 @@ class ChatFacade(
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
                 noteSummaryService.requestChatSummary(
-                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId,
+                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId, userTitle,
                 )
             }
 
