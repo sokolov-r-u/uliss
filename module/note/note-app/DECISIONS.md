@@ -437,3 +437,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   summary update only the note; a colour change nothing. Only `READY` notes are queued: a placeholder placed while
   `GENERATING` gets its place in its first index, so it pays for no second one.
 - **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 3.
+
+## 2026-10-22 — The chat assistant adds to the conversation and searches notes per topic
+
+- **Context:** the chat prompt asked the model to help the user put their own ideas into words and to offer no
+  interpretation of its own, so replies paraphrased the user and ended with "why do you think so?". With
+  `reasoning_effort: none` the model rarely called `searchNotes`: in a six-turn chat about a favourite series it
+  searched once.
+- **Decision:** `CHAT_SYSTEM_PROMPT` forbids restating the user and requires each reply to add something they did not
+  say (a fact, consequence, counterexample, connection, concrete case); a question is optional and must follow from
+  that addition. The model searches notes when a personal topic starts or changes, mentions a found note only when it
+  changes the reply (at most once per reply, never as the opener), and says "no notes" only when the user asked about
+  them. The user still picks the topics. This replaces the prompt rules recorded with "The chat model searches the
+  user's notes through a tool".
+- **Consequences:** behavior is checked by hand, not by tests. If the model still skips the search, the next step is a
+  search before the first message of a topic in code.
+- **Source:** task `docs/tasks/2026-10-22-chat-prompt-contribution.md`.
