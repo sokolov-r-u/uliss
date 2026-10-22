@@ -1,6 +1,7 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.database.utils.generateId
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.OutboxEventEntity
@@ -11,6 +12,7 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ThreadLocalRandom
@@ -46,6 +48,17 @@ class OutboxService(
                 lastError = null,
             )
         )
+    }
+
+    /**
+     * Like [publish], but the event is due [delay] after the last publish under [dedupKey]: a PENDING event with the
+     * key is moved, not duplicated. An event already being processed does not hold the key, so a change made while it
+     * runs gets its own event.
+     */
+    @Transactional
+    fun publishDebounced(type: OutboxEventType, payload: String, dedupKey: String, delay: Duration) {
+        val now = clock.instant()
+        outboxEventRepository.upsertPendingByDedupKey(generateId(), type.name, payload, dedupKey, now.plus(delay), now)
     }
 
     /**
@@ -106,8 +119,14 @@ class OutboxService(
     @Transactional
     fun recordFailure(eventId: UUID, leaseId: UUID, ex: Exception) {
         val event = findLeased(eventId, leaseId, "recordFailure", ex) ?: return
+        // read before the event turns dirty: the query would flush a second PENDING row under the key
+        val superseded = isSuperseded(event)
         applyFailure(event, ex)
-        if (event.status == OutboxEventStatus.FAILED) {
+        if (event.status == OutboxEventStatus.PENDING && superseded) {
+            // the pending event redoes this work later; a retry would be a second PENDING row under the key
+            event.status = OutboxEventStatus.FAILED
+            event.lastError = "${event.lastError ?: "failed"}; superseded by a pending event with key ${event.dedupKey}"
+        } else if (event.status == OutboxEventStatus.FAILED) {
             terminalFailureHandlers[event.type]?.handleTerminalFailure(event)
         }
         outboxEventRepository.save(event)
@@ -129,6 +148,9 @@ class OutboxService(
         if (ex == null) log.warn(message, method) else log.warn(message, method, ex)
         return null
     }
+
+    private fun isSuperseded(event: OutboxEventEntity): Boolean =
+        event.dedupKey?.let { outboxEventRepository.existsByDedupKeyAndStatus(it, OutboxEventStatus.PENDING) } == true
 
     private fun failExhausted(event: OutboxEventEntity) {
         event.status = OutboxEventStatus.FAILED

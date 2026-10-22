@@ -698,3 +698,12 @@ in the bot branch.
 Remove the three properties and the catalog entries with the Boot upgrade that ships these versions or newer
 (expected 4.1.2); otherwise they hold back the BOM's later patches. A `check` on the Boot version in the plugin fails
 the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-security-fixes.md`.
+
+## Debounced reindex: failure race and large fan-out
+
+- `OutboxService.recordFailure` checks for a newer `PENDING` event with the same `dedup_key` without a lock. A
+  `publishDebounced` committing in between makes the retry save hit `uq_outbox_event_pending_dedup_key`; the event
+  stays `PROCESSING` until its lease expires and spends one more attempt. Fix: a per-key advisory lock in both paths.
+- Renaming, moving or deleting a large constellation branch upserts one event per affected note inside the request
+  transaction (and passes all ids to one `in` list). Fine at the current scale; batch the upsert if trees grow large.
+- Source: `docs/tasks/2026-10-22-index-place-debounce.md` (code review).

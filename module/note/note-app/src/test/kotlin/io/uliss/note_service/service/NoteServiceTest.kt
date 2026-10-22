@@ -17,8 +17,6 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
-import io.uliss.note_service.outbox.OutboxEventType
-import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteRepository
@@ -29,7 +27,6 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import reactor.test.StepVerifier
-import tools.jackson.databind.json.JsonMapper
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
@@ -45,8 +42,7 @@ class NoteServiceTest {
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
     private val chatNoteRepository = Mockito.mock(ChatNoteRepository::class.java)
     private val summaryRequestStore = Mockito.mock(SummaryRequestStore::class.java)
-    private val outboxService = Mockito.mock(OutboxService::class.java)
-    private val objectMapper = JsonMapper.builder().build()
+    private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
@@ -54,8 +50,7 @@ class NoteServiceTest {
         noteRepository,
         chatNoteRepository,
         summaryRequestStore,
-        outboxService,
-        objectMapper,
+        indexRequests,
         constellationRepository,
     )
 
@@ -173,7 +168,7 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `renameNote stores the normalized title and requests reindexing`() {
+    fun `renameNote stores the normalized title and reindexes the note with its sub-notes later`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, "content", NoteSource.CHAT_SUMMARY, NoteStatus.READY, title = "Old")
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
@@ -182,8 +177,9 @@ class NoteServiceTest {
 
         assertEquals("New title", response.title)
         Mockito.verify(noteRepository).saveAndFlush(note)
-        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
-        assertTrue(payload.contains(note.id.toString()))
+        // sub-notes index the titles of their parents
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
     }
 
     @Test
@@ -194,7 +190,7 @@ class NoteServiceTest {
 
         assertFailsWith<NoteNotReadyException> { noteService.renameNote(userId, note.id, "Title") }
         Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -206,7 +202,7 @@ class NoteServiceTest {
 
         assertFailsWith<NoteUpdatingException> { noteService.renameNote(userId, note.id, "New") }
         assertEquals("Old", note.title)
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -218,7 +214,7 @@ class NoteServiceTest {
             .thenThrow(ObjectOptimisticLockingFailureException(NoteEntity::class.java, note.id))
 
         assertFailsWith<NoteVersionConflictException> { noteService.renameNote(userId, note.id, "New") }
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -230,7 +226,7 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `updateNote stores the edited title and content and requests reindexing`() {
+    fun `updateNote stores the edited title and content and reindexes the note with its sub-notes later`() {
         val userId = UUID.randomUUID()
         val note = readyNote(userId, version = 3)
 
@@ -239,8 +235,19 @@ class NoteServiceTest {
         assertEquals("New title", response.title)
         assertEquals("## New\n\nbody", response.content)
         Mockito.verify(noteRepository).saveAndFlush(note)
-        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
-        assertTrue(payload.contains(note.id.toString()))
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `updateNote of the content alone reindexes only the note later`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 3)
+
+        noteService.updateNote(userId, note.id, "Title", "new body", 3)
+
+        Mockito.verify(indexRequests).requestLater(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
     }
 
     @Test
@@ -252,7 +259,7 @@ class NoteServiceTest {
 
         assertEquals("body", response.content)
         Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -297,7 +304,7 @@ class NoteServiceTest {
 
         assertFailsWith<NoteNotReadyException> { noteService.updateNote(userId, note.id, "Title", "body", 0) }
         Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -308,7 +315,7 @@ class NoteServiceTest {
 
         assertFailsWith<NoteUpdatingException> { noteService.updateNote(userId, note.id, "Title", "edited", 1) }
         Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -321,7 +328,7 @@ class NoteServiceTest {
         }
         assertEquals("body", note.content)
         Mockito.verify(noteRepository, Mockito.never()).saveAndFlush(anyValue())
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -334,7 +341,7 @@ class NoteServiceTest {
         assertFailsWith<NoteVersionConflictException> {
             noteService.updateNote(userId, note.id, "Title", "edited", 2)
         }
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(indexRequests)
     }
 
     @Test
@@ -402,12 +409,6 @@ class NoteServiceTest {
         return note
     }
 
-    private fun publishedPayload(expectedType: OutboxEventType): String {
-        Mockito.verify(outboxService).publish(anyValue(), anyValue())
-        val invocation = Mockito.mockingDetails(outboxService).invocations.single { it.method.name == "publish" }
-        assertEquals(expectedType, invocation.arguments[0])
-        return invocation.arguments[1] as String
-    }
 
     @Test
     fun `linked chats of a missing or foreign note are not found without reading links`() {

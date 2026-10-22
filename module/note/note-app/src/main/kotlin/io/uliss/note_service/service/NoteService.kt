@@ -9,9 +9,6 @@ import io.uliss.note_service.exception.NoteUpdatingException
 import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteStatus
-import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
-import io.uliss.note_service.outbox.OutboxEventType
-import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteRepository
@@ -22,7 +19,6 @@ import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 
 @Service
@@ -30,8 +26,7 @@ class NoteService(
     private val noteRepository: NoteRepository,
     private val chatNoteRepository: ChatNoteRepository,
     private val summaryRequestStore: SummaryRequestStore,
-    private val outboxService: OutboxService,
-    private val objectMapper: ObjectMapper,
+    private val noteIndexRequestService: NoteIndexRequestService,
     private val constellationRepository: ConstellationRepository,
 ) {
 
@@ -71,7 +66,7 @@ class NoteService(
         return chatNoteRepository.countNotesByChatIds(chatIds).associate { it.chatId to it.noteCount.toInt() }
     }
 
-    /** Renames a READY note and reindexes it, because the indexed text includes the title. */
+    /** Renames a READY note and reindexes it with its sub-notes, because their indexed text includes the title. */
     @Transactional
     fun renameNote(userId: UUID, noteId: UUID, rawTitle: String): NoteResponse {
         val title = TitleNormalizer.normalizeUserTitle(rawTitle)
@@ -86,8 +81,7 @@ class NoteService(
         } catch (e: ObjectOptimisticLockingFailureException) {
             throw NoteVersionConflictException(noteId, e)
         }
-        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
-        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(note.id))
         return note.toResponse(updating = false)
     }
 
@@ -107,6 +101,7 @@ class NoteService(
         if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
         if (note.version != version) throw NoteVersionConflictException(noteId)
         if (note.title == title && note.content == content) return note.toResponse(updating = false)
+        val renamed = note.title != title
         note.title = title
         note.content = content
         try {
@@ -114,8 +109,12 @@ class NoteService(
         } catch (e: ObjectOptimisticLockingFailureException) {
             throw NoteVersionConflictException(noteId, e)
         }
-        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
-        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        // sub-notes index their parents' titles
+        if (renamed) {
+            noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(note.id))
+        } else {
+            noteIndexRequestService.requestLater(userId, listOf(note.id))
+        }
         return note.toResponse(updating = false)
     }
 

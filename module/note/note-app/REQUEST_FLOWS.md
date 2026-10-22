@@ -375,7 +375,7 @@ sequenceDiagram
         UH ->> M: NOTE_UPDATE_SYSTEM_PROMPT + note + new messages
         M -->> UH: NoteAddendumDraft
         UH ->> NS: applyChatSummaryUpdate(..., addendum or null, today UTC)
-        Note over NS: One transaction: request PENDING to APPLIED or NOTHING_NEW (no-op if already finished),<br/>append the dated addendum, publish NOTE_INDEX_REQUESTED, move the boundary
+        Note over NS: One transaction: request PENDING to APPLIED or NOTHING_NEW (no-op if already finished),<br/>append the dated addendum, publish a debounced NOTE_INDEX_REQUESTED, move the boundary
     end
 ```
 
@@ -426,7 +426,8 @@ sequenceDiagram
     P ->> EP: process(NOTE_INDEX_REQUESTED)
     EP ->> IH: handle(event)
     IH ->> DB: load owned READY note
-    IH ->> R: index(userId, noteId, title + content)
+    IH ->> DB: read the note's place (constellation paths, parent notes)
+    IH ->> R: index(userId, noteId, place + title header, content)
     R ->> R: split text into chunks
     R ->> EM: embed(chunks)
     EM -->> R: chunk vectors
@@ -495,7 +496,8 @@ leaked.
   chat.
   The lock serializes deletion with turn reservation. FK cascades remove turns, messages, summary requests, and
   `chat_note` links; notes stay.
-- Note rename: one transaction loads the owned `READY` note, updates its title, and publishes `NOTE_INDEX_REQUESTED`.
+- Note rename: one transaction loads the owned `READY` note, updates its title, and publishes a debounced
+  `NOTE_INDEX_REQUESTED` for it and its sub-notes (due `note.rag.reindex-delay` after the last change).
 - Note delete: one transaction deletes the owned note; FK cascades remove RAG chunks, `chat_note` links, and summary
   requests. A pending summary worker then finds no note and completes without writing; a pending index event is a
   no-op for a missing note.
@@ -515,5 +517,5 @@ leaked.
 | Process outbox event | Claim, complete, or record failure each use a short transaction   | Handler, chat model, embedding model                         |
 | Complete summary     | Persist content as `READY`, publish index event                   | Later indexing handler                                       |
 | Delete chat          | Lock chat, reject a live turn, delete chat (FK cascades)          | —                                                            |
-| Rename note          | Update title, publish index event                                 | Later indexing handler                                       |
+| Rename note          | Update title, publish debounced index events                      | Indexing handler an hour after the last change               |
 | Delete note          | Delete note (FK cascades)                                         | —                                                            |

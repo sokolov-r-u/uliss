@@ -25,7 +25,9 @@ class ConstellationServiceTest {
     private val memberships = InMemoryNoteConstellationStore()
     private val now: Instant = Instant.parse("2026-10-19T12:00:00Z")
     private val earlier: Instant = Instant.parse("2026-10-19T10:00:00Z")
-    private val service = ConstellationService(store.repository, memberships.store, Clock.fixed(now, ZoneOffset.UTC))
+    private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
+    private val service =
+        ConstellationService(store.repository, memberships.store, indexRequests, Clock.fixed(now, ZoneOffset.UTC))
     private val userId = UUID.randomUUID()
 
     @Test
@@ -342,4 +344,68 @@ class ConstellationServiceTest {
 
     private fun child(parent: ConstellationEntity, name: String, lightness: ConstellationLightness) =
         store.add(ConstellationEntity(userId, parent.id, name, null, lightness))
+
+    @Test
+    fun `a rename reindexes later every note placed in the branch, with its sub-notes`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val films = root("Films", 42)
+        val inJazz = UUID.randomUUID()
+        val inMusic = UUID.randomUUID()
+        memberships.put(userId, inJazz, listOf(NoteMembership(jazz.id, true, earlier)))
+        memberships.put(userId, inMusic, listOf(NoteMembership(music.id, true, earlier)))
+        memberships.put(userId, UUID.randomUUID(), listOf(NoteMembership(films.id, true, earlier)))
+
+        service.update(userId, music.id, "Musique", null, null)
+
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, setOf(inJazz, inMusic))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `a colour change or the same name reindexes nothing`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        memberships.put(userId, UUID.randomUUID(), listOf(NoteMembership(jazz.id, true, earlier)))
+
+        service.update(userId, music.id, null, 10, null)
+        service.update(userId, jazz.id, null, null, ConstellationLightness.DEEP)
+        service.update(userId, jazz.id, " Jazz ", null, null)
+
+        Mockito.verifyNoInteractions(indexRequests)
+    }
+
+    @Test
+    fun `a move reindexes later the notes of the moved branch, a no-op move nothing`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val films = root("Films", 42)
+        val inJazz = UUID.randomUUID()
+        memberships.put(userId, inJazz, listOf(NoteMembership(jazz.id, true, earlier)))
+        memberships.put(userId, UUID.randomUUID(), listOf(NoteMembership(music.id, true, earlier)))
+
+        service.move(userId, jazz.id, music.id)
+        Mockito.verifyNoInteractions(indexRequests)
+        service.move(userId, jazz.id, films.id)
+
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, setOf(inJazz))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `deleting a branch reindexes later the notes that had places in it`() {
+        val music = root("Music", 264)
+        val jazz = child(music, "Jazz", ConstellationLightness.LIGHT)
+        val films = root("Films", 42)
+        val onlyInside = UUID.randomUUID()
+        val alsoOutside = UUID.randomUUID()
+        memberships.put(userId, onlyInside, listOf(NoteMembership(jazz.id, true, earlier)))
+        memberships.put(userId, alsoOutside, listOf(NoteMembership(films.id, true, earlier), NoteMembership(jazz.id, false, earlier)))
+        memberships.put(userId, UUID.randomUUID(), listOf(NoteMembership(films.id, true, earlier)))
+
+        service.delete(userId, jazz.id, music.id)
+
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, setOf(onlyInside, alsoOutside))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
 }

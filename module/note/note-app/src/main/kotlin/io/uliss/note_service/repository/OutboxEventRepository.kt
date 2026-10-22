@@ -7,6 +7,7 @@ import jakarta.persistence.LockModeType
 import jakarta.persistence.QueryHint
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.jpa.repository.QueryHints
 import org.springframework.data.repository.CrudRepository
@@ -42,4 +43,32 @@ interface OutboxEventRepository : CrudRepository<OutboxEventEntity, UUID> {
         @Param("now") now: Instant,
         pageable: Pageable,
     ): List<OutboxEventEntity>
+
+    fun existsByDedupKeyAndStatus(dedupKey: String, status: OutboxEventStatus): Boolean
+
+    /**
+     * Inserts a PENDING event under [dedupKey], or moves the time of the PENDING event that already holds it. One
+     * statement, so parallel transactions cannot add a second one; a PROCESSING event does not hold the key.
+     */
+    @Modifying
+    @Query(
+        value = """
+            INSERT INTO note.outbox_event
+                (id, type, payload, status, attempts, next_attempt_at, created_at, updated_at, version, dedup_key)
+            VALUES (:id, :type, CAST(:payload AS jsonb), 'PENDING', 0, :nextAttemptAt, :now, :now, 0, :dedupKey)
+            ON CONFLICT (dedup_key) WHERE status = 'PENDING' AND dedup_key IS NOT NULL
+            DO UPDATE SET next_attempt_at = excluded.next_attempt_at,
+                          updated_at = excluded.updated_at,
+                          version = note.outbox_event.version + 1
+        """,
+        nativeQuery = true,
+    )
+    fun upsertPendingByDedupKey(
+        @Param("id") id: UUID,
+        @Param("type") type: String,
+        @Param("payload") payload: String,
+        @Param("dedupKey") dedupKey: String,
+        @Param("nextAttemptAt") nextAttemptAt: Instant,
+        @Param("now") now: Instant,
+    )
 }

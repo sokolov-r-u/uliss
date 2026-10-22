@@ -1,6 +1,7 @@
 package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.NoteStatusRow
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
@@ -77,4 +78,12 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
 
     /** The note's direct sub-notes, newest first. */
     fun findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId: UUID, parentNoteId: UUID): List<NoteEntity>
+
+    /** The ids among [ids] of the user's notes in [status]. */
+    @Query("select n.id from NoteEntity n where n.userId = :userId and n.status = :status and n.id in :ids")
+    fun findIdsByStatus(
+        @Param("userId") userId: UUID,
+        @Param("status") status: NoteStatus,
+        @Param("ids") ids: Collection<UUID>,
+    ): List<UUID>
 }

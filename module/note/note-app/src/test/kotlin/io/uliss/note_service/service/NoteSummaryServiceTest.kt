@@ -50,6 +50,7 @@ class NoteSummaryServiceTest {
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
+    private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val noteSummaryService = NoteSummaryService(
         noteRepository,
         chatNoteRepository,
@@ -58,6 +59,7 @@ class NoteSummaryServiceTest {
         objectMapper,
         notePlacementService,
         noteHierarchyService,
+        indexRequests,
     )
 
     @Test
@@ -356,7 +358,7 @@ class NoteSummaryServiceTest {
     }
 
     @Test
-    fun `completeChatSummary changes a generating note to ready and publishes indexing`() {
+    fun `completeChatSummary changes a generating note to ready and indexes it at once`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
@@ -368,9 +370,9 @@ class NoteSummaryServiceTest {
         assertEquals("Summary title", note.title)
         assertEquals("summary text", note.content)
         assertEquals(NoteStatus.READY, note.status)
-        val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
-        assertTrue(payload.contains(note.id.toString()))
-        assertTrue(payload.contains(userId.toString()))
+        // a new note is searchable at once, not after the reindex delay
+        Mockito.verify(indexRequests).requestNow(userId, note.id)
+        Mockito.verifyNoMoreInteractions(indexRequests)
     }
 
     @Test
@@ -443,7 +445,7 @@ class NoteSummaryServiceTest {
         assertEquals(NoteStatus.FAILED, note.status)
         assertEquals(null, note.content)
         Mockito.verify(noteRepository, Mockito.never()).save(note)
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(outboxService, indexRequests)
     }
 
     @Test
@@ -458,7 +460,7 @@ class NoteSummaryServiceTest {
         assertEquals(null, note.title)
         assertEquals("existing", note.content)
         Mockito.verify(noteRepository, Mockito.never()).save(note)
-        Mockito.verifyNoInteractions(outboxService)
+        Mockito.verifyNoInteractions(outboxService, indexRequests)
     }
 
     @Test
@@ -480,6 +482,30 @@ class NoteSummaryServiceTest {
         assertEquals("body", note.content)
         assertEquals(through, link.summarizedThroughMessageId)
         Mockito.verify(noteRepository, Mockito.never()).save(anyValue())
+        Mockito.verifyNoInteractions(outboxService, indexRequests)
+    }
+
+    @Test
+    fun `applyChatSummaryUpdate appends the addendum and reindexes the note later`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val through = UUID.randomUUID()
+        val note = NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val after = UUID.randomUUID()
+        val link = ChatNoteEntity(ChatNoteId(chatId, note.id), userId, after)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(summaryRequestStore.finish(userId, key, SummaryRequestStatus.APPLIED))
+            .thenReturn(SummaryRequest(userId, key, chatId, through, note.id, Instant.now(), SummaryRequestStatus.APPLIED))
+        Mockito.`when`(chatNoteRepository.findById(ChatNoteId(chatId, note.id))).thenReturn(Optional.of(link))
+
+        assertTrue(
+            noteSummaryService.applyChatSummaryUpdate(userId, key, note.id, chatId, after, through, "More", LocalDate.now())
+        )
+
+        assertTrue(note.content.orEmpty().endsWith("More"))
+        Mockito.verify(indexRequests).requestLater(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
         Mockito.verifyNoInteractions(outboxService)
     }
 

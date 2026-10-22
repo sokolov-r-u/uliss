@@ -405,3 +405,35 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** this replaces "the title always comes from the `NoteDraft` call" for named notes; an unnamed note
   still gets its title from `NoteDraft`.
 - **Source:** task `docs/tasks/2026-10-22-summary-place-title.md`, block 3.
+
+## 2026-10-22 — Outbox events can be debounced by key
+
+- **Context:** the outbox had no idempotency key, so every change of a note queued its own reindex.
+- **Decision:** `outbox_event.dedup_key` (nullable `text`) with a unique partial index on `PENDING` rows.
+  `OutboxService.publishDebounced(type, payload, key, delay)` is one `INSERT … ON CONFLICT … DO UPDATE` that moves
+  `next_attempt_at` of the pending event to now + delay, so parallel transactions never add a second one. A
+  `PROCESSING` event does not hold the key, so a change made while it runs gets its own event. A failed attempt of a
+  keyed event whose key is held by a newer pending event ends `FAILED` (no terminal handler) instead of retrying,
+  since the pending one redoes the work. Plain `publish` is unchanged (`dedup_key` null).
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 1.
+
+## 2026-10-22 — Every RAG chunk carries the note's place and title
+
+- **Decision:** `NoteIndexRequestedHandler` reads `NoteHierarchyService.getPlaceDescription` when the event runs and
+  `RagService.index` starts every chunk with a header (`Constellations: …`, `Parent notes: …`, `Title: …`; lines
+  without data left out), so the place shapes the embedding of each chunk, not only the first. The header counts
+  toward `note.rag.chunk-size`; the text keeps at least a quarter of it. The title is no longer prepended to the text.
+  Prompts and the header share `NotePlaceText`. Old notes get the header on their next reindex (no backfill).
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 2.
+
+## 2026-10-22 — Changed notes are reindexed an hour after the last change
+
+- **Context:** the index now carries the note's place, so reorganizing notes would reindex (and pay for embeddings)
+  on every step.
+- **Decision:** `NoteIndexRequestService` queues all indexing. A completed summary note is indexed at once
+  (`requestNow`, plain `publish`); every other change goes through `publishDebounced` with key
+  `NOTE_INDEX_REQUESTED:<noteId>` and `note.rag.reindex-delay` (default `1h`). Changes of the place, of a parent's
+  title, and of a constellation's name or position reindex the note with all its sub-notes; a content-only edit or a
+  summary update only the note; a colour change nothing. Only `READY` notes are queued: a placeholder placed while
+  `GENERATING` gets its place in its first index, so it pays for no second one.
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 3.

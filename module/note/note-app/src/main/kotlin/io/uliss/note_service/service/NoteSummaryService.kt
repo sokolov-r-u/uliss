@@ -8,7 +8,6 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
-import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.model.projection.CurrentChatSummary
@@ -40,6 +39,7 @@ class NoteSummaryService(
     private val objectMapper: ObjectMapper,
     private val notePlacementService: NotePlacementService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val noteIndexRequestService: NoteIndexRequestService,
 ) {
 
     /** The chat's latest READY summary note; null when there is none. Callers pass an owned chat id. */
@@ -143,8 +143,8 @@ class NoteSummaryService(
         noteRepository.save(note)
         summaryRequestStore.finishPendingForNote(noteId, SummaryRequestStatus.APPLIED)
             ?.let { moveSummaryBoundary(it.chatId, noteId, it.throughMessageId) }
-        val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
-        outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+        // a new note is searchable at once; only later changes wait for the reindex delay
+        noteIndexRequestService.requestNow(userId, note.id)
         return true
     }
 
@@ -185,8 +185,7 @@ class NoteSummaryService(
         if (content != null) {
             note.content = content
             noteRepository.save(note)
-            val payload = objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))
-            outboxService.publish(OutboxEventType.NOTE_INDEX_REQUESTED, payload)
+            noteIndexRequestService.requestLater(userId, listOf(note.id))
         }
         link.summarizedThroughMessageId = throughMessageId
         chatNoteRepository.save(link)
