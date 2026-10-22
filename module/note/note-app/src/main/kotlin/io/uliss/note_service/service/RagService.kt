@@ -7,6 +7,7 @@ import org.springframework.ai.document.Document
 import org.springframework.ai.embedding.BatchingStrategy
 import org.springframework.ai.embedding.EmbeddingModel
 import org.springframework.ai.embedding.EmbeddingOptions
+import org.springframework.ai.tokenizer.JTokkitTokenCountEstimator
 import org.springframework.ai.transformer.splitter.TokenTextSplitter
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
@@ -19,12 +20,21 @@ class RagService(
     private val ragChunkStore: JdbcRagChunkStore,
     @Value($$"${note.rag.chunk-size:800}") private val chunkSize: Int,
 ) {
+    private val tokenCounter = JTokkitTokenCountEstimator()
 
-    fun index(userId: UUID, noteId: UUID, contentVersion: Long, content: String) {
+    /**
+     * Splits [content] into chunks and stores their embeddings. Every chunk starts with [header] (none when blank),
+     * which counts toward the chunk size.
+     */
+    fun index(userId: UUID, noteId: UUID, contentVersion: Long, header: String, content: String) {
+        val prefix = header.takeIf { it.isNotBlank() }?.let { "$it\n\n" }.orEmpty()
+        // a header longer than the chunk itself still leaves room for some text
+        val textChunkSize = (chunkSize - tokenCounter.estimate(prefix)).coerceAtLeast(chunkSize / MIN_TEXT_SHARE)
         val documents = TokenTextSplitter.builder()
-            .withChunkSize(chunkSize)
+            .withChunkSize(textChunkSize)
             .build()
             .apply(listOf(Document(content)))
+            .map { Document(prefix + requireNotNull(it.text) { "token splitter returned a non-text document" }, it.metadata) }
         val embeddings = embeddingModel.embed(
             documents,
             EmbeddingOptions.builder().build(),
@@ -67,3 +77,5 @@ class RagService(
         excludeNoteId = excludeNoteId,
     )
 }
+
+private const val MIN_TEXT_SHARE = 4

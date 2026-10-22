@@ -1,12 +1,14 @@
 package io.uliss.note_service.outbox
 
 import io.uliss.database.outbox.OutboxEventStatus
+import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.handler.NoteIndexRequestedHandler
 import org.junit.jupiter.api.Test
@@ -15,12 +17,19 @@ import tools.jackson.databind.json.JsonMapper
 import java.time.Instant
 import java.util.UUID
 
+private val NO_PLACE = NotePlaceDescription(emptyList(), emptyList())
+
 class NoteIndexRequestedHandlerTest {
 
     private val objectMapper = JsonMapper.builder().build()
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
-    private val handler = NoteIndexRequestedHandler(objectMapper, noteRepository, ragService)
+    private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
+    private val handler = NoteIndexRequestedHandler(objectMapper, noteRepository, ragService, noteHierarchyService)
+
+    private fun stubPlace(userId: UUID, noteId: UUID, place: NotePlaceDescription = NO_PLACE) {
+        Mockito.`when`(noteHierarchyService.getPlaceDescription(userId, noteId)).thenReturn(place)
+    }
 
     @Test
     fun `handle indexes a ready user-owned note`() {
@@ -30,21 +39,29 @@ class NoteIndexRequestedHandlerTest {
         val payload = NoteIndexRequestedPayload(note.id, userId)
         val event = event(objectMapper.writeValueAsString(payload))
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        stubPlace(userId, note.id)
 
         handler.handle(event)
 
-        Mockito.verify(ragService).index(userId, note.id, 7, "A concise summary")
+        Mockito.verify(ragService).index(userId, note.id, 7, "", "A concise summary")
     }
 
     @Test
-    fun `handle prepends the title to the indexed text`() {
+    fun `handle indexes the note under a header with its place and title, read when the event runs`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY, title = "Ownership columns")
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        stubPlace(userId, note.id, NotePlaceDescription(listOf(listOf("Work", "Database")), listOf("Schema")))
 
         handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
 
-        Mockito.verify(ragService).index(userId, note.id, 0, "Ownership columns\n\nA concise summary")
+        Mockito.verify(ragService).index(
+            userId,
+            note.id,
+            0,
+            "Constellations: Work / Database\nParent notes: \"Schema\"\nTitle: Ownership columns",
+            "A concise summary",
+        )
     }
 
     @Test
@@ -52,10 +69,11 @@ class NoteIndexRequestedHandlerTest {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY, title = "  ")
         Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        stubPlace(userId, note.id)
 
         handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
 
-        Mockito.verify(ragService).index(userId, note.id, 0, "A concise summary")
+        Mockito.verify(ragService).index(userId, note.id, 0, "", "A concise summary")
     }
 
     @Test
@@ -67,6 +85,7 @@ class NoteIndexRequestedHandlerTest {
         handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(noteId, userId))))
 
         Mockito.verifyNoInteractions(ragService)
+        Mockito.verifyNoInteractions(noteHierarchyService)
     }
 
     @Test

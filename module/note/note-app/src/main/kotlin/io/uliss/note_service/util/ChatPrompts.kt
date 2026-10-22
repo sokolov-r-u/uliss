@@ -216,12 +216,8 @@ object ChatPrompts {
             appendLine("none — the user has not applied any tags yet")
             return
         }
-        val constellations = place.constellationPaths.joinToString("; ") { it.joinToString(" / ") }
-        appendLine("Constellations: ${constellations.ifEmpty { "none" }}")
-        if (place.parentNoteTitles.isNotEmpty()) {
-            val parents = place.parentNoteTitles.joinToString(" / ") { title -> title?.let { "\"$it\"" } ?: "(untitled)" }
-            appendLine("Parent notes: $parents")
-        }
+        appendLine("Constellations: ${NotePlaceText.constellations(place).ifEmpty { "none" }}")
+        if (place.parentNoteTitles.isNotEmpty()) appendLine("Parent notes: ${NotePlaceText.parentNotes(place)}")
     }
 
     private fun StringBuilder.appendRelatedNotes(chunks: List<RetrievedChunk>) {

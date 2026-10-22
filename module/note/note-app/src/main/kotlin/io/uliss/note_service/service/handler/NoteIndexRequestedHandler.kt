@@ -6,7 +6,9 @@ import io.uliss.note_service.model.payload.NoteIndexRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.repository.NoteRepository
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.util.NoteIndexHeader
 import org.springframework.stereotype.Component
 import tools.jackson.databind.ObjectMapper
 
@@ -15,6 +17,7 @@ class NoteIndexRequestedHandler(
     private val objectMapper: ObjectMapper,
     private val noteRepository: NoteRepository,
     private val ragService: RagService,
+    private val noteHierarchyService: NoteHierarchyService,
 ) : OutboxHandler {
 
     override val type: OutboxEventType = OutboxEventType.NOTE_INDEX_REQUESTED
@@ -24,7 +27,8 @@ class NoteIndexRequestedHandler(
         val note = noteRepository.findByIdAndUserId(payload.noteId, payload.userId) ?: return
         val content = note.content?.takeIf { it.isNotBlank() } ?: return
         if (note.status != NoteStatus.READY) return
-        val text = note.title?.takeIf { it.isNotBlank() }?.let { "$it\n\n$content" } ?: content
-        ragService.index(payload.userId, note.id, note.version ?: 0, text)
+        // read when the event runs: the note may have moved while a debounced event waited
+        val place = noteHierarchyService.getPlaceDescription(payload.userId, note.id)
+        ragService.index(payload.userId, note.id, note.version ?: 0, NoteIndexHeader.render(place, note.title), content)
     }
 }

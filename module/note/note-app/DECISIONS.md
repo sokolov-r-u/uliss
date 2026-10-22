@@ -416,3 +416,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   keyed event whose key is held by a newer pending event ends `FAILED` (no terminal handler) instead of retrying,
   since the pending one redoes the work. Plain `publish` is unchanged (`dedup_key` null).
 - **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 1.
+
+## 2026-10-22 — Every RAG chunk carries the note's place and title
+
+- **Decision:** `NoteIndexRequestedHandler` reads `NoteHierarchyService.getPlaceDescription` when the event runs and
+  `RagService.index` starts every chunk with a header (`Constellations: …`, `Parent notes: …`, `Title: …`; lines
+  without data left out), so the place shapes the embedding of each chunk, not only the first. The header counts
+  toward `note.rag.chunk-size`; the text keeps at least a quarter of it. The title is no longer prepended to the text.
+  Prompts and the header share `NotePlaceText`. Old notes get the header on their next reindex (no backfill).
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 2.
