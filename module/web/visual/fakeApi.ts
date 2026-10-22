@@ -224,6 +224,26 @@ function openReplyStream(chatId: string, records: string[]): Response {
     })
 }
 
+/** Like the server, a retry replaces the failed latest reply of the turn with a new one in the same turn. */
+function retryReply(chatId: string, turnId: string, messageId: string | null): Response {
+    const messages = CHAT_MESSAGES[chatId] ?? []
+    const failed = messages.at(-1)
+    if (!failed || failed.id !== messageId || failed.turnId !== turnId) return json({code: 'CHAT_REPLY_NOT_RETRYABLE'}, 409)
+    const text = 'The first attempt already cleared the ground.'
+    messages.splice(-1, 1, {id: `${messageId}-retried`, turnId, role: 'ASSISTANT', status: 'COMPLETE', content: text})
+    const encoder = new TextEncoder()
+    const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+            controller.enqueue(encoder.encode(`event:append\ndata:${JSON.stringify({text})}\n\nevent:done\ndata:\n\n`))
+            controller.close()
+        },
+    })
+    return new Response(body, {
+        status: 200,
+        headers: {'Content-Type': 'text/event-stream', 'Chat-Id': chatId, 'Chat-Turn-Id': turnId},
+    })
+}
+
 /** Applies an edit to the in-memory fixture, so a reload of the page within the harness shows it. */
 function saveEdit(note: (typeof NOTES)[number], body: string) {
     const edit = JSON.parse(body) as { title: string; content: string }
@@ -273,6 +293,8 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false,
             summary: summaries.get(chatMessages[1]) ?? null})
     }
+    const retry = url.pathname.match(/^\/note\/chats\/([^/]+)\/turns\/([^/]+)\/retry$/)
+    if (retry && method === 'POST') return retryReply(retry[1], retry[2], url.searchParams.get('messageId'))
     const summary = url.pathname.match(/^\/note\/chats\/([^/]+)\/summarize$/)
     if (summary && method === 'POST') return summarize(summary[1], String(init?.body ?? ''))
 

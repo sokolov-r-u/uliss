@@ -17,6 +17,7 @@ import {
     ChatStreamHttpError,
     streamAssistantReply,
     streamInitialAssistantReply,
+    streamRetriedReply,
 } from './streamChatReply'
 import {clearTokens} from '../auth/tokenStore'
 import {ChatPage} from './ChatPage'
@@ -45,6 +46,7 @@ vi.mock('./chatApi', () => ({
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
     streamInitialAssistantReply: vi.fn(),
+    streamRetriedReply: vi.fn(),
     cancelChatTurn: vi.fn(),
     ChatStreamHttpError: class ChatStreamHttpError extends Error {
         constructor(public readonly status: number) {
@@ -90,6 +92,7 @@ const mockedGetMessages = vi.mocked(getMessages)
 const mockedSummary = vi.mocked(requestChatSummary)
 const mockedStream = vi.mocked(streamAssistantReply)
 const mockedInitialStream = vi.mocked(streamInitialAssistantReply)
+const mockedRetry = vi.mocked(streamRetriedReply)
 
 function messagePage(
     messages: ChatMessage[],
@@ -131,6 +134,7 @@ describe('ChatPage summary flow', () => {
         mockedSummary.mockReset()
         mockedStream.mockReset()
         mockedInitialStream.mockReset()
+        mockedRetry.mockReset()
         vi.mocked(cancelChatTurn).mockReset().mockResolvedValue(undefined)
         vi.mocked(notifyChatListChanged).mockClear()
         vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
@@ -704,24 +708,154 @@ describe('ChatPage summary flow', () => {
         expect(mockedStream).not.toHaveBeenCalled()
     })
 
-    it('does not adopt another turn when the response header was lost', async () => {
+    it('resends a request cut off by a reload with its own key instead of asking for a retry', async () => {
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
             idempotencyKey: 'lost-key', content: 'Question',
         }))
-        renderPage()
-        expect(await screen.findByRole('button', {name: 'Retry'})).toBeEnabled()
-        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).not.toBeNull()
+        mockedGetMessages.mockResolvedValueOnce(messagePage([]))
         mockedStream.mockImplementation(async (_chat, _content, _key, options) => {
+            // the server already has this send: the same key answers with its turn
             options.onTurnId('turn-recovered')
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u', turnId: 'turn-recovered', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a', turnId: 'turn-recovered', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered'},
+            ]))
             return 'done'
         })
-        mockedGetMessages.mockResolvedValue(messagePage([
-            {id: 'u', turnId: 'turn-recovered', role: 'USER', status: 'COMPLETE', content: 'Question'},
-            {id: 'a', turnId: 'turn-recovered', role: 'ASSISTANT', status: 'COMPLETE', content: 'Recovered'},
-        ]))
-        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        renderPage()
+
         expect(await screen.findByText('Recovered')).toBeInTheDocument()
+        expect(mockedStream).toHaveBeenCalledOnce()
         expect(mockedStream.mock.calls[0]?.[2]).toBe('lost-key')
+        expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+        expect(screen.getAllByText('Question')).toHaveLength(1)
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('resends the first message of a new chat cut off by a reload', async () => {
+        sessionStorage.setItem('uliss.chat-initial-turn.v1', JSON.stringify({
+            idempotencyKey: 'first-key', content: 'Hello', initial: true,
+        }))
+        mockedInitialStream.mockImplementation(async (_content, _key, options) => {
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u', turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content: 'Hello'},
+                {id: 'a', turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: 'Hi there'},
+            ]))
+            return 'done'
+        })
+        renderNewPage()
+
+        expect(await screen.findByText('Hi there')).toBeInTheDocument()
+        expect(mockedInitialStream.mock.calls[0]?.[1]).toBe('first-key')
+        await waitFor(() => expect(screen.getByTestId('route-path')).toHaveTextContent('/chats/chat-new'))
+    })
+
+    it('regenerates the latest failed reply in its turn when the user asks for it', async () => {
+        mockedGetMessages.mockResolvedValueOnce(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+        ]))
+        let finish!: () => void
+        mockedRetry.mockImplementation(async (_chat, _turn, _message, options) => {
+            options.onTurnId('turn-1')
+            options.onAppendText('New answer')
+            await new Promise<void>((resolve) => {
+                finish = resolve
+            })
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-2', turnId: 'turn-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'New answer'},
+            ]))
+            return 'done'
+        })
+        renderPage()
+        expect(await screen.findByText('failed to reply')).toBeInTheDocument()
+        expect(mockedRetry).not.toHaveBeenCalled()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+
+        expect(await screen.findByText('New answer')).toBeInTheDocument()
+        expect(screen.queryByText('failed to reply')).not.toBeInTheDocument()
+        expect(screen.getByRole('textbox', {name: 'Message'})).toBeDisabled()
+        expect(mockedRetry).toHaveBeenCalledWith('chat-1', 'turn-1', 'a-1', expect.anything())
+        expect(JSON.parse(sessionStorage.getItem('uliss.chat-turn.v1:chat-1') ?? '{}'))
+            .toMatchObject({turnId: 'turn-1', retryOf: 'a-1'})
+
+        await act(async () => finish())
+
+        await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+        expect(screen.getAllByText('Question')).toHaveLength(1)
+        expect(screen.getAllByText('New answer')).toHaveLength(1)
+        expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+        expect(mockedStream).not.toHaveBeenCalled()
+        expect(notifyChatListChanged).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('offers Retry only on the latest failed or interrupted reply', async () => {
+        mockedGetMessages.mockResolvedValueOnce(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'First'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+            {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'Second'},
+            {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'PARTIAL', content: 'Half'},
+        ]))
+        const {unmount} = renderPage()
+        expect(await screen.findByText('interrupted')).toBeInTheDocument()
+        expect(screen.getByText('failed to reply')).toBeInTheDocument()
+        expect(screen.getAllByRole('button', {name: 'Retry'})).toHaveLength(1)
+        unmount()
+
+        mockedGetMessages.mockResolvedValueOnce(messagePage([
+            {id: 'u-3', turnId: 'turn-3', role: 'USER', status: 'COMPLETE', content: 'Third'},
+            {id: 'a-3', turnId: 'turn-3', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+        ]))
+        renderPage()
+        expect(await screen.findByText('stopped')).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Retry'})).not.toBeInTheDocument()
+    })
+
+    it('explains a reply that can no longer be retried and shows the saved history', async () => {
+        mockedGetMessages.mockResolvedValueOnce(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+        ])).mockResolvedValue(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+        ]))
+        mockedRetry.mockRejectedValue(new ChatStreamHttpError(409))
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
+
+        expect(await screen.findByText('The reply could not be retried (409). Please try again.')).toBeInTheDocument()
+        expect(screen.getByText('failed to reply')).toBeInTheDocument()
+        expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
+    })
+
+    it('resumes a retry cut off by a reload', async () => {
+        sessionStorage.setItem('uliss.chat-turn.v1:chat-1', JSON.stringify({
+            idempotencyKey: 'unused', turnId: 'turn-1', content: 'Question', retryOf: 'a-1',
+        }))
+        // the server already dropped the failed reply and is generating the new one
+        mockedGetMessages.mockResolvedValueOnce(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+        ]))
+        mockedRetry.mockImplementation(async (_chat, _turn, _message, options) => {
+            options.onTurnId('turn-1')
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-2', turnId: 'turn-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Generated meanwhile'},
+            ]))
+            return 'done'
+        })
+        renderPage()
+
+        expect(await screen.findByText('Generated meanwhile')).toBeInTheDocument()
+        expect(mockedRetry).toHaveBeenCalledWith('chat-1', 'turn-1', 'a-1', expect.anything())
+        expect(screen.getAllByText('Question')).toHaveLength(1)
     })
 
     it('uses durable cancellation when Stop has no terminal persisted reply', async () => {
