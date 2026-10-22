@@ -24,6 +24,7 @@ class NotePlacementService(
     private val noteRepository: NoteRepository,
     private val constellationRepository: ConstellationRepository,
     private val store: NoteConstellationStore,
+    private val noteIndexRequestService: NoteIndexRequestService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -69,7 +70,10 @@ class NotePlacementService(
         if (joined != null && tree.find(joined) == null) throw ConstellationNotFoundException(joined)
         val current = store.findByNote(userId, noteId)
         val next = rule(current, tree)
-        if (next != current) store.replace(userId, mapOf(noteId to next))
+        if (next != current) {
+            store.replace(userId, mapOf(noteId to next))
+            noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(noteId))
+        }
         return NotePlacement.ordered(next)
     }
 }

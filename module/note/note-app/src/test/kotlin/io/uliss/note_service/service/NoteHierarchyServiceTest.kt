@@ -30,10 +30,12 @@ class NoteHierarchyServiceTest {
     private val constellations = InMemoryConstellationStore()
     private val memberships = InMemoryNoteConstellationStore()
     private val notes = InMemoryNoteHierarchyStore(memberships)
+    private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val service = NoteHierarchyService(
         notes.store,
         constellations.repository,
         memberships.store,
+        indexRequests,
         Clock.fixed(now, ZoneOffset.UTC),
     )
 
@@ -264,4 +266,38 @@ class NoteHierarchyServiceTest {
         if (parentId == null) ConstellationEntity(userId, null, "Root ${constellations.rows.size}", 22, null)
         else ConstellationEntity(userId, parentId, "Child ${constellations.rows.size}", null, ConstellationLightness.LIGHT)
     ).id
+
+    @Test
+    fun `moving a note under a note or out reindexes it with its sub-notes later`() {
+        service.moveUnder(userId, loose, warszawa)
+        service.moveOut(userId, low, films)
+
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, listOf(loose))
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, listOf(low))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `a move that changes nothing reindexes nothing`() {
+        service.moveUnder(userId, low, bowie)
+        service.moveOut(userId, bowie, films)
+
+        Mockito.verifyNoInteractions(indexRequests)
+    }
+
+    @Test
+    fun `deleting a note and keeping its sub-notes reindexes them, whose parents and place changed`() {
+        service.delete(userId, low, SubNoteFate.KEEP)
+
+        Mockito.verify(indexRequests).requestLaterWithSubNotes(userId, listOf(warszawa))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `deleting a note with nothing left below reindexes nothing`() {
+        service.delete(userId, loose, null)
+        service.delete(userId, bowie, SubNoteFate.DELETE)
+
+        Mockito.verifyNoInteractions(indexRequests)
+    }
 }

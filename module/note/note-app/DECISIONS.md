@@ -425,3 +425,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   toward `note.rag.chunk-size`; the text keeps at least a quarter of it. The title is no longer prepended to the text.
   Prompts and the header share `NotePlaceText`. Old notes get the header on their next reindex (no backfill).
 - **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 2.
+
+## 2026-10-22 — Changed notes are reindexed an hour after the last change
+
+- **Context:** the index now carries the note's place, so reorganizing notes would reindex (and pay for embeddings)
+  on every step.
+- **Decision:** `NoteIndexRequestService` queues all indexing. A completed summary note is indexed at once
+  (`requestNow`, plain `publish`); every other change goes through `publishDebounced` with key
+  `NOTE_INDEX_REQUESTED:<noteId>` and `note.rag.reindex-delay` (default `1h`). Changes of the place, of a parent's
+  title, and of a constellation's name or position reindex the note with all its sub-notes; a content-only edit or a
+  summary update only the note; a colour change nothing. Only `READY` notes are queued: a placeholder placed while
+  `GENERATING` gets its place in its first index, so it pays for no second one.
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 3.

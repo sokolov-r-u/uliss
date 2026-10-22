@@ -260,9 +260,24 @@ minutes, kept within 6 by a test of the shipped `application.yaml`).
 RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note_id` are typed
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in
 generic JSON. Spring AI still owns token splitting and embedding/batching. `JdbcRagChunkStore`
-performs replacement and ownership-filtered exact cosine retrieval. The indexed text is
-`title + "\n\n" + content` when a title exists, otherwise only `content`. `READY` means the note is
-readable; its follow-up indexing event may still be pending.
+performs replacement and ownership-filtered exact cosine retrieval. Every chunk of a note starts with a header of its
+place and title (`Constellations: Music / Jazz; Films`, `Parent notes: "Coltrane"`, `Title: …`; lines without data are
+left out), read when the index event runs, so the place shapes every chunk's embedding; the header counts toward
+`note.rag.chunk-size`. `READY` means the note is readable; its follow-up indexing event may still be pending.
+
+A new summary note is indexed at once (`NOTE_INDEX_REQUESTED` without a key). Every later change reindexes a `READY`
+note no earlier than `note.rag.reindex-delay` (default `1h`) after its last change: `OutboxService.publishDebounced`
+keeps one `PENDING` event per `dedup_key` `NOTE_INDEX_REQUESTED:<noteId>` and moves its `next_attempt_at`. A change
+while the event is running queues another one. What reindexes which notes:
+
+- edit of the content: the note; edit of the title or a rename: the note and its sub-notes (their parent chain);
+- an applied summary update: the note;
+- adding, changing the main of, or removing a place; moving under a note or out: the note and its sub-notes;
+- deleting a note but keeping its sub-notes: those sub-notes and theirs;
+- renaming, moving, or deleting (notes moved or left without a place) a constellation: the notes placed in its branch
+  and their sub-notes. A colour change reindexes nothing.
+
+Old notes get the place header on their next reindex; there is no backfill.
 
 The application context can start without provider keys, but provider-backed calls will fail;
 background summary/index work then follows the outbox retry policy. Starting the application or

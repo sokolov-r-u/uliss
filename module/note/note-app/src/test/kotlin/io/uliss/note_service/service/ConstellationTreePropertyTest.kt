@@ -7,6 +7,7 @@ import net.jqwik.api.Arbitrary
 import net.jqwik.api.ForAll
 import net.jqwik.api.Property
 import net.jqwik.api.Provide
+import org.mockito.Mockito
 import java.util.Locale
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -23,7 +24,11 @@ class ConstellationTreePropertyTest {
         @ForAll("steps") steps: List<Step>,
     ) {
         val store = InMemoryConstellationStore()
-        val service = ConstellationService(store.repository, InMemoryNoteConstellationStore().store)
+        val service = ConstellationService(
+            store.repository,
+            InMemoryNoteConstellationStore().store,
+            Mockito.mock(NoteIndexRequestService::class.java),
+        )
         val users = listOf(UUID.randomUUID(), UUID.randomUUID())
 
         for (step in steps) {

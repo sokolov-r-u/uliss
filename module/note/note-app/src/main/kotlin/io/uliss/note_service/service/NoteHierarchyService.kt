@@ -32,6 +32,7 @@ class NoteHierarchyService(
     private val hierarchyStore: NoteHierarchyStore,
     private val constellationRepository: ConstellationRepository,
     private val membershipStore: NoteConstellationStore,
+    private val noteIndexRequestService: NoteIndexRequestService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -79,6 +80,7 @@ class NoteHierarchyService(
         if (note.parentNoteId == parentNoteId) return placeOf(userId, hierarchy, noteId)
         membershipStore.replace(userId, mapOf(noteId to emptyList()))
         hierarchyStore.setParent(userId, listOf(noteId), parentNoteId)
+        noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(noteId))
         return placeOf(userId, loadHierarchy(userId), noteId)
     }
 
@@ -98,6 +100,7 @@ class NoteHierarchyService(
         hierarchyStore.setParent(userId, listOf(noteId), null)
         val memberships = listOfNotNull(moveTo?.let { NoteMembership(it, true, clock.instant()) })
         if (memberships.isNotEmpty()) membershipStore.replace(userId, mapOf(noteId to memberships))
+        noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(noteId))
         return NotePlace(emptyList(), memberships)
     }
 
@@ -122,6 +125,8 @@ class NoteHierarchyService(
                 hierarchyStore.setParent(userId, adoption.childIds, adoption.parentNoteId)
                 membershipStore.replace(userId, adoption.memberships)
                 hierarchyStore.deleteNotes(userId, listOf(noteId))
+                // the kept sub-notes lose a parent from their chain, or take its place
+                noteIndexRequestService.requestLaterWithSubNotes(userId, adoption.childIds)
             }
         }
     }

@@ -28,10 +28,12 @@ class NotePlacementServiceTest {
     private val noteRepository = Mockito.mock(NoteRepository::class.java)
     private val constellations = InMemoryConstellationStore()
     private val memberships = InMemoryNoteConstellationStore()
+    private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val service = NotePlacementService(
         noteRepository,
         constellations.repository,
         memberships.store,
+        indexRequests,
         Clock.fixed(now, ZoneOffset.UTC),
     )
 
@@ -151,4 +153,26 @@ class NotePlacementServiceTest {
         if (parentId == null) ConstellationEntity(userId, null, "Root ${constellations.rows.size}", 22, null)
         else ConstellationEntity(userId, parentId, "Child ${constellations.rows.size}", null, ConstellationLightness.LIGHT)
     ).id
+
+    @Test
+    fun `a changed place reindexes the note with its sub-notes later, an unchanged one does not`() {
+        service.add(userId, note.id, music)
+        service.add(userId, note.id, music)
+        service.makeMain(userId, note.id, jazz, replace = true)
+        service.remove(userId, note.id, films)
+        service.remove(userId, note.id, jazz)
+
+        Mockito.verify(indexRequests, Mockito.times(3)).requestLaterWithSubNotes(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `a refused change reindexes nothing`() {
+        val subNote = owned(NoteEntity(userId, "child", parentNoteId = note.id))
+
+        assertFailsWith<NotePlaceInheritedException> { service.add(userId, subNote.id, music) }
+        assertFailsWith<ConstellationNotFoundException> { service.add(userId, note.id, UUID.randomUUID()) }
+
+        Mockito.verifyNoInteractions(indexRequests)
+    }
 }

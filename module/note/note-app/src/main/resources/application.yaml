@@ -69,6 +69,8 @@ note:
     max-per-user: ${NOTE_STATUS_STREAMS_PER_USER:5}
   rag:
     chunk-size: 800
+    # a changed note is reindexed this long after its last change
+    reindex-delay: 1h
   assistant:
     # Chat Completions rejects function tools with any other effort on gpt-5.6 (TECH_DEBT: Responses API).
     reasoning-effort: none

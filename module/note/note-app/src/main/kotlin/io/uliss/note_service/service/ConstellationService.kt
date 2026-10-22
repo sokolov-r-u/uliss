@@ -28,6 +28,7 @@ import java.util.UUID
 class ConstellationService(
     private val repository: ConstellationRepository,
     private val noteConstellationStore: NoteConstellationStore,
+    private val noteIndexRequestService: NoteIndexRequestService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -56,7 +57,10 @@ class ConstellationService(
         return saveAndView(userId, entity)
     }
 
-    /** Renames and/or recolours: [hue] applies only to a root, [lightness] only to a sub-constellation. */
+    /**
+     * Renames and/or recolours: [hue] applies only to a root, [lightness] only to a sub-constellation. A new name
+     * reindexes the notes of the branch, whose place carries it; a colour does not.
+     */
     @Transactional
     fun update(
         userId: UUID,
@@ -78,6 +82,7 @@ class ConstellationService(
         if (rawName != null) {
             val name = normalizeName(rawName)
             if (tree.isNameTaken(entity.parentId, name, exceptId = entity.id)) throw ConstellationNameTakenException(name)
+            if (name != entity.name) requestReindexOfBranch(userId, tree.branchIds(id))
             entity.name = name
         }
         hue?.let { entity.hue = it }
@@ -116,6 +121,7 @@ class ConstellationService(
         save(entity)
         // A new root has no ancestors, so no place of its notes can come to share a line.
         if (parentId != null) keepOnePlacePerLine(userId, id)
+        requestReindexOfBranch(userId, tree.branchIds(id))
         return loadTree(userId).view(id)
     }
 
@@ -150,6 +156,13 @@ class ConstellationService(
             touched.mapValues { (_, memberships) -> NotePlacement.withoutBranch(memberships, branchIds, moveTo, now) },
         )
         repository.deleteBranch(userId, id)
+        noteIndexRequestService.requestLaterWithSubNotes(userId, touched.keys)
+    }
+
+    /** The notes placed in the branch and their sub-notes carry its path in their index. */
+    private fun requestReindexOfBranch(userId: UUID, branchIds: Set<UUID>) {
+        val placed = noteConstellationStore.findByNotesInConstellations(userId, branchIds).keys
+        noteIndexRequestService.requestLaterWithSubNotes(userId, placed)
     }
 
     private fun lockAndLoadTree(userId: UUID): ConstellationTree {
