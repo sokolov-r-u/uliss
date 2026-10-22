@@ -24,8 +24,9 @@ import {
     type Constellation,
     ConstellationApiError,
     createConstellation,
+    getSky,
     listConstellations,
-    searchNotes,
+    type SkyStar,
 } from '../constellations/constellationApi'
 
 vi.mock('./chatApi', () => ({
@@ -54,7 +55,7 @@ vi.mock('./streamChatReply', () => ({
 vi.mock('../constellations/constellationApi', () => ({
     listConstellations: vi.fn(() => Promise.resolve([])),
     createConstellation: vi.fn(),
-    searchNotes: vi.fn(() => Promise.resolve([])),
+    getSky: vi.fn(() => Promise.resolve({constellations: [], notes: []})),
     ConstellationApiError: class ConstellationApiError extends Error {
         constructor(
             public readonly kind: string,
@@ -1001,6 +1002,10 @@ describe('ChatPage summary place picker', () => {
         {id: 'jazz', parentId: 'music', name: 'Jazz', hue: 264, lightness: 'LIGHT', noteCount: 0, ownNoteCount: 0},
     ]
 
+    const star = (id: string, title: string, constellationId?: string): SkyStar => ({id, title, parentNoteId: null,
+        createdAt: '2026-10-20T10:00:00Z', memberships: constellationId ? [{constellationId, main: true}] : []})
+    const skyWith = (notes: SkyStar[] = []) => vi.mocked(getSky).mockResolvedValue({constellations: tree, notes})
+
     beforeEach(() => {
         mockedGetMessages.mockReset().mockResolvedValue(messagePage([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
@@ -1008,6 +1013,8 @@ describe('ChatPage summary place picker', () => {
         ]))
         mockedSummary.mockReset().mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
         vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
+        vi.mocked(getSky).mockReset()
+        skyWith()
         vi.mocked(listConstellations).mockReset().mockResolvedValue(tree)
         vi.mocked(createConstellation).mockReset()
         sessionStorage.clear()
@@ -1057,12 +1064,12 @@ describe('ChatPage summary place picker', () => {
             'CONSTELLATION_NOT_FOUND'))
         const dialog = await openPicker()
         await userEvent.click(await within(dialog).findByRole('button', {name: /^Music/}))
-        vi.mocked(listConstellations).mockResolvedValue([tree[1]!].map((item) => ({...item, id: 'other'})))
+        vi.mocked(getSky).mockResolvedValue({constellations: [tree[1]!].map((item) => ({...item, id: 'other'})), notes: []})
         await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize into Music'}))
 
         expect(await within(dialog).findByText('That constellation no longer exists. Pick another one or skip for now.'))
             .toBeInTheDocument()
-        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(getSky).toHaveBeenCalledTimes(2))
         expect(screen.queryByRole('status', {name: 'Summary note'})).not.toBeInTheDocument()
         // The rejected key is dropped, so the next attempt is a new request.
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
@@ -1077,12 +1084,12 @@ describe('ChatPage summary place picker', () => {
 
         expect(await within(dialog).findByRole('alert'))
             .toHaveTextContent('That constellation no longer exists. Pick another place.')
-        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(getSky).toHaveBeenCalledTimes(2))
         expect(mockedSummary).not.toHaveBeenCalled()
     })
 
     it('offers Retry when the tree does not load and Skip for now still works', async () => {
-        vi.mocked(listConstellations).mockRejectedValueOnce(new ConstellationApiError('transport', 'offline'))
+        vi.mocked(getSky).mockRejectedValueOnce(new ConstellationApiError('transport', 'offline'))
         const dialog = await openPicker()
 
         expect(await within(dialog).findByText('Could not load the constellations.')).toBeInTheDocument()
@@ -1144,34 +1151,29 @@ describe('ChatPage summary place picker', () => {
     })
 
     it('summarizes under a note found by its title', async () => {
-        vi.mocked(searchNotes).mockResolvedValue(
-            [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'music'}])
+        skyWith([star('bowie', 'Bowie', 'music')])
         const dialog = await openPicker()
 
         await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'bow')
-        const hit = await within(dialog).findByRole('button', {name: /^Bowie/})
-        expect(hit).toHaveTextContent('Music')
-        await userEvent.click(hit)
+        expect(within(dialog).getByRole('button', {name: /^Bowie/})).toHaveAttribute('aria-pressed', 'true')
         await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Bowie'}))
 
         await waitFor(() => expect(mockedSummary)
             .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie', undefined))
-        expect(searchNotes).toHaveBeenCalledWith('bow', null, expect.any(AbortSignal))
     })
 
     it('explains a deleted parent note and reloads the picker', async () => {
-        vi.mocked(searchNotes).mockResolvedValue([{id: 'gone', title: 'Gone', ancestors: [], constellationId: null}])
+        skyWith([star('gone', 'Gone')])
         mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
             'PARENT_NOTE_NOT_FOUND'))
         const dialog = await openPicker()
 
         await userEvent.type(await within(dialog).findByRole('textbox', {name: 'Put the note in…'}), 'gone')
-        await userEvent.click(await within(dialog).findByRole('button', {name: /^Gone/}))
         await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize under Gone'}))
 
         expect(await within(dialog).findByText('That note no longer exists. Pick another place or skip for now.'))
             .toBeInTheDocument()
-        await waitFor(() => expect(listConstellations).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(getSky).toHaveBeenCalledTimes(2))
     })
 
     it('updates a summarized chat without the place picker', async () => {
@@ -1190,6 +1192,6 @@ describe('ChatPage summary place picker', () => {
         const dialog = screen.getByRole('dialog', {name: 'Update “Trip”?'})
         expect(within(dialog).queryByRole('textbox', {name: 'Put the note in…'})).not.toBeInTheDocument()
         expect(within(dialog).queryByRole('button', {name: 'Skip for now'})).not.toBeInTheDocument()
-        expect(listConstellations).not.toHaveBeenCalled()
+        expect(getSky).not.toHaveBeenCalled()
     })
 })

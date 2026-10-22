@@ -28,3 +28,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the `maxLength` behavior is unchanged.
 - **Consequences:** public props changed; a Claude Design sync is due after merge.
 - **Source:** task `docs/tasks/2026-10-22-summary-place-title.md`, block 4.
+
+## 2026-10-22 — The place picker searches in its tree and lists notes as nodes
+
+- **Context:** search swapped the tree for flat hits, notes came from an async host search under the constellations,
+  and the list grew up to 300px. Users lost where a hit lives and could not walk notes.
+- **Decision:** the list shows five rows and scrolls. Search keeps the tree: it marks the rows whose own name matches,
+  unfolds the branches to them while it lasts, and steps through them with a counter, ↑/↓ and Enter/Shift+Enter; the
+  current match is the selection. `notes.search` is replaced by `notes.items` (a flat list with parent note and
+  constellations): a note sits in each of its constellations, sub-notes under their parent, the rest in a last
+  "Without constellation" branch; `exclude` also hides a note with its sub-notes. The search field drops the global
+  focus ring (replaces, for this field only, the "no inline outline" rule of 2026-10-21): its bottom edge and icon
+  brighten on focus.
+- **Consequences:** hosts load every candidate note up front (the web reads them from `GET /sky`). Public props
+  changed; a Claude Design sync is due after merge.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 1.
