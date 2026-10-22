@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
@@ -9,6 +9,7 @@ import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/Context
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {type SummaryPlace, SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
+import {isSummaryNameTooLong, SummaryNameField} from './SummaryNameField'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
     type Chat,
@@ -79,8 +80,22 @@ function summaryKeyTargetStorageKey(chatId: string): string {
     return `uliss.chat-summary.v1:${chatId}:target`
 }
 
-function summaryRequestTarget(throughMessageId: string | undefined, noteId: string | undefined): string {
-    return `${throughMessageId ?? ''}|${noteId ?? ''}`
+function summaryRequestTarget(
+    throughMessageId: string | undefined,
+    noteId: string | undefined,
+    place?: SummaryPlace,
+    name = '',
+): string {
+    const placeKey = !place ? '' : 'constellationId' in place ? `c:${place.constellationId}` : `n:${place.parentNoteId}`
+    return `${throughMessageId ?? ''}|${noteId ?? ''}|${placeKey}|${name.trim()}`
+}
+
+/**
+ * The text block of the summary dialogs: description, progress and errors share it, and it is as tall as the longest
+ * of them (three lines), so the dialog keeps its size when the text changes.
+ */
+function SummaryDialogText({error, children}: { error: string | null; children: ReactNode }) {
+    return <span className={`chat-summary-text${error ? ' chat-summary-error' : ''}`}>{error ?? children}</span>
 }
 
 interface PendingChatRequest {
@@ -142,6 +157,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
+    /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
+    const [summaryName, setSummaryName] = useState('')
+    const [summaryNameDictating, setSummaryNameDictating] = useState(false)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
@@ -615,11 +633,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     async function confirmSummary(place?: SummaryPlace) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const target = summaryState
+        if (!target && (isSummaryNameTooLong(summaryName) || summaryNameDictating)) return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
         // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
-        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId)
+        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId,
+            target ? undefined : place, target ? '' : summaryName)
         const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
         const idempotencyKey = storedKey ?? generateClientUuid()
         summaryRequestIdRef.current = requestId
@@ -635,7 +655,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
                 : await requestChatSummary(chatId, idempotencyKey, undefined,
                     place && 'constellationId' in place ? place.constellationId : undefined,
-                    place && 'parentNoteId' in place ? place.parentNoteId : undefined)
+                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -695,6 +715,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             }
         }
     }
+
+    /** A name over the limit, or one still being dictated, keeps a new summary from starting. */
+    const summaryHeld = isSummaryNameTooLong(summaryName) || summaryNameDictating
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
@@ -757,6 +780,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     ? <ActionChip label="Summarize" disabled={!canSummarize}
                                   onClick={() => {
                                       setSummaryError(null)
+                                      setSummaryName('')
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -764,11 +788,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                              onBackdropClick={() => setSummaryDialog(false)}>
                 {updateTarget ? <Notice
                     title={summaryTitle}
-                    body={summaryError
-                        ? <span className="chat-summary-error">{summaryError}</span>
-                        : 'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.'}
+                    body={<SummaryDialogText error={summaryError}>
+                        New thoughts from this chat will be added at the end with today&apos;s date. The existing text
+                        stays as it is.
+                    </SummaryDialogText>}
                     primary={summaryPending ? 'Updating…' : 'Update note'}
-                    secondary={summaryPending ? undefined : 'Cancel'}
+                    secondary="Cancel"
+                    secondaryDisabled={summaryPending}
                     busy={summaryPending}
                     primaryDisabled={summaryPending}
                     onPrimary={() => void confirmSummary()}
@@ -777,16 +803,19 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     : <Notice
                         title={summaryTitle}
                         width={360}
-                        body={summaryError
-                            ? <span className="chat-summary-error">{summaryError}</span>
-                            : summaryPending
+                        body={<SummaryDialogText error={summaryError}>
+                            {summaryPending
                                 ? 'Starting the summary…'
-                                : 'Choose where the note will live. Uliss writes it in the background from the conversation saved so far.'}
+                                : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
+                        </SummaryDialogText>}
                         primary=""
-                        secondary={summaryPending ? undefined : 'Skip for now'}
+                        secondary="Skip for now"
+                        secondaryDisabled={summaryPending || summaryHeld}
                         busy={summaryPending}
                         onSecondary={() => void confirmSummary()}>
-                        <SummaryPlacePicker busy={summaryPending} revision={placeRevision}
+                        <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
+                                          onDictatingChange={setSummaryNameDictating}/>
+                        <SummaryPlacePicker busy={summaryPending || summaryHeld} revision={placeRevision}
                                             onPick={(place) => void confirmSummary(place)}
                                             onClose={() => {
                                                 if (!summaryPendingRef.current) setSummaryDialog(false)

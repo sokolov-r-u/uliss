@@ -190,11 +190,14 @@ export async function requestChatSummary(
     updateNoteId?: string,
     constellationId?: string,
     parentNoteId?: string,
+    /** The user's name for a new note; blank lets the model name it. */
+    title?: string,
 ): Promise<ChatSummaryResponse> {
+    const name = title?.trim() ? {title: title.trim()} : {}
+    const place = constellationId ? {constellationId} : parentNoteId ? {parentNoteId} : {}
     const body = updateNoteId
         ? {mode: 'UPDATE', targetNoteId: updateNoteId}
-        : constellationId ? {mode: 'CREATE', constellationId}
-            : parentNoteId ? {mode: 'CREATE', parentNoteId} : null
+        : Object.keys(name).length + Object.keys(place).length > 0 ? {mode: 'CREATE', ...place, ...name} : null
     const init: RequestInit = body
         ? {
             method: 'POST',

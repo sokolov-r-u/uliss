@@ -42,6 +42,8 @@ export interface NoticeProps {
     onSkip?: () => void
     onClose?: () => void
     primaryDisabled?: boolean
+    /** Keeps the secondary action in place but unavailable, so the card does not change size. */
+    secondaryDisabled?: boolean
     busy?: boolean
     showClose?: boolean
     width?: number
@@ -62,6 +64,7 @@ export function Notice({
                            onSkip,
                            onClose,
                            primaryDisabled = false,
+                           secondaryDisabled = false,
                            busy = false,
                            showClose = false,
                            width = 304,
@@ -163,7 +166,7 @@ export function Notice({
                     {children && <div style={{marginBottom: 22}}>{children}</div>}
                     <div style={{display: 'flex', gap: 10}}>
                         {hasSecondary && (
-                            <Button variant="ghost" onClick={onSecondary}>
+                            <Button variant="ghost" onClick={onSecondary} disabled={secondaryDisabled}>
                                 {secondary}
                             </Button>
                         )}

@@ -32,4 +32,15 @@ describe('Notice', () => {
         await user.click(screen.getByRole('button', {name: 'Save'}))
         expect(onPrimary).not.toHaveBeenCalled()
     })
+
+    it('keeps a disabled secondary action in place without running it', async () => {
+        const user = userEvent.setup()
+        const onSecondary = vi.fn()
+        render(<Notice title="Name" primary="" secondary="Skip for now" secondaryDisabled onSecondary={onSecondary}/>)
+
+        const skip = screen.getByRole('button', {name: 'Skip for now'})
+        expect(skip).toBeDisabled()
+        await user.click(skip)
+        expect(onSecondary).not.toHaveBeenCalled()
+    })
 })

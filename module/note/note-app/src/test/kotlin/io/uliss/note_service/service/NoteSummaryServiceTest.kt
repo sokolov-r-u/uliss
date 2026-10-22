@@ -152,6 +152,20 @@ class NoteSummaryServiceTest {
     }
 
     @Test
+    fun `requestChatSummary saves the user's title on the placeholder`() {
+        acceptReservations()
+        Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
+
+        val note = noteSummaryService.requestChatSummary(
+            UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), title = "Giant Steps",
+        )
+
+        assertEquals("Giant Steps", note.title)
+        assertEquals(NoteStatus.GENERATING, note.status)
+        Mockito.verify(noteRepository).saveAndFlush(note)
+    }
+
+    @Test
     fun `requestChatSummary without a constellation leaves the note without a place`() {
         acceptReservations()
         Mockito.`when`(noteRepository.saveAndFlush(anyValue())).thenAnswer { it.getArgument<NoteEntity>(0) }
@@ -357,6 +371,32 @@ class NoteSummaryServiceTest {
         val payload = publishedPayload(OutboxEventType.NOTE_INDEX_REQUESTED)
         assertTrue(payload.contains(note.id.toString()))
         assertTrue(payload.contains(userId.toString()))
+    }
+
+    @Test
+    fun `completeChatSummary keeps the title the user gave the placeholder`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING, "Giant Steps")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        Mockito.`when`(noteRepository.save(note)).thenReturn(note)
+
+        assertTrue(noteSummaryService.completeChatSummary(userId, note.id, "Model title", "summary text"))
+
+        assertEquals("Giant Steps", note.title)
+        assertEquals(NoteStatus.READY, note.status)
+    }
+
+    @Test
+    fun `findGeneratingNote finds only a note still waiting for its summary`() {
+        val userId = UUID.randomUUID()
+        val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING, "Giant Steps")
+        val ready = NoteEntity(userId, "text", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        Mockito.`when`(noteRepository.findByIdAndUserId(generating.id, userId)).thenReturn(generating)
+        Mockito.`when`(noteRepository.findByIdAndUserId(ready.id, userId)).thenReturn(ready)
+
+        assertEquals(generating, noteSummaryService.findGeneratingNote(userId, generating.id))
+        assertEquals(null, noteSummaryService.findGeneratingNote(userId, ready.id))
+        assertEquals(null, noteSummaryService.findGeneratingNote(userId, UUID.randomUUID()))
     }
 
     @Test

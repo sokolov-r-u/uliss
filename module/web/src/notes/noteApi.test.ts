@@ -94,6 +94,22 @@ describe('noteApi', () => {
         })
     })
 
+    it('sends the trimmed name of a new note, alone or with its place, and leaves out a blank one', async () => {
+        mockedFetch.mockImplementation(async () =>
+            jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'}, 202))
+
+        await requestChatSummary('chat-1', 'request-1', undefined, undefined, undefined, '  Giant Steps ')
+        await requestChatSummary('chat-1', 'request-2', undefined, 'jazz', undefined, 'Giant Steps')
+        await requestChatSummary('chat-1', 'request-3', undefined, undefined, undefined, '   ')
+
+        const bodies = mockedFetch.mock.calls.map(([, init]) => (init as RequestInit).body)
+        expect(bodies).toEqual([
+            JSON.stringify({mode: 'CREATE', title: 'Giant Steps'}),
+            JSON.stringify({mode: 'CREATE', constellationId: 'jazz', title: 'Giant Steps'}),
+            undefined,
+        ])
+    })
+
     it('carries the error code of a refused placed summary', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({code: 'CONSTELLATION_NOT_FOUND'}, 404))
 

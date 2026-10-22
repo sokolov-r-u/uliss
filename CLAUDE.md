@@ -89,6 +89,9 @@
 - Forbidden: `@Disabled`/`skip`/`only`, weakening assertions, deleting tests to make the build pass, mocking the class
   under test. Test expectations may change only when the requested behavior intentionally changes the contract; explain
   it in the report.
+- One exception: inside an epic, a Playwright/visual test of a screen that a later task of the same epic changes again
+  may be skipped with an epic marker and re-enabled in the epic's final task (see `module/web/CLAUDE.md`). Vitest and
+  JVM tests are never skipped.
 - Report JaCoCo line and branch coverage of touched modules; aim for at least 80% on the service layer.
 - Diagnose failures and fix issues within the agreed scope. IntelliJ diagnostics are a fast signal when available, never
   the final authority.

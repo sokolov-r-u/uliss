@@ -164,7 +164,38 @@
     text-transform: uppercase;
 }
 
+/* Three lines of the Notice body (11.5px × 1.65), the longest summary-dialog text */
+.chat-summary-text {
+    display: -webkit-box;
+    height: 4.95em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
 .chat-summary-error {
+    color: var(--terracotta);
+}
+
+/* Name of a new summary note, above the place picker */
+.summary-name {
+    margin-bottom: 14px;
+}
+
+.summary-name-hint {
+    min-height: 1.5em;
+    margin: 6px 0 0;
+    font-family: var(--font-text);
+    font-size: 11px;
+    line-height: 1.5;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.summary-name-hint-error {
     color: var(--terracotta);
 }
 

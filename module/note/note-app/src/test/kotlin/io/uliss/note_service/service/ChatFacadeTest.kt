@@ -192,6 +192,61 @@ class ChatFacadeTest {
     }
 
     @Test
+    fun `requestSummary passes the user's title with whitespace normalized, and a blank one as none`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val latest = UUID.randomUUID()
+        val named = UUID.randomUUID()
+        val blank = UUID.randomUUID()
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteSummaryService.requestChatSummary(userId, chatId, latest, named, null, null, "Giant Steps"))
+            .thenReturn(savedNote)
+        Mockito.`when`(noteSummaryService.requestChatSummary(userId, chatId, latest, blank, null, null, null))
+            .thenReturn(savedNote)
+
+        assertSame(
+            savedNote,
+            chatFacade.requestSummary(userId, chatId, named, SummaryMode.CREATE, null, title = "  Giant \n  Steps "),
+        )
+        assertSame(savedNote, chatFacade.requestSummary(userId, chatId, blank, SummaryMode.CREATE, null, title = "   "))
+    }
+
+    @Test
+    fun `requestSummary refuses a title over 50 code points or with an update before reserving anything`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val current = CurrentChatSummary(UUID.randomUUID(), "Trip", UUID.randomUUID())
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(UUID.randomUUID())
+        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId)).thenReturn(current)
+
+        val tooLong = "🎷".repeat(51)
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(userId, chatId, UUID.randomUUID(), SummaryMode.CREATE, null, title = tooLong)
+        }
+        assertFailsWith<BadRequestException> {
+            chatFacade.requestSummary(userId, chatId, UUID.randomUUID(), SummaryMode.UPDATE, current.noteId, title = "Trip")
+        }
+        Mockito.verify(noteSummaryService, Mockito.never()).findSummaryReplay(anyValue(), anyValue(), anyValue())
+        Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
+    }
+
+    @Test
+    fun `requestSummary accepts a title of exactly 50 code points`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val latest = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val title = "🎷".repeat(50)
+        Mockito.`when`(chatService.getLatestMessageId(userId, chatId)).thenReturn(latest)
+        val savedNote = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
+        Mockito.`when`(noteSummaryService.requestChatSummary(userId, chatId, latest, key, null, null, title))
+            .thenReturn(savedNote)
+
+        assertSame(savedNote, chatFacade.requestSummary(userId, chatId, key, SummaryMode.CREATE, null, title = title))
+    }
+
+    @Test
     fun `requestSummary takes one place, a constellation or a parent note, and none for an update`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()

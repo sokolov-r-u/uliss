@@ -28,6 +28,16 @@ editing the SPA.
   (read-only, `DesignSync get_file`) as the design spec; ask the user when it conflicts with the current kit.
 - Web-only changes (screens, routing, layout glue) do not require a design sync; see the design-system `CLAUDE.md`.
 - Keep the authenticated application full-bleed and responsive; mockup artboards are not runtime layout constraints.
+- A modal (`Notice`, `Dialog`, drawers over the screen) keeps its size while its state changes: validation errors,
+  hints, busy or recording states, enabled/disabled actions. Only opening a different step of a flow may change it.
+  - Build the modal from fixed blocks (title, body text, fields, hint line, actions). Every text of one kind uses the
+    same block in every state: the description, "Starting…" and an error all go into the body block.
+  - A block is sized for its longest variant. When variants differ, bring them to a common size: shorten the longer
+    text, extend the shorter one, or reserve the empty space. If a text does not fit its block, change the text or
+    the block, never let the modal grow or shrink.
+  - Actions may disappear, but their place stays: the modal never collapses because a button is gone.
+  - When a modal has such states, a Playwright test compares its bounding box before and after each change (jsdom has
+    no layout, so Vitest cannot check it).
 - Preserve a CSS-driven desktop/mobile breakpoint. Do not add JavaScript `matchMedia` logic without a functional need.
 - UI source uses 4-space indentation after formatting. Re-read a file if an external formatter changes it during
   editing.
@@ -38,7 +48,15 @@ editing the SPA.
   then deploy it (`./gradlew buildAllImages`, `docker compose -f infra/docker-compose.yml --profile full up -d`) for
   the user's manual UI check.
 - After the user confirms the result in the UI, write the Vitest and Playwright tests for the changed behavior and run
-  `test`, `build`, and the visual suite; commit the tests with the code (or as a follow-up commit of the same task).
+  `test`, `build`, and the Playwright specs of the touched screens; commit the tests with the code (or as a follow-up
+  commit of the same task). The full visual suite runs in CI on every pull request (`visual-checks` in
+  `.github/workflows/pr-checks.yml`); run it locally only when asked or in an epic's final task.
+- Inside an epic, a Playwright/visual test that fails because the task changes a screen that a later task of the same
+  epic changes again may be skipped instead of updated:
+  `test.skip(true, 'epic <epic-name>: re-enable in the final task')`. A screen changed only by the current task gets
+  its tests and screenshots updated in that task. List every skipped test in the epic file with the task that skipped
+  it. The epic's final task re-enables them all (no marker of the epic is left in `visual/tests`), updates screenshots
+  with the user's approval, adds the deferred Playwright tests, and runs the full visual suite.
 
 ## Verification
 

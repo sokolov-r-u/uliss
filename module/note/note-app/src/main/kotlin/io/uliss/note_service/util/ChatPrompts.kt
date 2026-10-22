@@ -1,6 +1,7 @@
 package io.uliss.note_service.util
 
 import io.uliss.note_service.dto.internal.ChatSummaryContext
+import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.repository.RetrievedChunk
 import java.time.ZoneOffset
@@ -116,6 +117,11 @@ object ChatPrompts {
         When the current chat provides an unambiguous expansion for an acronym, include both forms on first use.
         Do not invent synonyms, acronym expansions, or terminology not supported by the current chat.
 
+        The note place shows where the user keeps this note in their own organization of notes: constellations
+        (nested topics, root first) and parent notes (the note lies under them). Use it to understand what the note
+        is about and why the user keeps it. Never mention the note place, constellations, or parent notes in the
+        note.
+
         Related notes may help with the user's terminology, preferences, and continuity, but do not claim that
         their facts occurred in the current chat.
 
@@ -164,10 +170,22 @@ object ChatPrompts {
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
 
-    fun noteSummaryUserPrompt(context: ChatSummaryContext, chunks: List<RetrievedChunk>): String = buildString {
+    fun noteSummaryUserPrompt(
+        context: ChatSummaryContext,
+        place: NotePlaceDescription,
+        chunks: List<RetrievedChunk>,
+        /** The note's name when the user gave one; the model then writes only the body. */
+        userTitle: String? = null,
+    ): String = buildString {
         appendLine("CURRENT CHAT (authoritative):")
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
+        appendLine()
+        if (userTitle != null) {
+            appendLine("Note title (set by the user): $userTitle")
+            appendLine()
+        }
+        appendNotePlace(place)
         appendLine()
         appendRelatedNotes(chunks)
     }
@@ -176,6 +194,7 @@ object ChatPrompts {
         noteTitle: String?,
         noteContent: String,
         context: ChatSummaryContext,
+        place: NotePlaceDescription,
         chunks: List<RetrievedChunk>,
     ): String = buildString {
         appendLine("EXISTING NOTE (already written; do not repeat):")
@@ -186,7 +205,23 @@ object ChatPrompts {
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
         appendLine()
+        appendNotePlace(place)
+        appendLine()
         appendRelatedNotes(chunks)
+    }
+
+    private fun StringBuilder.appendNotePlace(place: NotePlaceDescription) {
+        appendLine("NOTE PLACE (the user's own organization of notes):")
+        if (place.constellationPaths.isEmpty() && place.parentNoteTitles.isEmpty()) {
+            appendLine("none — the user has not applied any tags yet")
+            return
+        }
+        val constellations = place.constellationPaths.joinToString("; ") { it.joinToString(" / ") }
+        appendLine("Constellations: ${constellations.ifEmpty { "none" }}")
+        if (place.parentNoteTitles.isNotEmpty()) {
+            val parents = place.parentNoteTitles.joinToString(" / ") { title -> title?.let { "\"$it\"" } ?: "(untitled)" }
+            appendLine("Parent notes: $parents")
+        }
     }
 
     private fun StringBuilder.appendRelatedNotes(chunks: List<RetrievedChunk>) {

@@ -9,6 +9,7 @@ import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.util.ChatPrompts
@@ -27,6 +28,7 @@ class NoteSummaryUpdateRequestedHandler(
     private val chatService: ChatService,
     private val ragService: RagService,
     private val noteSummaryService: NoteSummaryService,
+    private val noteHierarchyService: NoteHierarchyService,
     private val properties: NoteSummaryProperties,
     /** Addendum dates are UTC; tests pass a fixed clock. */
     private val clock: Clock = Clock.systemUTC(),
@@ -47,6 +49,8 @@ class NoteSummaryUpdateRequestedHandler(
         }
         val note = noteSummaryService.findReadyNote(payload.userId, payload.noteId)
             ?: throw NonRetryableOutboxException("note id=${payload.noteId} is gone or not ready for its summary update")
+        // read now, not at request time: the user may have moved the note while the event waited
+        val place = noteHierarchyService.getPlaceDescription(payload.userId, payload.noteId)
         val relatedChunks = ragService.searchExcluding(
             userId = payload.userId,
             query = SummaryRetrievalQuery.build(context, properties.retrievalQueryMaxChars),
@@ -56,7 +60,7 @@ class NoteSummaryUpdateRequestedHandler(
         )
         val draft: NoteAddendumDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteUpdateUserPrompt(note.title, note.content.orEmpty(), context, relatedChunks))
+            .user(ChatPrompts.noteUpdateUserPrompt(note.title, note.content.orEmpty(), context, place, relatedChunks))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

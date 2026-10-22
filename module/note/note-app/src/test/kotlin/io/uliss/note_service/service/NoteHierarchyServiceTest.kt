@@ -140,6 +140,55 @@ class NoteHierarchyServiceTest {
     }
 
     @Test
+    fun `a place description holds the full path of every constellation, main first, for a top note`() {
+        val description = service.getPlaceDescription(userId, bowie)
+
+        assertEquals(listOf(listOf(nameOf(music), nameOf(rock)), listOf(nameOf(films))), description.constellationPaths)
+        assertTrue(description.parentNoteTitles.isEmpty())
+    }
+
+    @Test
+    fun `a sub-note is described by the paths of its top note and its parent notes from the top down`() {
+        val description = service.getPlaceDescription(userId, warszawa)
+
+        assertEquals(listOf(listOf(nameOf(music), nameOf(rock)), listOf(nameOf(films))), description.constellationPaths)
+        assertEquals(listOf("Bowie", "Low"), description.parentNoteTitles)
+    }
+
+    @Test
+    fun `a note without constellations or parents has an empty description, an untitled parent stays untitled`() {
+        val lonely = notes.add(userId, "Lonely")
+        val untitled = notes.add(userId, null)
+        val child = notes.add(userId, "Child", parentId = untitled)
+
+        val empty = service.getPlaceDescription(userId, lonely)
+        val underUntitled = service.getPlaceDescription(userId, child)
+
+        assertTrue(empty.constellationPaths.isEmpty() && empty.parentNoteTitles.isEmpty())
+        assertTrue(underUntitled.constellationPaths.isEmpty())
+        assertEquals(listOf(null), underUntitled.parentNoteTitles)
+    }
+
+    @Test
+    fun `a membership whose constellation is gone is left out of the description`() {
+        val gone = UUID.randomUUID()
+        memberships.put(userId, loose, listOf(NoteMembership(gone, true, earlier), NoteMembership(films, false, now)))
+
+        assertEquals(listOf(listOf(nameOf(films))), service.getPlaceDescription(userId, loose).constellationPaths)
+    }
+
+    @Test
+    fun `a parent cycle in broken data fails instead of looping, a missing or foreign note is not found`() {
+        val first = notes.add(userId, "First")
+        val second = notes.add(userId, "Second", parentId = first)
+        notes.nodes[first] = notes.nodes.getValue(first).copy(parentNoteId = second)
+
+        assertFailsWith<IllegalStateException> { service.getPlaceDescription(userId, second) }
+        assertFailsWith<NotFoundException> { service.getPlaceDescription(UUID.randomUUID(), bowie) }
+        assertFailsWith<NotFoundException> { service.getPlaceDescription(userId, UUID.randomUUID()) }
+    }
+
+    @Test
     fun `search finds titled notes with their path and leaves out the moving note's subtree`() {
         val hits = service.search(userId, "w", exclude = null)
 
@@ -208,6 +257,8 @@ class NoteHierarchyServiceTest {
         assertFailsWith<NotFoundException> { service.delete(UUID.randomUUID(), loose, SubNoteFate.DELETE) }
         assertTrue(loose in notes.nodes)
     }
+
+    private fun nameOf(id: UUID): String = constellations.rows.getValue(id).name
 
     private fun constellation(parentId: UUID? = null): UUID = constellations.add(
         if (parentId == null) ConstellationEntity(userId, null, "Root ${constellations.rows.size}", 22, null)

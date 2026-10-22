@@ -36,3 +36,11 @@ export const PlaqueWithChoice = () => {
         </Ground>
     )
 }
+
+export const SecondaryDisabled = () => (
+    <Ground pad={28}>
+        <Notice title="Create a summary note?" body="Name the note if you like and choose where it will live."
+                primary="Summarize" primaryDisabled secondary="Skip for now" secondaryDisabled
+                onPrimary={() => undefined} onSecondary={() => undefined}/>
+    </Ground>
+)
