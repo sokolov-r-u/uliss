@@ -1094,6 +1094,55 @@ describe('ChatPage summary place picker', () => {
             .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
     })
 
+    it('names the new note with what the user typed', async () => {
+        const dialog = await openPicker()
+
+        await userEvent.type(within(dialog).getByRole('textbox', {name: 'Name'}), 'Giant Steps')
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Music/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize into Music'}))
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps'))
+    })
+
+    it('holds the summary while the name is too long, keeping Skip for now in place', async () => {
+        const dialog = await openPicker()
+        const name = within(dialog).getByRole('textbox', {name: 'Name'})
+
+        fireEvent.change(name, {target: {value: 'x'.repeat(51)}})
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Music/}))
+        const skip = within(dialog).getByRole('button', {name: 'Skip for now'})
+        expect(skip).toBeDisabled()
+        expect(within(dialog).getByRole('button', {name: 'Summarize into Music'})).toBeDisabled()
+        await userEvent.click(skip)
+        expect(mockedSummary).not.toHaveBeenCalled()
+
+        fireEvent.change(name, {target: {value: 'x'.repeat(50)}})
+        expect(skip).toBeEnabled()
+        await userEvent.click(skip)
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, 'x'.repeat(50)))
+    })
+
+    it('gives a request with another name a new key after an ambiguous failure', async () => {
+        mockedSummary
+            .mockRejectedValueOnce(new NoteApiError('transport', 'connection lost'))
+            .mockResolvedValueOnce({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+        const dialog = await openPicker()
+        const name = within(dialog).getByRole('textbox', {name: 'Name'})
+        await userEvent.type(name, 'Blue Train')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Skip for now'}))
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(1))
+
+        // the lost request may have named the note already; a retry with another name must not replay it
+        await userEvent.clear(name)
+        await userEvent.type(name, 'Giant Steps')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Skip for now'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
+        expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(mockedSummary.mock.calls[0]?.[1])
+    })
+
     it('summarizes under a note found by its title', async () => {
         vi.mocked(searchNotes).mockResolvedValue(
             [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'music'}])

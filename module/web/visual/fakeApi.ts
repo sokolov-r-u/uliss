@@ -117,8 +117,15 @@ const summaries = new Map<string, { throughMessageId: string; noteId: string; no
 
 /** Starts a summary like the service: a new note is generating at once, in the picked place if any. */
 function summarize(chatId: string, body: string): Response {
+    // Fails once when asked to, so a dialog's error state can be checked
+    if (sessionStorage.getItem('visual.summary') === 'fail-once') {
+        sessionStorage.removeItem('visual.summary')
+        return json({}, 503)
+    }
     const request = body
-        ? JSON.parse(body) as { mode: string; targetNoteId?: string; constellationId?: string; parentNoteId?: string }
+        ? JSON.parse(body) as {
+            mode: string; targetNoteId?: string; constellationId?: string; parentNoteId?: string; title?: string
+        }
         : null
     if (request?.mode === 'UPDATE') return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
     const noteId = `summary-${chatId}`
@@ -129,7 +136,8 @@ function summarize(chatId: string, body: string): Response {
         if (!NOTES.some((note) => note.id === request.parentNoteId)) return json({code: 'PARENT_NOTE_NOT_FOUND'}, 404)
         parents.set(noteId, request.parentNoteId)
     }
-    const title = CHATS.find((item) => item.id === chatId)?.title ?? 'Summary'
+    // the user's name, else the chat title standing in for the model's
+    const title = request?.title ?? CHATS.find((item) => item.id === chatId)?.title ?? 'Summary'
     NOTES.unshift({id: noteId, source: 'CHAT_SUMMARY', status: 'GENERATING', title, content: null,
         createdAt: '2026-06-24T11:30:00Z'})
     const messages = CHAT_MESSAGES[chatId] ?? []
@@ -291,6 +299,9 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         if (sessionStorage.getItem('visual.speech') === 'fail-once') {
             sessionStorage.removeItem('visual.speech')
             return json({code: 'TRANSCRIPTION_FAILED'}, 502)
+        }
+        if (sessionStorage.getItem('visual.speech') === 'long') {
+            return json({text: 'A dictated name that runs on well past the fifty character limit'})
         }
         return json({text: 'Dictated by voice'})
     }

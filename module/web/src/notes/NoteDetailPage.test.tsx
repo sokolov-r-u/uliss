@@ -72,6 +72,16 @@ describe('NoteDetailPage', () => {
         expect(mockedGetNote).toHaveBeenCalledTimes(2)
     })
 
+    it('heads a generating note with the name the user gave it', async () => {
+        mockedGetNote.mockResolvedValueOnce({...generating, title: 'Giant Steps'})
+        mockedStatus.mockImplementation(() => new Promise(() => undefined))
+
+        renderPage()
+
+        expect(await screen.findByRole('heading', {name: 'Giant Steps'})).toBeInTheDocument()
+        expect(screen.getByText('Writing this note…')).toBeInTheDocument()
+    })
+
     it('shows the current content with a notice while the note updates, then the updated content', async () => {
         mockedGetNote
             .mockResolvedValueOnce({...ready('Old content'), updating: true})
