@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.NotePlace
+import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.dto.internal.NoteSearchHit
 import io.uliss.note_service.exception.ConstellationNotFoundException
 import io.uliss.note_service.exception.NoteHasSubNotesException
@@ -39,6 +40,23 @@ class NoteHierarchyService(
         val hierarchy = loadHierarchy(userId)
         getOwned(hierarchy, noteId)
         return placeOf(userId, hierarchy, noteId)
+    }
+
+    /**
+     * The note's place for the summary prompts: constellation paths of its top note and its parent notes' titles. A
+     * membership whose constellation is gone (a concurrent deletion between the two reads) is left out.
+     */
+    fun getPlaceDescription(userId: UUID, noteId: UUID): NotePlaceDescription {
+        val hierarchy = loadHierarchy(userId)
+        getOwned(hierarchy, noteId)
+        val place = placeOf(userId, hierarchy, noteId)
+        val tree = constellationRepository.loadTree(userId)
+        return NotePlaceDescription(
+            constellationPaths = place.memberships
+                .filter { tree.find(it.constellationId) != null }
+                .map { tree.namePathOf(it.constellationId) },
+            parentNoteTitles = place.ancestors.map { it.title },
+        )
     }
 
     /** Titled notes matching [query] with their paths, leaving out [exclude] and its sub-notes. */
