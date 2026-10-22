@@ -1,10 +1,10 @@
 import {
     type ConstellationLightness,
     type ConstellationPickerItem,
-    type ConstellationPickerNote,
+    type ConstellationPickerNoteItem,
     constellationColor,
 } from '@uliss/design-system'
-import type {Constellation, NoteHit} from './constellationApi'
+import type {Constellation, SkyStar} from './constellationApi'
 
 /** Longest constellation name, in code points; mirrors the service's `ConstellationNameNormalizer`. */
 export const CONSTELLATION_NAME_LIMIT = 40
@@ -105,14 +105,12 @@ export function pickerItems(tree: ConstellationTree): ConstellationPickerItem[] 
     }))
 }
 
-/** A found note as the place-picker lists it: its constellation path, then its parent notes. */
-export function pickerNote(hit: NoteHit, tree: ConstellationTree): ConstellationPickerNote {
-    const place = hit.constellationId ? tree.byId.get(hit.constellationId) : undefined
-    const constellations = place ? [...place.ancestors.map((ancestor) => ancestor.name), place.name] : []
-    return {
-        id: hit.id,
-        title: hit.title,
-        path: [...constellations, ...hit.ancestors.map((ancestor) => ancestor.title || 'Untitled note')],
-        ...(place ? {color: constellationColor(place.hue, place.lightness)} : {}),
-    }
+/** The sky's notes as the place-picker lists them: a top note in its constellations, a sub-note under its parent. */
+export function pickerNotes(stars: SkyStar[]): ConstellationPickerNoteItem[] {
+    return stars.map((star) => ({
+        id: star.id,
+        title: star.title,
+        parentId: star.parentNoteId,
+        constellationIds: star.memberships.map((membership) => membership.constellationId),
+    }))
 }

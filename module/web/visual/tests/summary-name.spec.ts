@@ -11,8 +11,7 @@ async function openSummaryDialog(page: Page): Promise<Locator> {
     await openRoute(page, '/chats/c1')
     await page.getByRole('button', {name: 'Summarize'}).click()
     const dialog = page.getByRole('dialog', {name: 'Create a summary note?'})
-    // the picker's tree has loaded: from here on only the dialog's own states change
-    await expect(dialog.getByRole('button', {name: /^Music/})).toBeVisible()
+    await expect(dialog.getByRole('button', {name: 'Place: Choose a place'})).toBeVisible()
     return dialog
 }
 
@@ -25,7 +24,7 @@ async function sizeOf(dialog: Locator) {
 test('a named summary keeps the name the user typed', async ({page}) => {
     const dialog = await openSummaryDialog(page)
     await dialog.getByRole('textbox', {name: 'Name'}).fill('Giant Steps')
-    await dialog.getByRole('button', {name: 'Skip for now'}).click()
+    await dialog.getByRole('button', {name: 'Summarize', exact: true}).click()
     await expect(page.getByRole('status', {name: 'Summary note'})).toContainText('Uliss is writing a note')
 
     await page.getByRole('link', {name: 'Notes'}).first().click()
@@ -35,17 +34,17 @@ test('a named summary keeps the name the user typed', async ({page}) => {
 test('a name over the limit holds the summary and the dialog keeps its size', async ({page}) => {
     const dialog = await openSummaryDialog(page)
     const name = dialog.getByRole('textbox', {name: 'Name'})
-    const skip = dialog.getByRole('button', {name: 'Skip for now'})
+    const summarize = dialog.getByRole('button', {name: 'Summarize', exact: true})
     const initial = await sizeOf(dialog)
 
     await name.fill('x'.repeat(51))
     await expect(dialog.getByText('51/50')).toBeVisible()
     await expect(dialog.getByRole('alert')).toHaveText('Shorten the name to 50 characters.')
-    await expect(skip).toBeDisabled()
+    await expect(summarize).toBeDisabled()
     expect(await sizeOf(dialog)).toEqual(initial)
 
     await name.fill('x'.repeat(50))
-    await expect(skip).toBeEnabled()
+    await expect(summarize).toBeEnabled()
     await expect(dialog.getByRole('alert')).toHaveCount(0)
     expect(await sizeOf(dialog)).toEqual(initial)
 })
@@ -57,7 +56,7 @@ test('the name is dictated for at most 30 seconds without the dialog changing si
 
     await dialog.getByRole('button', {name: 'Dictate the name'}).click()
     await expect(dialog.getByRole('status').filter({hasText: 'Recording'})).toContainText('/ 0:30')
-    await expect(dialog.getByRole('button', {name: 'Skip for now'})).toBeDisabled()
+    await expect(dialog.getByRole('button', {name: 'Summarize', exact: true})).toBeDisabled()
     expect(await sizeOf(dialog)).toEqual(initial)
 
     await dialog.getByRole('button', {name: 'Stop recording'}).click()

@@ -49,6 +49,7 @@ export * from './components/constellation/TagDot'
 export * from './components/constellation/ConstellationChip'
 export * from './components/constellation/constellationColor'
 export * from './components/constellation/ConstellationPicker'
+export * from './components/constellation/PlaceField'
 export * from './components/constellation/ConstellationColorEditor'
 
 export * from './hooks/useFocusTrap'

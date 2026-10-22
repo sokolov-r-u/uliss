@@ -34,14 +34,6 @@ export interface NotePlace {
     constellations: NoteMembership[]
 }
 
-/** A note found for the place picker, with its parent notes and the main constellation it lives in. */
-export interface NoteHit {
-    id: string
-    title: string
-    ancestors: NoteRef[]
-    constellationId: string | null
-}
-
 /** A star of the sky; [memberships] are set only on a star with no parent star, main first. */
 export interface SkyStar {
     id: string
@@ -148,17 +140,6 @@ function parseRefs(value: unknown): NoteRef[] {
 function parsePlace(value: unknown): NotePlace {
     if (!isRecord(value)) throw protocolError('place')
     return {ancestors: parseRefs(value.ancestors), constellations: parseMemberships(value.constellations)}
-}
-
-function parseHit(value: unknown): NoteHit {
-    if (!isRecord(value) || typeof value.title !== 'string' || value.title === '') throw protocolError('note hit')
-    if (value.constellationId != null && typeof value.constellationId !== 'string') throw protocolError('constellationId')
-    return {
-        id: parseNoteRef(value).id,
-        title: value.title,
-        ancestors: parseRefs(value.ancestors),
-        constellationId: value.constellationId ?? null,
-    }
 }
 
 async function send(path: string, init?: RequestInit): Promise<Response> {
@@ -272,15 +253,6 @@ export async function moveNoteUnder(noteId: string, parentNoteId: string): Promi
 export async function moveNoteOut(noteId: string, moveTo: string | null): Promise<NotePlace> {
     const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : ''
     return parsePlace(await readJson(await send(`/note/notes/${segment(noteId)}/parent${query}`, {method: 'DELETE'})))
-}
-
-/** Titled notes whose title contains [query]; [exclude] leaves out a moving note and its sub-notes. */
-export async function searchNotes(query: string, exclude: string | null, signal?: AbortSignal): Promise<NoteHit[]> {
-    const params = new URLSearchParams({q: query})
-    if (exclude) params.set('exclude', exclude)
-    const value = await readJson(await send(`/note/notes/search?${params}`, {signal}))
-    if (!Array.isArray(value)) throw protocolError('search')
-    return value.map(parseHit)
 }
 
 /** The tree and every star in one snapshot, for the Sky screen. */

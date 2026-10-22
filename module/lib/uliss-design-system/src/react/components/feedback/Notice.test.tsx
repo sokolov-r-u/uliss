@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react'
+import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {describe, expect, it, vi} from 'vitest'
 import {Notice} from './Notice'
@@ -42,5 +42,70 @@ describe('Notice', () => {
         expect(skip).toBeDisabled()
         await user.click(skip)
         expect(onSecondary).not.toHaveBeenCalled()
+    })
+
+    describe('with a second step', () => {
+        const renderStep = (onBack = vi.fn(), onClose = vi.fn()) => render(
+            <Notice title="Create a note?" primary="Summarize" showClose onClose={onClose}
+                    step={{title: 'Choose a place', onBack, children: <input aria-label="Find a place"/>}}>
+                <input aria-label="Name"/>
+            </Notice>)
+
+        it('draws the step in the same card and keeps the first step only for the size, out of reach', () => {
+            renderStep()
+
+            expect(screen.getByRole('dialog', {name: 'Choose a place'})).toBeInTheDocument()
+            expect(screen.getByRole('textbox', {name: 'Find a place'})).toBeInTheDocument()
+            expect(screen.queryByRole('textbox', {name: 'Name'})).not.toBeInTheDocument()
+            expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+            expect(screen.getByText('Create a note?').closest('[inert]')).not.toBeNull()
+        })
+
+        it('goes back from its corner button instead of closing', async () => {
+            const onBack = vi.fn()
+            const onClose = vi.fn()
+            renderStep(onBack, onClose)
+
+            expect(screen.queryByRole('button', {name: 'Close'})).not.toBeInTheDocument()
+            await userEvent.click(screen.getByRole('button', {name: 'Back'}))
+
+            expect(onBack).toHaveBeenCalled()
+            expect(onClose).not.toHaveBeenCalled()
+        })
+
+        it('focuses Back when the step has nothing to focus yet, such as a tree still loading', async () => {
+            render(<Notice title="Create a note?" primary="Summarize"
+                           step={{title: 'Choose a place', onBack: vi.fn(), children: <p>Loading…</p>}}/>)
+
+            await waitFor(() => expect(screen.getByRole('button', {name: 'Back'})).toHaveFocus())
+        })
+
+        it('goes back on Escape even when the focus was lost, before a host dialog closes', () => {
+            const onBack = vi.fn()
+            const onHostEscape = vi.fn()
+            document.addEventListener('keydown', onHostEscape)
+            render(<Notice title="Create a note?" primary="Summarize"
+                           step={{title: 'Choose a place', onBack, children: <p>Loading…</p>}}/>)
+            ;(document.activeElement as HTMLElement | null)?.blur()
+
+            fireEvent.keyDown(document.body, {key: 'Escape'})
+
+            expect(onBack).toHaveBeenCalled()
+            expect(onHostEscape).not.toHaveBeenCalled()
+            document.removeEventListener('keydown', onHostEscape)
+        })
+
+        it('goes back on Escape without letting the key reach the page', () => {
+            const onBack = vi.fn()
+            const onPageKey = vi.fn()
+            document.addEventListener('keydown', onPageKey)
+            renderStep(onBack)
+
+            fireEvent.keyDown(screen.getByRole('textbox', {name: 'Find a place'}), {key: 'Escape'})
+
+            expect(onBack).toHaveBeenCalled()
+            expect(onPageKey).not.toHaveBeenCalled()
+            document.removeEventListener('keydown', onPageKey)
+        })
     })
 })

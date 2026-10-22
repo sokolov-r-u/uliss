@@ -31,7 +31,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, {onEscape}: Foc
 
     useEffect(() => {
         const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null
+        // an inert part (a step drawn over another) cannot take focus
         const focusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>(FOCUSABLE) ?? [])
+            .filter((element) => !element.closest('[inert]'))
         const frame = requestAnimationFrame(() => {
             // React's `autoFocus` focuses on mount without rendering the attribute: keep that focus
             if (ref.current?.contains(document.activeElement)) return
@@ -53,6 +55,12 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, {onEscape}: Foc
             }
             const first = items[0]
             const last = items[items.length - 1]
+            // a focus lost to the page (its element removed or made inert) comes back to the trap
+            if (!ref.current?.contains(document.activeElement)) {
+                event.preventDefault()
+                first.focus()
+                return
+            }
             if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault()
                 last.focus()

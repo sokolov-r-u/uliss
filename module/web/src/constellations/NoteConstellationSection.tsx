@@ -23,7 +23,6 @@ import {
     type NotePlace,
     type NoteRef,
     removeNoteConstellation,
-    searchNotes,
     setMainNoteConstellation,
 } from './constellationApi'
 import {
@@ -31,9 +30,9 @@ import {
     type ConstellationNode,
     type ConstellationTree,
     pickerItems,
-    pickerNote,
 } from './constellationTree'
 import {notifyNotesChanged} from '../notes/noteApi'
+import {useSkyNotes} from './useSkyNotes'
 import './note-constellation.css'
 
 /** main: choose among the note's places; add: a new place; under: a parent note; out: out from under the parent. */
@@ -156,20 +155,23 @@ export function NoteConstellationSection({noteId, noteTitle, onChanged}: {
     }
 
     const items = useMemo(() => load.status === 'ready' ? pickerItems(load.tree) : [], [load])
-    const tree = load.status === 'ready' ? load.tree : null
-    /** Notes the picker offers as a parent: never this note or its sub-notes (the service leaves them out). */
-    const findParents = useCallback(async (query: string, signal: AbortSignal) => {
-        const hits = await searchNotes(query, noteId, signal)
-        return tree ? hits.map((hit) => pickerNote(hit, tree)) : []
-    }, [noteId, tree])
+    const skyNotes = useSkyNotes(picker === 'under')
+    /** Notes the picker offers as a parent: never this note or its sub-notes (the picker hides them). */
     const underPicker = (label: string) => <div className="note-places-picker">
-        <ConstellationPicker items={[]} label={label} action={(name) => name} busy={pending}
-                             onPick={() => undefined} onClose={() => setPicker(null)}
-                             notes={{
-                                 search: findParents,
-                                 action: (title) => `Move under ${title}`,
-                                 onPick: (parentId) => void run(() => moveNoteUnder(noteId, parentId)),
-                             }}/>
+        {skyNotes?.status === 'ready'
+            ? <ConstellationPicker items={[]} label={label} action={(name) => name} busy={pending}
+                                   exclude={[noteId]} onPick={() => undefined} onClose={() => setPicker(null)}
+                                   notes={{
+                                       items: skyNotes.items,
+                                       action: (title) => `Move under ${title}`,
+                                       onPick: (parentId) => void run(() => moveNoteUnder(noteId, parentId)),
+                                   }}/>
+            : skyNotes?.status === 'error'
+                ? <div className="note-places-state">
+                    <p className="context-text">Could not load the notes.</p>
+                    <Button size="sm" variant="quiet" onClick={skyNotes.retry}>Retry</Button>
+                </div>
+                : <p className="context-text">Loading the notes…</p>}
     </div>
 
     if (load.status === 'loading') return <p className="context-text">Loading…</p>

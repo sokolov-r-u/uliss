@@ -707,3 +707,11 @@ the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-secur
 - Renaming, moving or deleting a large constellation branch upserts one event per affected note inside the request
   transaction (and passes all ids to one `in` list). Fine at the current scale; batch the upsert if trees grow large.
 - Source: `docs/tasks/2026-10-22-index-place-debounce.md` (code review).
+
+## The place picker loads the whole sky
+
+- The picker's tree and search run on the client from `GET /sky` (every constellation and every note with its place).
+  The answer grows with the notes; at thousands of notes, add paging or a lighter notes-tree endpoint.
+- `GET /note/notes/search` (the old server-side note search of the picker) has no web caller any more; drop it or reuse
+  it when the picker needs server search again.
+- Source: `docs/tasks/2026-10-22-picker-tree-notes.md`.

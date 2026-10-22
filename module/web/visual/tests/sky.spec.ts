@@ -84,3 +84,28 @@ test('the keyboard reaches the sky with one Tab, moves by direction, names the s
     expect(await focusedId()).toBeNull()
     await expect(rimName).not.toHaveAttribute('opacity', '1')
 })
+
+test('a note found in the filter shows its constellation, its star and its panel', async ({page}) => {
+    await page.setViewportSize({width: 1280, height: 800})
+    await openRoute(page, '/sky')
+    await sky(page).getByRole('button', {name: 'The empty room'}).click()
+    const panel = starPanel(page)
+    await panel.getByRole('button', {name: /^\+ Add/}).click()
+    await panel.getByRole('button', {name: /^Music/}).click()
+    await panel.getByRole('button', {name: 'Add to Music'}).click()
+    // the place is stored and the sky has read it again before the filter looks the note up
+    await expect(panel.getByRole('button', {name: /^Music$/})).toBeVisible()
+    await page.getByRole('button', {name: 'Close'}).click()
+    await page.getByRole('button', {name: 'Skeleton'}).click()
+    await expect(sky(page).getByRole('button', {name: 'The empty room'})).toHaveCount(0)
+
+    await page.getByRole('button', {name: 'Filter by constellation'}).click()
+    await page.getByRole('textbox', {name: 'Find a constellation or a note'}).fill('empty room')
+    await page.getByRole('button', {name: 'Show The empty room'}).click()
+
+    await expect(page.getByRole('button', {name: /· Music/})).toBeVisible()
+    await expect(page.getByRole('button', {name: 'Full'})).toHaveAttribute('aria-pressed', 'true')
+    await expect(sky(page).getByRole('button', {name: 'The empty room'})).toBeVisible()
+    await expect(starPanel(page).getByRole('heading', {name: 'The empty room'})).toBeVisible()
+})
+
