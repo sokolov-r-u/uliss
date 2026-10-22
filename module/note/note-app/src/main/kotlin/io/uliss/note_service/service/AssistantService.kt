@@ -59,8 +59,9 @@ class AssistantService(
         turnId: UUID,
         messageId: UUID,
         noteSearch: NoteSearch,
+        beforeReplace: (replyId: UUID) -> Unit,
     ): AssistantReplyStream =
-        toReplyStream(chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId), noteSearch)
+        toReplyStream(chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId, beforeReplace), noteSearch)
 
     private fun toReplyStream(resolution: ChatTurnRequestResolution, noteSearch: NoteSearch): AssistantReplyStream {
         return when (resolution) {
@@ -88,8 +89,10 @@ class AssistantService(
     }
 
     fun cancelTurn(userId: UUID, chatId: UUID, turnId: UUID) {
-        chatTurnService.cancelTurn(userId, chatId, turnId)
-        activeGenerations[turnId]?.dispose()
+        // a turn that finished meanwhile keeps its generation, which is about to report the saved outcome
+        if (chatTurnService.cancelTurn(userId, chatId, turnId).status == ChatTurnStatus.CANCELED) {
+            activeGenerations[turnId]?.dispose()
+        }
     }
 
     /**

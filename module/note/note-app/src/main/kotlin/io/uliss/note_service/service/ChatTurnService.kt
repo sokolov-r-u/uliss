@@ -96,12 +96,20 @@ class ChatTurnService(
      * - a turn that is generating is resolved like a repeated send (pending, or a reclaim of an expired lease);
      * - a reply that is no longer the turn's reply (a repeated retry) replays the turn's outcome.
      *
+     * [beforeReplace] gets the reply under the chat lock once the retry is certain, before the reply is deleted.
+     *
      * @throws NotFoundException when the chat or the turn does not exist or belongs to someone else
      * @throws ChatReplyNotRetryableException when the reply is complete, stopped or not the latest message
      * @throws ChatTurnAlreadyGeneratingException when another turn of the chat is generating
      */
     @Transactional
-    fun resolveRetryRequest(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): ChatTurnRequestResolution {
+    fun resolveRetryRequest(
+        userId: UUID,
+        chatId: UUID,
+        turnId: UUID,
+        messageId: UUID,
+        beforeReplace: (replyId: UUID) -> Unit,
+    ): ChatTurnRequestResolution {
         requireAndLockOwnedChat(userId, chatId)
         val turn = chatTurnStore.findById(userId, turnId)?.takeIf { it.chatId == chatId }
             ?: throw NotFoundException("chat turn id=$turnId not found")
@@ -114,6 +122,7 @@ class ChatTurnService(
         }
 
         ensureNoOtherTurnIsGenerating(userId, chatId)
+        beforeReplace(reply.id)
         val restarted = chatTurnStore.restartFinished(turnId, userId, chatId, executionPolicy.lease.toMillis())
             ?: throw InternalException("chat turn id=$turnId could not be restarted from ${turn.status}")
         chatMessageRepository.delete(reply)

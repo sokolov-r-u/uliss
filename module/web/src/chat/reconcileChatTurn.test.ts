@@ -39,6 +39,15 @@ describe('chat turn reconciliation', () => {
         expect(findPersistedReply(history, {userContent: 'same'})).toBeUndefined()
     })
 
+    it('does not take the reply a retry replaces for the retry outcome', () => {
+        const failed = {...assistant('a-1', 'FAILED'), turnId: 'turn-1'}
+        const target = {turnId: 'turn-1', userContent: 'Question', replacedMessageId: 'a-1'}
+
+        expect(findPersistedReply([{...user('u-1', 'Question'), turnId: 'turn-1'}, failed], target)).toBeUndefined()
+        expect(findPersistedReply([{...user('u-1', 'Question'), turnId: 'turn-1'},
+            {...assistant('a-2'), turnId: 'turn-1'}], target)?.id).toBe('a-2')
+    })
+
     it('builds a stable target for a trailing persisted user', () => {
         expect(targetForTrailingUser([assistant('a-old'), user('u-new', 'question')])).toEqual({
             afterMessageId: 'a-old', userContent: 'question', userMessageId: 'u-new',

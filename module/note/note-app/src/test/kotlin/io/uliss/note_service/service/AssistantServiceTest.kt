@@ -46,6 +46,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
@@ -420,6 +421,38 @@ class AssistantServiceTest {
     }
 
     @Test
+    fun `canceling a turn that already finished leaves its generation alone`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val provider = Sinks.many().unicast().onBackpressureBuffer<String>()
+        var providerCanceled = false
+        startGeneration(
+            userId, chatId, turnId,
+            provider.asFlux().doOnCancel { providerCanceled = true }
+                .map { ChatResponse(listOf(Generation(AssistantMessage(it)))) },
+        )
+        // the reply was saved COMPLETE just before Stop arrived; the stream has not sent done yet
+        Mockito.`when`(chatTurnService.cancelTurn(userId, chatId, turnId))
+            .thenReturn(turn(userId, chatId, turnId, ChatTurnStatus.COMPLETE))
+        Mockito.`when`(chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "Done", ChatTurnStatus.COMPLETE))
+            .thenReturn(true)
+
+        StepVerifier.create(assistantService.streamReply(userId, chatId, turnId, "hi", noSearch).events)
+            .expectSubscription()
+            .then { assistantService.cancelTurn(userId, chatId, turnId) }
+            .then {
+                provider.tryEmitNext("Done")
+                provider.tryEmitComplete()
+            }
+            .expectNext(AssistantStreamEvent.AppendText("Done"), AssistantStreamEvent.GenerationCompleted)
+            .expectComplete()
+            .verify(Duration.ofSeconds(5))
+
+        assertFalse(providerCanceled)
+    }
+
+    @Test
     fun `canceling a turn stops its generation and ends its stream as canceled`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
@@ -783,6 +816,9 @@ class ChatTurnServiceTest {
             retryAfterMs = 0,
         )
 
+    /** Replies a retry handed to the facade to release, in order. */
+    private val released = mutableListOf<UUID>()
+
     /** A finished turn whose [reply] is the chat's latest message, as a retry finds it. */
     private fun retryable(userId: UUID, chatId: UUID, turnId: UUID, reply: ChatMessageEntity): ChatTurn {
         val turn = finishedTurn(userId, chatId, turnId, ChatTurnStatus.valueOf(reply.status.name))
@@ -807,11 +843,12 @@ class ChatTurnServiceTest {
         Mockito.`when`(messages.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(listOf(user))
 
         val start = assertIs<ChatTurnRequestResolution.StartGeneration>(
-            service.resolveRetryRequest(userId, chatId, turnId, failed.id)
+            service.resolveRetryRequest(userId, chatId, turnId, failed.id, released::add)
         )
 
         assertSame(restarted, start.turn)
         assertEquals(listOf(user), start.history)
+        assertEquals(listOf(failed.id), released)
         Mockito.verify(messages).delete(failed)
         Mockito.verify(messages, Mockito.never()).save(anyValue())
         Mockito.verifyNoInteractions(chats)
@@ -830,7 +867,7 @@ class ChatTurnServiceTest {
         Mockito.`when`(messages.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(listOf(user))
 
         assertIs<ChatTurnRequestResolution.StartGeneration>(
-            service.resolveRetryRequest(userId, chatId, turnId, partial.id)
+            service.resolveRetryRequest(userId, chatId, turnId, partial.id, released::add)
         )
         Mockito.verify(messages).delete(partial)
     }
@@ -845,7 +882,7 @@ class ChatTurnServiceTest {
             retryable(userId, chatId, turnId, reply)
 
             assertFailsWith<ChatReplyNotRetryableException> {
-                service.resolveRetryRequest(userId, chatId, turnId, reply.id)
+                service.resolveRetryRequest(userId, chatId, turnId, reply.id, released::add)
             }
         }
         val turnId = UUID.randomUUID()
@@ -854,10 +891,11 @@ class ChatTurnServiceTest {
         Mockito.`when`(messages.findLatestMessageId(chatId)).thenReturn(UUID.randomUUID())
 
         assertFailsWith<ChatReplyNotRetryableException> {
-            service.resolveRetryRequest(userId, chatId, turnId, earlier.id)
+            service.resolveRetryRequest(userId, chatId, turnId, earlier.id, released::add)
         }
         Mockito.verify(store, Mockito.never()).restartFinished(anyValue(), anyValue(), anyValue(), Mockito.anyLong())
         Mockito.verify(messages, Mockito.never()).delete(anyValue())
+        assertEquals(emptyList(), released)
     }
 
     @Test
@@ -871,10 +909,11 @@ class ChatTurnServiceTest {
 
         // the first retry already replaced the failed reply with a new one
         val replay = assertIs<ChatTurnRequestResolution.AlreadyFinished>(
-            service.resolveRetryRequest(userId, chatId, turnId, failed.id)
+            service.resolveRetryRequest(userId, chatId, turnId, failed.id, released::add)
         )
 
         assertEquals(ChatTurnStatus.COMPLETE, replay.turn.status)
+        assertEquals(emptyList(), released)
         Mockito.verify(store, Mockito.never()).restartFinished(anyValue(), anyValue(), anyValue(), Mockito.anyLong())
     }
 
@@ -888,7 +927,7 @@ class ChatTurnServiceTest {
         Mockito.`when`(store.findById(userId, turnId)).thenReturn(generating)
 
         val pending = assertIs<ChatTurnRequestResolution.AlreadyGenerating>(
-            service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID())
+            service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID(), released::add)
         )
 
         assertSame(generating, pending.turn)
@@ -900,15 +939,15 @@ class ChatTurnServiceTest {
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
         Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(false)
-        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID()) }
+        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID(), released::add) }
 
         Mockito.`when`(store.lockOwnedChat(userId, chatId)).thenReturn(true)
         Mockito.`when`(store.findById(userId, turnId)).thenReturn(null)
-        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID()) }
+        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID(), released::add) }
 
         Mockito.`when`(store.findById(userId, turnId))
             .thenReturn(finishedTurn(userId, UUID.randomUUID(), turnId, ChatTurnStatus.FAILED))
-        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID()) }
+        assertFailsWith<NotFoundException> { service.resolveRetryRequest(userId, chatId, turnId, UUID.randomUUID(), released::add) }
     }
 
     private fun generatingTurn(

@@ -486,3 +486,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reply is summarized later; a summary request still pending through that reply blocks the retry with
   `409 SUMMARY_IN_PROGRESS`, since its worker reads messages through it. A `CANCELED` ("stopped") reply is not retried.
 - **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 2.
+
+## 2026-10-22 — A retry releases the summary boundary only once it is certain
+
+- **Context:** refines "A failed or interrupted reply is retried in the same turn" after code review: the facade
+  released the summary boundary before the turn was checked, so a retry that only replayed a turn still moved it.
+- **Decision:** `ChatTurnService.resolveRetryRequest` takes a callback that the facade fills with
+  `NoteSummaryService.releaseReplyForRetry`; it runs under the chat lock after every check, right before the reply is
+  deleted. `cancelTurn` stops the running generation only when the turn ends `CANCELED`, so a reply saved just
+  before a Stop still reports `done`.
+- **Consequences:** every retry spends an attempt, so after `maxAttempts` attempts a turn whose lease later expires
+  (a restart mid-reply) is failed instead of reclaimed by the resend after a reload; the user retries it again.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).

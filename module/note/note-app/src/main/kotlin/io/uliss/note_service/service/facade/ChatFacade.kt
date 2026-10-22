@@ -81,8 +81,9 @@ class ChatFacade(
     @Transactional
     fun retryReply(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): AssistantReplyStream {
         chatService.getOwnedChat(userId, chatId)
-        noteSummaryService.releaseReplyForRetry(chatId, messageId)
-        return assistantService.retryReply(userId, chatId, turnId, messageId, noteSearch(userId, chatId))
+        return assistantService.retryReply(userId, chatId, turnId, messageId, noteSearch(userId, chatId)) { replyId ->
+            noteSummaryService.releaseReplyForRetry(chatId, replyId)
+        }
     }
 
     /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */

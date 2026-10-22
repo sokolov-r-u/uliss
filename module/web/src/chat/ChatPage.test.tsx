@@ -794,6 +794,54 @@ describe('ChatPage summary flow', () => {
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
     })
 
+    it('cancels a retried turn stopped before the server dropped the failed reply', async () => {
+        mockedGetMessages.mockResolvedValue(messagePage([
+            {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+            {id: 'a-1', turnId: 'turn-1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+        ]))
+        mockedRetry.mockImplementation(async (_chat, _turn, _message, options) => {
+            await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'))
+            }, {once: true}))
+            return 'done'
+        })
+        vi.mocked(cancelChatTurn).mockImplementation(async () => {
+            mockedGetMessages.mockResolvedValue(messagePage([
+                {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+                {id: 'a-2', turnId: 'turn-1', role: 'ASSISTANT', status: 'CANCELED', content: ''},
+            ]))
+        })
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
+        await userEvent.click(await screen.findByRole('button', {name: 'Stop generation'}))
+
+        await waitFor(() => expect(cancelChatTurn).toHaveBeenCalledWith('chat-1', 'turn-1', expect.any(AbortSignal)))
+        expect(await screen.findByText('stopped')).toBeInTheDocument()
+        expect(screen.queryByText('failed to reply')).not.toBeInTheDocument()
+    })
+
+    it('does not send the first message of a chat again after leaving it mid-reply', async () => {
+        mockedGetMessages.mockResolvedValue(messagePage([]))
+        mockedInitialStream.mockImplementation(async (_content, _key, options) => {
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            await new Promise<void>((_resolve, reject) => options.signal?.addEventListener('abort', () => {
+                reject(new DOMException('aborted', 'AbortError'))
+            }, {once: true}))
+            return 'done'
+        })
+        const {unmount} = renderNewPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Hello')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+        await waitFor(() => expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-new')).not.toBeNull())
+        unmount()
+
+        expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
+        renderNewPage()
+        expect(await screen.findByText('Nothing said yet')).toBeInTheDocument()
+        expect(mockedInitialStream).toHaveBeenCalledOnce()
+    })
+
     it('offers Retry only on the latest failed or interrupted reply', async () => {
         mockedGetMessages.mockResolvedValueOnce(messagePage([
             {id: 'u-1', turnId: 'turn-1', role: 'USER', status: 'COMPLETE', content: 'First'},

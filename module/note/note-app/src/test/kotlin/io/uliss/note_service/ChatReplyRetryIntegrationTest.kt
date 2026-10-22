@@ -173,6 +173,23 @@ class ChatReplyRetryIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `a retry that names another turn's reply moves no summary boundary`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Mismatched"))
+        provider(text("First answer"), failure())
+        val first = send(userId, chat.id, "First")
+        val second = send(userId, chat.id, "Second")
+        val failed = reply(second)
+        val note = noteRepository.save(NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), userId, failed.id))
+
+        retry(userId, chat.id, first, failed.id).asyncDispatch().andExpect { status { isOk() } }
+
+        assertEquals(failed.id, chatNoteRepository.findByIdOrNull(ChatNoteId(chat.id, note.id))?.summarizedThroughMessageId)
+        assertEquals(ChatMessageStatus.FAILED, reply(second).status)
+    }
+
+    @Test
     fun `a summary still being written through the failed reply keeps it from a retry`() {
         val userId = UUID.randomUUID()
         val chat = chatRepository.save(ChatEntity(userId, "Summarizing"))

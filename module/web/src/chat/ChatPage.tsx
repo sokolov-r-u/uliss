@@ -349,11 +349,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         pending: true,
                     },
                 ])
-                // the same key replays the created chat, so a send cut off by a reload simply goes on
-                if (pendingRequest.initial !== false) void executeChatRequest(pendingRequest, target, `local-reply-${now}`)
-                else requireReconciliation()
+                // the same key replays the created chat and its turn, so a send cut off by a reload simply goes on
+                pendingRequest.initial = true
+                void executeChatRequest(pendingRequest, target, `local-reply-${now}`)
             }
             return () => {
+                // Leaving the new chat (a reload never gets here): a request whose chat exists lives on under that
+                // chat's key, so a later "New chat" does not send it again.
+                const left = pendingChatRequestRef.current
+                if (left?.initial === false && readPendingChatRequestFrom(INITIAL_CHAT_REQUEST_STORAGE_KEY)
+                    ?.idempotencyKey === left.idempotencyKey) sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
                 streamAbortRef.current?.abort()
                 reconciliationAbortRef.current?.abort()
                 olderAbortRef.current?.abort()
@@ -399,6 +404,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         turnId: pendingRequest.turnId,
                         afterMessageId: pendingRequest.afterMessageId,
                         userContent: pendingRequest.content,
+                        replacedMessageId: pendingRequest.retryOf,
                     }
                     if (findPersistedReply(history, pendingTarget)) {
                         clearPendingChatRequest(pendingRequest.idempotencyKey)
@@ -645,7 +651,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
         pendingChatRequestRef.current = request
         persistPendingChatRequest(request, requestChatId)
-        const target: ReconciliationTarget = {turnId: failed.turnId, userContent: request.content}
+        const target: ReconciliationTarget = {
+            turnId: failed.turnId,
+            userContent: request.content,
+            replacedMessageId: failed.id,
+        }
         reconciliationTargetRef.current = target
         // the server drops the failed reply when the retry starts; history merges never bring it back
         replacePersistedWindow(persisted.slice(0, -1))
