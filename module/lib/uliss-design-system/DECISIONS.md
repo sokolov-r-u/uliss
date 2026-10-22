@@ -43,3 +43,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** hosts load every candidate note up front (the web reads them from `GET /sky`). Public props
   changed; a Claude Design sync is due after merge.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 1.
+
+## 2026-10-22 — A collapsed place field for forms
+
+- **Context:** the Summarize dialog held the whole picker under the name field, so the dialog grew while the tree
+  loaded and unfolded.
+- **Decision:** `PlaceField` shows the chosen path (or a placeholder) as one 48px line; a click unfolds the
+  `ConstellationPicker` absolutely positioned under it. The picker's confirm button picks and calls `close`, which
+  collapses the line and returns the focus; Escape does the same; a click outside only collapses it.
+- **Consequences:** a new public component; a Claude Design sync is due after merge.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 2.
