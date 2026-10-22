@@ -28,6 +28,11 @@ editing the SPA.
   (read-only, `DesignSync get_file`) as the design spec; ask the user when it conflicts with the current kit.
 - Web-only changes (screens, routing, layout glue) do not require a design sync; see the design-system `CLAUDE.md`.
 - Keep the authenticated application full-bleed and responsive; mockup artboards are not runtime layout constraints.
+- A modal (`Notice`, `Dialog`, drawers over the screen) keeps its size while its state changes: validation errors,
+  hints, busy or recording states, enabled/disabled actions. Reserve space for messages that come and go, keep
+  actions in place and disable them instead of hiding them, and do not swap body text for text of another length.
+  Only opening a different step of a flow may change the size. When a modal has such states, a Playwright test
+  compares its bounding box before and after each change (jsdom has no layout, so Vitest cannot check it).
 - Preserve a CSS-driven desktop/mobile breakpoint. Do not add JavaScript `matchMedia` logic without a functional need.
 - UI source uses 4-space indentation after formatting. Re-read a file if an external formatter changes it during
   editing.
