@@ -55,6 +55,12 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, {onEscape}: Foc
             }
             const first = items[0]
             const last = items[items.length - 1]
+            // a focus lost to the page (its element removed or made inert) comes back to the trap
+            if (!ref.current?.contains(document.activeElement)) {
+                event.preventDefault()
+                first.focus()
+                return
+            }
             if (event.shiftKey && document.activeElement === first) {
                 event.preventDefault()
                 last.focus()

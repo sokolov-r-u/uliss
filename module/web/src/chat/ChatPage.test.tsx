@@ -1032,7 +1032,7 @@ describe('ChatPage summary place picker', () => {
     }
 
     /** The dialog's "Choose a place" step. */
-    const sheet = () => within(screen.getByRole('dialog', {name: 'Choose a place'}))
+    const step = () => within(screen.getByRole('dialog', {name: 'Choose a place'}))
 
     async function openPlace(dialog: HTMLElement) {
         await userEvent.click(within(dialog).getByRole('button', {name: /^Place:/}))
@@ -1044,10 +1044,10 @@ describe('ChatPage summary place picker', () => {
         expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'})).toBeInTheDocument()
 
         await openPlace(dialog)
-        expect(sheet().getByRole('button', {name: 'Select a place'})).toBeDisabled()
-        await userEvent.click(sheet().getByRole('button', {name: /^Music/}))
-        await userEvent.click(sheet().getByRole('button', {name: /^Jazz/}))
-        await userEvent.click(sheet().getByRole('button', {name: 'Put in Jazz'}))
+        expect(step().getByRole('button', {name: 'Select a place'})).toBeDisabled()
+        await userEvent.click(step().getByRole('button', {name: /^Music/}))
+        await userEvent.click(step().getByRole('button', {name: /^Jazz/}))
+        await userEvent.click(step().getByRole('button', {name: 'Put in Jazz'}))
         // the pick only collapses the field: the summary starts from the dialog's action
         expect(within(dialog).getByRole('button', {name: 'Place: Music › Jazz'})).toHaveFocus()
         expect(mockedSummary).not.toHaveBeenCalled()
@@ -1063,8 +1063,8 @@ describe('ChatPage summary place picker', () => {
     it('summarizes without a place once a picked one is cleared', async () => {
         const dialog = await openPicker()
         await openPlace(dialog)
-        await userEvent.click(sheet().getByRole('button', {name: /^Music/}))
-        await userEvent.click(sheet().getByRole('button', {name: 'Put in Music'}))
+        await userEvent.click(step().getByRole('button', {name: /^Music/}))
+        await userEvent.click(step().getByRole('button', {name: 'Put in Music'}))
 
         await userEvent.click(within(dialog).getByRole('button', {name: 'Clear the place'}))
         await userEvent.click(summarizeInDialog())
@@ -1098,7 +1098,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.type(await openPlace(dialog), 'Rock')
         vi.mocked(listConstellations).mockResolvedValue([...tree,
             {id: 'rock', parentId: null, name: 'Rock', hue: 10, lightness: 'BASE', noteCount: 0, ownNoteCount: 0}])
-        await userEvent.click(sheet().getByRole('button', {name: 'Create “Rock”'}))
+        await userEvent.click(step().getByRole('button', {name: 'Create “Rock”'}))
 
         expect(createConstellation).toHaveBeenCalledWith('Rock', null)
         await userEvent.click(await screen.findByRole('button', {name: 'Put in Rock'}))
@@ -1112,8 +1112,8 @@ describe('ChatPage summary place picker', () => {
             'CONSTELLATION_NOT_FOUND'))
         const dialog = await openPicker()
         await openPlace(dialog)
-        await userEvent.click(sheet().getByRole('button', {name: /^Music/}))
-        await userEvent.click(sheet().getByRole('button', {name: 'Put in Music'}))
+        await userEvent.click(step().getByRole('button', {name: /^Music/}))
+        await userEvent.click(step().getByRole('button', {name: 'Put in Music'}))
         vi.mocked(getSky).mockResolvedValue({constellations: [tree[1]!].map((item) => ({...item, id: 'other'})), notes: []})
         await userEvent.click(summarizeInDialog())
 
@@ -1130,12 +1130,12 @@ describe('ChatPage summary place picker', () => {
         vi.mocked(createConstellation).mockRejectedValue(new ConstellationApiError('http', 'gone', 404))
         const dialog = await openPicker()
         await openPlace(dialog)
-        await userEvent.click(sheet().getByRole('button', {name: /^Music/}))
-        await userEvent.click(sheet().getByRole('button', {name: '+ New in Music'}))
-        await userEvent.type(sheet().getByRole('textbox', {name: 'New constellation in Music'}), 'Rock{Enter}')
+        await userEvent.click(step().getByRole('button', {name: /^Music/}))
+        await userEvent.click(step().getByRole('button', {name: '+ New in Music'}))
+        await userEvent.type(step().getByRole('textbox', {name: 'New constellation in Music'}), 'Rock{Enter}')
 
-        expect(await within(dialog).findByText('That constellation no longer exists. Pick another place.'))
-            .toBeInTheDocument()
+        // the step shows it: the dialog's own message block is hidden under the step
+        expect(await step().findByRole('alert')).toHaveTextContent('That constellation no longer exists. Pick another place.')
         await waitFor(() => expect(getSky).toHaveBeenCalledTimes(2))
         expect(mockedSummary).not.toHaveBeenCalled()
     })
@@ -1146,9 +1146,9 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.click(within(dialog).getByRole('button', {name: /^Place:/}))
         expect(await screen.findByText('Could not load the constellations.')).toBeInTheDocument()
-        await userEvent.click(sheet().getByRole('button', {name: 'Retry'}))
+        await userEvent.click(step().getByRole('button', {name: 'Retry'}))
         expect(await screen.findByRole('button', {name: /^Music/})).toBeInTheDocument()
-        await userEvent.click(sheet().getByRole('button', {name: 'Back'}))
+        await userEvent.click(step().getByRole('button', {name: 'Back'}))
         expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'})).toHaveFocus()
 
         await userEvent.click(summarizeInDialog())
@@ -1161,8 +1161,8 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.type(within(dialog).getByRole('textbox', {name: 'Name'}), 'Giant Steps')
         await openPlace(dialog)
-        await userEvent.click(sheet().getByRole('button', {name: /^Music/}))
-        await userEvent.click(sheet().getByRole('button', {name: 'Put in Music'}))
+        await userEvent.click(step().getByRole('button', {name: /^Music/}))
+        await userEvent.click(step().getByRole('button', {name: 'Put in Music'}))
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
@@ -1210,8 +1210,8 @@ describe('ChatPage summary place picker', () => {
         const dialog = await openPicker()
 
         await userEvent.type(await openPlace(dialog), 'bow')
-        expect(sheet().getByRole('button', {name: /^Bowie/})).toHaveAttribute('aria-pressed', 'true')
-        await userEvent.click(sheet().getByRole('button', {name: 'Put under Bowie'}))
+        expect(step().getByRole('button', {name: /^Bowie/})).toHaveAttribute('aria-pressed', 'true')
+        await userEvent.click(step().getByRole('button', {name: 'Put under Bowie'}))
         expect(within(dialog).getByRole('button', {name: 'Place: Music › Bowie'})).toBeInTheDocument()
         await userEvent.click(summarizeInDialog())
 
@@ -1226,7 +1226,7 @@ describe('ChatPage summary place picker', () => {
         const dialog = await openPicker()
 
         await userEvent.type(await openPlace(dialog), 'gone')
-        await userEvent.click(sheet().getByRole('button', {name: 'Put under Gone'}))
+        await userEvent.click(step().getByRole('button', {name: 'Put under Gone'}))
         await userEvent.click(summarizeInDialog())
 
         expect(await within(dialog).findByText('That note no longer exists. Pick another place or leave it empty.'))

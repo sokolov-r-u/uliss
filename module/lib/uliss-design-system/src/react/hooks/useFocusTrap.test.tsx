@@ -88,4 +88,14 @@ describe('useFocusTrap', () => {
 
         expect(screen.getByRole('button', {name: 'First'})).toHaveFocus()
     })
+
+    it('brings a Tab from outside the trap, such as a lost focus, back to the first element', async () => {
+        render(<><button type="button">Behind</button><Trap/></>)
+        await nextFrame()
+        ;(document.activeElement as HTMLElement | null)?.blur()
+
+        await userEvent.tab()
+
+        expect(screen.getByRole('button', {name: 'First'})).toHaveFocus()
+    })
 })

@@ -74,7 +74,7 @@ export interface ConstellationPickerProps {
     label?: string
     /** Notes as targets too: they join the tree and the search. */
     notes?: ConstellationPickerNotes
-    /** Fills its host's height (a `PlaceField` sheet) instead of showing five rows. */
+    /** Fills its host's height (a `Notice` step) instead of showing five rows. */
     fill?: boolean
 }
 

@@ -24,3 +24,5 @@ The modal card. Every blocking or dismissible thing Uliss says.
   content cover the first step, which stays hidden and inert only to hold the size, so the card does not move. The
   corner button turns into Back and Escape steps back (`step.onBack`) instead of closing. Content that may be long
   (a `ConstellationPicker` with `fill`) takes the room under the title and scrolls inside.
+  When the step opens, its content's `autoFocus` takes the focus, else Back does; Escape steps back even when the focus
+  was lost to the page (an element removed), before a host overlay could close the notice.

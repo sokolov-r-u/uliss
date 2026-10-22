@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {describe, expect, it, vi} from 'vitest'
 import {Notice} from './Notice'
@@ -71,6 +71,28 @@ describe('Notice', () => {
 
             expect(onBack).toHaveBeenCalled()
             expect(onClose).not.toHaveBeenCalled()
+        })
+
+        it('focuses Back when the step has nothing to focus yet, such as a tree still loading', async () => {
+            render(<Notice title="Create a note?" primary="Summarize"
+                           step={{title: 'Choose a place', onBack: vi.fn(), children: <p>Loading…</p>}}/>)
+
+            await waitFor(() => expect(screen.getByRole('button', {name: 'Back'})).toHaveFocus())
+        })
+
+        it('goes back on Escape even when the focus was lost, before a host dialog closes', () => {
+            const onBack = vi.fn()
+            const onHostEscape = vi.fn()
+            document.addEventListener('keydown', onHostEscape)
+            render(<Notice title="Create a note?" primary="Summarize"
+                           step={{title: 'Choose a place', onBack, children: <p>Loading…</p>}}/>)
+            ;(document.activeElement as HTMLElement | null)?.blur()
+
+            fireEvent.keyDown(document.body, {key: 'Escape'})
+
+            expect(onBack).toHaveBeenCalled()
+            expect(onHostEscape).not.toHaveBeenCalled()
+            document.removeEventListener('keydown', onHostEscape)
         })
 
         it('goes back on Escape without letting the key reach the page', () => {

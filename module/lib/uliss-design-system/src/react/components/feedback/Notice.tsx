@@ -1,4 +1,4 @@
-import {type CSSProperties, type ReactNode, useId} from 'react'
+import {type CSSProperties, type ReactNode, useEffect, useId, useRef} from 'react'
 import {StarMark} from '../brand/StarMark'
 import {Button} from '../actions/Button'
 import {IconButton} from '../actions/IconButton'
@@ -77,6 +77,32 @@ export function Notice({
                        }: NoticeProps) {
     const titleId = useId()
     const stepTitleId = useId()
+    const stepRef = useRef<HTMLDivElement>(null)
+    const onBackRef = useRef(step?.onBack)
+    onBackRef.current = step?.onBack
+    const stepShown = step != null
+
+    useEffect(() => {
+        if (!stepShown) return
+        // The first step turns inert under the focus: unless the step's content took it (autoFocus), Back does.
+        const frame = requestAnimationFrame(() => {
+            if (!stepRef.current?.contains(document.activeElement)) {
+                stepRef.current?.querySelector<HTMLElement>('[data-step-back]')?.focus()
+            }
+        })
+        // Escape with the focus lost to the page still steps back, before a host dialog's trap closes the notice.
+        const onKeyDown = (event: KeyboardEvent) => {
+            if (event.key !== 'Escape' || stepRef.current?.contains(document.activeElement)) return
+            event.preventDefault()
+            event.stopPropagation()
+            onBackRef.current?.()
+        }
+        document.addEventListener('keydown', onKeyDown, true)
+        return () => {
+            cancelAnimationFrame(frame)
+            document.removeEventListener('keydown', onKeyDown, true)
+        }
+    }, [stepShown])
     const hasSkip = blocking && !!skip && !!onSkip
     const hasSecondary = !blocking && !!secondary && !!onSecondary
     const closable = !blocking && showClose && !!onClose
@@ -210,6 +236,7 @@ export function Notice({
                     </div>
                     {step && (
                         <div
+                            ref={stepRef}
                             onKeyDown={(event) => {
                                 if (event.key !== 'Escape') return
                                 // Escape steps back; the overlay must not close the notice with it
@@ -220,7 +247,7 @@ export function Notice({
                             style={{position: 'absolute', inset: 0, padding: pad, display: 'flex', flexDirection: 'column'}}
                         >
                             <div style={corner}>
-                                <IconButton title="Back" onClick={step.onBack} s={30}>
+                                <IconButton data-step-back="" title="Back" onClick={step.onBack} s={30}>
                                     <Icon name="chevron" size={17} rotate={90}/></IconButton>
                             </div>
                             {variant !== 'framed' && (

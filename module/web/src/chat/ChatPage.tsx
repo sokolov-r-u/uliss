@@ -836,6 +836,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             title: 'Choose a place',
                             onBack: () => setPickingPlace(false),
                             children: <SummaryPlacePicker places={summaryPlaces} busy={summaryPending}
+                                                          error={summaryError}
                                                           onPick={(place) => {
                                                               setSummaryError(null)
                                                               setSummaryPlace(place)
