@@ -97,7 +97,7 @@ the route with the persisted chat URL.
 
 The first Summarize of a chat asks for an optional name (`SummaryNameField`: DS `TextField` with a soft 50-character
 limit and a mic that dictates up to 30 seconds through `useDictation`'s own limit; chat dictation keeps the service
-limit) and a place (`SummaryPlaceField`: DS `PlaceField`, one collapsed line that unfolds the `ConstellationPicker` with
+limit) and a place (`SummaryPlaceField`: DS `PlaceField`, one collapsed line that opens the `ConstellationPicker` in a large sheet — full screen on a phone — with
 every constellation and note from `GET /note/sky`; a picked note becomes the parent). The dialog's one action,
 Summarize, starts the summary; an empty place leaves the note without a constellation. Its close button, Escape and a
 click on the backdrop close it without a note. A name over 50 characters is never cut: the field turns terracotta and

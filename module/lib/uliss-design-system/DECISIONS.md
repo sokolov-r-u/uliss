@@ -64,3 +64,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** content wider or taller than the card is no longer cut; hosts keep it inside. Amends the
   2026-10-22 PlaceField entry.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 3.
+
+## 2026-10-22 — PlaceField opens a sheet instead of a dropdown
+
+- **Context:** the user's UI check: the dropdown hung past the Summarize card and looked out of place; the user asked
+  for a much larger surface, the whole screen on a phone.
+- **Decision:** `PlaceField` opens the picker in a modal sheet (portal over a scrim, own focus trap): 640px wide and up
+  to 80% of the window high on a desktop, full screen below 768px. The picker gets `fill` and its tree takes the
+  sheet's height; inline pickers keep five rows. Replaces the dropdown of "A collapsed place field for forms" and the
+  whole entry "Notice no longer clips; PlaceField opens upwards when short of room": Notice clips again, there is no
+  upward opening.
+- **Consequences:** public props changed (`fill`); a Claude Design sync is due after merge.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, manual check.

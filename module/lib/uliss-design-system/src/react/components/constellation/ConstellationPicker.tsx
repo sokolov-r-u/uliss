@@ -74,6 +74,8 @@ export interface ConstellationPickerProps {
     label?: string
     /** Notes as targets too: they join the tree and the search. */
     notes?: ConstellationPickerNotes
+    /** Fills its host's height (a `PlaceField` sheet) instead of showing five rows. */
+    fill?: boolean
 }
 
 /** One row of the tree; a note in two constellations is two nodes with the same `id`. */
@@ -212,6 +214,7 @@ export function ConstellationPicker({
                                         busy = false,
                                         label = 'Search the tree',
                                         notes,
+                                        fill = false,
                                     }: ConstellationPickerProps) {
     const [query, setQuery] = useState('')
     const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -466,6 +469,7 @@ export function ConstellationPicker({
         <div style={{
             display: 'flex',
             flexDirection: 'column',
+            height: fill ? '100%' : undefined,
             background: 'var(--bg-panel)',
             border: '1px solid var(--line-strong)',
         }}>
@@ -511,7 +515,8 @@ export function ConstellationPicker({
                 </>}
                 {onClose && <IconButton s={44} title="Close picker" onClick={onClose}><Icon name="close" size={13}/></IconButton>}
             </div>
-            <div role="list" style={{maxHeight: LIST_HEIGHT, overflowY: 'auto'}}>
+            <div role="list" style={fill ? {flex: 1, minHeight: 0, overflowY: 'auto'}
+                : {maxHeight: LIST_HEIGHT, overflowY: 'auto'}}>
                 {needle && matches.length === 0 && !canCreateTyped && <p style={{
                     margin: 0,
                     padding: '14px 11px',

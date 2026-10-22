@@ -11,7 +11,7 @@ const ITEMS: ConstellationPickerItem[] = [
 function Live({initial}: { initial: string | null }) {
     const [place, setPlace] = useState(initial)
     return <PlaceField label="Place" value={place} onClear={() => setPlace(null)}>
-        {(close) => <ConstellationPicker items={ITEMS} action={(name) => `Choose ${name}`} onClose={close}
+        {(close) => <ConstellationPicker fill items={ITEMS} action={(name) => `Choose ${name}`} onClose={close}
                                          onPick={(id) => {
                                              const item = ITEMS.find((candidate) => candidate.id === id)
                                              setPlace(item ? [...item.path, item.name].join(' › ') : null)
@@ -21,7 +21,7 @@ function Live({initial}: { initial: string | null }) {
 }
 
 export const Empty = () => (
-    <Ground width={340} style={{minHeight: 420}}>
+    <Ground width={340}>
         <Live initial={null}/>
     </Ground>
 )

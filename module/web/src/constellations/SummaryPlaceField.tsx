@@ -110,7 +110,7 @@ export function SummaryPlaceField({place, onChange, disabled, revision, onError}
     return <PlaceField label="Place" placeholder="Choose a place" value={path} disabled={disabled}
                        onClear={() => onChange(null)}>
         {(close) => load.status === 'ready'
-            ? <ConstellationPicker items={items} label="Find a place…" action={(name) => `Put in ${name}`}
+            ? <ConstellationPicker fill items={items} label="Find a place…" action={(name) => `Put in ${name}`}
                                    busy={disabled} onCreate={createIn} onClose={close}
                                    onPick={(id) => choose({constellationId: id}, close)}
                                    notes={{

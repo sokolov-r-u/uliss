@@ -1,16 +1,27 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
+import {createPortal} from 'react-dom'
+import {useFocusTrap} from '../../hooks/useFocusTrap'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {LabelRow} from '../layout/LabelRow'
 
 // A place as one collapsed 48px line: the chosen path, or a placeholder. A
-// click unfolds the picker under it, over whatever follows, so the host keeps
-// its size; it opens upwards when the room below is short and there is more
-// above. A pick (the picker calls `close`) or Escape collapses it and gives
-// the focus back to the line; a click outside only collapses it.
+// click opens the picker in a large sheet of its own over the page (the whole
+// screen on a phone), so the host keeps its size and never clips it. A pick
+// (the picker calls `close`), Escape or a click on the backdrop closes the
+// sheet and gives the focus back to the line.
 
-/** About the picker's height: search, five rows and the action. */
-const POPOVER_ROOM = 340
+// Sheet size by breakpoint: inline styles cannot hold the media query.
+const SHEET_CSS = '.u-place-sheet{width:min(640px,calc(100vw - 48px));height:min(760px,80vh)}'
+    + '@media (max-width:767px){.u-place-sheet{width:100vw;height:100dvh}}'
+
+/** The sheet's panel: it keeps the focus inside while open and gives it back on close. */
+function PlaceSheet({label, children}: { label: string; children: ReactNode }) {
+    const ref = useRef<HTMLDivElement>(null)
+    useFocusTrap(ref)
+    return <div ref={ref} role="dialog" aria-modal="true" aria-label={label} className="u-place-sheet"
+                style={{position: 'relative', display: 'flex', flexDirection: 'column'}}>{children}</div>
+}
 
 export interface PlaceFieldProps {
     label: string
@@ -20,15 +31,13 @@ export interface PlaceFieldProps {
     disabled?: boolean
     /** Shows a clear button while there is a value; it empties the place. */
     onClear?: () => void
-    /** The picker under the line; it calls `close` once something is picked. */
+    /** The picker in the sheet (give it `fill`); it calls `close` once something is picked. */
     children: (close: () => void) => ReactNode
 }
 
 export function PlaceField({label, value, placeholder = 'Choose a place', disabled = false, onClear, children}:
                            PlaceFieldProps) {
     const [open, setOpen] = useState(false)
-    const [upward, setUpward] = useState(false)
-    const rootRef = useRef<HTMLDivElement>(null)
     const lineRef = useRef<HTMLButtonElement>(null)
     const shown = open && !disabled
 
@@ -42,19 +51,10 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
         lineRef.current?.focus()
     }
 
-    useEffect(() => {
-        if (!shown) return
-        const onPointerDown = (event: PointerEvent | MouseEvent) => {
-            if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
-        }
-        document.addEventListener('mousedown', onPointerDown)
-        return () => document.removeEventListener('mousedown', onPointerDown)
-    }, [shown])
-
     return (
-        <div ref={rootRef} style={{position: 'relative'}} onKeyDown={(event) => {
+        <div onKeyDown={(event) => {
             if (event.key !== 'Escape' || !shown) return
-            // The field owns this Escape, from the line or the picker: a host dialog must not close with it.
+            // The field owns this Escape, also from the sheet (a portal): a host dialog must not close with it.
             event.preventDefault()
             event.stopPropagation()
             close()
@@ -70,14 +70,7 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
             }}>
                 <button ref={lineRef} type="button" disabled={disabled} aria-expanded={shown}
                         aria-label={`${label}: ${value ?? placeholder}`}
-                        onClick={() => {
-                            if (!open && lineRef.current) {
-                                const rect = lineRef.current.getBoundingClientRect()
-                                const below = window.innerHeight - rect.bottom
-                                setUpward(below < POPOVER_ROOM && rect.top > below)
-                            }
-                            setOpen(!open)
-                        }}
+                        onClick={() => setOpen(true)}
                         style={{
                             flex: 1,
                             minWidth: 0,
@@ -111,12 +104,17 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
                     lineRef.current?.focus()
                 }}><Icon name="close" size={12}/></IconButton>}
             </div>
-            {shown && <div
-                data-testid="place-field-popover"
-                style={{position: 'absolute', [upward ? 'bottom' : 'top']: 'calc(100% + 4px)', left: 0, right: 0,
-                    zIndex: 5}}>
-                {children(close)}
-            </div>}
+            {shown && createPortal(
+                <div style={{position: 'fixed', inset: 0, zIndex: 1100, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center'}}>
+                    <style>{SHEET_CSS}</style>
+                    <button type="button" tabIndex={-1} aria-hidden="true" data-testid="place-field-backdrop"
+                            onClick={close} style={{position: 'absolute', inset: 0, padding: 0, border: 0,
+                        background: 'var(--scrim)', cursor: 'default'}}/>
+                    <PlaceSheet label={label}>{children(close)}</PlaceSheet>
+                </div>,
+                document.body,
+            )}
         </div>
     )
 }

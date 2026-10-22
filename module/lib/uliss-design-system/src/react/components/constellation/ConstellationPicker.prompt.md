@@ -22,7 +22,8 @@ branches down to them and steps through them.
 - One picker for every "where does this go" question: placing a note, moving a branch, Summarize, moving a note under
   a note. Never a `Select`.
 - `items` come in tree order (parents before children) with `parentId`. Only roots show at first; a row click selects
-  the row and unfolds its children, the chevron only folds and unfolds. The list shows five rows and scrolls beyond.
+  the row and unfolds its children, the chevron only folds and unfolds. The list shows five rows and scrolls beyond; with `fill` it
+  takes its host's height instead (the `PlaceField` sheet).
 - `action(name)` labels the confirm button for the selection ("Add to Jazz", "Move to Jazz", "Make Jazz main"); it is
   disabled until something is selected or while `busy`.
 - Search matches a row's own name. The tree stays: matches are marked, the branches down to them unfold while the

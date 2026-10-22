@@ -1,9 +1,12 @@
-/* Loading or failed tree under the Summarize dialog's place line (constellations/SummaryPlaceField.tsx) */
+/* Loading or failed tree in the Summarize place sheet (constellations/SummaryPlaceField.tsx) */
 .summary-place-state {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
+    align-content: flex-start;
     gap: 8px;
+    height: 100%;
+    box-sizing: border-box;
     padding: 14px 11px;
     background: var(--bg-panel);
     border: 1px solid var(--line-strong);

@@ -20,4 +20,3 @@ The modal card. Every blocking or dismissible thing Uliss says.
   state prevent activation; `secondaryDisabled` does the same for the secondary action, which stays in place so the
   card keeps its size. Secondary, skip and close render only with their matching labels/handlers; `showClose` is
   explicit. The card labels itself as a dialog. Its overlay owns Escape, focus trap and focus restoration.
-- The card does not clip its content, so a `PlaceField` dropdown may reach past its edge.
