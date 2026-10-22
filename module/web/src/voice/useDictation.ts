@@ -55,10 +55,15 @@ interface Recording {
  * One recording at a time: start → stop (or the length limit) → one upload → text for [onText]. A failed upload keeps
  * the recording for a manual [retry] until a new recording starts or the owner unmounts; nothing retries by itself.
  */
-export function useDictation(onText: (text: string, intent: DictationIntent) => void) {
+export function useDictation(
+    onText: (text: string, intent: DictationIntent) => void,
+    /** A shorter limit for this owner (a name field); the service limit still applies when it is lower. */
+    {maxSeconds: ownLimit}: { maxSeconds?: number } = {},
+) {
     const [state, setState] = useState<DictationState>('idle')
     const [elapsedSeconds, setElapsedSeconds] = useState(0)
-    const [maxSeconds, setMaxSeconds] = useState(DEFAULT_MAX_RECORDING_SECONDS)
+    const [serviceMaxSeconds, setMaxSeconds] = useState(DEFAULT_MAX_RECORDING_SECONDS)
+    const maxSeconds = ownLimit === undefined ? serviceMaxSeconds : Math.min(serviceMaxSeconds, ownLimit)
     const [notice, setNotice] = useState<DictationNotice | null>(null)
     const [supported] = useState(isDictationSupported)
 

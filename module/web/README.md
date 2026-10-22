@@ -93,9 +93,12 @@ the prompt and one request `Idempotency-Key` to the initial-message stream endpo
 before provider streaming begins. The SPA persists the request key until those identities are recovered, then replaces
 the route with the persisted chat URL.
 
-The first Summarize of a chat asks where the note will live with the shared `ConstellationPicker` (its action starts
-the summary in that constellation; "Skip for now" leaves the note without a place); a later one asks to update the
-note. Summarize then accepts the asynchronous placeholder without waiting for generation and links to
+The first Summarize of a chat asks for an optional name (`SummaryNameField`: DS `TextField` with a soft 50-character
+limit and a mic that dictates up to 30 seconds through `useDictation`'s own limit; chat dictation keeps the service
+limit) and where the note will live with the shared `ConstellationPicker` (its action starts the summary in that
+constellation; "Skip for now" leaves the note without a place). A name over 50 characters is never cut: the field turns
+terracotta and the picker and "Skip for now" stay unavailable until it is shortened, as they do while the name is being
+dictated. A blank name lets Uliss name the note. A later Summarize asks to update the note. Summarize then accepts the asynchronous placeholder without waiting for generation and links to
 `/notes/:noteId`. A generating note follows the authenticated status SSE; `READY` triggers a JSON detail re-fetch, while
 `FAILED` remains visible. A stored note `title` is shown in the list and above the detail content; notes without
 one fall back to their first content line. Note content is rendered as Markdown (date headings accented only for chat

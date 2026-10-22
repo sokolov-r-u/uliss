@@ -9,6 +9,7 @@ import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/Context
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {type SummaryPlace, SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
+import {isSummaryNameTooLong, SummaryNameField} from './SummaryNameField'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
     type Chat,
@@ -142,6 +143,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
+    /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
+    const [summaryName, setSummaryName] = useState('')
+    const [summaryNameDictating, setSummaryNameDictating] = useState(false)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
@@ -615,6 +619,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     async function confirmSummary(place?: SummaryPlace) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
         const target = summaryState
+        if (!target && (isSummaryNameTooLong(summaryName) || summaryNameDictating)) return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
@@ -635,7 +640,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
                 : await requestChatSummary(chatId, idempotencyKey, undefined,
                     place && 'constellationId' in place ? place.constellationId : undefined,
-                    place && 'parentNoteId' in place ? place.parentNoteId : undefined)
+                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -695,6 +700,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             }
         }
     }
+
+    /** A name over the limit, or one still being dictated, keeps a new summary from starting. */
+    const summaryHeld = isSummaryNameTooLong(summaryName) || summaryNameDictating
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
@@ -757,6 +765,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     ? <ActionChip label="Summarize" disabled={!canSummarize}
                                   onClick={() => {
                                       setSummaryError(null)
+                                      setSummaryName('')
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -781,12 +790,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             ? <span className="chat-summary-error">{summaryError}</span>
                             : summaryPending
                                 ? 'Starting the summary…'
-                                : 'Choose where the note will live. Uliss writes it in the background from the conversation saved so far.'}
+                                : isSummaryNameTooLong(summaryName)
+                                    ? <span className="chat-summary-error">Shorten the name to 50 characters to start the summary.</span>
+                                    : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
                         primary=""
-                        secondary={summaryPending ? undefined : 'Skip for now'}
+                        secondary={summaryPending || summaryHeld ? undefined : 'Skip for now'}
                         busy={summaryPending}
                         onSecondary={() => void confirmSummary()}>
-                        <SummaryPlacePicker busy={summaryPending} revision={placeRevision}
+                        <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
+                                          onDictatingChange={setSummaryNameDictating}/>
+                        <SummaryPlacePicker busy={summaryPending || summaryHeld} revision={placeRevision}
                                             onPick={(place) => void confirmSummary(place)}
                                             onClose={() => {
                                                 if (!summaryPendingRef.current) setSummaryDialog(false)

@@ -168,6 +168,24 @@
     color: var(--terracotta);
 }
 
+/* Name of a new summary note, above the place picker */
+.summary-name {
+    margin-bottom: 14px;
+}
+
+.summary-name .chat-voice-notice,
+.summary-name-status {
+    margin: 6px 0 0;
+    padding: 0;
+    font-family: var(--font-text);
+    font-size: 11px;
+}
+
+.summary-name-status {
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+}
+
 /* ── Composer (DS ChatDock shape) ────────────────────────────── */
 .chat-composer {
     flex: 0 0 auto;
