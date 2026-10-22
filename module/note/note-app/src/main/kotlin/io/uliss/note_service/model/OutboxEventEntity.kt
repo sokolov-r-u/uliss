@@ -3,6 +3,7 @@ package io.uliss.note_service.model
 import io.uliss.database.outbox.OutboxAbstractEntity
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.outbox.OutboxEventType
+import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
@@ -21,7 +22,11 @@ class OutboxEventEntity(
     lastError: String?,
 ) : OutboxAbstractEntity(payload, status, attempts, nextAttemptAt, lastError) {
 
+    // Set by OutboxService.publishDebounced; at most one PENDING event per key.
+    @Column(name = "dedup_key")
+    var dedupKey: String? = null
+
     override fun toString(): String {
-        return "OutboxEventEntity(id=$id, type=$type" + auditFields()
+        return "OutboxEventEntity(id=$id, type=$type, dedupKey=$dedupKey" + auditFields()
     }
 }

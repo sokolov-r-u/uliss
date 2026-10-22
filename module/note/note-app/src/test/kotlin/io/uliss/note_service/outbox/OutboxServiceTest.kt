@@ -4,6 +4,7 @@ import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
+import io.uliss.note_service.eqValue
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.policy.OutboxLeasePolicy
@@ -349,5 +350,60 @@ class OutboxServiceTest {
         assertEquals(OutboxEventStatus.COMPLETED, event.status)
         assertEquals(1, event.attempts)
         Mockito.verify(outboxEventRepository, Mockito.never()).save(anyValue())
+    }
+
+    @Test
+    fun `publishDebounced upserts a PENDING event due the delay after now under its key`() {
+        val service = service()
+
+        service.publishDebounced(
+            OutboxEventType.NOTE_INDEX_REQUESTED,
+            """{"noteId":"n"}""",
+            "NOTE_INDEX_REQUESTED:n",
+            Duration.ofHours(1),
+        )
+
+        Mockito.verify(outboxEventRepository).upsertPendingByDedupKey(
+            anyValue(),
+            eqValue("NOTE_INDEX_REQUESTED"),
+            eqValue("""{"noteId":"n"}"""),
+            eqValue("NOTE_INDEX_REQUESTED:n"),
+            eqValue(NOW.plus(Duration.ofHours(1))),
+            eqValue(NOW),
+        )
+    }
+
+    @Test
+    fun `recordFailure fails a keyed event instead of retrying it when a newer one with its key is pending`() {
+        // the pending event redoes the same work later; a second PENDING row under the key is not allowed
+        Mockito.`when`(terminalFailureHandler.type).thenReturn(OutboxEventType.NOTE_INDEX_REQUESTED)
+        val service = service(terminalFailureHandlers = listOf(terminalFailureHandler))
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 1, leaseId = lease).also { it.dedupKey = "NOTE_INDEX_REQUESTED:n" }
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
+        Mockito.`when`(
+            outboxEventRepository.existsByDedupKeyAndStatus("NOTE_INDEX_REQUESTED:n", OutboxEventStatus.PENDING)
+        ).thenReturn(true)
+        Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
+
+        service.recordFailure(event.id, lease, RuntimeException("boom"))
+
+        assertEquals(OutboxEventStatus.FAILED, event.status)
+        assertTrue(event.lastError.orEmpty().startsWith("boom"), event.lastError)
+        Mockito.verify(terminalFailureHandler, Mockito.never()).handleTerminalFailure(anyValue())
+        Mockito.verify(outboxEventRepository).save(event)
+    }
+
+    @Test
+    fun `recordFailure retries a keyed event when nothing else with its key is pending`() {
+        val service = service()
+        val lease = UUID.randomUUID()
+        val event = processingEvent(attempts = 1, leaseId = lease).also { it.dedupKey = "NOTE_INDEX_REQUESTED:n" }
+        Mockito.`when`(outboxEventRepository.findById(event.id)).thenReturn(Optional.of(event))
+        Mockito.`when`(outboxEventRepository.save(anyValue())).thenAnswer { it.getArgument<OutboxEventEntity>(0) }
+
+        service.recordFailure(event.id, lease, RuntimeException("boom"))
+
+        assertEquals(OutboxEventStatus.PENDING, event.status)
     }
 }

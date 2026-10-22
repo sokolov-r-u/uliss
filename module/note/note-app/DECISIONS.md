@@ -405,3 +405,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** this replaces "the title always comes from the `NoteDraft` call" for named notes; an unnamed note
   still gets its title from `NoteDraft`.
 - **Source:** task `docs/tasks/2026-10-22-summary-place-title.md`, block 3.
+
+## 2026-10-22 — Outbox events can be debounced by key
+
+- **Context:** the outbox had no idempotency key, so every change of a note queued its own reindex.
+- **Decision:** `outbox_event.dedup_key` (nullable `text`) with a unique partial index on `PENDING` rows.
+  `OutboxService.publishDebounced(type, payload, key, delay)` is one `INSERT … ON CONFLICT … DO UPDATE` that moves
+  `next_attempt_at` of the pending event to now + delay, so parallel transactions never add a second one. A
+  `PROCESSING` event does not hold the key, so a change made while it runs gets its own event. A failed attempt of a
+  keyed event whose key is held by a newer pending event ends `FAILED` (no terminal handler) instead of retrying,
+  since the pending one redoes the work. Plain `publish` is unchanged (`dedup_key` null).
+- **Source:** task `docs/tasks/2026-10-22-index-place-debounce.md`, block 1.
