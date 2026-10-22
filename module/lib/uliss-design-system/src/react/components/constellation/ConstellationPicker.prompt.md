@@ -1,5 +1,6 @@
 The place-picker over the constellation tree: it opens on the roots, a click selects a branch and unfolds it, and the
-action button under the list confirms the selection. Search swaps the tree for flat hits with their path.
+action button under the list confirms the selection. Search stays in the tree: it marks the matches, unfolds the
+branches down to them and steps through them.
 
 ```jsx
 <ConstellationPicker
@@ -21,27 +22,35 @@ action button under the list confirms the selection. Search swaps the tree for f
 - One picker for every "where does this go" question: placing a note, moving a branch, Summarize, moving a note under
   a note. Never a `Select`.
 - `items` come in tree order (parents before children) with `parentId`. Only roots show at first; a row click selects
-  the branch and unfolds its children, the chevron only folds and unfolds. The user walks down, never scrolls the
-  whole tree.
+  the row and unfolds its children, the chevron only folds and unfolds. The list shows five rows and scrolls beyond; with `fill` it
+  takes its host's height instead (a `Notice` step).
 - `action(name)` labels the confirm button for the selection ("Add to Jazz", "Move to Jazz", "Make Jazz main"); it is
   disabled until something is selected or while `busy`.
-- Search matches the name or any ancestor name and shows hits with their path; clearing it brings the tree back,
-  unfolded down to the selection.
-- `exclude` hides rows that cannot be picked with their subtrees — a moving branch. Never grey them out.
+- Search matches a row's own name. The tree stays: matches are marked, the branches down to them unfold while the
+  search lasts, and a `2 / 7` counter with ↑/↓ steps through them (Enter / Shift+Enter and the arrow keys in the field
+  too, round in a circle); the current match is the selection and scrolls into view. Typing selects the first match;
+  with no match the selection from before the search comes back. Clearing the search folds what it opened, except the
+  way down to the selection.
+- `exclude` hides rows that cannot be picked with their subtrees — a moving branch, a moving note with its sub-notes.
+  Never grey them out.
 - `lead` is a first row that acts at once ("Make it a root"); it hides while the user searches.
-- `onCreate(name, parentId)` adds "+ New in <selected>" under the selection, "+ New constellation" for a root, and
-  "Create “…” in <selected>" while searching, unless a sibling already has the name. It resolves to the new id, which
-  becomes the selection. Leave it out where creating makes no sense (moving a branch).
+- `onCreate(name, parentId)` adds "+ New in <selected>" under a selected constellation, "+ New constellation" for a
+  root, and "Create “…”" while searching — in the selection kept from before the search, at the root when the
+  selection is the current match — unless a sibling already has the name. It resolves to the new id, which becomes the
+  selection. Leave it out where creating makes no sense (moving a branch).
 - It is an inline block with a hard edge; the host decides where it sits. Escape in the search field calls `onClose`;
   Escape in a name field only cancels that field.
 - Every row is a native button; the selected row is `aria-pressed`; the search field is labelled by `label` (default
-  "Search the tree").
-- `notes` makes notes targets too, where a note can hold the one being placed (Summarize, "Move under a note"): typing
-  also calls `notes.search(query, signal)` after a short pause (stale searches are aborted) and lists the hits under the
-  constellations with their path; a picked note is confirmed by `notes.action(title)` → `notes.onPick(id)`. With
-  `items={[]}` it is a note finder only ("Type to find a note."). Leave it out where only a constellation fits.
+  "Search the tree"). The search field has no focus ring of its own: its bottom edge and icon brighten instead.
+- `notes` makes notes targets too, where a note can hold the one being placed (Summarize, "Move under a note").
+  `notes.items` is every such note, flat: `parentId` is its parent note, `constellationIds` its constellations. A note
+  sits in each of its constellations after their sub-constellations, its sub-notes under it, and notes with no
+  constellation of the tree in a last "Without constellation" branch; with `items={[]}` notes are the roots. A picked
+  note is confirmed by `notes.action(title)` → `notes.onPick(id)`. Leave it out where only a constellation fits.
 
 ```jsx
 <ConstellationPicker items={items} action={(name) => `Summarize into ${name}`} onPick={summarizeInto}
-  notes={{search: findNotes, action: (title) => `Summarize under ${title}`, onPick: summarizeUnder}} />
+  notes={{items: sky.notes.map((n) => ({id: n.id, title: n.title, parentId: n.parentNoteId,
+    constellationIds: n.memberships.map((m) => m.constellationId)})),
+    action: (title) => `Summarize under ${title}`, onPick: summarizeUnder}} />
 ```

@@ -194,3 +194,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   carry newer packages. The GitHub Actions layer cache keeps the upgraded layer until the Dockerfile or the digest
   changes, so later Alpine fixes arrive with the monthly Dependabot digest bump.
 - **Source:** task `docs/tasks/2026-10-21-image-security-fixes.md`, block 3.
+
+## 2026-10-22 — The place picker builds its tree from the sky
+
+- **Context:** the picker gained notes as tree nodes and an in-tree search; the server-side note search returned flat
+  hits only.
+- **Decision:** every picker that offers notes (Summarize, the sky filter, "Move under a note") reads constellations
+  and notes from `GET /note/sky` and searches on the client; the web client of `/note/notes/search` is removed. The
+  Summarize dialog's place is a collapsed `PlaceField`; its one action, Summarize, takes an empty place as "no
+  constellation". A note picked in the sky filter filters by its main constellation and opens its star, switching to
+  Full when the current view hides the star.
+- **Consequences:** the answer grows with the notes (`docs/TECH_DEBT.md`). The note panel keeps its own layout until
+  task 5 of the epic.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, blocks 1 and 3.

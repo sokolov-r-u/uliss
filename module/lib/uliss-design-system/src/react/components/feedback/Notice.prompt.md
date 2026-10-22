@@ -20,3 +20,9 @@ The modal card. Every blocking or dismissible thing Uliss says.
   state prevent activation; `secondaryDisabled` does the same for the secondary action, which stays in place so the
   card keeps its size. Secondary, skip and close render only with their matching labels/handlers; `showClose` is
   explicit. The card labels itself as a dialog. Its overlay owns Escape, focus trap and focus restoration.
+- `step` is a second step of the same question in the same card (choosing a place for a summary note): its title and
+  content cover the first step, which stays hidden and inert only to hold the size, so the card does not move. The
+  corner button turns into Back and Escape steps back (`step.onBack`) instead of closing. Content that may be long
+  (a `ConstellationPicker` with `fill`) takes the room under the title and scrolls inside.
+  When the step opens, its content's `autoFocus` takes the focus, else Back does; Escape steps back even when the focus
+  was lost to the page (an element removed), before a host overlay could close the notice.

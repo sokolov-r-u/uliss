@@ -1,4 +1,9 @@
-import {ConstellationPicker, type ConstellationPickerItem, constellationColor} from '@uliss/design-system'
+import {
+    ConstellationPicker,
+    type ConstellationPickerItem,
+    type ConstellationPickerNoteItem,
+    constellationColor,
+} from '@uliss/design-system'
 import {Ground} from '../preview-kit/Ground'
 
 const ITEMS: ConstellationPickerItem[] = [
@@ -24,19 +29,17 @@ export const PlaceWithCreate = () => (
     </Ground>
 )
 
-const NOTES = [
-    {id: 'bowie', title: 'Bowie', path: ['Music', 'Rock'], color: constellationColor(264, 'LIGHT')},
-    {id: 'low', title: 'Low', path: ['Music', 'Rock', 'Bowie'], color: constellationColor(264, 'LIGHT')},
-    {id: 'loose', title: 'A loose thought', path: []},
+const NOTES: ConstellationPickerNoteItem[] = [
+    {id: 'blue', title: 'Kind of Blue', parentId: null, constellationIds: ['jazz', 'films']},
+    {id: 'so-what', title: 'So What', parentId: 'blue', constellationIds: []},
+    {id: 'miles-note', title: 'Miles in Paris', parentId: null, constellationIds: ['miles']},
+    {id: 'loose', title: 'A loose thought', parentId: null, constellationIds: []},
 ]
-
-const searchNotes = async (query: string) =>
-    NOTES.filter((note) => note.title.toLowerCase().includes(query.toLowerCase()))
 
 export const SummarizeIntoPlaceOrNote = () => (
     <Ground width={320}>
         <ConstellationPicker items={ITEMS} action={(name) => `Summarize into ${name}`} onPick={() => undefined}
-                             notes={{search: searchNotes, action: (title) => `Summarize under ${title}`,
+                             notes={{items: NOTES, action: (title) => `Summarize under ${title}`,
                                  onPick: () => undefined}}
                              onCreate={async () => undefined} onClose={() => undefined}/>
     </Ground>
@@ -45,7 +48,8 @@ export const SummarizeIntoPlaceOrNote = () => (
 export const MoveUnderANote = () => (
     <Ground width={320}>
         <ConstellationPicker items={[]} label="Find a note…" action={(name) => name} onPick={() => undefined}
-                             notes={{search: searchNotes, action: (title) => `Move under ${title}`,
+                             exclude={['so-what']}
+                             notes={{items: NOTES, action: (title) => `Move under ${title}`,
                                  onPick: () => undefined}}
                              onClose={() => undefined}/>
     </Ground>

@@ -9,13 +9,14 @@ import {
     ConstellationApiError,
     createConstellation,
     getNotePlace,
+    getSky,
     listConstellations,
     moveNoteOut,
     moveNoteUnder,
     type NoteMembership,
     removeNoteConstellation,
-    searchNotes,
     setMainNoteConstellation,
+    type SkyStar,
 } from './constellationApi'
 import {NoteConstellationSection} from './NoteConstellationSection'
 
@@ -31,7 +32,7 @@ vi.mock('./constellationApi', async (importOriginal) => {
         createConstellation: vi.fn(),
         moveNoteUnder: vi.fn(),
         moveNoteOut: vi.fn(),
-        searchNotes: vi.fn(),
+        getSky: vi.fn(),
     }
 })
 vi.mock('../notes/noteApi', async (importOriginal) => {
@@ -46,6 +47,10 @@ function node(id: string, parentId: string | null, name: string): Constellation 
 const TREE = [node('music', null, 'Music'), node('jazz', 'music', 'Jazz'), node('films', null, 'Films')]
 
 const place = (constellationId: string, main: boolean): NoteMembership => ({constellationId, main})
+
+const star = (id: string, title: string, parentNoteId: string | null = null,
+              memberships: NoteMembership[] = []): SkyStar =>
+    ({id, title, parentNoteId, createdAt: '2026-10-20T10:00:00Z', memberships})
 
 async function renderSection(places: NoteMembership[], tree: Constellation[] = TREE) {
     vi.mocked(listConstellations).mockResolvedValue(tree)
@@ -241,18 +246,20 @@ describe('NoteConstellationSection', () => {
         it('moves a top note under a found note, which is never the note itself', async () => {
             vi.mocked(listConstellations).mockResolvedValue(SUB_TREE)
             vi.mocked(getNotePlace).mockResolvedValue({ancestors: [], constellations: [place('films', true)]})
-            vi.mocked(searchNotes).mockResolvedValue(
-                [{id: 'bowie', title: 'Bowie', ancestors: [], constellationId: 'rock'}])
+            vi.mocked(getSky).mockResolvedValue({constellations: SUB_TREE, notes: [
+                star('bowie', 'Bowie', null, [place('rock', true)]),
+                star('n1', 'Low', null, [place('films', true)]),
+                star('sub', 'Bowie live', 'n1'),
+            ]})
             vi.mocked(moveNoteUnder).mockResolvedValue(
                 {ancestors: [{id: 'bowie', title: 'Bowie'}], constellations: [place('rock', true)]})
             render(<MemoryRouter><NoteConstellationSection noteId="n1" noteTitle="Low"/></MemoryRouter>)
 
             await userEvent.click(await screen.findByRole('button', {name: 'Move under a note'}))
-            await userEvent.type(screen.getByRole('textbox', {name: 'Move this note under…'}), 'bo')
-            const hit = await screen.findByRole('button', {name: /^Bowie/})
-            expect(hit).toHaveTextContent('Music › Rock')
-            expect(searchNotes).toHaveBeenCalledWith('bo', 'n1', expect.any(AbortSignal))
-            await userEvent.click(hit)
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Move this note under…'}), 'bo')
+            // the note and its sub-notes are hidden: the only match is Bowie
+            expect(screen.getByText('1 / 1')).toBeInTheDocument()
+            expect(screen.queryByRole('button', {name: /^Bowie live/})).not.toBeInTheDocument()
             await userEvent.click(screen.getByRole('button', {name: 'Move under Bowie'}))
 
             expect(moveNoteUnder).toHaveBeenCalledWith('n1', 'bowie')
@@ -262,16 +269,26 @@ describe('NoteConstellationSection', () => {
 
         it('explains a refused move', async () => {
             await renderSubNote()
-            vi.mocked(searchNotes).mockResolvedValue([{id: 'x', title: 'Xtra', ancestors: [], constellationId: null}])
+            vi.mocked(getSky).mockResolvedValue({constellations: SUB_TREE, notes: [star('x', 'Xtra')]})
             vi.mocked(moveNoteUnder).mockRejectedValue(
                 new ConstellationApiError('http', 'cycle', 409, undefined, 'NOTE_MOVE_CYCLE'))
 
             await userEvent.click(screen.getByRole('button', {name: 'Move under another note'}))
-            await userEvent.type(screen.getByRole('textbox', {name: 'Find a note…'}), 'x')
             await userEvent.click(await screen.findByRole('button', {name: /^Xtra/}))
             await userEvent.click(screen.getByRole('button', {name: 'Move under Xtra'}))
 
             expect(await screen.findByRole('alert')).toHaveTextContent('A note cannot go under itself or its own sub-notes.')
+        })
+
+        it('offers Retry when the notes do not load', async () => {
+            await renderSubNote()
+            vi.mocked(getSky).mockRejectedValueOnce(new ConstellationApiError('transport', 'down'))
+                .mockResolvedValueOnce({constellations: SUB_TREE, notes: [star('x', 'Xtra')]})
+
+            await userEvent.click(screen.getByRole('button', {name: 'Move under another note'}))
+            await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
+
+            expect(await screen.findByRole('button', {name: /^Xtra/})).toBeInTheDocument()
         })
     })
 })

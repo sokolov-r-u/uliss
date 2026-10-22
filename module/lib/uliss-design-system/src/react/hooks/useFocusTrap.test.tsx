@@ -68,4 +68,34 @@ describe('useFocusTrap', () => {
         expect(opener).toHaveFocus()
         opener.remove()
     })
+
+    it('leaves out what is inert, such as a step drawn over', async () => {
+        function InertTrap() {
+            const ref = useRef<HTMLDivElement>(null)
+            useFocusTrap(ref)
+            return <div ref={ref}>
+                <button type="button">First</button>
+                <button type="button">Middle</button>
+                <div inert><button type="button">Hidden</button></div>
+            </div>
+        }
+        const user = userEvent.setup()
+        render(<InertTrap/>)
+        await nextFrame()
+
+        await user.tab()
+        await user.tab()
+
+        expect(screen.getByRole('button', {name: 'First'})).toHaveFocus()
+    })
+
+    it('brings a Tab from outside the trap, such as a lost focus, back to the first element', async () => {
+        render(<><button type="button">Behind</button><Trap/></>)
+        await nextFrame()
+        ;(document.activeElement as HTMLElement | null)?.blur()
+
+        await userEvent.tab()
+
+        expect(screen.getByRole('button', {name: 'First'})).toHaveFocus()
+    })
 })
