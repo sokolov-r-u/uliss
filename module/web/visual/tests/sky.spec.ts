@@ -93,8 +93,11 @@ test('a note found in the filter shows its constellation, its star and its panel
     await panel.getByRole('button', {name: /^\+ Add/}).click()
     await panel.getByRole('button', {name: /^Music/}).click()
     await panel.getByRole('button', {name: 'Add to Music'}).click()
+    // the place is stored and the sky has read it again before the filter looks the note up
+    await expect(panel.getByRole('button', {name: /^Music$/})).toBeVisible()
     await page.getByRole('button', {name: 'Close'}).click()
     await page.getByRole('button', {name: 'Skeleton'}).click()
+    await expect(sky(page).getByRole('button', {name: 'The empty room'})).toHaveCount(0)
 
     await page.getByRole('button', {name: 'Filter by constellation'}).click()
     await page.getByRole('textbox', {name: 'Find a constellation or a note'}).fill('empty room')
