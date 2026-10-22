@@ -88,14 +88,16 @@ function contentParts(content: string | null, storedTitle?: string): { title: st
 export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
     return notes.map((note, index) => {
         const content = contentParts(note.content, note.title)
+        // a name the user gave a summary is shown while the note is still being written
         const title = note.status === 'GENERATING'
-            ? 'Generating note…'
+            ? note.title || 'Generating note…'
             : note.status === 'FAILED' ? 'Summary failed' : content.title
         return {
             id: note.id,
             ordinal: notes.length - index,
             title,
-            excerpt: note.status === 'READY' ? content.excerpt : '',
+            excerpt: note.status === 'READY' ? content.excerpt
+                : note.status === 'GENERATING' && note.title ? 'Generating note…' : '',
             date: formatShortDate(note.createdAt),
             linkCount: 0,
             renamable: note.status === 'READY',

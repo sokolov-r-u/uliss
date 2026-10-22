@@ -39,8 +39,9 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
     /** The edit form of a ready note; it replaces the note's text while it is open. */
     edit?: ReactNode
 }) {
-    // The note title is the page heading; every other state names itself in the body.
-    const title = state.status === 'ready' ? state.note.title || undefined : undefined
+    // The note title is the page heading (a generating note has one when the user named it); other states name
+    // themselves in the body.
+    const title = state.status === 'ready' || state.status === 'generating' ? state.note.title || undefined : undefined
     const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const navigate = useNavigate()
     const note = 'note' in state ? state.note : null

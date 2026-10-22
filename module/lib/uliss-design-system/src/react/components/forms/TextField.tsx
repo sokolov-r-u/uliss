@@ -8,7 +8,8 @@ import {LabelRow} from '../layout/LabelRow'
 // The one exception is a soft `limit` for text that can arrive whole (dictation):
 // it is never cut, and past the limit the field and counter turn --terracotta.
 
-const WHITESPACE = /\s+/g
+// ASCII whitespace only, as the service collapses it
+const WHITESPACE = /[ \t\n\v\f\r]+/g
 
 /** Code points of the value as a title stores it: trimmed, whitespace runs as one. */
 function softLength(value: string): number {

@@ -80,8 +80,14 @@ function summaryKeyTargetStorageKey(chatId: string): string {
     return `uliss.chat-summary.v1:${chatId}:target`
 }
 
-function summaryRequestTarget(throughMessageId: string | undefined, noteId: string | undefined): string {
-    return `${throughMessageId ?? ''}|${noteId ?? ''}`
+function summaryRequestTarget(
+    throughMessageId: string | undefined,
+    noteId: string | undefined,
+    place?: SummaryPlace,
+    name = '',
+): string {
+    const placeKey = !place ? '' : 'constellationId' in place ? `c:${place.constellationId}` : `n:${place.parentNoteId}`
+    return `${throughMessageId ?? ''}|${noteId ?? ''}|${placeKey}|${name.trim()}`
 }
 
 interface PendingChatRequest {
@@ -624,7 +630,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         const storageKey = summaryKeyStorageKey(chatId)
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
         // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
-        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId)
+        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId,
+            target ? undefined : place, target ? '' : summaryName)
         const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
         const idempotencyKey = storedKey ?? generateClientUuid()
         summaryRequestIdRef.current = requestId

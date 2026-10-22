@@ -10,7 +10,7 @@ const NAME_DICTATION_SECONDS = 30
 
 /** True when the name, as the service counts it, is over the limit and the summary must not start. */
 export function isSummaryNameTooLong(name: string): boolean {
-    return [...name.trim().replace(/\s+/g, ' ')].length > SUMMARY_NAME_LIMIT
+    return [...name.trim().replace(/[ \t\n\v\f\r]+/g, ' ')].length > SUMMARY_NAME_LIMIT
 }
 
 function clock(seconds: number): string {

@@ -23,10 +23,12 @@ describe('notes list presentation', () => {
                 title: 'Ownership columns',
                 content: 'Keep user_id\non every table',
             },
-            {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', title: 'Ignored', content: null},
+            {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', title: 'Giant Steps', content: null},
+            {id: 'unnamed', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
         ])
-        expect(models.map((note) => note.title)).toEqual(['Ownership columns', 'Generating note…'])
-        expect(models[0]?.excerpt).toBe('Keep user_id on every table')
+        // a name the user gave shows while the note is still being written
+        expect(models.map((note) => note.title)).toEqual(['Ownership columns', 'Giant Steps', 'Generating note…'])
+        expect(models.map((note) => note.excerpt)).toEqual(['Keep user_id on every table', 'Generating note…', ''])
     })
 
     it('hides row actions when the view has no action handlers', () => {

@@ -39,6 +39,12 @@ describe('TextField', () => {
         expect(screen.getByRole('textbox', {name: 'Name'})).not.toHaveAttribute('aria-invalid')
     })
 
+    it('keeps non-ASCII spaces as they are, since the service collapses only ASCII whitespace', () => {
+        render(<Field initial={'a\u00a0\u00a0\u00a0b'} limit={4}/>)
+
+        expect(screen.getByText('5/4')).toBeInTheDocument()
+    })
+
     it('puts the trailing control inside the field, after the input in tab order', () => {
         render(<TextField label="Name" value="" onChange={() => undefined}
                           trailing={<button type="button">Dictate</button>}/>)
