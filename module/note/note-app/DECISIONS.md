@@ -448,8 +448,9 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   say (a fact, consequence, counterexample, connection, concrete case); a question is optional and must follow from
   that addition. The model searches notes when a personal topic starts or changes, mentions a found note only when it
   changes the reply (at most once per reply, never as the opener), and says "no notes" only when the user asked about
-  them. The user still picks the topics. This replaces the prompt rules recorded with "The chat model searches the
-  user's notes through a tool".
-- **Consequences:** behavior is checked by hand, not by tests. If the model still skips the search, the next step is a
-  search before the first message of a topic in code.
+  them. The user still picks the topics. This refines the "searches only when needed" policy of "The chat model
+  searches the user's notes through a tool" into a search per personal topic or explicit request.
+- **Consequences:** behavior is checked by hand, not by tests. Tool calls and found fragments are not in the history,
+  so the model judges a topic change from the text alone and loses earlier fragments on later turns. If the model
+  still skips the search, the next step is a search before the first message of a topic in code.
 - **Source:** task `docs/tasks/2026-10-22-chat-prompt-contribution.md`.
