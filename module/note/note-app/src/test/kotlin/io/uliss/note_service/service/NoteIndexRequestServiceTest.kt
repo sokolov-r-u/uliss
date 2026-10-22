@@ -87,4 +87,19 @@ class NoteIndexRequestServiceTest {
     }
 
     private fun payload(noteId: UUID) = """{"noteId":"$noteId","userId":"$userId"}"""
+
+    @Test
+    fun `later requests are published in note id order, so parallel transactions lock the events alike`() {
+        service.requestLaterWithSubNotes(userId, listOf(loose, bowie))
+
+        val order = Mockito.inOrder(outboxService)
+        listOf(bowie, low, warszawa, loose).sorted().forEach { noteId ->
+            order.verify(outboxService).publishDebounced(
+                OutboxEventType.NOTE_INDEX_REQUESTED,
+                payload(noteId),
+                "NOTE_INDEX_REQUESTED:$noteId",
+                Duration.ofMinutes(90),
+            )
+        }
+    }
 }

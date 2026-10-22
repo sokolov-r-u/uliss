@@ -132,6 +132,23 @@ class OutboxDebounceIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `re-claiming an expired event while a newer one holds its key keeps one pending event`() {
+        val key = newKey()
+        publishDebounced(key, Duration.ZERO)
+        val claimed = outboxService.claim(10).single { it.dedupKey == key }
+        publishDebounced(key, HOUR)
+        outboxEventRepository.save(
+            outboxEventRepository.findById(claimed.id).orElseThrow().also { it.nextAttemptAt = Instant.now().minusSeconds(1) }
+        )
+
+        val reclaimed = outboxService.claim(10).single { it.dedupKey == key }
+
+        assertEquals(claimed.id, reclaimed.id)
+        assertEquals(OutboxEventStatus.PROCESSING, reclaimed.status)
+        assertEquals(1, eventsWith(key).count { it.status == OutboxEventStatus.PENDING })
+    }
+
+    @Test
     fun `a plain publish is not deduplicated`() {
         val marker = UUID.randomUUID().toString()
         val payload = """{"marker":"$marker"}"""

@@ -35,7 +35,8 @@ class NoteIndexRequestService(
      */
     fun requestLater(userId: UUID, noteIds: Collection<UUID>) {
         if (noteIds.isEmpty()) return
-        noteRepository.findIdsByStatus(userId, NoteStatus.READY, noteIds).forEach { noteId ->
+        // one order for every transaction: two of them upserting the same events cannot deadlock
+        noteRepository.findIdsByStatus(userId, NoteStatus.READY, noteIds).sorted().forEach { noteId ->
             outboxService.publishDebounced(
                 OutboxEventType.NOTE_INDEX_REQUESTED,
                 payload(userId, noteId),
