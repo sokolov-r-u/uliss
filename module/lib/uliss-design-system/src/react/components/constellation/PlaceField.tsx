@@ -5,8 +5,12 @@ import {LabelRow} from '../layout/LabelRow'
 
 // A place as one collapsed 48px line: the chosen path, or a placeholder. A
 // click unfolds the picker under it, over whatever follows, so the host keeps
-// its size. A pick (the picker calls `close`) or Escape collapses it and gives
+// its size; it opens upwards when the room below is short and there is more
+// above. A pick (the picker calls `close`) or Escape collapses it and gives
 // the focus back to the line; a click outside only collapses it.
+
+/** About the picker's height: search, five rows and the action. */
+const POPOVER_ROOM = 340
 
 export interface PlaceFieldProps {
     label: string
@@ -23,6 +27,7 @@ export interface PlaceFieldProps {
 export function PlaceField({label, value, placeholder = 'Choose a place', disabled = false, onClear, children}:
                            PlaceFieldProps) {
     const [open, setOpen] = useState(false)
+    const [upward, setUpward] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)
     const lineRef = useRef<HTMLButtonElement>(null)
     const shown = open && !disabled
@@ -54,7 +59,14 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
             }}>
                 <button ref={lineRef} type="button" disabled={disabled} aria-expanded={shown}
                         aria-label={`${label}: ${value ?? placeholder}`}
-                        onClick={() => setOpen((current) => !current)}
+                        onClick={() => {
+                            if (!open && lineRef.current) {
+                                const rect = lineRef.current.getBoundingClientRect()
+                                const below = window.innerHeight - rect.bottom
+                                setUpward(below < POPOVER_ROOM && rect.top > below)
+                            }
+                            setOpen(!open)
+                        }}
                         style={{
                             flex: 1,
                             minWidth: 0,
@@ -89,6 +101,7 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
                 }}><Icon name="close" size={12}/></IconButton>}
             </div>
             {shown && <div
+                data-testid="place-field-popover"
                 onKeyDown={(event) => {
                     if (event.key !== 'Escape') return
                     // The field owns this Escape: a host dialog must not close with it.
@@ -96,7 +109,8 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
                     event.stopPropagation()
                     close()
                 }}
-                style={{position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 5}}>
+                style={{position: 'absolute', [upward ? 'bottom' : 'top']: 'calc(100% + 4px)', left: 0, right: 0,
+                    zIndex: 5}}>
                 {children(close)}
             </div>}
         </div>

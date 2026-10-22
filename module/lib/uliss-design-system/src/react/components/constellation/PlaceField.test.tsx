@@ -93,4 +93,26 @@ describe('PlaceField', () => {
         expect(field()).toBeDisabled()
         expect(screen.queryByRole('textbox', {name: 'Search the tree'})).not.toBeInTheDocument()
     })
+
+    it('opens upwards when the room below the line is short and there is more above', async () => {
+        render(<Field/>)
+        vi.spyOn(field(), 'getBoundingClientRect').mockReturnValue(
+            {top: 600, bottom: 648, left: 0, right: 300, width: 300, height: 48, x: 0, y: 600, toJSON: () => ({})})
+        vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
+
+        await userEvent.click(field())
+
+        expect(screen.getByTestId('place-field-popover').style.bottom).toBe('calc(100% + 4px)')
+    })
+
+    it('opens downwards when the room below is enough', async () => {
+        render(<Field/>)
+        vi.spyOn(field(), 'getBoundingClientRect').mockReturnValue(
+            {top: 100, bottom: 148, left: 0, right: 300, width: 300, height: 48, x: 0, y: 100, toJSON: () => ({})})
+        vi.spyOn(window, 'innerHeight', 'get').mockReturnValue(800)
+
+        await userEvent.click(field())
+
+        expect(screen.getByTestId('place-field-popover').style.top).toBe('calc(100% + 4px)')
+    })
 })

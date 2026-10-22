@@ -101,7 +101,8 @@ export function Notice({
                 animation: 'uNoticeIn var(--dur-notice) var(--ease-notice) both',
             }}
         >
-            <div style={{...shell, position: 'relative', overflow: 'hidden'}}>
+            {/* no clipping: a dropdown inside (PlaceField) may reach past the card */}
+            <div style={{...shell, position: 'relative'}}>
                 {variant === 'framed' && (
                     <div style={{
                         position: 'absolute',

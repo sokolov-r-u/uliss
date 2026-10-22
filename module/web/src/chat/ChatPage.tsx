@@ -8,7 +8,7 @@ import {generateClientUuid} from '../lib/clientUuid'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
-import {type SummaryPlace, SummaryPlacePicker} from '../constellations/SummaryPlacePicker'
+import {type SummaryPlace, SummaryPlaceField} from '../constellations/SummaryPlaceField'
 import {isSummaryNameTooLong, SummaryNameField} from './SummaryNameField'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {
@@ -160,10 +160,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
     const [summaryName, setSummaryName] = useState('')
     const [summaryNameDictating, setSummaryNameDictating] = useState(false)
+    /** Where a new summary note goes; null leaves it without a constellation. */
+    const [summaryPlace, setSummaryPlace] = useState<SummaryPlace | null>(null)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
-    /** Bumped when a picked constellation turned out deleted, so the place picker reloads the tree. */
+    /** Bumped when a picked place turned out deleted, so the place field reloads the tree. */
     const [placeRevision, setPlaceRevision] = useState(0)
     const [acceptedSummary, setAcceptedSummary] = useState<{ noteId: string, update: boolean } | null>(null)
     const streamAbortRef = useRef<AbortController | null>(null)
@@ -685,12 +687,14 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
             if (error instanceof NoteApiError && error.code === 'CONSTELLATION_NOT_FOUND') {
-                setSummaryError('That constellation no longer exists. Pick another one or skip for now.')
+                setSummaryError('That constellation no longer exists. Pick another place or leave it empty.')
+                setSummaryPlace(null)
                 setPlaceRevision((value) => value + 1)
                 return
             }
             if (error instanceof NoteApiError && error.code === 'PARENT_NOTE_NOT_FOUND') {
-                setSummaryError('That note no longer exists. Pick another place or skip for now.')
+                setSummaryError('That note no longer exists. Pick another place or leave it empty.')
+                setSummaryPlace(null)
                 setPlaceRevision((value) => value + 1)
                 return
             }
@@ -781,6 +785,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                   onClick={() => {
                                       setSummaryError(null)
                                       setSummaryName('')
+                                      setSummaryPlace(null)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -799,7 +804,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     primaryDisabled={summaryPending}
                     onPrimary={() => void confirmSummary()}
                     onSecondary={() => setSummaryDialog(false)}/>
-                    // The picker's own action starts the summary, so the notice shows no primary button of its own.
                     : <Notice
                         title={summaryTitle}
                         width={360}
@@ -808,18 +812,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                 ? 'Starting the summary…'
                                 : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
                         </SummaryDialogText>}
-                        primary=""
-                        secondary="Skip for now"
-                        secondaryDisabled={summaryPending || summaryHeld}
+                        primary="Summarize"
+                        primaryDisabled={summaryHeld}
                         busy={summaryPending}
-                        onSecondary={() => void confirmSummary()}>
+                        showClose
+                        onClose={() => setSummaryDialog(false)}
+                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}/>
-                        <SummaryPlacePicker busy={summaryPending || summaryHeld} revision={placeRevision}
-                                            onPick={(place) => void confirmSummary(place)}
-                                            onClose={() => {
-                                                if (!summaryPendingRef.current) setSummaryDialog(false)
-                                            }}/>
+                        <SummaryPlaceField place={summaryPlace} onChange={setSummaryPlace} disabled={summaryPending}
+                                           revision={placeRevision} onError={setSummaryError}/>
                     </Notice>}
             </NoticeOverlay>}
         </div>

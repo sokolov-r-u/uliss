@@ -3,7 +3,7 @@ import {useNavigate} from 'react-router-dom'
 import {Button, ConstellationPicker, EmptyState, Icon, IconButton, Kicker} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {getSky, type Sky} from '../constellations/constellationApi'
-import {pickerItems} from '../constellations/constellationTree'
+import {pickerItems, pickerNotes} from '../constellations/constellationTree'
 import {subscribeToNotesChanges} from '../notes/noteApi'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {SkyCanvas} from './SkyCanvas'
@@ -74,6 +74,7 @@ export function SkyPage() {
 
     const sky = load.status === 'ready' ? load.sky : null
     const graph = useMemo(() => sky ? buildSkyGraph(sky) : null, [sky])
+    const notes = useMemo(() => sky ? pickerNotes(sky.notes) : [], [sky])
 
     // The first mode follows the density of the sky on this screen; after that it is the user's.
     useEffect(() => {
@@ -102,6 +103,16 @@ export function SkyPage() {
         setStarId(null)
     }
     const pickView = (next: SkyView) => setView(next)
+
+    /** A note found in the filter: the sky shows its main constellation (all of it without one) and opens its star. */
+    const showNote = (id: string) => {
+        if (!graph || !sub) return
+        setFilter(graph.byId.get(id)?.constellationIds[0] ?? null)
+        // the star must be on the sky to be picked: a view without it gives way to Full
+        if (!sub.nodes.some((node) => node.id === id)) setView('full')
+        pickStar(id)
+        setFilterOpen(false)
+    }
 
     const branch = filter && graph ? graph.tree.byId.get(filter) : undefined
     const inFilter = graph && filter ? graph.nodes.filter((n) => n.kind === 'star' && inBranch(graph, n, filter)).length : 0
@@ -193,7 +204,7 @@ export function SkyPage() {
                 <button type="button" className="sky-menu-scrim" tabIndex={-1} aria-hidden="true"
                         onClick={() => setFilterOpen(false)}/>
                 <div className="sky-filter" data-sky-ui="">
-                    <ConstellationPicker items={pickerItems(graph.tree)} label="Find a constellation"
+                    <ConstellationPicker items={pickerItems(graph.tree)} label="Find a constellation or a note"
                                          action={(name) => `Show ${name}`}
                                          lead={filter ? {
                                              label: 'All constellations', onSelect: () => {
@@ -205,7 +216,8 @@ export function SkyPage() {
                                              setFilter(id)
                                              setFilterOpen(false)
                                          }}
-                                         onClose={() => setFilterOpen(false)}/>
+                                         onClose={() => setFilterOpen(false)}
+                                         notes={{items: notes, action: (title) => `Show ${title}`, onPick: showNote}}/>
                 </div>
             </>}
             {settingsOpen && <aside className="sky-panel" data-sky-ui="" aria-label="Sky settings"

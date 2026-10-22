@@ -12,7 +12,8 @@ unfolds the `ConstellationPicker` under it. Only the Summarize dialog uses it; e
 
 - 48px, like `TextField`, with the label above it. `value` is the path as the user reads it ("Music › Jazz"); the host
   builds it. An empty place is a valid answer the host must accept (a note without a constellation).
-- The picker unfolds over what follows (absolutely positioned), so a dialog keeps its size while it opens.
+- The picker unfolds over what follows (absolutely positioned), so a dialog keeps its size while it opens; it opens
+  upwards when the room below the line is short and there is more above. `Notice` does not clip it.
 - A pick calls `close`: the line collapses and gets the focus back. Escape does the same and never reaches a host
   dialog. A click outside only collapses it.
 - `onClear` adds a clear button while there is a value. `disabled` keeps it shut.

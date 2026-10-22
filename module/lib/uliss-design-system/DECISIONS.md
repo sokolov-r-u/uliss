@@ -53,3 +53,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   collapses the line and returns the focus; Escape does the same; a click outside only collapses it.
 - **Consequences:** a new public component; a Claude Design sync is due after merge.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 2.
+
+## 2026-10-22 — Notice no longer clips; PlaceField opens upwards when short of room
+
+- **Context:** in the Summarize dialog the place dropdown (about 340px) hangs below the card; the card clipped it
+  (`overflow: hidden`), and on a laptop-height window it ran off the bottom of the screen.
+- **Decision:** the Notice card drops `overflow: hidden` (its frame and ticks sit inside anyway). `PlaceField` measures
+  the room under its line when it opens and opens upwards when the room below is short of the picker and there is more
+  above.
+- **Consequences:** content wider or taller than the card is no longer cut; hosts keep it inside. Amends the
+  2026-10-22 PlaceField entry.
+- **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, block 3.
