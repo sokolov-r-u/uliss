@@ -84,6 +84,7 @@ application services or outbox handlers.
 | `GET /note/chats/{chatId}/messages`               | `ChatController -> ChatFacade -> ChatService`                                       | Returns an ownership-filtered cursor page          |
 | `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
+| `POST /note/chats/{chatId}/turns/{turnId}/retry`  | `ChatController -> ChatFacade -> NoteSummaryService + AssistantService -> ChatTurnService` | Regenerates a failed latest reply, then SSE  |
 | `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or updates the current note asynchronously, or replays |
 | `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
@@ -257,6 +258,8 @@ stateDiagram-v2
     GENERATING --> FAILED: interrupted without text
     GENERATING --> FAILED: expired at maximum attempts
     GENERATING --> CANCELED: explicit cancellation
+    FAILED --> GENERATING: user retry of the latest reply / next attempt
+    PARTIAL --> GENERATING: user retry of the latest reply / next attempt
     COMPLETE --> [*]
     PARTIAL --> [*]
     FAILED --> [*]

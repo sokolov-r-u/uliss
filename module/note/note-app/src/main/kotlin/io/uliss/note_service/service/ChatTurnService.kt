@@ -4,6 +4,7 @@ import io.uliss.database.utils.generateId
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
+import io.uliss.note_service.exception.ChatReplyNotRetryableException
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatMessageEntity
@@ -85,6 +86,38 @@ class ChatTurnService(
 
         ensureNoOtherTurnIsGenerating(userId, chatId)
         return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content)
+    }
+
+    /**
+     * Resolves the user's retry of reply [messageId] of turn [turnId] under the owned chat's lock.
+     *
+     * - a `FAILED` or `PARTIAL` reply that is the chat's latest message is deleted and its turn restarts as the next
+     *   fenced attempt ([ChatTurnRequestResolution.StartGeneration]); the user message stays as it is;
+     * - a turn that is generating is resolved like a repeated send (pending, or a reclaim of an expired lease);
+     * - a reply that is no longer the turn's reply (a repeated retry) replays the turn's outcome.
+     *
+     * @throws NotFoundException when the chat or the turn does not exist or belongs to someone else
+     * @throws ChatReplyNotRetryableException when the reply is complete, stopped or not the latest message
+     * @throws ChatTurnAlreadyGeneratingException when another turn of the chat is generating
+     */
+    @Transactional
+    fun resolveRetryRequest(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): ChatTurnRequestResolution {
+        requireAndLockOwnedChat(userId, chatId)
+        val turn = chatTurnStore.findById(userId, turnId)?.takeIf { it.chatId == chatId }
+            ?: throw NotFoundException("chat turn id=$turnId not found")
+        if (turn.status == ChatTurnStatus.GENERATING) return resolveGeneratingTurn(turn)
+
+        val reply = chatMessageRepository.findByTurnIdAndRole(turnId, ChatMessageRole.ASSISTANT)
+        if (reply?.id != messageId) return ChatTurnRequestResolution.AlreadyFinished(turn)
+        if (reply.status !in RETRYABLE_REPLY_STATUSES || chatMessageRepository.findLatestMessageId(chatId) != reply.id) {
+            throw ChatReplyNotRetryableException(chatId, messageId)
+        }
+
+        ensureNoOtherTurnIsGenerating(userId, chatId)
+        val restarted = chatTurnStore.restartFinished(turnId, userId, chatId, executionPolicy.lease.toMillis())
+            ?: throw InternalException("chat turn id=$turnId could not be restarted from ${turn.status}")
+        chatMessageRepository.delete(reply)
+        return ChatTurnRequestResolution.StartGeneration(restarted, loadProviderHistory(restarted))
     }
 
     /**
@@ -366,6 +399,7 @@ class ChatTurnService(
 
     private companion object {
         const val REQUEST_FINGERPRINT_FORMAT_VERSION: Byte = 1
+        val RETRYABLE_REPLY_STATUSES = setOf(ChatMessageStatus.FAILED, ChatMessageStatus.PARTIAL)
         val TERMINAL_GENERATION_STATUSES = setOf(
             ChatTurnStatus.COMPLETE,
             ChatTurnStatus.PARTIAL,

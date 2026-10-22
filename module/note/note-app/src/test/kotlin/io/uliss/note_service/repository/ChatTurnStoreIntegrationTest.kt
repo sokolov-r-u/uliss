@@ -98,6 +98,33 @@ class ChatTurnStoreIntegrationTest : NoteIntegrationTest() {
         }
     }
 
+    @Test
+    fun `only a failed or interrupted turn restarts, as the next attempt with a fresh lease`() {
+        val userId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        val chatId = insertGeneratingTurn(userId, turnId, leaseMillis = 60_000)
+
+        try {
+            assertNull(store.restartFinished(turnId, userId, chatId, leaseMillis = 60_000))
+            assertTrue(store.transitionToTerminal(turnId, userId, chatId, 1, ChatTurnStatus.FAILED))
+            assertNull(store.restartFinished(turnId, UUID.randomUUID(), chatId, leaseMillis = 60_000))
+
+            val restarted = assertNotNull(store.restartFinished(turnId, userId, chatId, leaseMillis = 60_000))
+            assertEquals(ChatTurnStatus.GENERATING, restarted.status)
+            assertEquals(2, restarted.attempt)
+            assertTrue(assertNotNull(restarted.leaseUntil).isAfter(Instant.now().plusSeconds(30)))
+            // the first attempt is fenced out of the restarted turn
+            assertFalse(store.transitionToTerminal(turnId, userId, chatId, 1, ChatTurnStatus.COMPLETE))
+
+            assertTrue(store.transitionToTerminal(turnId, userId, chatId, 2, ChatTurnStatus.PARTIAL))
+            assertEquals(3, store.restartFinished(turnId, userId, chatId, leaseMillis = 60_000)?.attempt)
+            assertTrue(store.transitionToTerminal(turnId, userId, chatId, 3, ChatTurnStatus.COMPLETE))
+            assertNull(store.restartFinished(turnId, userId, chatId, leaseMillis = 60_000))
+        } finally {
+            transactionTemplate.executeWithoutResult { chatRepository.deleteById(chatId) }
+        }
+    }
+
     private fun insertGeneratingTurn(userId: UUID, turnId: UUID, leaseMillis: Long): UUID =
         assertNotNull(transactionTemplate.execute {
             val chat = chatRepository.save(ChatEntity(userId, "owned chat"))

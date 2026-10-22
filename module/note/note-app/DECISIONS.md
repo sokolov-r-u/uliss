@@ -470,3 +470,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   cancel reaches only the instance that runs the generation; another instance's generation is still fenced out. SSE
   streams begin with `:keepalive`.
 - **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 1.
+
+## 2026-10-22 — A failed or interrupted reply is retried in the same turn
+
+- **Context:** a reply that failed or broke off could only be followed by a new message; resending the text would
+  duplicate the user message in the history.
+- **Decision:** `POST /chats/{chatId}/turns/{turnId}/retry?messageId=` restarts the turn when `messageId` is its
+  `FAILED` or `PARTIAL` reply and the chat's latest message: under the chat lock the turn goes back to `GENERATING`
+  as `attempt + 1` with a fresh lease (`ChatTurnStore.restartFinished`), the old reply is deleted, and generation
+  runs on the history up to the user message. The `messageId` makes the request idempotent without a key: once the
+  reply is replaced, a repeated retry replays the turn's outcome. Only the user starts a retry; the server never
+  retries on its own. `maxAttempts` still bounds only the reclaim of expired leases, and a retry does not move
+  `chat.updated_at`.
+- **Consequences:** a summary note whose boundary is the replaced reply moves to the message before it, so the new
+  reply is summarized later; a summary request still pending through that reply blocks the retry with
+  `409 SUMMARY_IN_PROGRESS`, since its worker reads messages through it. A `CANCELED` ("stopped") reply is not retried.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 2.

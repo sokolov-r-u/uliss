@@ -111,9 +111,19 @@ class ChatController(
         return streamResponse(reply, idempotencyKey)
     }
 
+    /** Regenerates the chat's latest reply [messageId] when it failed or was interrupted; same SSE contract. */
+    @PostMapping("/{chatId}/turns/{turnId}/retry", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun retryReply(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable chatId: UUID,
+        @PathVariable turnId: UUID,
+        @RequestParam messageId: UUID,
+    ): ResponseEntity<Flux<ServerSentEvent<Any>>> =
+        streamResponse(chatFacade.retryReply(jwt.getUserId(), chatId, turnId, messageId), idempotencyKey = null)
+
     private fun streamResponse(
         reply: AssistantReplyStream,
-        idempotencyKey: UUID,
+        idempotencyKey: UUID?,
     ): ResponseEntity<Flux<ServerSentEvent<Any>>> {
         val stream = reply.events
             .map(::toServerSentEvent)
@@ -123,9 +133,9 @@ class ChatController(
             // a notes search between model calls can stay silent longer than a proxy's read timeout
             .withHeartbeat(heartbeatInterval)
         val response = ResponseEntity.ok()
-            .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
             .header(CHAT_ID_HEADER, reply.chatId.toString())
             .header(CHAT_TURN_ID_HEADER, reply.turnId.toString())
+        idempotencyKey?.let { response.header(IDEMPOTENCY_KEY_HEADER, it.toString()) }
         return response
             .contentType(MediaType.TEXT_EVENT_STREAM)
             .body(stream)

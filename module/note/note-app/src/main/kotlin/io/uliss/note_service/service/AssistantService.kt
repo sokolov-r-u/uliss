@@ -49,8 +49,21 @@ class AssistantService(
         idempotencyKey: UUID,
         prompt: String,
         noteSearch: NoteSearch,
-    ): AssistantReplyStream {
-        return when (val resolution = chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt)) {
+    ): AssistantReplyStream =
+        toReplyStream(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt), noteSearch)
+
+    /** Regenerates the failed or interrupted reply [messageId] of turn [turnId]; see [ChatTurnService.resolveRetryRequest]. */
+    fun retryReply(
+        userId: UUID,
+        chatId: UUID,
+        turnId: UUID,
+        messageId: UUID,
+        noteSearch: NoteSearch,
+    ): AssistantReplyStream =
+        toReplyStream(chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId), noteSearch)
+
+    private fun toReplyStream(resolution: ChatTurnRequestResolution, noteSearch: NoteSearch): AssistantReplyStream {
+        return when (resolution) {
             is ChatTurnRequestResolution.StartGeneration ->
                 AssistantReplyStream(
                     resolution.turn.id,

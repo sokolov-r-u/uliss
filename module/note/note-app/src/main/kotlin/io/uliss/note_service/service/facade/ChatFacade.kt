@@ -77,6 +77,14 @@ class ChatFacade(
         return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id))
     }
 
+    /** A summary note that covered the replaced reply now ends before it, in the turn's restart transaction. */
+    @Transactional
+    fun retryReply(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): AssistantReplyStream {
+        chatService.getOwnedChat(userId, chatId)
+        noteSummaryService.releaseReplyForRetry(chatId, messageId)
+        return assistantService.retryReply(userId, chatId, turnId, messageId, noteSearch(userId, chatId))
+    }
+
     /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
         val currentNoteId = noteSummaryService.findCurrentChatSummary(chatId)?.noteId

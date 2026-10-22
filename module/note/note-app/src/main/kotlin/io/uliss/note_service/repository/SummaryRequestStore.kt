@@ -44,6 +44,9 @@ class SummaryRequestStore(
     fun finish(userId: UUID, idempotencyKey: UUID, status: SummaryRequestStatus): SummaryRequest? =
         jdbcTemplate.query(FINISH_BY_KEY_SQL, ::mapRequest, status.name, userId, idempotencyKey).singleOrNull()
 
+    fun hasPendingThrough(chatId: UUID, messageId: UUID): Boolean =
+        jdbcTemplate.queryForObject(HAS_PENDING_THROUGH_SQL, Boolean::class.java, chatId, messageId) == true
+
     fun hasPendingForNote(noteId: UUID): Boolean =
         jdbcTemplate.queryForObject(HAS_PENDING_FOR_NOTE_SQL, Boolean::class.java, noteId) == true
 
@@ -95,6 +98,13 @@ class SummaryRequestStore(
             SET status = ?, updated_at = CURRENT_TIMESTAMP, version = version + 1
             WHERE user_id = ? AND idempotency_key = ? AND status = 'PENDING'
             RETURNING $REQUEST_COLUMNS
+        """
+
+        const val HAS_PENDING_THROUGH_SQL = """
+            SELECT EXISTS (
+                SELECT 1 FROM note.summary_request
+                WHERE chat_id = ? AND through_message_id = ? AND status = 'PENDING'
+            )
         """
 
         const val HAS_PENDING_FOR_NOTE_SQL = """

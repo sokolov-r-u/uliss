@@ -148,6 +148,22 @@ class ChatTurnStore(
             0,
         ).isNotEmpty()
 
+    /** Moves a `FAILED` or `PARTIAL` turn back to `GENERATING` as its next attempt; null for any other status. */
+    fun restartFinished(turnId: UUID, userId: UUID, chatId: UUID, leaseMillis: Long): ChatTurn? {
+        require(leaseMillis > 0) { "leaseMillis must be positive" }
+        return jdbcTemplate.query(
+            RESTART_FINISHED_SQL,
+            ::mapTurn,
+            ChatTurnStatus.GENERATING.name,
+            leaseMillis,
+            turnId,
+            userId,
+            chatId,
+            ChatTurnStatus.FAILED.name,
+            ChatTurnStatus.PARTIAL.name,
+        ).singleOrNull()
+    }
+
     fun cancelGenerating(turnId: UUID, userId: UUID, chatId: UUID): Boolean =
         jdbcTemplate.query(
             CANCEL_GENERATING_SQL,
@@ -262,6 +278,17 @@ class ChatTurnStore(
               AND attempt >= ?
               AND lease_until <= CURRENT_TIMESTAMP
             RETURNING id
+        """
+
+        const val RESTART_FINISHED_SQL = """
+            UPDATE note.chat_turn
+            SET status = ?,
+                attempt = attempt + 1,
+                lease_until = CURRENT_TIMESTAMP + (? * INTERVAL '1 millisecond'),
+                updated_at = CURRENT_TIMESTAMP,
+                version = COALESCE(version, 0) + 1
+            WHERE id = ? AND user_id = ? AND chat_id = ? AND status IN (?, ?)
+            RETURNING $TURN_COLUMNS
         """
 
         const val CANCEL_GENERATING_SQL = """
