@@ -1,4 +1,4 @@
-import {TextField} from '@uliss/design-system'
+import {Icon, IconButton, TextField} from '@uliss/design-system'
 import {useState} from 'react'
 import {Ground} from '../preview-kit/Ground'
 
@@ -27,6 +27,26 @@ export const NearLimit = () => {
     return (
         <Ground width={320}>
             <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={24}/>
+        </Ground>
+    )
+}
+
+export const SoftLimitWithMic = () => {
+    const [title, setTitle] = useState('Giant Steps')
+    return (
+        <Ground width={320}>
+            <TextField label="Name" value={title} limit={50} onChange={(e) => setTitle(e.target.value)}
+                       trailing={<IconButton title="Dictate the name"><Icon name="mic" size={16}/></IconButton>}/>
+        </Ground>
+    )
+}
+
+export const OverSoftLimit = () => {
+    const [title, setTitle] = useState('Notes on Coltrane, Giant Steps and the sheets of sound')
+    return (
+        <Ground width={320}>
+            <TextField label="Name" value={title} limit={50} onChange={(e) => setTitle(e.target.value)}
+                       trailing={<IconButton title="Dictate the name"><Icon name="mic" size={16}/></IconButton>}/>
         </Ground>
     )
 }
