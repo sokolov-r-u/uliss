@@ -28,7 +28,8 @@ branches down to them and steps through them.
 - Search matches a row's own name. The tree stays: matches are marked, the branches down to them unfold while the
   search lasts, and a `2 / 7` counter with ↑/↓ steps through them (Enter / Shift+Enter and the arrow keys in the field
   too, round in a circle); the current match is the selection and scrolls into view. Typing selects the first match;
-  with no match the selection stays. Clearing the search folds what it opened, except the way down to the selection.
+  with no match the selection from before the search comes back. Clearing the search folds what it opened, except the
+  way down to the selection.
 - `exclude` hides rows that cannot be picked with their subtrees — a moving branch, a moving note with its sub-notes.
   Never grey them out.
 - `lead` is a first row that acts at once ("Make it a root"); it hides while the user searches.

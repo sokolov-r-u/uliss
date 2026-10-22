@@ -143,12 +143,18 @@ function buildTree(items: ConstellationPickerItem[], notes: ConstellationPickerN
     const unplaced: ConstellationPickerNoteItem[] = []
     for (const note of [...notes].sort(byTitle)) {
         if (note.parentId && noteIds.has(note.parentId)) {
-            subNotes.set(note.parentId, [...subNotes.get(note.parentId) ?? [], note])
+            const siblings = subNotes.get(note.parentId) ?? []
+            siblings.push(note)
+            subNotes.set(note.parentId, siblings)
             continue
         }
         const places = note.parentId ? [] : note.constellationIds.filter((id) => constellations.has(id))
         if (places.length === 0) unplaced.push(note)
-        places.forEach((id) => inConstellation.set(id, [...inConstellation.get(id) ?? [], note]))
+        for (const id of places) {
+            const here = inConstellation.get(id) ?? []
+            here.push(note)
+            inConstellation.set(id, here)
+        }
     }
 
     const nodes: TreeNode[] = []
@@ -182,6 +188,8 @@ function buildTree(items: ConstellationPickerItem[], notes: ConstellationPickerN
 /** [name] with every occurrence of [needle] marked. */
 function marked(name: string, needle: string): ReactNode {
     const lower = name.toLowerCase()
+    // offsets of the lowercased name only hold when lowercasing keeps its length
+    if (lower.length !== name.length) return name
     const parts: ReactNode[] = []
     let from = 0
     for (let at = lower.indexOf(needle); at >= 0 && needle; at = lower.indexOf(needle, from)) {
@@ -207,6 +215,8 @@ export function ConstellationPicker({
                                     }: ConstellationPickerProps) {
     const [query, setQuery] = useState('')
     const [selectedKey, setSelectedKey] = useState<string | null>(null)
+    /** The selection from before the search; it comes back while nothing matches. */
+    const [beforeSearch, setBeforeSearch] = useState<string | null>(null)
     const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
     /** The parent a new constellation is being named under; undefined while not creating. */
     const [creatingIn, setCreatingIn] = useState<string | null | undefined>(undefined)
@@ -250,6 +260,7 @@ export function ConstellationPicker({
 
     const select = (node: TreeNode) => {
         setSelectedKey(node.key)
+        setBeforeSearch(node.key)
         setCreatingIn(undefined)
         // The selection unfolds, and stays reachable once the search is cleared.
         setOpen((current) => new Set([...current, node.key, ...node.ancestors]))
@@ -273,8 +284,12 @@ export function ConstellationPicker({
         const nextNeedle = normalize(next).toLowerCase()
         setQuery(next)
         if (nextNeedle === needle) return
+        const from = needle ? beforeSearch : selectedKey
+        if (!needle) setBeforeSearch(selectedKey)
         if (nextNeedle) {
-            goTo(matchesOf(nextNeedle)[0])
+            const first = matchesOf(nextNeedle)[0]
+            if (first) goTo(first)
+            else setSelectedKey(from)
         } else if (selected) {
             // A cleared search leaves the tree unfolded down to the selection.
             setOpen((current) => new Set([...current, ...selected.ancestors]))

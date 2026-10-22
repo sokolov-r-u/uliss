@@ -75,6 +75,8 @@ export function SkyPage() {
     const sky = load.status === 'ready' ? load.sky : null
     const graph = useMemo(() => sky ? buildSkyGraph(sky) : null, [sky])
     const notes = useMemo(() => sky ? pickerNotes(sky.notes) : [], [sky])
+    // stable while the sky is, so the open filter does not rebuild its tree on every render
+    const filterItems = useMemo(() => graph ? pickerItems(graph.tree) : [], [graph])
 
     // The first mode follows the density of the sky on this screen; after that it is the user's.
     useEffect(() => {
@@ -204,7 +206,7 @@ export function SkyPage() {
                 <button type="button" className="sky-menu-scrim" tabIndex={-1} aria-hidden="true"
                         onClick={() => setFilterOpen(false)}/>
                 <div className="sky-filter" data-sky-ui="">
-                    <ConstellationPicker items={pickerItems(graph.tree)} label="Find a constellation or a note"
+                    <ConstellationPicker items={filterItems} label="Find a constellation or a note"
                                          action={(name) => `Show ${name}`}
                                          lead={filter ? {
                                              label: 'All constellations', onSelect: () => {

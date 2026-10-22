@@ -115,4 +115,27 @@ describe('PlaceField', () => {
 
         expect(screen.getByTestId('place-field-popover').style.top).toBe('calc(100% + 4px)')
     })
+
+    it('collapses on Escape from the line itself without letting the key reach the page', async () => {
+        const onPageKey = vi.fn()
+        document.addEventListener('keydown', onPageKey)
+        render(<Field/>)
+
+        await userEvent.click(field())
+        fireEvent.keyDown(field(), {key: 'Escape'})
+
+        expect(screen.queryByRole('textbox', {name: 'Search the tree'})).not.toBeInTheDocument()
+        expect(onPageKey).not.toHaveBeenCalled()
+        document.removeEventListener('keydown', onPageKey)
+    })
+
+    it('stays shut once disabled while open, even when enabled again', async () => {
+        const {rerender} = render(<Field/>)
+        await userEvent.click(field())
+
+        rerender(<Field disabled/>)
+        rerender(<Field/>)
+
+        expect(screen.queryByRole('textbox', {name: 'Search the tree'})).not.toBeInTheDocument()
+    })
 })

@@ -32,6 +32,11 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
     const lineRef = useRef<HTMLButtonElement>(null)
     const shown = open && !disabled
 
+    // a field disabled while open stays shut when it is enabled again
+    useEffect(() => {
+        if (disabled) setOpen(false)
+    }, [disabled])
+
     const close = () => {
         setOpen(false)
         lineRef.current?.focus()
@@ -47,7 +52,13 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
     }, [shown])
 
     return (
-        <div ref={rootRef} style={{position: 'relative'}}>
+        <div ref={rootRef} style={{position: 'relative'}} onKeyDown={(event) => {
+            if (event.key !== 'Escape' || !shown) return
+            // The field owns this Escape, from the line or the picker: a host dialog must not close with it.
+            event.preventDefault()
+            event.stopPropagation()
+            close()
+        }}>
             <LabelRow label={label}/>
             <div style={{
                 height: 48,
@@ -102,13 +113,6 @@ export function PlaceField({label, value, placeholder = 'Choose a place', disabl
             </div>
             {shown && <div
                 data-testid="place-field-popover"
-                onKeyDown={(event) => {
-                    if (event.key !== 'Escape') return
-                    // The field owns this Escape: a host dialog must not close with it.
-                    event.preventDefault()
-                    event.stopPropagation()
-                    close()
-                }}
                 style={{position: 'absolute', [upward ? 'bottom' : 'top']: 'calc(100% + 4px)', left: 0, right: 0,
                     zIndex: 5}}>
                 {children(close)}

@@ -119,6 +119,20 @@ describe('ConstellationPicker', () => {
         expect(onCreate).toHaveBeenCalledWith('Noir', 'films')
     })
 
+    it('goes back to the selection from before the search once nothing matches', async () => {
+        const onCreate = vi.fn(async () => undefined)
+        render(<ConstellationPicker items={ITEMS} action={add} onPick={vi.fn()} onCreate={onCreate}/>)
+
+        await userEvent.click(screen.getByRole('button', {name: /^Music/}))
+        await userEvent.type(search(), 'Ja')
+        expect(screen.getByRole('button', {name: 'Add to Jazz'})).toBeEnabled()
+        await userEvent.type(search(), 'q')
+
+        expect(screen.getByRole('button', {name: 'Add to Music'})).toBeEnabled()
+        await userEvent.click(screen.getByRole('button', {name: 'Create “Jaq” in Music'}))
+        expect(onCreate).toHaveBeenCalledWith('Jaq', 'music')
+    })
+
     it('closes on Escape without letting the key reach the page', () => {
         const onClose = vi.fn()
         const onPageKey = vi.fn()

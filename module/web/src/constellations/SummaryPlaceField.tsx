@@ -95,6 +95,11 @@ export function SummaryPlaceField({place, onChange, disabled, revision, onError}
     const items = useMemo(() => tree ? pickerItems(tree) : [], [tree])
     const notes = useMemo(() => sky ? pickerNotes(sky.notes) : [], [sky])
     const path = place && sky && tree ? placePath(place, sky, tree) : null
+    // a place gone from a fresh tree is emptied, so the line never hides a stale choice
+    const gone = place != null && sky != null && path == null
+    useEffect(() => {
+        if (gone) onChange(null)
+    }, [gone, onChange])
 
     const choose = (next: SummaryPlace, close: () => void) => {
         onError(null)

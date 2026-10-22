@@ -816,7 +816,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         primaryDisabled={summaryHeld}
                         busy={summaryPending}
                         showClose
-                        onClose={() => setSummaryDialog(false)}
+                        onClose={() => {
+                            if (!summaryPendingRef.current) setSummaryDialog(false)
+                        }}
                         onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}/>
