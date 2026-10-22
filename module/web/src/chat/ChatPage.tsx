@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
 import {ActionChip, Button, Notice} from '@uliss/design-system'
@@ -88,6 +88,14 @@ function summaryRequestTarget(
 ): string {
     const placeKey = !place ? '' : 'constellationId' in place ? `c:${place.constellationId}` : `n:${place.parentNoteId}`
     return `${throughMessageId ?? ''}|${noteId ?? ''}|${placeKey}|${name.trim()}`
+}
+
+/**
+ * The text block of the summary dialogs: description, progress and errors share it, and it is as tall as the longest
+ * of them (three lines), so the dialog keeps its size when the text changes.
+ */
+function SummaryDialogText({error, children}: { error: string | null; children: ReactNode }) {
+    return <span className={`chat-summary-text${error ? ' chat-summary-error' : ''}`}>{error ?? children}</span>
 }
 
 interface PendingChatRequest {
@@ -780,11 +788,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                              onBackdropClick={() => setSummaryDialog(false)}>
                 {updateTarget ? <Notice
                     title={summaryTitle}
-                    body={summaryError
-                        ? <span className="chat-summary-error">{summaryError}</span>
-                        : 'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.'}
+                    body={<SummaryDialogText error={summaryError}>
+                        New thoughts from this chat will be added at the end with today&apos;s date. The existing text
+                        stays as it is.
+                    </SummaryDialogText>}
                     primary={summaryPending ? 'Updating…' : 'Update note'}
-                    secondary={summaryPending ? undefined : 'Cancel'}
+                    secondary="Cancel"
+                    secondaryDisabled={summaryPending}
                     busy={summaryPending}
                     primaryDisabled={summaryPending}
                     onPrimary={() => void confirmSummary()}
@@ -793,14 +803,14 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     : <Notice
                         title={summaryTitle}
                         width={360}
-                        body={summaryError
-                            ? <span className="chat-summary-error">{summaryError}</span>
-                            : summaryPending
+                        body={<SummaryDialogText error={summaryError}>
+                            {summaryPending
                                 ? 'Starting the summary…'
                                 : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
+                        </SummaryDialogText>}
                         primary=""
-                        secondary={summaryPending ? undefined : 'Skip for now'}
-                        secondaryDisabled={summaryHeld}
+                        secondary="Skip for now"
+                        secondaryDisabled={summaryPending || summaryHeld}
                         busy={summaryPending}
                         onSecondary={() => void confirmSummary()}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}

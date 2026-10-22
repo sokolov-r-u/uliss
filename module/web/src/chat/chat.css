@@ -164,6 +164,15 @@
     text-transform: uppercase;
 }
 
+/* Three lines of the Notice body (11.5px × 1.65), the longest summary-dialog text */
+.chat-summary-text {
+    display: -webkit-box;
+    height: 4.95em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
 .chat-summary-error {
     color: var(--terracotta);
 }
