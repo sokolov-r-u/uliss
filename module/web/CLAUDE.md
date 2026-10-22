@@ -29,10 +29,15 @@ editing the SPA.
 - Web-only changes (screens, routing, layout glue) do not require a design sync; see the design-system `CLAUDE.md`.
 - Keep the authenticated application full-bleed and responsive; mockup artboards are not runtime layout constraints.
 - A modal (`Notice`, `Dialog`, drawers over the screen) keeps its size while its state changes: validation errors,
-  hints, busy or recording states, enabled/disabled actions. Reserve space for messages that come and go, keep
-  actions in place and disable them instead of hiding them, and do not swap body text for text of another length.
-  Only opening a different step of a flow may change the size. When a modal has such states, a Playwright test
-  compares its bounding box before and after each change (jsdom has no layout, so Vitest cannot check it).
+  hints, busy or recording states, enabled/disabled actions. Only opening a different step of a flow may change it.
+  - Build the modal from fixed blocks (title, body text, fields, hint line, actions). Every text of one kind uses the
+    same block in every state: the description, "Starting…" and an error all go into the body block.
+  - A block is sized for its longest variant. When variants differ, bring them to a common size: shorten the longer
+    text, extend the shorter one, or reserve the empty space. If a text does not fit its block, change the text or
+    the block, never let the modal grow or shrink.
+  - Actions may disappear, but their place stays: the modal never collapses because a button is gone.
+  - When a modal has such states, a Playwright test compares its bounding box before and after each change (jsdom has
+    no layout, so Vitest cannot check it).
 - Preserve a CSS-driven desktop/mobile breakpoint. Do not add JavaScript `matchMedia` logic without a functional need.
 - UI source uses 4-space indentation after formatting. Re-read a file if an external formatter changes it during
   editing.
