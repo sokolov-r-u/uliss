@@ -149,3 +149,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   otherwise. The library's host has `min-height` set in both `EmojiPicker` layouts. Refines "In a dialog the emoji
   picker covers the card".
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 4.
+
+## 2026-10-23 — The emoji panel has one frame and all nine category tabs
+
+- **Decision:** the user's UI check 5: the flags tab did not fit and the library's border drew a second square inside
+  our panel. Category tabs are 20px with 6px padding (nine fit 288px), the injected style drops the library's outer
+  border (our panel is the frame), and the dropdown is 380px wide. Refines "One emoji panel for the dropdown and the
+  cover".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 5.

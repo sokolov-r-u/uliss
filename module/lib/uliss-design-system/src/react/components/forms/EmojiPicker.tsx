@@ -44,9 +44,11 @@ const FAVORITE_ROWS = 3
 const EMOJI_SIZE = 22
 const EMOJI_PADDING = 8
 const CELL = EMOJI_SIZE + 2 * EMOJI_PADDING
+const CATEGORY_SIZE = 20
+const CATEGORY_PADDING = 6
 const FAVORITES_HEIGHT = FAVORITE_ROWS * CELL + 8
-// the library's own rows: border, top pad, search, categories, indicator, a category label and three emoji rows
-const LIBRARY_HEIGHT = 2 + EMOJI_PADDING + 39 + CELL + 4 + 29 + 3 * CELL
+// the library's own rows: top pad, search, categories, indicator, a category label and three emoji rows
+const LIBRARY_HEIGHT = EMOJI_PADDING + 39 + CATEGORY_SIZE + 2 * CATEGORY_PADDING + 4 + 29 + 3 * CELL
 const REMOVE_HEIGHT = 44
 /** The tallest box (with "Remove the icon"); it keeps its height while the library loads. */
 export const EMOJI_PICKER_HEIGHT = FAVORITES_HEIGHT + LIBRARY_HEIGHT + REMOVE_HEIGHT
@@ -75,11 +77,17 @@ const THEME = {
     '--num-columns': String(COLUMNS),
     '--emoji-size': `${EMOJI_SIZE}px`,
     '--emoji-padding': `${EMOJI_PADDING}px`,
+    // the nine category tabs fit one row
+    '--category-emoji-size': `${CATEGORY_SIZE}px`,
+    '--category-emoji-padding': `${CATEGORY_PADDING}px`,
     '--skintone-border-radius': '0',
 } as Record<string, string>
 
-/** Injected into the library's shadow root (its README's way): our favorites replace its single row. */
-const HIDE_LIBRARY_FAVORITES = '.favorites { display: none; }'
+/**
+ * Injected into the library's shadow root (its README's way): our favorites replace its single row, and the host's
+ * panel is the frame, so the library draws no square of its own inside it.
+ */
+const LIBRARY_STYLE = '.favorites { display: none; } .picker { border: 0; }'
 
 function toFavorite(emoji: StoredEmoji): Favorite | null {
     if (!emoji.unicode) return null
@@ -142,7 +150,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             picker.classList.add('dark')
             Object.entries(THEME).forEach(([name, value]) => picker?.style.setProperty(name, value))
             const style = document.createElement('style')
-            style.textContent = HIDE_LIBRARY_FAVORITES
+            style.textContent = LIBRARY_STYLE
             picker.shadowRoot?.append(style)
             picker.addEventListener('emoji-click', (event) => {
                 const detail = (event as CustomEvent<EmojiClickDetail>).detail

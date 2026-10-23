@@ -36,7 +36,7 @@ const EDGE = 8
 // One panel in both places: padding, border and the title row around EmojiPicker's own box
 const PANEL_PADDING = {top: 18, side: 20, bottom: 20}
 const TITLE_HEIGHT = 40
-const PANEL_WIDTH = 360
+const PANEL_WIDTH = 380
 const PANEL_HEIGHT = PANEL_PADDING.top + TITLE_HEIGHT + EMOJI_PICKER_HEIGHT + PANEL_PADDING.bottom + 2
 
 export function IconPicker({label, value, onChange, dataSource, disabled = false, cover = false}: IconPickerProps) {

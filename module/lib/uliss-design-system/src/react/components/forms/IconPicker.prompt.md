@@ -13,7 +13,7 @@ The full Unicode set with search, favorites and skin tones comes from `EmojiPick
 - Bottom-aligned with the name field's input (`alignItems: 'flex-end'`); it has no label row of its own. Its name reads
   "Icon: 🎷" or "Icon: none".
 - One panel everywhere: "Choose an icon" with a close button, three rows of favorites, the search, the categories and
-  a grid that scrolls. As a dropdown it is 360px wide at a fixed height, under the square, above it when the room
+  a grid that scrolls. As a dropdown it is 380px wide at a fixed height, under the square, above it when the room
   below is short; it always stays inside the window, over the square itself in a window too low for either side. A pick or "Remove the icon" closes it and returns the focus; Escape, a click outside or a second
   click close it without a change. Its Escape is marked handled, so a host dialog stays open.
 - It is portalled into the nearest element marked `data-popover-root` (`POPOVER_ROOT_ATTRIBUTE`) or into the page. A

@@ -313,6 +313,12 @@ describe('EmojiPicker', () => {
         expect(screen.getByRole('button', {name: 'name of 🐀'})).toHaveTextContent('🐀')
         const style = document.querySelector('emoji-picker')?.shadowRoot?.querySelector('style')
         expect(style?.textContent).toMatch(/\.favorites\s*\{[^}]*display:\s*none/)
+        // our panel is the frame: no second square of the library inside it
+        expect(style?.textContent).toMatch(/\.picker\s*\{[^}]*border:\s*0/)
+        // nine category tabs fit the width: 9 × (20 + 2 × 6) = 288px
+        const picker = document.querySelector('emoji-picker') as HTMLElement
+        expect(picker.style.getPropertyValue('--category-emoji-size')).toBe('20px')
+        expect(picker.style.getPropertyValue('--category-emoji-padding')).toBe('6px')
     })
 
     it('takes a favorite with the preferred skin tone and counts it as a pick of the user', async () => {
