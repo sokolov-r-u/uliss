@@ -14,7 +14,7 @@ export function SubNotesSection({noteId, onOpen}: { noteId: string; onOpen: (not
         <PanelSection label="Sub-notes" count={notes.length}>
             <div className="context-links">
                 {notes.map((note) => (
-                    <ListRow key={note.id} title={note.title || 'Untitled note'} date={formatShortDate(note.createdAt)}
+                    <ListRow key={note.id} title={note.title || 'Untitled note'} icon={note.icon ?? null} date={formatShortDate(note.createdAt)}
                              dots={false} onClick={() => onOpen(note.id)}/>
                 ))}
             </div>

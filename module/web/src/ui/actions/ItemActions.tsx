@@ -1,5 +1,5 @@
 import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Dialog, ItemMenu, type ItemMenuAction, OptionList, TextField} from '@uliss/design-system'
+import {Dialog, ItemMenu, type ItemMenuAction, noteTitleText, OptionList, TextField} from '@uliss/design-system'
 import {describeError} from '../../lib/apiHelpers'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
@@ -24,7 +24,7 @@ import {
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
-    | { kind: 'note'; id: string; title: string; renamable: boolean }
+    | { kind: 'note'; id: string; title: string; renamable: boolean; icon?: string | null }
 
 export interface ItemActionsProps {
     target: ItemActionTarget
@@ -94,6 +94,8 @@ export function ItemActions({
     const [anchor, setAnchor] = useState<HTMLElement | null>(null)
     const [dialog, setDialog] = useState<'rename' | 'delete' | null>(null)
     const [draft, setDraft] = useState(target.title)
+    // labels name a note with its emoji; the rename draft is the title alone
+    const shownTitle = target.kind === 'note' ? noteTitleText(target.title, target.icon) : target.title
     const [pending, setPending] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [subNotes, setSubNotes] = useState<SubNotes>({status: 'loading'})
@@ -242,7 +244,7 @@ export function ItemActions({
     return (
         <div ref={hostRef} style={{minWidth: 0}}>
             {children(openMenu, anchor !== null)}
-            {anchor && <ItemMenu anchor={anchor} label={`Actions for ${target.title}`}
+            {anchor && <ItemMenu anchor={anchor} label={`Actions for ${shownTitle}`}
                                  actions={actions} onClose={closeMenu}/>}
             {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
                                             body={error ?? undefined}
@@ -257,8 +259,8 @@ export function ItemActions({
                            }}/>
             </Dialog>}
             {dialog === 'delete' && target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0
-                && <Dialog danger title={`Delete “${target.title}”?`} width={340}
-                           body={error ?? deleteNoteBody(target.title, subNotes.count)}
+                && <Dialog danger title={`Delete “${shownTitle}”?`} width={340}
+                           body={error ?? deleteNoteBody(shownTitle, subNotes.count)}
                            confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={pending}
                            confirmDisabled={pending}
                            onConfirm={() => void submitDelete()} onCancel={closeDialog}>
@@ -268,7 +270,7 @@ export function ItemActions({
                                 onPick={(index) => setFate(FATES[index]!.fate)}/>
                 </Dialog>}
             {dialog === 'delete' && !(target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0)
-                && <Dialog danger title={`Delete “${target.title}”?`}
+                && <Dialog danger title={`Delete “${shownTitle}”?`}
                                             body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
                                             confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"
                                             confirmDisabled={target.kind === 'note' && subNotes.status === 'loading'}

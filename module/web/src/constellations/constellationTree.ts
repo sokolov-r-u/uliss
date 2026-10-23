@@ -110,6 +110,7 @@ export function pickerNotes(stars: SkyStar[]): ConstellationPickerNoteItem[] {
     return stars.map((star) => ({
         id: star.id,
         title: star.title,
+        icon: star.icon ?? null,
         parentId: star.parentNoteId,
         constellationIds: star.memberships.map((membership) => membership.constellationId),
     }))

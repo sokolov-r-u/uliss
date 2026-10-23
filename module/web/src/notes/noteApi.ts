@@ -19,6 +19,8 @@ export interface Note {
     version?: number
     /** The note this sub-note lives under; absent for a top note. */
     parentNoteId?: string
+    /** The user's emoji, shown before the title; absent for none. */
+    icon?: string
 }
 
 /** What happens to the sub-notes of a deleted note. */
@@ -27,6 +29,8 @@ export type SubNoteFate = 'KEEP' | 'DELETE'
 export interface NoteEdit {
     title: string
     content: string
+    /** The note's emoji; null removes it. */
+    icon: string | null
     version: number
 }
 
@@ -108,6 +112,7 @@ function parseNote(value: unknown): Note {
         throw new NoteApiError('protocol', 'invalid content in note response')
     }
     const parentNoteId = optionalString(value.parentNoteId, 'parentNoteId')
+    const icon = optionalString(value.icon, 'icon')
     return {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
@@ -119,6 +124,7 @@ function parseNote(value: unknown): Note {
         updating: optionalFlag(value.updating, 'updating'),
         version: optionalVersion(value.version),
         ...(parentNoteId ? {parentNoteId} : {}),
+        ...(icon ? {icon} : {}),
     }
 }
 
@@ -192,8 +198,10 @@ export async function requestChatSummary(
     parentNoteId?: string,
     /** The user's name for a new note; blank lets the model name it. */
     title?: string,
+    /** The user's emoji for a new note; the model never picks one. */
+    icon?: string | null,
 ): Promise<ChatSummaryResponse> {
-    const name = title?.trim() ? {title: title.trim()} : {}
+    const name = {...(title?.trim() ? {title: title.trim()} : {}), ...(icon ? {icon} : {})}
     const place = constellationId ? {constellationId} : parentNoteId ? {parentNoteId} : {}
     const body = updateNoteId
         ? {mode: 'UPDATE', targetNoteId: updateNoteId}
@@ -288,7 +296,7 @@ export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> 
     const response = await fetchNotes(`/note/notes/${segment(noteId)}`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({title: edit.title, content: edit.content, version: edit.version}),
+        body: JSON.stringify({title: edit.title, content: edit.content, icon: edit.icon, version: edit.version}),
     })
     await requireOk(response, 'note save')
     const note = parseNote(await responseJson(response))

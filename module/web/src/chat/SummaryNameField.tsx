@@ -1,4 +1,4 @@
-import {useEffect, useRef} from 'react'
+import {type ReactNode, useEffect, useRef} from 'react'
 import {Icon, IconButton, TextField} from '@uliss/design-system'
 import {appendDictation} from '../voice/appendDictation'
 import {type DictationState, useDictation} from '../voice/useDictation'
@@ -28,12 +28,14 @@ const MIC_TITLES: Record<DictationState, string> = {
  * The optional name of a new summary note, typed or dictated (up to 30 seconds). Dictated text joins what is typed and
  * is never cut: past the limit the field turns terracotta and the host keeps the summary from starting.
  */
-export function SummaryNameField({value, onChange, disabled, onDictatingChange}: {
+export function SummaryNameField({value, onChange, disabled, onDictatingChange, leading}: {
     value: string
     onChange: (value: string) => void
     disabled?: boolean
     /** Recording or transcribing: the host holds the summary until the text lands in the field. */
     onDictatingChange?: (dictating: boolean) => void
+    /** A control before the field, bottom-aligned with its input: the note's emoji. */
+    leading?: ReactNode
 }) {
     const valueRef = useRef(value)
     valueRef.current = value
@@ -73,9 +75,14 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange}:
     </IconButton>
 
     return <div className="summary-name">
-        <TextField label="Name" placeholder="Uliss names it if you leave this empty" value={value}
-                   limit={SUMMARY_NAME_LIMIT} disabled={disabled || dictating}
-                   onChange={(event) => onChange(event.target.value)} trailing={mic}/>
+        <div className="summary-name-row">
+            {leading}
+            <div className="summary-name-input">
+                <TextField label="Name" placeholder="Uliss names it if you leave this empty" value={value}
+                           limit={SUMMARY_NAME_LIMIT} disabled={disabled || dictating}
+                           onChange={(event) => onChange(event.target.value)} trailing={mic}/>
+            </div>
+        </div>
         {/* One line kept for every hint, so the dialog never changes size as hints come and go. */}
         <p className={`summary-name-hint${hint?.tone === 'error' ? ' summary-name-hint-error' : ''}`}
            role={hint?.tone === 'error' ? 'alert' : 'status'}>

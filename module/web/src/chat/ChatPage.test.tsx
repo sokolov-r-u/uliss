@@ -393,7 +393,7 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(summarizeInDialog())
         // No place, no update target: the create request carries neither a note nor a constellation.
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
@@ -1236,7 +1236,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined, undefined, null))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -1252,7 +1252,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('closes without a note by its close button and by Escape', async () => {
@@ -1286,7 +1286,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Put in Rock'}))
         await userEvent.click(summarizeInDialog())
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined, undefined, null))
     })
 
     it('explains a deleted constellation, reloads the tree, empties the place and starts nothing', async () => {
@@ -1335,7 +1335,7 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.click(summarizeInDialog())
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('names the new note with what the user typed', async () => {
@@ -1348,7 +1348,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps'))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps', null))
     })
 
     it('holds the summary while the name is too long, keeping its action in place', async () => {
@@ -1365,7 +1365,7 @@ describe('ChatPage summary place picker', () => {
         expect(summarize).toBeEnabled()
         await userEvent.click(summarize)
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, 'x'.repeat(50)))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, 'x'.repeat(50), null))
     })
 
     it('gives a request with another name a new key after an ambiguous failure', async () => {
@@ -1398,7 +1398,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie', undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie', undefined, null))
     })
 
     it('explains a deleted parent note and reloads the tree', async () => {

@@ -78,6 +78,17 @@
     gap: var(--space-4);
 }
 
+.note-edit-title {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.note-edit-title-input {
+    flex: 1;
+    min-width: 0;
+}
+
 /* The command field and Save/Cancel stay reachable at the foot of a long note. */
 .note-edit-dock {
     position: sticky;

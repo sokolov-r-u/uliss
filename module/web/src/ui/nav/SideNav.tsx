@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
-import {Button, Icon, IconButton, Kicker, ListRow, NavRow, StarMark, Wordmark} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, Wordmark} from '@uliss/design-system'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {listNotes, type Note, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
@@ -186,7 +186,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                         <Kicker size={8.5} spacing="2.5px" color="var(--text-faint)">{group.label}</Kicker>
                                         {group.items.map(({note, view}) => (
                                             <ItemActions key={note.id}
-                                                         target={{kind: 'note', id: note.id, title: view.title,
+                                                         target={{kind: 'note', id: note.id, title: view.title, icon: view.icon,
                                                              renamable: note.status === 'READY'}}
                                                          onRenamed={(title) => setNotes((current) =>
                                                              current.map((item) => item.id === note.id ? {...item, title} : item))}
@@ -196,9 +196,10 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                                                  navigate('/notes', {replace: true})
                                                              }
                                                          }}>
-                                                {(openMenu) => <ListRow title={view.title} onClick={go(`/notes/${note.id}`)}
+                                                {(openMenu) => <ListRow title={view.title} icon={view.icon ?? null}
+                                                                        onClick={go(`/notes/${note.id}`)}
                                                                         onMenu={openMenu}
-                                                                        menuLabel={`Actions for ${view.title}`}/>}
+                                                                        menuLabel={`Actions for ${noteTitleText(view.title, view.icon)}`}/>}
                                             </ItemActions>
                                         ))}
                                     </div>

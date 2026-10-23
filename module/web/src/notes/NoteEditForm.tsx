@@ -1,8 +1,9 @@
 import {useEffect, useRef, useState} from 'react'
-import {Button, Dialog, TextField} from '@uliss/design-system'
+import {Button, Dialog, IconPicker, TextField} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {AuthRequiredError} from '../auth/apiClient'
 import {normalizeTitle, TITLE_LIMIT} from '../lib/titleRule'
+import {EMOJI_DATA_URL} from '../lib/emojiData'
 import {ChatComposer} from '../chat/ChatComposer'
 import {NoteEditor, type NoteEditorChange, type NoteEditorHandle} from './editor/NoteEditor'
 import {
@@ -66,10 +67,12 @@ function rewriteFailure(error: unknown): string {
     return 'Uliss could not rewrite the text. Try again.'
 }
 
-/** Title and text of a ready note in edit mode: Save sends both with the version the edit started from. */
+/** Icon, title and text of a ready note in edit mode: Save sends them with the version the edit started from. */
 export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     const initialTitle = note.title ?? ''
     const [title, setTitle] = useState(initialTitle)
+    const initialIcon = note.icon ?? null
+    const [icon, setIcon] = useState<string | null>(initialIcon)
     const [text, setText] = useState<NoteEditorChange>({markdown: note.content, changed: false})
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
@@ -84,7 +87,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     const generating = preview !== null
 
     const normalizedTitle = normalizeTitle(title)
-    const dirty = text.changed || title !== initialTitle
+    const dirty = text.changed || title !== initialTitle || icon !== initialIcon
     const canSave = dirty && !saving && !generating && normalizedTitle !== null && text.markdown.trim() !== ''
     const busy = saving || generating
 
@@ -106,7 +109,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
         try {
             // Untouched text goes back as stored, not in the editor's equivalent spelling.
             const content = text.changed ? text.markdown : note.content
-            const savedNote = await updateNote(note.id, {title: normalizedTitle, content, version: note.version})
+            const savedNote = await updateNote(note.id, {title: normalizedTitle, content, icon, version: note.version})
             notifyNotesChanged()
             onSaved(savedNote)
         } catch (e) {
@@ -176,8 +179,13 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     }
 
     return <div className="note-edit">
-        <TextField label="Title" value={title} maxLength={TITLE_LIMIT} disabled={busy}
-                   onChange={(event) => setTitle(event.target.value)}/>
+        <div className="note-edit-title">
+            <IconPicker label="Icon" value={icon} onChange={setIcon} disabled={busy} dataSource={EMOJI_DATA_URL}/>
+            <div className="note-edit-title-input">
+                <TextField label="Title" value={title} maxLength={TITLE_LIMIT} disabled={busy}
+                           onChange={(event) => setTitle(event.target.value)}/>
+            </div>
+        </div>
         <NoteEditor content={note.content} onChange={setText} locked={busy} preview={preview}
                     handleRef={editorRef} highlightDateHeadings={note.source === 'CHAT_SUMMARY'}/>
         <div className="note-edit-dock">

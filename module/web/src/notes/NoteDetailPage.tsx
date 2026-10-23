@@ -1,7 +1,7 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {Button, Icon, IconButton} from '@uliss/design-system'
+import {Button, Icon, IconButton, noteTitleText} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
@@ -41,7 +41,9 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
 }) {
     // The note title is the page heading (a generating note has one when the user named it); other states name
     // themselves in the body.
-    const title = state.status === 'ready' || state.status === 'generating' ? state.note.title || undefined : undefined
+    const title = state.status === 'ready' || state.status === 'generating'
+        ? (state.note.title ? noteTitleText(state.note.title, state.note.icon) : undefined)
+        : undefined
     const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const navigate = useNavigate()
     const note = 'note' in state ? state.note : null
@@ -193,13 +195,13 @@ export function NoteDetailPage() {
             <Icon name="edit" size={17}/>
         </IconButton>
     const actions = note && <ItemActions
-        target={{kind: 'note', id: note.id, title: noteTitle, renamable: note.status === 'READY'}}
+        target={{kind: 'note', id: note.id, title: noteTitle, icon: note.icon, renamable: note.status === 'READY'}}
         onRenamed={(title, renamed) => setState((current) => 'note' in current
             ? {...current, note: {...current.note, title, version: renamed?.version ?? current.note.version}} as DetailState
             : current)}
         // Deleted from the chat delete dialog's list: go back to that dialog, which no longer lists it.
         onDeleted={() => backToDeleteDialog ? navigate(-1) : navigate('/notes', {replace: true})}>
-        {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitle}`}
+        {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitleText(noteTitle, note.icon)}`}
                                    onClick={(event) => openMenu(event.currentTarget)}>
             <Icon name="dots" size={17}/>
         </IconButton>}

@@ -32,6 +32,7 @@ export type ChatSummaryState = {
     throughMessageId?: string | null
     noteId: string
     noteTitle?: string | null
+    noteIcon?: string | null
 }
 
 export type ChatMessagePage = {
@@ -173,6 +174,7 @@ function parseSummaryState(value: unknown): ChatSummaryState | null | undefined 
         noteId: text(value.noteId, 'summary noteId'),
         throughMessageId: optionalText(value.throughMessageId, 'throughMessageId') ?? null,
         noteTitle: optionalText(value.noteTitle, 'noteTitle') ?? null,
+        noteIcon: optionalText(value.noteIcon, 'noteIcon') ?? null,
     }
 }
 

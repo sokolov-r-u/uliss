@@ -89,7 +89,7 @@ describe('NoteDetailPage editing', () => {
         await userEvent.type(title, 'Better idea')
         await userEvent.click(save)
 
-        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Better idea', content: 'A thought', version: 3})
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Better idea', content: 'A thought', icon: null, version: 3})
         expect(await screen.findByRole('heading', {name: 'Better idea'})).toBeInTheDocument()
         expect(screen.queryByRole('textbox', {name: 'Note text'})).not.toBeInTheDocument()
         expect(notifyNotesChanged).toHaveBeenCalled()
@@ -103,7 +103,7 @@ describe('NoteDetailPage editing', () => {
         await waitFor(() => expect(save).toBeEnabled())
         await userEvent.click(save)
 
-        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Idea', content: '- A thought', version: 3})
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Idea', content: '- A thought', icon: null, version: 3})
         expect(await screen.findByRole('listitem')).toHaveTextContent('A thought')
     })
 
@@ -124,7 +124,7 @@ describe('NoteDetailPage editing', () => {
         await userEvent.type(screen.getByRole('textbox', {name: 'Title'}), '!')
         await userEvent.click(screen.getByRole('button', {name: 'Save'}))
 
-        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Renamed!', content: 'A thought', version: 4})
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Renamed!', content: 'A thought', icon: null, version: 4})
     })
 
     it('keeps the edits and explains when the note changed elsewhere', async () => {

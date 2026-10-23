@@ -207,3 +207,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the answer grows with the notes (`docs/TECH_DEBT.md`). The note panel keeps its own layout until
   task 5 of the epic.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, blocks 1 and 3.
+
+## 2026-10-23 — The app serves the emoji picker's data itself
+
+- **Decision:** `lib/emojiData.ts` imports `emoji-picker-element-data/en/emojibase/data.json?url` (exact version), so
+  the build emits it as a hashed asset under `/assets/` (immutable cache, nginx ETag) and the picker never reaches a
+  CDN. The Summarize dialog shows the picker as its "Choose an icon" step next to "Choose a place"; the note edit form
+  uses the `IconPicker` dropdown. An edit always sends `icon` (null removes it); a summary sends it only when chosen.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 4.

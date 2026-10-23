@@ -1,4 +1,4 @@
-import {constellationColor} from '@uliss/design-system'
+import {constellationColor, noteTitleText} from '@uliss/design-system'
 import type {Sky} from '../constellations/constellationApi'
 import {buildConstellationTree, type ConstellationTree} from '../constellations/constellationTree'
 
@@ -83,7 +83,7 @@ export function buildSkyGraph(sky: Sky): SkyGraph {
         const node: SkyNode = parent ? {
             id: note.id,
             kind: 'star',
-            label: note.title,
+            label: noteTitleText(note.title, note.icon),
             depth: parent.depth + 1,
             parentId: parent.id,
             colors: parent.colors,
@@ -93,7 +93,7 @@ export function buildSkyGraph(sky: Sky): SkyGraph {
         } : {
             id: note.id,
             kind: 'star',
-            label: note.title,
+            label: noteTitleText(note.title, note.icon),
             depth: main ? main.depth + 2 : 1,
             parentId: main?.id ?? null,
             colors: places.map((m) => {

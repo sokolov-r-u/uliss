@@ -95,7 +95,7 @@ describe('NoteEditForm rewrite with the model', () => {
 
         await userEvent.click(form.save)
 
-        expect(updateNote).toHaveBeenCalledWith('note-1', {title: 'Idea', content: 'A thought', version: 3})
+        expect(updateNote).toHaveBeenCalledWith('note-1', {title: 'Idea', content: 'A thought', icon: null, version: 3})
         await waitFor(() => expect(form.onSaved).toHaveBeenCalled())
     })
 

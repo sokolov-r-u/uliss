@@ -26,6 +26,8 @@ export interface NoteRef {
     id: string
     /** Absent for a note still being written. */
     title?: string
+    /** The note's emoji; absent for none. */
+    icon?: string
 }
 
 /** Where a note lives: parent notes from the top one down, and the top note's constellations, main first. */
@@ -38,6 +40,8 @@ export interface NotePlace {
 export interface SkyStar {
     id: string
     title: string
+    /** The note's emoji; absent for none. */
+    icon?: string
     parentNoteId: string | null
     createdAt: string
     memberships: NoteMembership[]
@@ -118,18 +122,23 @@ function parseMemberships(value: unknown): NoteMembership[] {
 
 function parseStar(value: unknown): SkyStar {
     if (!isRecord(value)) throw protocolError('star')
-    const {id, title, parentNoteId, createdAt, memberships} = value
+    const {id, title, icon, parentNoteId, createdAt, memberships} = value
     if (typeof id !== 'string' || id === '') throw protocolError('star id')
     if (typeof title !== 'string' || title === '') throw protocolError('star title')
     if (parentNoteId != null && typeof parentNoteId !== 'string') throw protocolError('star parentNoteId')
     if (typeof createdAt !== 'string' || Number.isNaN(Date.parse(createdAt))) throw protocolError('star createdAt')
-    return {id, title, parentNoteId: parentNoteId ?? null, createdAt, memberships: parseMemberships(memberships)}
+    if (icon != null && typeof icon !== 'string') throw protocolError('star icon')
+    return {
+        id, title, ...(icon ? {icon} : {}), parentNoteId: parentNoteId ?? null, createdAt,
+        memberships: parseMemberships(memberships),
+    }
 }
 
 function parseNoteRef(value: unknown): NoteRef {
     if (!isRecord(value) || typeof value.id !== 'string' || value.id === '') throw protocolError('note ref')
     if (value.title != null && typeof value.title !== 'string') throw protocolError('note title')
-    return value.title ? {id: value.id, title: value.title} : {id: value.id}
+    if (value.icon != null && typeof value.icon !== 'string') throw protocolError('note icon')
+    return {id: value.id, ...(value.title ? {title: value.title} : {}), ...(value.icon ? {icon: value.icon} : {})}
 }
 
 function parseRefs(value: unknown): NoteRef[] {
