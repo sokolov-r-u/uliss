@@ -7,6 +7,7 @@ data class ChatSummaryStateResponse(
     val throughMessageId: UUID?,
     val noteId: UUID,
     val noteTitle: String?,
+    val noteIcon: String? = null,
 )
 
 data class ChatMessagePageResponse(
@@ -20,5 +21,5 @@ fun ChatMessageCursorPage.toResponse() = ChatMessagePageResponse(
     messages = messages.map { it.toResponse() },
     nextCursor = nextCursor,
     hasMore = hasMore,
-    summary = summary?.let { ChatSummaryStateResponse(it.throughMessageId, it.noteId, it.noteTitle) },
+    summary = summary?.let { ChatSummaryStateResponse(it.throughMessageId, it.noteId, it.noteTitle, it.noteIcon) },
 )

@@ -1,5 +1,5 @@
 import {type ReactNode, useState} from 'react'
-import {Icon, IconButton, ListRow} from '@uliss/design-system'
+import {Icon, IconButton, ListRow, noteTitleText} from '@uliss/design-system'
 import type {Note} from '../notes/noteApi'
 import {formatShortDate} from '../ui/format'
 
@@ -39,12 +39,12 @@ export function NoteTreeList({notes, onOpen}: { notes: Note[]; onOpen: (noteId: 
                 <span className="note-tree-toggle">
                     {children.length > 0 &&
                         <IconButton s={32} aria-expanded={unfolded}
-                                    title={`${unfolded ? 'Hide' : 'Show'} ${children.length} sub-note${children.length === 1 ? '' : 's'} of ${title(note)}`}
+                                    title={`${unfolded ? 'Hide' : 'Show'} ${children.length} sub-note${children.length === 1 ? '' : 's'} of ${noteTitleText(title(note), note.icon)}`}
                                     onClick={() => toggle(note.id)}>
                             <Icon name="chevron" size={10} rotate={unfolded ? 0 : -90}/>
                         </IconButton>}
                 </span>
-                <ListRow title={title(note)} date={formatShortDate(note.createdAt)} dots={false}
+                <ListRow title={title(note)} icon={note.icon ?? null} date={formatShortDate(note.createdAt)} dots={false}
                          meta={children.length > 0 ? <><Icon name="noteDoc" size={12}/>{children.length}</> : undefined}
                          onClick={() => onOpen(note.id)}/>
             </div>,

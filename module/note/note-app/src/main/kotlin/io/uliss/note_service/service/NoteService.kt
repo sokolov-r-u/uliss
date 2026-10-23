@@ -14,6 +14,7 @@ import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.NoteContentNormalizer
+import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.getOwnedNote
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -88,22 +89,32 @@ class NoteService(
     /**
      * Saves a user edit of a READY note made against [version] and reindexes it. An edit is refused while a summary
      * update is pending, because the update was drafted from the content the edit replaces; an unchanged edit is a
-     * no-op that keeps the version.
+     * no-op that keeps the version. A null or blank [rawIcon] removes the icon.
      */
     @Transactional
-    fun updateNote(userId: UUID, noteId: UUID, rawTitle: String, rawContent: String, version: Long): NoteResponse {
+    fun updateNote(
+        userId: UUID,
+        noteId: UUID,
+        rawTitle: String,
+        rawContent: String,
+        version: Long,
+        rawIcon: String? = null,
+    ): NoteResponse {
         val title = TitleNormalizer.normalizeUserTitle(rawTitle)
             ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
         val content = NoteContentNormalizer.normalizeUserContent(rawContent)
             ?: throw BadRequestException(NoteContentNormalizer.USER_CONTENT_RULE)
+        val icon = rawIcon?.takeIf { it.isNotBlank() }
+            ?.let { NoteIconNormalizer.normalize(it) ?: throw BadRequestException(NoteIconNormalizer.USER_ICON_RULE) }
         val note = noteRepository.getOwnedNote(userId, noteId)
         if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
         if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
         if (note.version != version) throw NoteVersionConflictException(noteId)
-        if (note.title == title && note.content == content) return note.toResponse(updating = false)
+        if (note.title == title && note.content == content && note.icon == icon) return note.toResponse(updating = false)
         val renamed = note.title != title
         note.title = title
         note.content = content
+        note.icon = icon
         try {
             noteRepository.saveAndFlush(note)
         } catch (e: ObjectOptimisticLockingFailureException) {

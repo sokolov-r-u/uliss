@@ -25,6 +25,18 @@ describe('chatApi', () => {
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat-1/messages?limit=50', {signal: undefined})
     })
 
+    it('reads the current summary note with its name and icon', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false,
+            summary: {throughMessageId: 'm-1', noteId: 'n-1', noteTitle: 'Giant Steps', noteIcon: '🎷'}}))
+        await expect(getMessages('chat-1')).resolves.toMatchObject({
+            summary: {throughMessageId: 'm-1', noteId: 'n-1', noteTitle: 'Giant Steps', noteIcon: '🎷'},
+        })
+
+        mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false,
+            summary: {throughMessageId: 'm-1', noteId: 'n-1', noteTitle: 'Giant Steps'}}))
+        await expect(getMessages('chat-1')).resolves.toMatchObject({summary: {noteIcon: null}})
+    })
+
     it('encodes an older-page cursor and explicit limit', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false}))
         const controller = new AbortController()

@@ -169,6 +169,35 @@ describe('noteApi', () => {
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
+    it('sends the emoji of a new note only when the user chose one', async () => {
+        mockedFetch.mockImplementation(async () =>
+            jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'}, 202))
+
+        await requestChatSummary('chat-1', 'request-1', undefined, undefined, undefined, undefined, '👨‍👩‍👧')
+        await requestChatSummary('chat-1', 'request-2', undefined, 'jazz', undefined, 'Giant Steps', '🎷')
+        await requestChatSummary('chat-1', 'request-3', undefined, undefined, undefined, undefined, null)
+
+        const bodies = mockedFetch.mock.calls.map(([, init]) => (init as RequestInit).body)
+        expect(bodies).toEqual([
+            JSON.stringify({mode: 'CREATE', icon: '👨‍👩‍👧'}),
+            JSON.stringify({mode: 'CREATE', constellationId: 'jazz', title: 'Giant Steps', icon: '🎷'}),
+            undefined,
+        ])
+    })
+
+    it('parses an optional note icon and rejects one that is not text', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'sax', source: 'MANUAL', status: 'READY', title: 'Giant Steps', icon: '🎷', content: 'Body'},
+            {id: 'plain', source: 'MANUAL', status: 'READY', title: 'Blue Train', icon: null, content: 'Body'},
+        ]))
+        expect((await listNotes()).map((note) => note.icon)).toEqual(['🎷', undefined])
+
+        mockedFetch.mockResolvedValue(jsonResponse([
+            {id: 'bad', source: 'MANUAL', status: 'READY', title: 'T', icon: 7, content: 'Body'},
+        ]))
+        await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('parses an optional note title', async () => {
         mockedFetch.mockResolvedValue(jsonResponse([
             {id: 'titled', source: 'CHAT_SUMMARY', status: 'READY', title: 'Ownership columns', content: 'Body'},
@@ -308,12 +337,12 @@ describe('noteApi', () => {
             id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: '## Body', version: 4,
         }))
 
-        await expect(updateNote('n1', {title: 'New', content: '## Body', version: 3}))
+        await expect(updateNote('n1', {title: 'New', content: '## Body', icon: '🎷', version: 3}))
             .resolves.toMatchObject({title: 'New', content: '## Body', version: 4})
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {
             method: 'PUT',
             headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({title: 'New', content: '## Body', version: 3}),
+            body: JSON.stringify({title: 'New', content: '## Body', icon: '🎷', version: 3}),
         })
     })
 
@@ -321,7 +350,7 @@ describe('noteApi', () => {
         for (const code of ['NOTE_VERSION_CONFLICT', 'NOTE_UPDATING', 'NOTE_NOT_READY']) {
             mockedFetch.mockResolvedValue(jsonResponse({status: 409, code, path: '/note/notes/n1'}, 409))
 
-            await expect(updateNote('n1', {title: 'T', content: 'c', version: 1}))
+            await expect(updateNote('n1', {title: 'T', content: 'c', icon: null, version: 1}))
                 .rejects.toMatchObject({kind: 'http', status: 409, code})
         }
     })
@@ -329,16 +358,16 @@ describe('noteApi', () => {
     it('reports a refusal without a readable body by its status alone', async () => {
         mockedFetch.mockResolvedValue(new Response('<html>bad gateway</html>', {status: 502}))
 
-        const error = await updateNote('n1', {title: 'T', content: 'c', version: 1}).catch((e: unknown) => e)
+        const error = await updateNote('n1', {title: 'T', content: 'c', icon: null, version: 1}).catch((e: unknown) => e)
         expect(error).toMatchObject({kind: 'http', status: 502, code: undefined})
     })
 
     it('rejects a saved note that is not the edited one or has no version', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({id: 'other', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: 1}))
-        await expect(updateNote('n1', {title: 'T', content: 'c', version: 0})).rejects.toMatchObject({kind: 'protocol'})
+        await expect(updateNote('n1', {title: 'T', content: 'c', icon: null, version: 0})).rejects.toMatchObject({kind: 'protocol'})
 
         mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c'}))
-        await expect(updateNote('n1', {title: 'T', content: 'c', version: 0})).rejects.toMatchObject({kind: 'protocol'})
+        await expect(updateNote('n1', {title: 'T', content: 'c', icon: null, version: 0})).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('reads the note version and rejects one that is not a number', async () => {

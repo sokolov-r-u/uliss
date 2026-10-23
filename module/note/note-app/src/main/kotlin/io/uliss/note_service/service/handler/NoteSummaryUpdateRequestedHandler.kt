@@ -60,7 +60,11 @@ class NoteSummaryUpdateRequestedHandler(
         )
         val draft: NoteAddendumDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteUpdateUserPrompt(note.title, note.content.orEmpty(), context, place, relatedChunks))
+            .user(
+                ChatPrompts.noteUpdateUserPrompt(
+                    note.title, note.content.orEmpty(), context, place, relatedChunks, note.icon,
+                )
+            )
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

@@ -7,6 +7,7 @@ import {
     constellationColor,
     Icon,
     IconButton,
+    noteTitleText,
     TagDot,
 } from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -65,9 +66,10 @@ export function placementFailureMessage(error: unknown, name?: string): string {
  * its place is inherited and offers "Move out" and "Move under another note". `onChanged` hears every stored change of
  * the note's place or of the tree (a new constellation), for hosts that draw them (the sky).
  */
-export function NoteConstellationSection({noteId, noteTitle, onChanged}: {
+export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged}: {
     noteId: string
     noteTitle?: string
+    noteIcon?: string
     onChanged?: () => void
 }) {
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
@@ -201,8 +203,11 @@ export function NoteConstellationSection({noteId, noteTitle, onChanged}: {
         const parent = place.ancestors[place.ancestors.length - 1]
         return (
             <div className="note-places" aria-busy={pending || undefined}>
-                <SubNotePath main={main} ancestors={place.ancestors} title={noteTitle}/>
-                <p className="context-text">Lives where {parent.title || 'its parent note'} lives.</p>
+                <SubNotePath main={main} ancestors={place.ancestors}
+                             title={noteTitle ? noteTitleText(noteTitle, noteIcon) : undefined}/>
+                <p className="context-text">
+                    Lives where {parent.title ? noteTitleText(parent.title, parent.icon) : 'its parent note'} lives.
+                </p>
                 <div className="note-places-chips">
                     <button type="button" className="note-places-add" disabled={pending}
                             aria-expanded={picker === 'out'} onClick={() => toggle('out')}>Move out
@@ -327,7 +332,8 @@ function SubNotePath({main, ancestors, title}: {
             {shown.map((node, index) => <span key={node.id} className="note-places-crumb">
                 {deep && index === 1 && '… › '}{node.name} ›</span>)}
             {ancestors.map((ancestor) => <span key={ancestor.id} className="note-places-crumb">
-                <Link to={`/notes/${ancestor.id}`} className="note-places-note">{ancestor.title || 'Untitled note'}</Link> ›
+                <Link to={`/notes/${ancestor.id}`} className="note-places-note">
+                    {noteTitleText(ancestor.title || 'Untitled note', ancestor.icon)}</Link> ›
             </span>)}
             <span className="note-places-leaf">{title || 'This note'}</span>
         </p>

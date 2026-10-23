@@ -22,6 +22,17 @@ class NoteIndexHeaderTest {
     }
 
     @Test
+    fun `the user's icon stands before the title`() {
+        val place = NotePlaceDescription(listOf(listOf("Music")), emptyList())
+
+        assertEquals(
+            "Constellations: Music\nTitle: 🎷 Giant Steps",
+            NoteIndexHeader.render(place, "Giant Steps", "🎷"),
+        )
+        assertEquals("Title: 🎷", NoteIndexHeader.render(NotePlaceDescription(emptyList(), emptyList()), null, "🎷"))
+    }
+
+    @Test
     fun `a note without a place gets only its title`() {
         assertEquals("Title: Loose", NoteIndexHeader.render(NotePlaceDescription(emptyList(), emptyList()), "Loose"))
     }

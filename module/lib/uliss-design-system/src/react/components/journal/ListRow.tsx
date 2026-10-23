@@ -1,6 +1,7 @@
 import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
+import {NoteTitle, noteTitleText} from './NoteTitle'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
 // No cards, no thumbnails, no two-line previews, no relative time — the list is
@@ -24,6 +25,8 @@ const WIDE_VARS = {
 
 export interface ListRowProps {
     title: string
+    /** A note's emoji before the title; null keeps its empty slot so note names align, absent (chats) has none. */
+    icon?: string | null
     /** `<><Icon name="star" size={12}/>4</>` for a note's links, `noteDoc` for a chat's notes. */
     meta?: ReactNode
     /** Absolute and short — 'Jun 22'. Never relative. */
@@ -44,6 +47,7 @@ export interface ListRowProps {
 
 export function ListRow({
                             title,
+                            icon,
                             meta,
                             date,
                             unread = false,
@@ -152,7 +156,7 @@ export function ListRow({
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
-            }}>{title}</span>
+            }}>{icon === undefined ? title : <NoteTitle title={title} icon={icon} slot/>}</span>
             <span style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -217,7 +221,7 @@ export function ListRow({
             {showDots && (
                 <button
                     type="button"
-                    aria-label={menuLabel ?? `Actions for ${title}`}
+                    aria-label={menuLabel ?? `Actions for ${noteTitleText(title, icon)}`}
                     title={menuLabel ?? 'Rename · Delete'}
                     onClick={(event) => onMenu?.(event.currentTarget)}
                     onPointerDown={(event) => event.stopPropagation()}
@@ -258,7 +262,7 @@ export function ListRow({
                     whiteSpace: 'normal',
                     overflowWrap: 'anywhere',
                     pointerEvents: 'none',
-                }}>{title}</div>,
+                }}>{noteTitleText(title, icon)}</div>,
                 document.body,
             )}
         </div>

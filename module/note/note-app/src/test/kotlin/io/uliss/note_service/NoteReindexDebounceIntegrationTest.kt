@@ -68,6 +68,25 @@ class NoteReindexDebounceIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `changing a note's icon reindexes only the note, an edit that keeps it nothing`() {
+        val parent = note("Coltrane")
+        val child = note("Giant Steps", parentId = parent)
+        clearIndexEvents(parent, child)
+
+        edit(parent, "Coltrane", "body", "🎷")
+        clearIndexEvents(parent, child)
+        edit(parent, "Coltrane", "body", "🎷")
+        assertTrue(indexEventsFor(parent).isEmpty())
+
+        val before = Instant.now()
+        edit(parent, "Coltrane", "body", null)
+
+        assertDueAfter(pendingFor(parent), before)
+        // a sub-note's header names its parents by title only
+        assertTrue(indexEventsFor(child).isEmpty())
+    }
+
+    @Test
     fun `renaming a note reindexes it with its sub-notes, whose parent chain changed`() {
         val parent = note("Coltrane")
         val child = note("Giant Steps", parentId = parent)
@@ -241,12 +260,13 @@ class NoteReindexDebounceIntegrationTest : NoteIntegrationTest() {
         return note
     }
 
-    private fun edit(noteId: UUID, title: String, content: String) {
+    private fun edit(noteId: UUID, title: String, content: String, icon: String? = null) {
         val version = noteRepository.findById(noteId).orElseThrow().version
+        val iconJson = icon?.let { "\"$it\"" } ?: "null"
         mockMvc.put("/note/notes/$noteId") {
             auth()
             contentType = MediaType.APPLICATION_JSON
-            this.content = """{"title":"$title","content":"$content","version":$version}"""
+            this.content = """{"title":"$title","content":"$content","icon":$iconJson,"version":$version}"""
         }.andExpect { status { isOk() } }
     }
 

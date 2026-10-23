@@ -42,7 +42,7 @@ export function ChatNotesList({chatId, onOpen, empty}: {
     return (
         <div className="context-links">
             {toNoteViewModels(notes).map((view) => (
-                <ListRow key={view.id} title={view.title} date={view.date} dots={false}
+                <ListRow key={view.id} title={view.title} icon={view.icon ?? null} date={view.date} dots={false}
                          onClick={() => onOpen(view.id)}/>
             ))}
         </div>

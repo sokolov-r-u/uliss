@@ -13,7 +13,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 data class NoteDraft(
     @field:JsonPropertyDescription(
         "Note title: a short noun phrase that names the main thought, at most 50 characters, in the language of " +
-                "the current chat. Plain text without Markdown, quotes, or a trailing period."
+                "the current chat. Plain text without Markdown, quotes, or a trailing period, and no emoji: the note's " +
+                "icon is shown separately."
     )
     @field:JsonProperty(required = true)
     val title: String?,

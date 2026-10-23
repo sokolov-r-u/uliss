@@ -65,6 +65,18 @@ class NoteIndexRequestedHandlerTest {
     }
 
     @Test
+    fun `handle puts the note's icon before its title in the header`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "Changes", NoteSource.MANUAL, title = "Giant Steps", icon = "🎷")
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+        stubPlace(userId, note.id)
+
+        handler.handle(event(objectMapper.writeValueAsString(NoteIndexRequestedPayload(note.id, userId))))
+
+        Mockito.verify(ragService).index(userId, note.id, 0, "Title: 🎷 Giant Steps", "Changes")
+    }
+
+    @Test
     fun `handle indexes only the content when the title is blank`() {
         val userId = UUID.randomUUID()
         val note = NoteEntity(userId, "A concise summary", NoteSource.CHAT_SUMMARY, title = "  ")

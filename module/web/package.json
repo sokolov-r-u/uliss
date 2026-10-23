@@ -25,6 +25,7 @@
     "@tiptap/starter-kit": "3.32.0",
     "@uliss/design-system": "*",
     "d3-force": "3.0.0",
+    "emoji-picker-element-data": "1.8.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",

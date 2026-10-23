@@ -61,7 +61,7 @@ class NoteSummaryRequestedHandler(
         )
         val request = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, userTitle))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, userTitle, note.icon))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

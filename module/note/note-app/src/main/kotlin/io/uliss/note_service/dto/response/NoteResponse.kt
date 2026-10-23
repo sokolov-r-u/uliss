@@ -20,6 +20,8 @@ data class NoteResponse(
     val version: Long?,
     /** The note this sub-note lives under; null for a top note. */
     val parentNoteId: UUID? = null,
+    /** The user's emoji shown before the title. */
+    val icon: String? = null,
 )
 
 data class NoteStatusResponse(
@@ -40,5 +42,6 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     updating = updating,
     version = version,
     parentNoteId = parentNoteId,
+    icon = icon,
 )
 

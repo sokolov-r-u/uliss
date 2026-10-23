@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow, noteTitleText} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -35,12 +35,12 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
     }
 
     const row = (note: NoteViewModel, first: boolean, openMenu?: (anchor: HTMLElement) => void) =>
-        <ListRow title={note.title} first={first}
+        <ListRow title={note.title} icon={note.icon ?? null} first={first}
                  date={note.date} unread={note.unread} dim={note.unread === false}
                  meta={note.linkCount > 0 ? <><Icon name="star" size={12}/>{note.linkCount}</> : undefined}
                  onClick={onOpen ? () => onOpen(note) : undefined}
                  dots={openMenu !== undefined} onMenu={openMenu}
-                 menuLabel={`Actions for ${note.title}`}/>
+                 menuLabel={`Actions for ${noteTitleText(note.title, note.icon)}`}/>
 
     return (
         <div className="product-view">
@@ -58,6 +58,7 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId}: 
                                        kind: 'note',
                                        id: note.id,
                                        title: note.title,
+                                       icon: note.icon,
                                        renamable: note.renamable ?? false
                                    }}
                                    initialOpen={note.id === initialMenuId}
@@ -96,6 +97,7 @@ export function toNoteViewModels(notes: Note[]): NoteViewModel[] {
             id: note.id,
             ordinal: notes.length - index,
             title,
+            icon: note.icon ?? null,
             excerpt: note.status === 'READY' ? content.excerpt
                 : note.status === 'GENERATING' && note.title ? 'Generating note…' : '',
             date: formatShortDate(note.createdAt),

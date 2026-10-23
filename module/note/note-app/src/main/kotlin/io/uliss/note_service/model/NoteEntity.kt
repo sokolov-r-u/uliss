@@ -25,6 +25,8 @@ class NoteEntity(
      */
     @Column(name = "parent_note_id", updatable = false)
     var parentNoteId: UUID? = null,
+    /** The user's emoji shown before the title (`NoteIconNormalizer`); the model never sets it. */
+    var icon: String? = null,
 ) : AuditEntity() {
 
     override fun toString(): String {

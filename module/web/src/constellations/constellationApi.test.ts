@@ -164,6 +164,24 @@ describe('constellationApi', () => {
         ])
     })
 
+    it('reads the icons of parent notes in a place and of stars, and rejects one that is not text', async () => {
+        mockedFetch.mockResolvedValueOnce(jsonResponse({ancestors: [{id: 'bowie', title: 'Bowie', icon: '🎸'}],
+            constellations: []}))
+        await expect(getNotePlace('low')).resolves.toMatchObject({ancestors: [{id: 'bowie', title: 'Bowie', icon: '🎸'}]})
+
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [
+            {id: 'low', title: 'Low', icon: '🎧️', parentNoteId: null, createdAt: '2026-10-20T10:00:00Z', memberships: []},
+        ]}))
+        expect((await getSky()).notes[0].icon).toBe('🎧️')
+
+        mockedFetch.mockResolvedValueOnce(jsonResponse({ancestors: [{id: 'bowie', icon: 1}], constellations: []}))
+        await expect(getNotePlace('low')).rejects.toMatchObject({kind: 'protocol'})
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [
+            {id: 'low', title: 'Low', icon: 1, parentNoteId: null, createdAt: '2026-10-20T10:00:00Z', memberships: []},
+        ]}))
+        await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('carries the code of a refused move', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({code: 'NOTE_MOVE_CYCLE'}, 409))
 

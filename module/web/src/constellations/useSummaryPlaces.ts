@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import type {ConstellationPickerItem, ConstellationPickerNoteItem} from '@uliss/design-system'
+import {type ConstellationPickerItem, type ConstellationPickerNoteItem, noteTitleText} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ConstellationApiError, createConstellation, getSky, listConstellations, type Sky, type SkyStar} from './constellationApi'
 import {buildConstellationTree, type ConstellationTree, pickerItems, pickerNotes} from './constellationTree'
@@ -38,7 +38,7 @@ function placePath(place: SummaryPlace, sky: Sky, tree: ConstellationTree): stri
         chain.unshift(star)
     }
     if (chain.length === 0) return null
-    return [...nodePath(chain[0]?.memberships[0]?.constellationId), ...chain.map((star) => star.title)].join(' › ')
+    return [...nodePath(chain[0]?.memberships[0]?.constellationId), ...chain.map((star) => noteTitleText(star.title, star.icon))].join(' › ')
 }
 
 /**

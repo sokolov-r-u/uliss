@@ -2,6 +2,8 @@ export interface NoteViewModel {
     id: string
     ordinal: number
     title: string
+    /** The note's emoji; absent or null for none (lists keep its slot). */
+    icon?: string | null
     excerpt: string
     date: string
     linkCount: number

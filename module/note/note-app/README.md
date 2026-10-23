@@ -97,12 +97,14 @@ constellation is `404 CONSTELLATION_NOT_FOUND` and nothing is reserved. Instead 
 optional `parentNoteId` makes the new note a sub-note of that note in the same transaction; a missing or foreign
 parent is `404 PARENT_NOTE_NOT_FOUND`. An optional `title` (CREATE only, otherwise `400`) names the new note: the
 rename rule applies (whitespace collapsed, at most 50 code points, `400` over it before anything is reserved), a blank
-one means none, and the placeholder carries it while `GENERATING`. A replayed key returns the original note with
-its original place and title, whatever the retry sends.
+one means none, and the placeholder carries it while `GENERATING`. An optional `icon` (CREATE only, otherwise `400`)
+is the user's emoji for the new note: exactly one emoji grapheme (ZWJ sequences, skin tones, flags and keycaps count
+as one), `400` otherwise, blank means none; the model never chooses one. A replayed key returns the original note with
+its original place, title and icon, whatever the retry sends.
 
 A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
 `chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
-(`GET /messages` without `before`) returns it as `summary`. A later summarize sends
+(`GET /messages` without `before`) returns it as `summary` (`{throughMessageId, noteId, noteTitle, noteIcon}`). A later summarize sends
 `{"mode":"UPDATE","targetNoteId":...}`: the request is reserved without touching the note and publishes
 `NOTE_SUMMARY_UPDATE_REQUESTED`. The update worker reads only the messages after the boundary, searches related notes
 excluding the updated one, and asks for a `NoteAddendumDraft`; the backend appends it under a `## yyyy-MM-dd` (UTC)
@@ -116,7 +118,8 @@ current chat is authoritative; related notes are delimited as untrusted secondar
 update prompt carry a `NOTE PLACE` block read when the worker runs: the full name path of every constellation of the
 note's top note (main first) and its parent notes from the top down, or "none — the user has not applied any tags
 yet". A note the user named gets `Note title (set by the user)` in the prompt and a `NoteBodyDraft` (no `title`) from
-the same single call; its title is kept. Otherwise one
+the same single call; its title is kept. A user icon adds `Note icon (set by the user)`, and the update prompt shows the
+existing note as `Title: 🎷 Giant Steps`; the `NoteDraft` title rule forbids emoji, since the icon is shown apart. Otherwise one
 non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
 Markdown `mainThought`, and `secondaryThoughts` without a fixed limit; field rules live in the `NoteDraft` JSON
 schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,
@@ -154,9 +157,10 @@ to the attempt. Search results are not persisted with the reply.
   a quiet stream; the stream closes after 10 minutes without a terminal status.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
-- `PUT /note/notes/{noteId}` with `{"title", "content", "version"}` saves a user edit of a `READY` note: trailing
+- `PUT /note/notes/{noteId}` with `{"title", "content", "icon", "version"}` saves a user edit of a `READY` note: trailing
   whitespace is trimmed, content must be 1–100,000 characters and the title follows the rename rule (`400`
-  otherwise). `version` is the `NoteResponse.version` the edit started from; a newer stored version returns
+  otherwise). `icon` follows the summary rule; null, blank or absent removes it. `version` is the
+  `NoteResponse.version` the edit started from; a newer stored version returns
   `409 NOTE_VERSION_CONFLICT`, a pending summary update `409 NOTE_UPDATING`, any other status `409 NOTE_NOT_READY`.
   A changed note is reindexed; an unchanged edit is a no-op that keeps the version.
 - `POST /note/notes/{noteId}/ai-edit` with `{"instruction", "content"}` (1–1,000 and 1–30,000 characters, `400`
@@ -170,8 +174,8 @@ to the attempt. Search results are not persisted with the reply.
   without it): `KEEP` moves its direct sub-notes to its parent, or makes them top notes with a copy of its
   constellations (main and joining times included); `DELETE` deletes the whole subtree the same way.
 
-Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `content`, `createdAt`, `updatedAt`,
-nullable `parentNoteId`, and `updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
+Note JSON contains `id`, `source`, `status`, nullable `title`, nullable `icon`, nullable `content`, `createdAt`,
+`updatedAt`, nullable `parentNoteId`, and `updating` (a `READY` note whose summary update is still running); status events also carry `updating`. Notes created before stored titles keep a null `title`.
 Missing and foreign note IDs both return 404. SSE contains status only; clients fetch note JSON
 after `READY` without `updating`. Status delivery currently polls PostgreSQL once per second per open connection on a
 bounded scheduler; scaling alternatives are recorded in `docs/TECH_DEBT.md`.
@@ -226,12 +230,12 @@ client nests them by `parentNoteId`.
   foreign parent `404 PARENT_NOTE_NOT_FOUND`. Returns the note's place.
 - `DELETE /note/notes/{noteId}/parent?moveTo=<constellationId>` moves a sub-note out: `moveTo` becomes its only, main
   constellation; without it the note has no place. A top note is left as it is. Returns the place.
-- `GET /note/notes/{noteId}/place` returns `{ancestors: [{id, title}], constellations: [{constellationId, main}]}`:
+- `GET /note/notes/{noteId}/place` returns `{ancestors: [{id, title, icon}], constellations: [{constellationId, main}]}`:
   parent notes from the top one down and the top note's constellations, main first.
 - `GET /note/notes/{noteId}/sub-notes` returns the direct sub-notes as `NoteResponse`, newest first.
 - `GET /note/notes/search?q=<text>&exclude=<noteId>` returns up to 20 titled notes whose title contains `q` regardless
   of case (prefix matches first, then the newest), without `exclude` and its sub-notes, each as
-  `{id, title, ancestors, constellationId}` with the main constellation of its top note.
+  `{id, title, icon, ancestors, constellationId}` with the main constellation of its top note.
 
 Names are trimmed with whitespace runs collapsed, 1–40 code points (`400` otherwise), unique regardless of case among
 roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own branch is
@@ -241,7 +245,7 @@ roots and among siblings (`409 CONSTELLATION_NAME_TAKEN`). A move into the own b
 
 `GET /note/sky` (`SkyService`) returns everything the sky draws in one read-only, repeatable-read snapshot:
 `{constellations, notes}`. `constellations` is the same flat tree as `GET /note/constellations`. `notes` are the stars,
-oldest first, without their text: `{id, title, parentNoteId, createdAt, memberships: [{constellationId, main}]}`. A star
+oldest first, without their text: `{id, title, icon, parentNoteId, createdAt, memberships: [{constellationId, main}]}`. A star
 is a `READY` note with a title. `parentNoteId` is the nearest ancestor that is itself a star; a star without one
 carries its top note's memberships, main first, and every other star has none (it lives where its parent lives).
 
@@ -268,8 +272,8 @@ RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in
 generic JSON. Spring AI still owns token splitting and embedding/batching. `JdbcRagChunkStore`
 performs replacement and ownership-filtered exact cosine retrieval. Every chunk of a note starts with a header of its
-place and title (`Constellations: Music / Jazz; Films`, `Parent notes: "Coltrane"`, `Title: …`; lines without data are
-left out), read when the index event runs, so the place shapes every chunk's embedding; the header counts toward
+place and title (`Constellations: Music / Jazz; Films`, `Parent notes: "Coltrane"`, `Title: 🎷 Giant Steps` with the
+note's icon; parent notes are named by title only; lines without data are left out), read when the index event runs, so the place shapes every chunk's embedding; the header counts toward
 `note.rag.chunk-size`. `READY` means the note is readable; its follow-up indexing event may still be pending.
 
 A new summary note is indexed at once (`NOTE_INDEX_REQUESTED` without a key). Every later change reindexes a `READY`
@@ -277,7 +281,8 @@ note no earlier than `note.rag.reindex-delay` (default `1h`) after its last chan
 keeps one `PENDING` event per `dedup_key` `NOTE_INDEX_REQUESTED:<noteId>` and moves its `next_attempt_at`. A change
 while the event is running queues another one. What reindexes which notes:
 
-- edit of the content: the note; edit of the title or a rename: the note and its sub-notes (their parent chain);
+- edit of the content or the icon: the note; edit of the title or a rename: the note and its sub-notes (their parent
+  chain);
 - an applied summary update: the note;
 - adding, changing the main of, or removing a place; moving under a note or out: the note and its sub-notes;
 - deleting a note but keeping its sub-notes: those sub-notes and theirs;

@@ -37,6 +37,19 @@ describe('notes list presentation', () => {
         expect(screen.queryByRole('button', {name: 'Actions for A note'})).not.toBeInTheDocument()
     })
 
+    it('lists a note with its icon and keeps the slot for one without, so the names align', () => {
+        const models = toNoteViewModels([
+            {id: 'sax', source: 'MANUAL', status: 'READY', title: 'Giant Steps', icon: '🎷', content: 'Body'},
+            {id: 'plain', source: 'MANUAL', status: 'READY', title: 'Blue Train', content: 'Body'},
+        ])
+        render(<MemoryRouter><NotesView notes={models} onOpen={() => undefined}/></MemoryRouter>)
+
+        const withIcon = screen.getByRole('button', {name: '🎷 Giant Steps'})
+        const without = screen.getByRole('button', {name: 'Blue Train'})
+        expect(withIcon.querySelector('[data-note-icon]')).toHaveTextContent('🎷')
+        expect(without.querySelector('[data-note-icon]')).toBeEmptyDOMElement()
+    })
+
     it('marks only ready notes as renamable', () => {
         const models = toNoteViewModels([
             {id: 'ready', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},

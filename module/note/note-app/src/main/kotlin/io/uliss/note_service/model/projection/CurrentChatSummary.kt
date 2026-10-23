@@ -7,4 +7,5 @@ data class CurrentChatSummary(
     val noteId: UUID,
     val noteTitle: String?,
     val throughMessageId: UUID?,
+    val noteIcon: String? = null,
 )

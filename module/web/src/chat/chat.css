@@ -187,6 +187,17 @@
     margin-bottom: 14px;
 }
 
+.summary-name-row {
+    display: flex;
+    align-items: flex-end;
+    gap: 8px;
+}
+
+.summary-name-input {
+    flex: 1;
+    min-width: 0;
+}
+
 .summary-name-hint {
     min-height: 1.5em;
     margin: 6px 0 0;

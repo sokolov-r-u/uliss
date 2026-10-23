@@ -30,7 +30,7 @@ export const PlaceWithCreate = () => (
 )
 
 const NOTES: ConstellationPickerNoteItem[] = [
-    {id: 'blue', title: 'Kind of Blue', parentId: null, constellationIds: ['jazz', 'films']},
+    {id: 'blue', title: 'Kind of Blue', parentId: null, constellationIds: ['jazz', 'films'], icon: '🎺'},
     {id: 'so-what', title: 'So What', parentId: 'blue', constellationIds: []},
     {id: 'miles-note', title: 'Miles in Paris', parentId: null, constellationIds: ['miles']},
     {id: 'loose', title: 'A loose thought', parentId: null, constellationIds: []},

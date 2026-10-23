@@ -39,3 +39,14 @@ export const WideList = () => (
                  onClick={() => undefined} meta={<><Icon name="star" size={12}/>2</>}/>
     </Ground>
 )
+
+export const NotesWithIcons = () => (
+    <Ground width={360} pad={18}>
+        <ListRow title="Giant Steps" icon="🎷" date="Jun 22" unread onClick={() => undefined}
+                 meta={<><Icon name="star" size={12}/>4</>}/>
+        <ListRow title="Notes on forgetting" icon={null} date="Jun 18" dim onClick={() => undefined}
+                 meta={<><Icon name="star" size={12}/>6</>}/>
+        <ListRow title="Kafka on the shore" icon="📚️" date="Jun 9" dim onClick={() => undefined}
+                 meta={<><Icon name="star" size={12}/>2</>}/>
+    </Ground>
+)

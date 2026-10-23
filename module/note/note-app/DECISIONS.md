@@ -498,3 +498,31 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** every retry spends an attempt, so after `maxAttempts` attempts a turn whose lease later expires
   (a restart mid-reply) is failed instead of reclaimed by the resend after a reload; the user retries it again.
 - **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).
+
+## 2026-10-23 — A note has an emoji icon of the user's choice
+
+- **Decision:** `notes.icon` (nullable `varchar(32)`) holds one emoji, separate from the title, so renames, the
+  50-code-point title rule and search stay as they are. `NoteIconNormalizer` accepts exactly one extended grapheme
+  cluster (`BreakIterator`) made only of emoji and emoji components, whose base is emoji-presented (Emoji_Presentation,
+  VS16 or a keycap), so ZWJ sequences, skin tones, flags and keycaps pass and text, a bare digit or `©`, two emoji or
+  combining marks are `400`. The user sets it in `SummarizeRequest.icon` (CREATE only, stored on the placeholder) and in
+  `PUT /notes/{id}` (absent or null removes it, as PUT replaces the editable fields); the model never chooses one. Every
+  response that names a note carries `icon` next to `title`.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 1.
+
+## 2026-10-23 — The note icon goes into the prompts and the index title line
+
+- **Decision:** the summary prompt adds `Note icon (set by the user): 🎷` next to the user's title, the update prompt
+  and the RAG header's title line show `🎷 Giant Steps` (`NotePlaceText.titleWithIcon`). Parent notes in the header and
+  the prompts stay named by title only, so an icon change reindexes (debounced) only the note, not its sub-notes. The
+  `NoteDraft` title rule forbids emoji, so the model never duplicates the icon in the name.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 2.
+
+## 2026-10-23 — The note icon rule checks the shape of the emoji
+
+- **Context:** refines "A note has an emoji icon of the user's choice" after code review: a lone VS16, a lone skin
+  tone or regional indicator, a digit with VS16 and repeated selectors passed as one emoji.
+- **Decision:** the first code point must be an emoji that is not a component, unless the whole icon is a flag (two
+  regional indicators) or a keycap (`#`, `*` or a digit, optional VS16, U+20E3). VS16 only right after a base, never
+  twice; a ZWJ only between two emoji. A well-formed ZWJ sequence that is not RGI still passes (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md` (code review).

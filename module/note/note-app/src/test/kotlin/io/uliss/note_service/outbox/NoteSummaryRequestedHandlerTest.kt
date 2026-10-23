@@ -177,6 +177,23 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
+    fun `the user's icon reaches the prompt and the model still names the note`() {
+        val payload = payload()
+        Mockito.`when`(noteService.findGeneratingNote(payload.userId, payload.noteId)).thenReturn(
+            NoteEntity(payload.userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING, icon = "🎷")
+        )
+
+        handleWithDraft(payload, NoteDraft("Model title", "Summary", null))
+
+        val userPrompt = Mockito.mockingDetails(chatClient.prompt()).invocations
+            .single { it.method.name == "user" }
+            .arguments[0] as String
+        assertTrue(userPrompt.contains("Note icon (set by the user): 🎷"))
+        assertTrue("Note title (set by the user)" !in userPrompt)
+        Mockito.verify(noteService).completeChatSummary(payload.userId, payload.noteId, "Model title", "Summary")
+    }
+
+    @Test
     fun `a note without a user title asks for a title and does not mention one in the prompt`() {
         val payload = payload()
 

@@ -96,6 +96,8 @@ class NoteDraftTest {
         val secondaryDescription = properties.getValue("secondaryThoughts")["description"] as String
         assertTrue(titleDescription.contains("at most 50 characters"))
         assertTrue(titleDescription.contains("names the main thought"))
+        // the user's icon is shown before the title, so the model must not add one
+        assertTrue(titleDescription.contains("no emoji"))
         assertTrue(mainDescription.contains("do not repeat it here"))
         assertTrue(mainDescription.contains("one or more paragraphs"))
         assertTrue(secondaryDescription.contains("only inline formatting"))

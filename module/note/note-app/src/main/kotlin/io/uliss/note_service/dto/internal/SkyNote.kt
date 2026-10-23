@@ -14,4 +14,5 @@ data class SkyNote(
     val parentNoteId: UUID?,
     val createdAt: Instant,
     val memberships: List<NoteMembership>,
+    val icon: String? = null,
 )

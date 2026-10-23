@@ -43,6 +43,9 @@ vi.mock('./chatApi', () => ({
         }
     },
 }))
+vi.mock('emoji-picker-element/database.js', () => import('../test/emojiPickerFake').then((m) => m.databaseModule))
+vi.mock('emoji-picker-element/picker.js', () => import('../test/emojiPickerFake').then((m) => m.pickerModule()))
+
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
     streamInitialAssistantReply: vi.fn(),
@@ -339,6 +342,20 @@ describe('ChatPage summary flow', () => {
         expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
     })
 
+    it('names the note to update with its emoji', async () => {
+        mockedGetMessages.mockResolvedValueOnce({
+            ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]),
+            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip', noteIcon: '✈️'},
+        })
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+
+        expect(screen.getByRole('dialog', {name: 'Update “✈️ Trip”?'})).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: /^Icon:/})).not.toBeInTheDocument()
+    })
+
     it('offers to update the current note after new messages', async () => {
         mockedGetMessages.mockResolvedValueOnce({
             ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
@@ -393,7 +410,7 @@ describe('ChatPage summary flow', () => {
         await userEvent.click(summarizeInDialog())
         // No place, no update target: the create request carries neither a note nor a constellation.
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-1')
@@ -1236,7 +1253,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'jazz', undefined, undefined, null))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
             .toHaveTextContent('Uliss is writing a note — summary started')
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
@@ -1252,7 +1269,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('closes without a note by its close button and by Escape', async () => {
@@ -1286,7 +1303,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Put in Rock'}))
         await userEvent.click(summarizeInDialog())
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'rock', undefined, undefined, null))
     })
 
     it('explains a deleted constellation, reloads the tree, empties the place and starts nothing', async () => {
@@ -1335,7 +1352,7 @@ describe('ChatPage summary place picker', () => {
 
         await userEvent.click(summarizeInDialog())
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('names the new note with what the user typed', async () => {
@@ -1348,7 +1365,40 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps'))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps', null))
+    })
+
+    it('gives the new note the emoji picked over the card, never one of its own', async () => {
+        const dialog = await openPicker()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Icon: none'}))
+        const picker = screen.getByRole('dialog', {name: 'Choose an icon'})
+        await userEvent.click(await within(picker).findByRole('button', {name: 'saxophone'}))
+        expect(screen.queryByRole('dialog', {name: 'Choose an icon'})).not.toBeInTheDocument()
+        expect(within(dialog).getByRole('button', {name: 'Icon: 🎷'})).toHaveFocus()
+        await userEvent.click(summarizeInDialog())
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, '🎷'))
+    })
+
+    it('changes and removes the emoji before summarizing, and Escape closes only the picker', async () => {
+        const dialog = await openPicker()
+        const iconButton = (name: string) => within(dialog).getByRole('button', {name})
+
+        await userEvent.click(iconButton('Icon: none'))
+        await userEvent.click(await screen.findByRole('button', {name: 'thumbs up, medium skin tone'}))
+        await userEvent.click(iconButton('Icon: 👍🏽'))
+        fireEvent.keyDown(screen.getByRole('dialog', {name: 'Choose an icon'}), {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'Choose an icon'})).not.toBeInTheDocument()
+        expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
+
+        await userEvent.click(iconButton('Icon: 👍🏽'))
+        await userEvent.click(screen.getByRole('button', {name: 'Remove the icon'}))
+        await userEvent.click(summarizeInDialog())
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('holds the summary while the name is too long, keeping its action in place', async () => {
@@ -1365,7 +1415,7 @@ describe('ChatPage summary place picker', () => {
         expect(summarize).toBeEnabled()
         await userEvent.click(summarize)
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, 'x'.repeat(50)))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, 'x'.repeat(50), null))
     })
 
     it('gives a request with another name a new key after an ambiguous failure', async () => {
@@ -1398,7 +1448,7 @@ describe('ChatPage summary place picker', () => {
         await userEvent.click(summarizeInDialog())
 
         await waitFor(() => expect(mockedSummary)
-            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie', undefined))
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, 'bowie', undefined, null))
     })
 
     it('explains a deleted parent note and reloads the tree', async () => {

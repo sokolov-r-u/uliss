@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {EmptyState, Icon, Kicker} from '@uliss/design-system'
+import {EmptyState, Icon, Kicker, NoteTitle} from '@uliss/design-system'
 import {useNavigate} from 'react-router-dom'
 import type {SearchViewModel} from '../views/models'
 import {ScreenHeader} from '../ui/ScreenHeader'
@@ -34,7 +34,7 @@ export function SearchView({query, model, onQueryChange, onOpenNote, onOpenChat,
             </div>
             {model.notes.map((note) => <button className="search-result" type="button" key={note.id}
                                                onClick={() => onOpenNote?.(note.id)}>
-                <span className="search-result-line"><strong>{note.title}</strong><span><Icon name="star"
+                <span className="search-result-line"><strong><NoteTitle title={note.title} icon={note.icon ?? null} slot/></strong><span><Icon name="star"
                                                                                               size={11}/>{note.linkCount} · {note.date}</span></span>
                 <span className="search-result-excerpt">{note.excerpt}</span>
             </button>)}

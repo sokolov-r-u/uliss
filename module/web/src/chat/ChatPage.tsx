@@ -1,10 +1,11 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, Notice, PlaceField} from '@uliss/design-system'
+import {ActionChip, Button, IconPicker, Notice, noteTitleText, PlaceField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
+import {EMOJI_DATA_URL} from '../lib/emojiData'
 import {ContextPanel, PanelFact, PanelSection, usePanelOpen} from '../ui/ContextPanel'
 import {ChatNotesList} from '../ui/links/ChatNotesList'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
@@ -87,9 +88,10 @@ function summaryRequestTarget(
     noteId: string | undefined,
     place?: SummaryPlace,
     name = '',
+    icon: string | null = null,
 ): string {
     const placeKey = !place ? '' : 'constellationId' in place ? `c:${place.constellationId}` : `n:${place.parentNoteId}`
-    return `${throughMessageId ?? ''}|${noteId ?? ''}|${placeKey}|${name.trim()}`
+    return `${throughMessageId ?? ''}|${noteId ?? ''}|${placeKey}|${icon ?? ''}|${name.trim()}`
 }
 
 /**
@@ -172,6 +174,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryPlace, setSummaryPlace] = useState<SummaryPlace | null>(null)
     /** The dialog shows its "Choose a place" step. */
     const [pickingPlace, setPickingPlace] = useState(false)
+    /** The user's emoji for a new summary note; Uliss never picks one. */
+    const [summaryIcon, setSummaryIcon] = useState<string | null>(null)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
@@ -717,7 +721,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
         // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
         const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId,
-            target ? undefined : place, target ? '' : summaryName)
+            target ? undefined : place, target ? '' : summaryName, target ? null : summaryIcon)
         const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
         const idempotencyKey = storedKey ?? generateClientUuid()
         summaryRequestIdRef.current = requestId
@@ -733,7 +737,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
                 : await requestChatSummary(chatId, idempotencyKey, undefined,
                     place && 'constellationId' in place ? place.constellationId : undefined,
-                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined)
+                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined,
+                    summaryIcon)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -748,6 +753,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 throughMessageId: persistedMessagesRef.current.at(-1)?.id ?? null,
                 noteId: summary.noteId,
                 noteTitle: target?.noteTitle ?? null,
+                noteIcon: target?.noteIcon ?? null,
             })
             setAcceptedSummary({noteId: summary.noteId, update: target != null})
             setSummaryDialog(false)
@@ -819,7 +825,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const canSummarize = generationPhase === 'idle' && !summaryPending
     const updateTarget = summaryState
     const summaryTitle = updateTarget
-        ? (updateTarget.noteTitle ? `Update “${updateTarget.noteTitle}”?` : 'Update the note?')
+        ? (updateTarget.noteTitle
+            ? `Update “${noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon)}”?`
+            : 'Update the note?')
         : 'Create a summary note?'
 
     return (
@@ -867,6 +875,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                       setSummaryName('')
                                       setSummaryPlace(null)
                                       setPickingPlace(false)
+                                      setSummaryIcon(null)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -913,7 +922,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                                           }}/>,
                         } : undefined}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
-                                          onDictatingChange={setSummaryNameDictating}/>
+                                          onDictatingChange={setSummaryNameDictating}
+                                          leading={<IconPicker label="Icon" value={summaryIcon} disabled={summaryPending}
+                                                               dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}
+                                                               cover/>}/>
                         <PlaceField label="Place" placeholder="Choose a place" disabled={summaryPending}
                                     value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
                                     open={pickingPlace} onOpen={() => setPickingPlace(true)}

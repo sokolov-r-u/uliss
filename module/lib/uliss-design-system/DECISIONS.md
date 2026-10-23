@@ -89,3 +89,71 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** `PlaceField` props changed (no `children`), `Notice` gained `step`; a Claude Design sync is due
   after merge.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, manual check 2.
+
+## 2026-10-23 — Note emoji through emoji-picker-element, shown by NoteTitle
+
+- **Decision:** `EmojiPicker` wraps `emoji-picker-element` (exact version, lazy-loaded, themed through its CSS
+  variables) and takes the data URL from the consumer, which serves `emoji-picker-element-data` itself. `IconPicker`
+  is the 48px square beside a name field: on its own it opens the picker under itself (Escape, a click outside or a
+  second click close it, its Escape is marked handled); in a `Notice` the host shows `EmojiPicker` as the notice's
+  `step`, as with `PlaceField`, so the card keeps its size and the dialog's focus trap holds. Favorites stay in the
+  library's IndexedDB: a browser without any gets a 20-emoji starter set once at count 1, and every pick through
+  `EmojiPicker` counts once more than the library does, so the user's picks outrank the starters. `NoteTitle` /
+  `noteTitleText` render "emoji, space, name"; in lists (`slot`, `ListRow.icon`, the picker's note rows) a note without
+  an emoji keeps an empty slot of the same width.
+- **Consequences:** the package gains its first runtime dependency; public props changed (`ListRow.icon`,
+  `ConstellationPickerNoteItem.icon`) and three components were added; a Claude Design sync is due after merge.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 3.
+
+## 2026-10-23 — The emoji picker is one dropdown everywhere, favorites on top
+
+- **Context:** the user's UI check: as a `Notice` step the picker was squeezed to the card's height, its favorites
+  row was cut off, and it looked unlike the dropdown of the note edit form; the library draws favorites at its foot.
+- **Decision:** `IconPicker` always opens its own dropdown, portalled into the nearest `[data-popover-root]`
+  (`POPOVER_ROOT_ATTRIBUTE`) or the page, fixed under the square (above it when short of room, kept in the window).
+  A dialog overlay marks its content as the root, so the dropdown stays in the focus trap and the card keeps its
+  size. The hosted mode (`open`/`onOpen`) and `EmojiPicker.fill` are gone. `EmojiPicker` appends a style to the
+  library's shadow root that puts the favorites row under the categories, above the grid. Replaces the `Notice` step
+  of "Note emoji through emoji-picker-element, shown by NoteTitle".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 1.
+
+## 2026-10-23 — Three rows of our own favorites over a three-row grid
+
+- **Context:** the user's UI check 2: the dropdown ran past the bottom of the window, and the user asked for more
+  favorites and a shorter grid. The library shows exactly one row of favorites (as many as its columns) and has no
+  setting for more.
+- **Decision:** `EmojiPicker` hides the library's favorites row and draws its own: up to 21 (three rows of seven) from
+  the library's store (`getTopFavoriteEmoji`), above the search, in the preferred skin tone (following
+  `skin-tone-change`); a pick there counts twice, as a pick in the grid does. The library's grid is three rows high
+  and scrolls; sizes are in px, so the app's reading scale does not change them. `IconPicker` keeps the panel inside
+  the window, over the square when neither side has room. Replaces the favorites placement of "The emoji picker is
+  one dropdown everywhere, favorites on top".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 2.
+
+## 2026-10-23 — In a dialog the emoji picker covers the card
+
+- **Context:** the user's UI check 3: the dropdown hanging over part of the Summarize card looked crooked; the user
+  asked for one card to stand in for the other.
+- **Decision:** `IconPicker` takes `cover`: the picker lies over the nearest `[data-popover-root]` (the dialog's card)
+  in its place and size, titled "Choose an icon" with a close button; `EmojiPicker` regains `fill` (three rows of
+  favorites, the grid takes the rest). Pages keep the dropdown. "Remove the icon" takes room only while it is shown.
+  Refines "The emoji picker is one dropdown everywhere, favorites on top" for dialogs.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 3.
+
+## 2026-10-23 — One emoji panel for the dropdown and the cover
+
+- **Context:** the user's UI check 4: in the note edit form the library's grid ran past the dropdown (a column flex
+  item's automatic minimum height is its content), and the user asked for the same picker as in the dialog.
+- **Decision:** `IconPicker` renders one panel in both modes — title and close button, `EmojiPicker` with `fill` —
+  that differs only in place and size: over the card with `cover`, 360px wide at a fixed height under the square
+  otherwise. The library's host has `min-height` set in both `EmojiPicker` layouts. Refines "In a dialog the emoji
+  picker covers the card".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 4.
+
+## 2026-10-23 — The emoji panel has one frame and all nine category tabs
+
+- **Decision:** the user's UI check 5: the flags tab did not fit and the library's border drew a second square inside
+  our panel. Category tabs are 20px with 6px padding (nine fit 288px), the injected style drops the library's outer
+  border (our panel is the frame), and the dropdown is 380px wide. Refines "One emoji panel for the dropdown and the
+  cover".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 5.

@@ -3,6 +3,7 @@ import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {Button} from '../actions/Button'
 import {TagDot} from './TagDot'
+import {NoteTitle, noteTitleText} from '../journal/NoteTitle'
 
 // The one place-picker of the constellation tree. It opens on the roots only;
 // a click selects a branch and unfolds it. The list shows five rows and
@@ -37,12 +38,15 @@ export interface ConstellationPickerNoteItem {
     parentId: string | null
     /** Constellations of a note on its own; a sub-note lives under its parent and leaves this empty. */
     constellationIds: string[]
+    /** The note's emoji, shown before the title; the search reads the title only. */
+    icon?: string | null
 }
 
 export interface ConstellationPickerNotes {
     /** Every note that may be a target; they join the tree and the search. */
     items: ConstellationPickerNoteItem[]
-    /** Label of the confirm button for the selected note, e.g. `(title) => \`Move under ${title}\``. */
+    /** Label of the confirm button for the selected note, e.g. `(title) => \`Move under ${title}\``; the title
+     *  comes with the note's emoji ("🎷 Giant Steps"). */
     action: (title: string) => string
     /** Confirms the selected note. */
     onPick: (id: string) => void
@@ -90,6 +94,8 @@ interface TreeNode {
     ancestors: string[]
     color?: string
     count?: number
+    /** A note's emoji; notes always keep its slot. */
+    icon?: string | null
 }
 
 const ROW_TEXT = {
@@ -164,7 +170,8 @@ function buildTree(items: ConstellationPickerItem[], notes: ConstellationPickerN
                        chain: string[]) => {
         if (excluded.has(note.id) || chain.includes(note.id)) return
         const key = `${ancestors[ancestors.length - 1] ?? ''}/${note.id}`
-        nodes.push({key, kind: 'note', id: note.id, name: note.title, depth: ancestors.length, ancestors, color})
+        nodes.push({key, kind: 'note', id: note.id, name: note.title, depth: ancestors.length, ancestors, color,
+            icon: note.icon ?? null})
         subNotes.get(note.id)?.forEach((child) => visitNote(child, [...ancestors, key], color, [...chain, note.id]))
     }
     const visitConstellation = (item: ConstellationPickerItem, ancestors: string[]) => {
@@ -426,7 +433,7 @@ export function ConstellationPicker({
                             overflow: 'hidden',
                             textOverflow: 'ellipsis',
                             whiteSpace: 'nowrap',
-                        }}>{name}</span>
+                        }}>{node.kind === 'note' ? <NoteTitle title={name} icon={node.icon} slot/> : name}</span>
                         {node.count != null &&
                             <span style={{fontFamily: 'var(--font-text)', fontSize: 10, color: 'var(--text-faint)'}}>{node.count}</span>}
                     </button>}
@@ -534,7 +541,7 @@ export function ConstellationPicker({
                             else if (selected?.kind === 'note' && notes) notes.onPick(selected.id)
                         }}>
                     {selected?.kind === 'constellation' ? action(selected.name)
-                        : selected?.kind === 'note' && notes ? notes.action(selected.name)
+                        : selected?.kind === 'note' && notes ? notes.action(noteTitleText(selected.name, selected.icon))
                             : !notes ? 'Select a constellation' : items.length === 0 ? 'Select a note' : 'Select a place'}
                 </Button>
             </div>

@@ -7,6 +7,7 @@ import java.util.UUID
 data class NoteRefResponse(
     val id: UUID,
     val title: String?,
+    val icon: String? = null,
 )
 
-fun NoteNode.toRefResponse() = NoteRefResponse(id, title)
+fun NoteNode.toRefResponse() = NoteRefResponse(id, title, icon)

@@ -1,6 +1,6 @@
 import {describe, expect, it} from 'vitest'
 import type {Constellation} from './constellationApi'
-import {buildConstellationTree, descendantIds, normalizeConstellationName, visibleNodes} from './constellationTree'
+import {buildConstellationTree, descendantIds, normalizeConstellationName, pickerNotes, visibleNodes} from './constellationTree'
 
 function item(id: string, parentId: string | null, name: string, noteCount = 0, ownNoteCount = noteCount): Constellation {
     return {id, parentId, name, hue: 264, lightness: parentId ? 'LIGHT' : 'BASE', noteCount, ownNoteCount}
@@ -69,5 +69,20 @@ describe('normalizeConstellationName', () => {
         expect(normalizeConstellationName('   ')).toBeNull()
         expect(normalizeConstellationName('🎵'.repeat(40))).toBe('🎵'.repeat(40))
         expect(normalizeConstellationName('🎵'.repeat(41))).toBeNull()
+    })
+})
+
+describe('pickerNotes', () => {
+    it('gives the picker each note with its icon, null for a note without one', () => {
+        const notes = pickerNotes([
+            {id: 'bowie', title: 'Bowie', icon: '🎸', parentNoteId: null, createdAt: '2026-10-20T10:00:00Z',
+                memberships: [{constellationId: 'rock', main: true}]},
+            {id: 'low', title: 'Low', parentNoteId: 'bowie', createdAt: '2026-10-20T11:00:00Z', memberships: []},
+        ])
+
+        expect(notes).toEqual([
+            {id: 'bowie', title: 'Bowie', icon: '🎸', parentId: null, constellationIds: ['rock']},
+            {id: 'low', title: 'Low', icon: null, parentId: 'bowie', constellationIds: []},
+        ])
     })
 })

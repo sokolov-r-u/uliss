@@ -29,6 +29,7 @@ class NoteIndexRequestedHandler(
         if (note.status != NoteStatus.READY) return
         // read when the event runs: the note may have moved while a debounced event waited
         val place = noteHierarchyService.getPlaceDescription(payload.userId, note.id)
-        ragService.index(payload.userId, note.id, note.version ?: 0, NoteIndexHeader.render(place, note.title), content)
+        val header = NoteIndexHeader.render(place, note.title, note.icon)
+        ragService.index(payload.userId, note.id, note.version ?: 0, header, content)
     }
 }
