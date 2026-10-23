@@ -12,8 +12,8 @@ The full Unicode set with search, favorites and skin tones comes from `EmojiPick
 
 - Bottom-aligned with the name field's input (`alignItems: 'flex-end'`); it has no label row of its own. Its name reads
   "Icon: 🎷" or "Icon: none".
-- The picker (320 × 380 in a padded panel) opens under the square, above it when the room below is short, and stays
-  inside the window. A pick or "Remove the icon" closes it and returns the focus; Escape, a click outside or a second
+- The picker opens under the square, above it when the room below is short; it always stays inside the window, over
+  the square itself in a window too low for either side. A pick or "Remove the icon" closes it and returns the focus; Escape, a click outside or a second
   click close it without a change. Its Escape is marked handled, so a host dialog stays open.
 - The same dropdown in a page and in a `Notice`: it is portalled into the nearest element marked
   `data-popover-root` (`POPOVER_ROOT_ATTRIBUTE`) or into the page. A dialog overlay marks its content with it, so the

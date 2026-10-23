@@ -116,3 +116,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   library's shadow root that puts the favorites row under the categories, above the grid. Replaces the `Notice` step
   of "Note emoji through emoji-picker-element, shown by NoteTitle".
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 1.
+
+## 2026-10-23 — Three rows of our own favorites over a three-row grid
+
+- **Context:** the user's UI check 2: the dropdown ran past the bottom of the window, and the user asked for more
+  favorites and a shorter grid. The library shows exactly one row of favorites (as many as its columns) and has no
+  setting for more.
+- **Decision:** `EmojiPicker` hides the library's favorites row and draws its own: up to 21 (three rows of seven) from
+  the library's store (`getTopFavoriteEmoji`), above the search, in the preferred skin tone (following
+  `skin-tone-change`); a pick there counts twice, as a pick in the grid does. The library's grid is three rows high
+  and scrolls; sizes are in px, so the app's reading scale does not change them. `IconPicker` keeps the panel inside
+  the window, over the square when neither side has room. Replaces the favorites placement of "The emoji picker is
+  one dropdown everywhere, favorites on top".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 2.

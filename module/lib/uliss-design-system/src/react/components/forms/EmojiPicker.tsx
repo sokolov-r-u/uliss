@@ -1,11 +1,12 @@
-import {type CSSProperties, useEffect, useLayoutEffect, useRef} from 'react'
+import {type CSSProperties, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {Button} from '../actions/Button'
 import {seedFavoriteEmoji} from './emojiFavorites'
 
 // The full Unicode emoji set with search, favorites and skin tones: a wrapper over
 // `emoji-picker-element`, loaded on first open, themed with our tokens. The box keeps
 // its size while the library loads. The host serves the data (`dataSource`); no CDN.
-// Favorites stand above the grid, under the categories, not at the library's foot.
+// The library shows one row of favorites at its foot; ours are three rows on top,
+// read from the same store, and the library's grid is three rows high.
 
 export interface EmojiPickerProps {
     /** URL of `emoji-picker-element-data`'s `en/emojibase/data.json`, served by the app itself. */
@@ -21,11 +22,38 @@ interface EmojiClickDetail {
     emoji: { unicode?: string; name?: string }
 }
 
+interface StoredEmoji {
+    unicode?: string
+    annotation?: string
+    skins?: { tone: number; unicode: string }[]
+}
+
+interface Favorite {
+    /** The library's key: the emoji without a skin tone. */
+    key: string
+    label: string
+    /** The emoji in each skin tone it has, by tone (1–5). */
+    skins: Map<number, string>
+}
+
+const COLUMNS = 7
+const FAVORITE_ROWS = 3
+// px, not rem: the app scales its root font size for reading
+const EMOJI_SIZE = 22
+const EMOJI_PADDING = 8
+const CELL = EMOJI_SIZE + 2 * EMOJI_PADDING
+const FAVORITES_HEIGHT = FAVORITE_ROWS * CELL + 8
+// the library's own rows: border, top pad, search, categories, indicator, a category label and three emoji rows
+const LIBRARY_HEIGHT = 2 + EMOJI_PADDING + 39 + CELL + 4 + 29 + 3 * CELL
+const REMOVE_HEIGHT = 44
+/** The whole box, the same before and after the library loads and with or without "Remove the icon". */
+export const EMOJI_PICKER_HEIGHT = FAVORITES_HEIGHT + LIBRARY_HEIGHT + REMOVE_HEIGHT
+const WIDTH = 320
+
 /** The library's own CSS variables, mapped to our tokens; square like the rest of the kit. */
 const THEME = {
     width: '100%',
-    flex: '1 1 auto',
-    minHeight: '0',
+    height: `${LIBRARY_HEIGHT}px`,
     '--background': 'var(--bg-panel)',
     '--border-color': 'var(--line)',
     '--border-size': '1px',
@@ -40,20 +68,45 @@ const THEME = {
     '--input-font-color': 'var(--cream)',
     '--input-placeholder-color': 'var(--text-faint)',
     '--input-font-size': '14px',
+    '--input-padding': '4px',
     '--outline-color': 'var(--accent-2)',
-    '--num-columns': '7',
-    '--emoji-size': '1.375rem',
+    '--num-columns': String(COLUMNS),
+    '--emoji-size': `${EMOJI_SIZE}px`,
+    '--emoji-padding': `${EMOJI_PADDING}px`,
     '--skintone-border-radius': '0',
 } as Record<string, string>
 
-/** Injected into the library's shadow root (its README's way): the picker is a flex column, so `order` moves rows. */
-const FAVORITES_ON_TOP = `
-.favorites { order: 1; border-top: 0; border-bottom: var(--border-size) solid var(--border-color); }
-.tabpanel { order: 2; }
-`
+/** Injected into the library's shadow root (its README's way): our favorites replace its single row. */
+const HIDE_LIBRARY_FAVORITES = '.favorites { display: none; }'
+
+function toFavorite(emoji: StoredEmoji): Favorite | null {
+    if (!emoji.unicode) return null
+    return {
+        key: emoji.unicode,
+        label: emoji.annotation ?? emoji.unicode,
+        skins: new Map((emoji.skins ?? []).map((skin) => [skin.tone, skin.unicode])),
+    }
+}
+
+const FAVORITE_BUTTON: CSSProperties = {
+    width: CELL,
+    height: CELL,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 0,
+    border: 0,
+    background: 'transparent',
+    fontSize: EMOJI_SIZE,
+    lineHeight: 1,
+    cursor: 'pointer',
+}
 
 export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
     const hostRef = useRef<HTMLDivElement>(null)
+    const storeRef = useRef<{ incrementFavoriteEmojiCount(unicode: string): Promise<void> } | null>(null)
+    const [favorites, setFavorites] = useState<Favorite[]>([])
+    const [tone, setTone] = useState(0)
     const onPickRef = useRef(onPick)
     useLayoutEffect(() => {
         onPickRef.current = onPick
@@ -68,19 +121,26 @@ export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
                 import('emoji-picker-element/picker.js'),
             ])
             const store = new Database({dataSource, locale: 'en'})
-            // a browser that blocks storage still gets a picker, only without the starter favorites
+            // a browser that blocks storage still gets a picker, only without favorites
             await seedFavoriteEmoji(store).catch(() => undefined)
+            const [stored, preferred] = await Promise.all([
+                store.getTopFavoriteEmoji(COLUMNS * FAVORITE_ROWS).catch(() => [] as StoredEmoji[]),
+                store.getPreferredSkinTone().catch(() => 0),
+            ])
             if (cancelled) {
                 // no picker shares the connection yet; once one does, its own disconnect closes it
                 void store.close().catch(() => undefined)
                 return
             }
             if (!hostRef.current) return
+            storeRef.current = store
+            setFavorites((stored as StoredEmoji[]).map(toFavorite).filter((item): item is Favorite => item != null))
+            setTone(preferred)
             picker = new Picker({dataSource, locale: 'en'})
             picker.classList.add('dark')
             Object.entries(THEME).forEach(([name, value]) => picker?.style.setProperty(name, value))
             const style = document.createElement('style')
-            style.textContent = FAVORITES_ON_TOP
+            style.textContent = HIDE_LIBRARY_FAVORITES
             picker.shadowRoot?.append(style)
             picker.addEventListener('emoji-click', (event) => {
                 const detail = (event as CustomEvent<EmojiClickDetail>).detail
@@ -91,6 +151,9 @@ export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
                 if (key) void store.incrementFavoriteEmojiCount(key).catch(() => undefined)
                 onPickRef.current(emoji)
             })
+            picker.addEventListener('skin-tone-change', (event) => {
+                setTone((event as CustomEvent<{ skinTone: number }>).detail.skinTone)
+            })
             hostRef.current.append(picker)
             // the search field takes the focus, as a host's own field would
             requestAnimationFrame(() => picker?.shadowRoot?.querySelector<HTMLInputElement>('input')?.focus())
@@ -98,16 +161,42 @@ export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
         return () => {
             cancelled = true
             picker?.remove()
+            storeRef.current = null
         }
     }, [dataSource])
 
-    const box: CSSProperties = {display: 'flex', flexDirection: 'column', width: 320, maxWidth: '100%', height: 380}
+    const pickFavorite = (favorite: Favorite, shown: string) => {
+        // the library never saw this click, so both counts of a user pick are ours
+        const store = storeRef.current
+        for (let count = 0; count < 2; count++) void store?.incrementFavoriteEmojiCount(favorite.key).catch(() => undefined)
+        onPickRef.current(shown)
+    }
+
     return (
-        <div style={box}>
-            <div ref={hostRef} style={{flex: 1, minHeight: 0, display: 'flex', background: 'var(--bg-panel)'}}/>
-            {onRemove && <div style={{flex: '0 0 auto', display: 'flex', justifyContent: 'flex-end', paddingTop: 8}}>
-                <Button variant="quiet" onClick={onRemove}>Remove the icon</Button>
-            </div>}
+        <div style={{display: 'flex', flexDirection: 'column', width: WIDTH, maxWidth: '100%', height: EMOJI_PICKER_HEIGHT}}>
+            <div role="group" aria-label="Favorites" style={{
+                flex: `0 0 ${FAVORITES_HEIGHT}px`,
+                display: 'grid',
+                gridTemplateColumns: `repeat(${COLUMNS}, ${CELL}px)`,
+                gridAutoRows: CELL,
+                alignContent: 'start',
+                justifyContent: 'space-around',
+                padding: '4px 0',
+                boxSizing: 'border-box',
+                background: 'var(--bg-panel)',
+            }}>
+                {favorites.map((favorite) => {
+                    const shown = (tone > 0 ? favorite.skins.get(tone) : undefined) ?? favorite.key
+                    return <button key={favorite.key} type="button" aria-label={favorite.label} title={favorite.label}
+                                   onClick={() => pickFavorite(favorite, shown)} style={FAVORITE_BUTTON}>
+                        {shown}
+                    </button>
+                })}
+            </div>
+            <div ref={hostRef} style={{flex: `0 0 ${LIBRARY_HEIGHT}px`, display: 'flex', background: 'var(--bg-panel)'}}/>
+            <div style={{flex: `0 0 ${REMOVE_HEIGHT}px`, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end'}}>
+                {onRemove && <Button variant="quiet" onClick={onRemove}>Remove the icon</Button>}
+            </div>
         </div>
     )
 }

@@ -1,7 +1,7 @@
 import {type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
-import {EmojiPicker} from './EmojiPicker'
+import {EMOJI_PICKER_HEIGHT, EmojiPicker} from './EmojiPicker'
 
 // A 48px square that shows a note's emoji (or a faint plus) next to its name field.
 // It opens an `EmojiPicker` under itself (above when the room below is short);
@@ -25,9 +25,9 @@ export const POPOVER_ROOT_ATTRIBUTE = 'data-popover-root'
 
 const GAP = 4
 const EDGE = 8
-// EmojiPicker's 320 × 380 box with this panel's padding and border
+// EmojiPicker's box with this panel's padding and border
 const PANEL_WIDTH = 338
-const PANEL_HEIGHT = 398
+const PANEL_HEIGHT = EMOJI_PICKER_HEIGHT + 18
 
 export function IconPicker({label, value, onChange, dataSource, disabled = false}: IconPickerProps) {
     const [open, setOpen] = useState(false)
@@ -36,16 +36,18 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
     const panelRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
 
-    // Under the button when it fits, otherwise above it when there is more room there; kept inside the window.
+    // Under the button when it fits, otherwise above it when there is more room there; always inside the window,
+    // over the button itself when neither side has the room.
     useLayoutEffect(() => {
         if (!open) return
         const place = () => {
             const rect = buttonRef.current?.getBoundingClientRect()
             if (!rect) return
             const below = window.innerHeight - rect.bottom
-            const top = below < PANEL_HEIGHT + GAP + EDGE && rect.top > below
-                ? Math.max(EDGE, rect.top - GAP - PANEL_HEIGHT)
+            const preferred = below < PANEL_HEIGHT + GAP + EDGE && rect.top > below
+                ? rect.top - GAP - PANEL_HEIGHT
                 : rect.bottom + GAP
+            const top = Math.max(EDGE, Math.min(preferred, window.innerHeight - EDGE - PANEL_HEIGHT))
             const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - EDGE - PANEL_WIDTH))
             setPosition({top, left})
         }
