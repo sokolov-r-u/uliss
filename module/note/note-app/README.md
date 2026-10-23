@@ -78,7 +78,14 @@ durable turn UUID, echoes the client key, and returns the internal identity in `
 history reconciliation and cancellation. A live duplicate returns `pending`; a terminal duplicate
 returns `done` or `error` without replaying text fragments or calling the provider again. A stream whose attempt
 lost its fence before finalization (canceled from another tab, or reclaimed by a newer attempt) ends with the
-turn's current outcome: `error` with `CANCELED`, or `pending`; never `done`.
+turn's current outcome: `error` with `CANCELED`, or `pending`; never `done`. A reply keeps generating after the
+client disconnects; every stream opens with a `:keepalive` comment so `Chat-Turn-Id` arrives at once.
+
+`POST /note/chats/{chatId}/turns/{turnId}/retry?messageId=` regenerates the chat's latest reply when it is `FAILED` or
+`PARTIAL`, in the same turn: the failed reply is deleted, the user message stays, and the new reply streams with the
+same events. A repeated retry (the reply is already replaced) replays the turn's outcome, a generating turn answers
+`pending`, any other reply is `409 CHAT_REPLY_NOT_RETRYABLE`, and a summary still being written through the reply is
+`409 SUMMARY_IN_PROGRESS`.
 
 `POST /note/chats/{chatId}/summarize` does not call an AI provider on the request thread. In one
 short transaction it creates a `GENERATING` note, links it to the chat, and publishes a

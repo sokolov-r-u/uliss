@@ -6,6 +6,8 @@ export interface ReconciliationTarget {
     afterMessageId?: string
     userContent: string
     userMessageId?: string
+    /** The failed reply a retry replaces: until the server drops it, it is not the retry's outcome. */
+    replacedMessageId?: string
 }
 
 export class ReconciliationTimeoutError extends Error {
@@ -31,6 +33,7 @@ export function findPersistedReply(
 ): ChatMessage | undefined {
     if (target.turnId) {
         return history.find((message) => message.turnId === target.turnId && message.role === 'ASSISTANT'
+            && message.id !== target.replacedMessageId
             && ['COMPLETE', 'PARTIAL', 'FAILED', 'CANCELED'].includes(message.status))
     }
     // Only historical persisted rows may be reconciled without a turn identity.

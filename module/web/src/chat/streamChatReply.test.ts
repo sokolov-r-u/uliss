@@ -1,6 +1,6 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch} from '../auth/apiClient'
-import {cancelChatTurn, streamAssistantReply, streamInitialAssistantReply} from './streamChatReply'
+import {cancelChatTurn, streamAssistantReply, streamInitialAssistantReply, streamRetriedReply} from './streamChatReply'
 
 vi.mock('../auth/apiClient', () => ({authFetch: vi.fn()}))
 
@@ -203,5 +203,26 @@ describe('streamAssistantReply', () => {
             onAppendText,
         })).rejects.toMatchObject({name: 'AbortError'})
         expect(onAppendText).not.toHaveBeenCalled()
+    })
+})
+
+describe('streamRetriedReply', () => {
+    beforeEach(() => mockedFetch.mockReset())
+
+    it('asks for the failed reply of the turn to be regenerated, without a key or a body', async () => {
+        mockedFetch.mockResolvedValue(sseResponse(['event:append\ndata:{"text":"Again"}\n\nevent:done\ndata:\n\n']))
+        const receivedText: string[] = []
+
+        await expect(streamRetriedReply('chat 1', 'turn-1', 'reply-1', {
+            onAppendText: (text) => receivedText.push(text),
+            onTurnId: vi.fn(),
+        })).resolves.toBe('done')
+
+        expect(receivedText).toEqual(['Again'])
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats/chat%201/turns/turn-1/retry?messageId=reply-1', {
+            method: 'POST',
+            headers: {'Accept': 'text/event-stream'},
+            body: undefined,
+        })
     })
 })

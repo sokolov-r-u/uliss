@@ -8,6 +8,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.model.projection.CurrentChatSummary
 import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
@@ -16,6 +17,26 @@ import java.util.UUID
 
 @Repository
 interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
+
+    /** Notes of the chat that cover [messageId] now cover the message before it (null when it is the first). */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(
+        value = """
+            UPDATE note.chat_note
+            SET summarized_through_message_id = (
+                SELECT previous.id
+                FROM note.chat_message previous
+                JOIN note.chat_message boundary ON boundary.id = :messageId AND boundary.chat_id = :chatId
+                WHERE previous.chat_id = :chatId
+                  AND (previous.created_at, previous.id) < (boundary.created_at, boundary.id)
+                ORDER BY previous.created_at DESC, previous.id DESC
+                LIMIT 1
+            )
+            WHERE chat_id = :chatId AND summarized_through_message_id = :messageId
+        """,
+        nativeQuery = true,
+    )
+    fun moveBoundaryBefore(@Param("chatId") chatId: UUID, @Param("messageId") messageId: UUID): Int
 
     @Query(
         """

@@ -715,3 +715,11 @@ the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-secur
 - `GET /note/notes/search` (the old server-side note search of the picker) has no web caller any more; drop it or reuse
   it when the picker needs server search again.
 - Source: `docs/tasks/2026-10-22-picker-tree-notes.md`.
+
+## A chat reply retry races a concurrent Summarize
+
+- `POST /chats/{id}/summarize` takes no chat row lock, while a reply retry checks pending summaries and deletes the
+  failed reply under it. A Summarize from another tab in that window either fails its boundary foreign key (500) or,
+  if it committed first, loses its `PENDING` request to `ON DELETE CASCADE` and its note ends `FAILED`. Fix: lock the
+  chat row in the summary request transaction too.
+- Source: `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).

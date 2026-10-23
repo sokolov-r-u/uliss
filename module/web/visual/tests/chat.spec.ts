@@ -21,3 +21,16 @@ test('a message in an older chat moves it to the top of the side navigation', as
 
     await expect(recentChats.locator('.side-nav-group').first()).toContainText('A walk without the phone')
 })
+
+test('Retry regenerates a failed latest reply in place', async ({page}) => {
+    await openRoute(page, '/chats/c2')
+    await expect(page.getByText('failed to reply')).toBeVisible()
+
+    await page.getByRole('button', {name: 'Retry'}).click()
+
+    await expect(page.getByText('The first attempt already cleared the ground.')).toBeVisible()
+    await expect(page.getByText('failed to reply')).toHaveCount(0)
+    await expect(page.getByRole('button', {name: 'Retry'})).toHaveCount(0)
+    await expect(page.getByText('Why does the second attempt feel easier?')).toHaveCount(1)
+    await expect(page.getByRole('textbox', {name: 'Message'})).toBeEnabled()
+})

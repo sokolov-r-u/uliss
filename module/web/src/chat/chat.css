@@ -57,9 +57,15 @@
     animation: uNoticeCaret 1.1s steps(1) infinite;
 }
 
+.bubble-status-line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+}
+
 .bubble-status {
     display: inline-block;
-    margin-top: 6px;
     font-family: var(--font-text);
     font-size: 9px;
     letter-spacing: 2px;
@@ -68,8 +74,7 @@
 }
 
 .bubble-status-user {
-    display: block;
-    text-align: right;
+    justify-content: flex-end;
 }
 
 .chat-stream-notice {

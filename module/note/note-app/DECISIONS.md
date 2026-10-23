@@ -454,3 +454,47 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   so the model judges a topic change from the text alone and loses earlier fragments on later turns. If the model
   still skips the search, the next step is a search before the first message of a topic in code.
 - **Source:** task `docs/tasks/2026-10-22-chat-prompt-contribution.md`.
+
+## 2026-10-22 — A chat reply does not depend on the client's connection
+
+- **Context:** a phone suspended the tab nine seconds into a reply, while the model was still choosing a notes
+  search. The disconnect cancelled the reply `Flux`, `usingWhen` saved the turn as `FAILED`, and the reloaded page
+  showed "failed to reply". The client also never got `Chat-Turn-Id`: Spring MVC 7 commits the response headers only
+  with the first SSE record, and nothing was sent before the model's first event.
+- **Decision:** `AssistantService` starts a generation on the first subscription and runs it to its end on its own
+  subscription; the HTTP stream reads its events from a unicast sink, and a subscriber that leaves no longer cancels
+  it. `cancelTurn` disposes the generation running on this instance after the turn is `CANCELED`, so Stop still
+  ends the provider call. `withHeartbeat` sends its first comment at once, so every SSE stream (chat, ai-edit,
+  status) commits its headers immediately.
+- **Consequences:** the outcome of a turn comes only from the provider stream (or a cancel, or an expired lease). A
+  cancel reaches only the instance that runs the generation; another instance's generation is still fenced out. SSE
+  streams begin with `:keepalive`.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 1.
+
+## 2026-10-22 — A failed or interrupted reply is retried in the same turn
+
+- **Context:** a reply that failed or broke off could only be followed by a new message; resending the text would
+  duplicate the user message in the history.
+- **Decision:** `POST /chats/{chatId}/turns/{turnId}/retry?messageId=` restarts the turn when `messageId` is its
+  `FAILED` or `PARTIAL` reply and the chat's latest message: under the chat lock the turn goes back to `GENERATING`
+  as `attempt + 1` with a fresh lease (`ChatTurnStore.restartFinished`), the old reply is deleted, and generation
+  runs on the history up to the user message. The `messageId` makes the request idempotent without a key: once the
+  reply is replaced, a repeated retry replays the turn's outcome. Only the user starts a retry; the server never
+  retries on its own. `maxAttempts` still bounds only the reclaim of expired leases, and a retry does not move
+  `chat.updated_at`.
+- **Consequences:** a summary note whose boundary is the replaced reply moves to the message before it, so the new
+  reply is summarized later; a summary request still pending through that reply blocks the retry with
+  `409 SUMMARY_IN_PROGRESS`, since its worker reads messages through it. A `CANCELED` ("stopped") reply is not retried.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md`, block 2.
+
+## 2026-10-22 — A retry releases the summary boundary only once it is certain
+
+- **Context:** refines "A failed or interrupted reply is retried in the same turn" after code review: the facade
+  released the summary boundary before the turn was checked, so a retry that only replayed a turn still moved it.
+- **Decision:** `ChatTurnService.resolveRetryRequest` takes a callback that the facade fills with
+  `NoteSummaryService.releaseReplyForRetry`; it runs under the chat lock after every check, right before the reply is
+  deleted. `cancelTurn` stops the running generation only when the turn ends `CANCELED`, so a reply saved just
+  before a Stop still reports `done`.
+- **Consequences:** every retry spends an attempt, so after `maxAttempts` attempts a turn whose lease later expires
+  (a restart mid-reply) is failed instead of reclaimed by the resend after a reload; the user retries it again.
+- **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).

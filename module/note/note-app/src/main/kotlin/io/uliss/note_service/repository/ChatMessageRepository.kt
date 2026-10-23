@@ -1,6 +1,7 @@
 package io.uliss.note_service.repository
 
 import io.uliss.note_service.model.ChatMessageEntity
+import io.uliss.note_service.model.ChatMessageRole
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
@@ -11,6 +12,9 @@ import java.util.UUID
 @Repository
 interface ChatMessageRepository : CrudRepository<ChatMessageEntity, UUID> {
     fun findByChatIdOrderByCreatedAtAscIdAsc(chatId: UUID): List<ChatMessageEntity>
+
+    /** A turn has at most one message per role (`uq_chat_message_turn_role`). */
+    fun findByTurnIdAndRole(turnId: UUID, role: ChatMessageRole): ChatMessageEntity?
 
     @Query(
         value = """

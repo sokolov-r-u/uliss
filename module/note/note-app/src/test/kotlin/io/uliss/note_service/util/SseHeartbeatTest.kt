@@ -10,6 +10,16 @@ import kotlin.test.Test
 class SseHeartbeatTest {
 
     @Test
+    fun `a heartbeat opens the stream at once`() {
+        // Spring MVC sends the response headers (e.g. Chat-Turn-Id) only with the first record
+        StepVerifier.withVirtualTime { Flux.never<ServerSentEvent<String>>().withHeartbeat(Duration.ofSeconds(15)) }
+            .expectSubscription()
+            .expectNextMatches { it.comment() == "keepalive" }
+            .thenCancel()
+            .verify(Duration.ofSeconds(5))
+    }
+
+    @Test
     fun `quiet stream gets heartbeat comments and ends with its source`() {
         StepVerifier.withVirtualTime {
             val source = Sinks.many().unicast().onBackpressureBuffer<ServerSentEvent<String>>()
@@ -20,13 +30,15 @@ class SseHeartbeatTest {
             source.asFlux().withHeartbeat(Duration.ofSeconds(15))
         }
             .expectSubscription()
-            .thenAwait(Duration.ofSeconds(15))
             .expectNextMatches { it.comment() == "keepalive" && it.data() == null }
+            .thenAwait(Duration.ofSeconds(15))
+            .expectNextMatches { it.comment() == "keepalive" }
             .thenAwait(Duration.ofSeconds(15))
             .expectNextMatches { it.comment() == "keepalive" }
             .thenAwait(Duration.ofSeconds(10))
             .expectNextMatches { it.data() == "ready" }
-            .verifyComplete()
+            .expectComplete()
+            .verify(Duration.ofSeconds(5))
     }
 
     @Test
@@ -34,6 +46,7 @@ class SseHeartbeatTest {
         StepVerifier.withVirtualTime {
             Flux.error<ServerSentEvent<String>>(IllegalStateException("boom")).withHeartbeat(Duration.ofSeconds(15))
         }
+            .expectNextMatches { it.comment() == "keepalive" }
             .verifyErrorMessage("boom")
     }
 }

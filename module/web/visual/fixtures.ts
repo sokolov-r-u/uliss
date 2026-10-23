@@ -20,6 +20,11 @@ export const CHAT_MESSAGES: Record<string, ChatMessage[]> = {
         {id: 'm3', role: 'USER', status: 'COMPLETE', content: 'Yes. And remind me why I resisted it before.'},
         {id: 'm4', role: 'ASSISTANT', status: 'COMPLETE', content: 'You worried that a smaller box means a smaller self. Your later notes disagree:\n\n- the first hour as ritual\n- one small room, one task'},
     ],
+    // the latest reply failed, so the chat offers Retry
+    c2: [
+        {id: 'r1', turnId: 'turn-r1', role: 'USER', status: 'COMPLETE', content: 'Why does the second attempt feel easier?'},
+        {id: 'r2', turnId: 'turn-r1', role: 'ASSISTANT', status: 'FAILED', content: ''},
+    ],
 }
 
 export const NOTES: Note[] = [

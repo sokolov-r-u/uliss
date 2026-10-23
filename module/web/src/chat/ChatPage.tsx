@@ -33,6 +33,7 @@ import {
     ChatStreamHttpError,
     streamAssistantReply,
     streamInitialAssistantReply,
+    streamRetriedReply,
 } from './streamChatReply'
 import {MessageThread} from './MessageThread'
 import {ChatComposer} from './ChatComposer'
@@ -106,7 +107,11 @@ interface PendingChatRequest {
     initial?: boolean
     content: string
     afterMessageId?: string
+    /** The failed or interrupted reply this request regenerates; a retry has no key of its own. */
+    retryOf?: string
 }
+
+const RETRYABLE_STATUSES: readonly ChatMessage['status'][] = ['FAILED', 'PARTIAL']
 
 function chatRequestStorageKey(chatId: string): string {
     return `uliss.chat-turn.v1:${chatId}`
@@ -121,7 +126,8 @@ function readPendingChatRequestFrom(storageKey: string): PendingChatRequest | nu
             || (value.turnId !== undefined && typeof value.turnId !== 'string')
             || (value.stopRequested !== undefined && typeof value.stopRequested !== 'boolean')
             || (value.initial !== undefined && typeof value.initial !== 'boolean')
-            || (value.afterMessageId !== undefined && typeof value.afterMessageId !== 'string')) {
+            || (value.afterMessageId !== undefined && typeof value.afterMessageId !== 'string')
+            || (value.retryOf !== undefined && typeof value.retryOf !== 'string')) {
             sessionStorage.removeItem(storageKey)
             return null
         }
@@ -132,6 +138,7 @@ function readPendingChatRequestFrom(storageKey: string): PendingChatRequest | nu
             initial: value.initial,
             content: value.content,
             afterMessageId: value.afterMessageId,
+            retryOf: value.retryOf,
         }
     } catch {
         sessionStorage.removeItem(storageKey)
@@ -329,7 +336,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             const pendingRequest = readPendingChatRequestFrom(INITIAL_CHAT_REQUEST_STORAGE_KEY)
             pendingChatRequestRef.current = pendingRequest
             if (pendingRequest) {
-                reconciliationTargetRef.current = {userContent: pendingRequest.content}
+                const target: ReconciliationTarget = {userContent: pendingRequest.content}
+                reconciliationTargetRef.current = target
                 const now = Date.now()
                 setMessages([
                     {id: `local-user-${now}`, role: 'USER', status: 'COMPLETE', content: pendingRequest.content},
@@ -341,9 +349,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         pending: true,
                     },
                 ])
-                requireReconciliation()
+                // the same key replays the created chat and its turn, so a send cut off by a reload simply goes on
+                pendingRequest.initial = true
+                void executeChatRequest(pendingRequest, target, `local-reply-${now}`)
             }
             return () => {
+                // Leaving the new chat (a reload never gets here): a request whose chat exists lives on under that
+                // chat's key, so a later "New chat" does not send it again.
+                const left = pendingChatRequestRef.current
+                if (left?.initial === false && readPendingChatRequestFrom(INITIAL_CHAT_REQUEST_STORAGE_KEY)
+                    ?.idempotencyKey === left.idempotencyKey) sessionStorage.removeItem(INITIAL_CHAT_REQUEST_STORAGE_KEY)
                 streamAbortRef.current?.abort()
                 reconciliationAbortRef.current?.abort()
                 olderAbortRef.current?.abort()
@@ -389,13 +404,18 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         turnId: pendingRequest.turnId,
                         afterMessageId: pendingRequest.afterMessageId,
                         userContent: pendingRequest.content,
+                        replacedMessageId: pendingRequest.retryOf,
                     }
                     if (findPersistedReply(history, pendingTarget)) {
                         clearPendingChatRequest(pendingRequest.idempotencyKey)
                     } else {
                         reconciliationTargetRef.current = pendingTarget
-                        if (pendingRequest.turnId) void reconcile(pendingTarget, true, routeRevision)
-                        else requireReconciliation()
+                        if (pendingRequest.stopRequested && pendingRequest.turnId) {
+                            void reconcile(pendingTarget, true, routeRevision)
+                        } else {
+                            // a request cut off by a reload is repeated: the server answers with its outcome or pending
+                            resumePendingRequest(pendingRequest, pendingTarget)
+                        }
                     }
                     return
                 }
@@ -461,7 +481,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         streamAbortRef.current = controller
         let resolvedChatId = requestChatId
         // The server touched the existing chat's activity on accepting this turn; a new chat is announced by onChatId.
-        const liftsExistingChat = !request.initial
+        // A retry is not new activity.
+        const liftsExistingChat = !request.initial && !request.retryOf
         let chatListsNotified = false
         let poll = false
         let pollTimeoutMs: number | undefined
@@ -513,6 +534,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         persistPendingChatRequest(request, createdChatId)
                     },
                 })
+                : request.retryOf && request.turnId
+                ? await streamRetriedReply(resolvedChatId!, request.turnId, request.retryOf, callbacks)
                 : await streamAssistantReply(resolvedChatId!, request.content, request.idempotencyKey, callbacks)
             poll = outcome !== 'done'
         } catch (error) {
@@ -521,9 +544,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (error instanceof ChatStreamHttpError
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
                 clearPendingChatRequest(request.idempotencyKey, resolvedChatId)
+                const rejected = request.retryOf
+                    ? `The reply could not be retried (${error.status}). Please try again.`
+                    : `The message was not accepted (${error.status}). Please try again.`
                 if (!resolvedChatId) {
                     updateGenerationPhase('idle')
-                    setStreamNotice(`The message was not accepted (${error.status}). Please try again.`)
+                    setStreamNotice(rejected)
                     return
                 }
                 try {
@@ -531,7 +557,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     const history = page.messages
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
                     applyPersistedHistory(page)
-                    setStreamNotice(`The message was not accepted (${error.status}). Please try again.`)
+                    setStreamNotice(rejected)
                     const activeTarget = targetForTrailingUser(history)
                     if (activeTarget) await reconcile(activeTarget, true, routeRevision)
                 } catch (loadError) {
@@ -609,6 +635,38 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
     }
 
+    /** Regenerates the chat's latest reply after it failed or broke off; only the user's click starts it. */
+    function retryReply() {
+        const requestChatId = activeChatIdRef.current
+        const persisted = persistedMessagesRef.current
+        const failed = persisted.at(-1)
+        if (!requestChatId || generationPhaseRef.current !== 'idle' || !failed?.turnId
+            || failed.role !== 'ASSISTANT' || !RETRYABLE_STATUSES.includes(failed.status)) return
+        const user = persisted.find((message) => message.role === 'USER' && message.turnId === failed.turnId)
+        const request: PendingChatRequest = {
+            idempotencyKey: generateClientUuid(),
+            turnId: failed.turnId,
+            content: user?.content ?? '',
+            retryOf: failed.id,
+        }
+        pendingChatRequestRef.current = request
+        persistPendingChatRequest(request, requestChatId)
+        const target: ReconciliationTarget = {
+            turnId: failed.turnId,
+            userContent: request.content,
+            replacedMessageId: failed.id,
+        }
+        reconciliationTargetRef.current = target
+        // the server drops the failed reply when the retry starts; history merges never bring it back
+        replacePersistedWindow(persisted.slice(0, -1))
+        const placeholderId = `local-reply-${Date.now()}`
+        setMessages((previous) => [
+            ...previous,
+            {id: placeholderId, role: 'ASSISTANT', status: 'COMPLETE', content: '', pending: true},
+        ])
+        void executeChatRequest(request, target, placeholderId, requestChatId)
+    }
+
     function retryReconciliation() {
         const target = reconciliationTargetRef.current
         const pendingRequest = pendingChatRequestRef.current
@@ -617,11 +675,18 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             void reconcile(target, true)
             return
         }
+        resumePendingRequest(pendingRequest, target)
+    }
+
+    /** Sends [pendingRequest] again with its own key (or retried reply) and shows it as streaming. */
+    function resumePendingRequest(pendingRequest: PendingChatRequest, target: ReconciliationTarget) {
         const now = Date.now()
         const placeholderId = `local-reply-${now}`
+        const persisted = persistedMessagesRef.current.filter((message) => message.id !== pendingRequest.retryOf)
+        if (pendingRequest.retryOf) replacePersistedWindow(persisted)
         setMessages(() => {
-            const saved = toDisplay(persistedMessages)
-            const hasUser = pendingRequest.turnId && persistedMessages.some((message) =>
+            const saved = toDisplay(persisted)
+            const hasUser = pendingRequest.turnId && persisted.some((message) =>
                 message.role === 'USER' && message.turnId === pendingRequest.turnId)
             const withUser = hasUser
                 ? saved
@@ -746,7 +811,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 
-    const latestPersistedId = persistedMessages.at(-1)?.id
+    const latestPersisted = persistedMessages.at(-1)
+    const retryableId = generationPhase === 'idle' && latestPersisted?.role === 'ASSISTANT' && latestPersisted.turnId
+        && RETRYABLE_STATUSES.includes(latestPersisted.status) ? latestPersisted.id : undefined
+    const latestPersistedId = latestPersisted?.id
     const showSummarize = latestPersistedId != null && latestPersistedId !== summaryState?.throughMessageId
     const canSummarize = generationPhase === 'idle' && !summaryPending
     const updateTarget = summaryState
@@ -761,7 +829,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             panelOpen={panelOpen} onTogglePanel={togglePanel}
                             onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}
-                           onLoadOlder={() => void loadOlderMessages()}/>
+                           onLoadOlder={() => void loadOlderMessages()}
+                           retryableId={retryableId} onRetry={retryReply}/>
             {acceptedSummary && <section
                 className="chat-summary-notice"
                 role="status"

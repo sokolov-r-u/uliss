@@ -1,4 +1,4 @@
-import {Bubble as DesignBubble, PendingStatus} from '@uliss/design-system'
+import {Bubble as DesignBubble, Button, PendingStatus} from '@uliss/design-system'
 import {memo} from 'react'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import type {ChatMessageRole, ChatMessageStatus} from './chatApi'
@@ -35,7 +35,10 @@ function statusLabel(status: ChatMessageStatus): string | null {
  * backend state (see `ChatPage` / `chatApi`). Memoized: while a reply streams only its own bubble re-renders, not
  * the markdown of every earlier message.
  */
-export const Bubble = memo(function Bubble({role, status, content, pending, activity}: DisplayMessage) {
+export const Bubble = memo(function Bubble({role, status, content, pending, activity, onRetry}: DisplayMessage & {
+    /** Regenerates this reply; given only to the latest failed or interrupted one. */
+    onRetry?: () => void
+}) {
     const label = pending ? null : statusLabel(status)
     const waiting = pending && role === 'ASSISTANT' && content === ''
 
@@ -48,8 +51,10 @@ export const Bubble = memo(function Bubble({role, status, content, pending, acti
                     ? <MarkdownContent content={content} pending={pending}/>
                     : <>{content}{pending && <span className="bubble-cursor" aria-hidden/>}</>}
             </DesignBubble>
-            {label &&
-                <span className={role === 'USER' ? 'bubble-status bubble-status-user' : 'bubble-status'}>{label}</span>}
+            {label && <div className={role === 'USER' ? 'bubble-status-line bubble-status-user' : 'bubble-status-line'}>
+                <span className="bubble-status">{label}</span>
+                {onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
+            </div>}
         </div>
     )
 })

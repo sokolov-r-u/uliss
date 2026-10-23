@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.InternalException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
+import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -23,6 +24,7 @@ import java.util.UUID
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 
@@ -46,6 +48,19 @@ class NoteSummaryService(
     fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
         .findSummaries(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, PageRequest.of(0, 1))
         .firstOrNull()
+
+    /**
+     * Prepares the chat's notes for chat message [messageId] (a failed reply) being replaced by a retry: a summary
+     * still being written through it keeps it, and a note that covers it now covers the message before it, so the
+     * new reply counts as not yet summarized.
+     *
+     * @throws SummaryInProgressException when a pending summary request ends at [messageId]
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun releaseReplyForRetry(chatId: UUID, messageId: UUID) {
+        if (summaryRequestStore.hasPendingThrough(chatId, messageId)) throw SummaryInProgressException(chatId)
+        chatNoteRepository.moveBoundaryBefore(chatId, messageId)
+    }
 
     /**
      * Persists the user-visible placeholder and its durable generation request together. The
