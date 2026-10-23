@@ -12,13 +12,13 @@ The full Unicode set with search, favorites and skin tones comes from `EmojiPick
 
 - Bottom-aligned with the name field's input (`alignItems: 'flex-end'`); it has no label row of its own. Its name reads
   "Icon: 🎷" or "Icon: none".
-- The picker opens under the square, above it when the room below is short; it always stays inside the window, over
-  the square itself in a window too low for either side. A pick or "Remove the icon" closes it and returns the focus; Escape, a click outside or a second
+- One panel everywhere: "Choose an icon" with a close button, three rows of favorites, the search, the categories and
+  a grid that scrolls. As a dropdown it is 360px wide at a fixed height, under the square, above it when the room
+  below is short; it always stays inside the window, over the square itself in a window too low for either side. A pick or "Remove the icon" closes it and returns the focus; Escape, a click outside or a second
   click close it without a change. Its Escape is marked handled, so a host dialog stays open.
 - It is portalled into the nearest element marked `data-popover-root` (`POPOVER_ROOT_ATTRIBUTE`) or into the page. A
   dialog overlay marks its content with it, so the picker stays inside the dialog's focus trap and the card neither
   clips it nor changes size.
-- In a `Notice` pass `cover`: the picker lies over the card in its place and size, titled "Choose an icon" with a
-  close button, so one card stands in for the other until the pick; the favorites keep three rows and the grid takes
-  the rest. In a page leave it out: the dropdown hangs under the square.
+- In a `Notice` pass `cover`: the same panel lies over the card in its place and size, so one card stands in for the
+  other until the pick; the grid takes the height the card gives. In a page leave it out: it hangs under the square.
 - The emoji never enters the name: the name's counter and rules ignore it.

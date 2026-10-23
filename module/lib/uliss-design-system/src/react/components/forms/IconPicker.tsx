@@ -33,13 +33,15 @@ export const POPOVER_ROOT_ATTRIBUTE = 'data-popover-root'
 
 const GAP = 4
 const EDGE = 8
-// EmojiPicker's box with this panel's padding and border
-const PANEL_WIDTH = 338
-const PANEL_HEIGHT = EMOJI_PICKER_HEIGHT + 18
+// One panel in both places: padding, border and the title row around EmojiPicker's own box
+const PANEL_PADDING = {top: 18, side: 20, bottom: 20}
+const TITLE_HEIGHT = 40
+const PANEL_WIDTH = 360
+const PANEL_HEIGHT = PANEL_PADDING.top + TITLE_HEIGHT + EMOJI_PICKER_HEIGHT + PANEL_PADDING.bottom + 2
 
 export function IconPicker({label, value, onChange, dataSource, disabled = false, cover = false}: IconPickerProps) {
     const [open, setOpen] = useState(false)
-    const [position, setPosition] = useState<{ top: number; left: number; width?: number; height?: number } | null>(
+    const [position, setPosition] = useState<{ top: number; left: number; width: number; height: number } | null>(
         null)
     const wrapRef = useRef<HTMLDivElement>(null)
     const panelRef = useRef<HTMLDivElement>(null)
@@ -64,7 +66,7 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                 : rect.bottom + GAP
             const top = Math.max(EDGE, Math.min(preferred, window.innerHeight - EDGE - PANEL_HEIGHT))
             const left = Math.max(EDGE, Math.min(rect.left, window.innerWidth - EDGE - PANEL_WIDTH))
-            setPosition({top, left})
+            setPosition({top, left, width: Math.min(PANEL_WIDTH, window.innerWidth - 2 * EDGE), height: PANEL_HEIGHT})
         }
         place()
         window.addEventListener('resize', place)
@@ -103,7 +105,6 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
     function popoverRoot(): HTMLElement | null {
         return wrapRef.current?.closest<HTMLElement>(`[${POPOVER_ROOT_ATTRIBUTE}]`) ?? null
     }
-    const covering = cover && position?.width != null
 
     return (
         <div ref={wrapRef} onKeyDown={onKeyDown} style={{position: 'relative', flex: '0 0 auto'}}>
@@ -140,12 +141,12 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                     visibility: position ? 'visible' : 'hidden',
                     // above page menus (1050), dialogs (1100) and the full-title panel of list rows (1150)
                     zIndex: 1160,
-                    padding: covering ? '18px 20px 20px' : 8,
+                    padding: `${PANEL_PADDING.top}px ${PANEL_PADDING.side}px ${PANEL_PADDING.bottom}px`,
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--line-strong)',
                     boxShadow: 'var(--shadow-modal)',
                 }}>
-                    {covering && <div style={{display: 'flex', alignItems: 'center', marginBottom: 10}}>
+                    <div style={{display: 'flex', alignItems: 'center', height: TITLE_HEIGHT, flex: '0 0 auto'}}>
                         <span style={{
                             flex: 1,
                             fontFamily: 'var(--heading-font)',
@@ -155,9 +156,9 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                         <IconButton title="Close the picker" s={30} onClick={close}>
                             <Icon name="close" size={13}/>
                         </IconButton>
-                    </div>}
-                    <div style={{flex: covering ? 1 : undefined, minHeight: 0, display: 'flex'}}>
-                        <EmojiPicker dataSource={dataSource} onPick={choose} fill={covering}
+                    </div>
+                    <div style={{flex: 1, minHeight: 0, display: 'flex'}}>
+                        <EmojiPicker dataSource={dataSource} onPick={choose} fill
                                      onRemove={value ? () => choose(null) : undefined}/>
                     </div>
                 </div>,

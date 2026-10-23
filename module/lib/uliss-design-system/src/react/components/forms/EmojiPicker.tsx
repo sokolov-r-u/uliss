@@ -204,7 +204,8 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             </div>
             <div ref={hostRef} style={{
                 flex: fill ? '1 1 auto' : `0 0 ${LIBRARY_HEIGHT}px`,
-                minHeight: fill ? LIBRARY_HEIGHT : undefined,
+                // a flex item's automatic minimum is its content: the library's whole grid
+                minHeight: fill ? LIBRARY_HEIGHT : 0,
                 display: 'flex',
                 background: 'var(--bg-panel)',
             }}/>

@@ -190,6 +190,19 @@ describe('IconPicker', () => {
         expect(screen.getByLabelText('Chosen')).toHaveTextContent('👍🏽')
     })
 
+    it('as a dropdown is the same titled panel as over a card, at a fixed size', async () => {
+        render(<Dropdown/>)
+
+        await userEvent.click(trigger())
+
+        const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
+        expect(screen.getByText('Choose an icon')).toBeInTheDocument()
+        expect(dialog.style.width).toMatch(/px$/)
+        expect(dialog.style.height).toMatch(/px$/)
+        await userEvent.click(screen.getByRole('button', {name: 'Close the picker'}))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
     it('in cover mode lies over the popover root, has its own title and closes with its close button', async () => {
         render(<div data-popover-root="" ref={(root) => {
             if (root) vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(
@@ -220,9 +233,8 @@ describe('IconPicker', () => {
 
             const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
             const top = parseFloat(dialog.style.top)
-            const box = dialog.firstElementChild?.firstElementChild as HTMLElement
             expect(top).toBeGreaterThanOrEqual(8)
-            expect(top + parseFloat(box.style.height) + 18).toBeLessThanOrEqual(560 - 8)
+            expect(top + parseFloat(dialog.style.height)).toBeLessThanOrEqual(560 - 8)
         } finally {
             window.innerHeight = height
         }

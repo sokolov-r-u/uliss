@@ -139,3 +139,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   favorites, the grid takes the rest). Pages keep the dropdown. "Remove the icon" takes room only while it is shown.
   Refines "The emoji picker is one dropdown everywhere, favorites on top" for dialogs.
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 3.
+
+## 2026-10-23 — One emoji panel for the dropdown and the cover
+
+- **Context:** the user's UI check 4: in the note edit form the library's grid ran past the dropdown (a column flex
+  item's automatic minimum height is its content), and the user asked for the same picker as in the dialog.
+- **Decision:** `IconPicker` renders one panel in both modes — title and close button, `EmojiPicker` with `fill` —
+  that differs only in place and size: over the card with `cover`, 360px wide at a fixed height under the square
+  otherwise. The library's host has `min-height` set in both `EmojiPicker` layouts. Refines "In a dialog the emoji
+  picker covers the card".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 4.
