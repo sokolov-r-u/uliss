@@ -7,6 +7,8 @@ One line per note or chat. Dense index, not a feed.
   meta={<><Icon name="star" size={12} />6</>} />
 ```
 
+- `icon` puts a note's emoji before the title (`NoteTitle`); `null` keeps its empty slot so note names align. Leave it
+  out for chats, which have no emoji.
 - **Absolute dates only.** 'Jun 22'. No "yesterday", no "2h ago".
 - `meta` is `star` + link count on notes, `noteDoc` + note count on chats.
 - `unread` shows the dot; `dim` greys everything already read. Both together are how a fresh row stands out — no badges,

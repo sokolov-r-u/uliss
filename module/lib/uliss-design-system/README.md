@@ -49,6 +49,10 @@ radio/radiogroup state with a single tab stop. Notice and Dialog label themselve
 handles Escape and restores focus itself through the exported `useFocusTrap` hook; the overlay that hosts a Notice uses
 the same hook. An Escape an inner control already handled (an open Select) does not close the overlay.
 
+A note's emoji is chosen with `IconPicker` and `EmojiPicker`, a wrapper over `emoji-picker-element` (the one runtime
+dependency, loaded on first open); the consumer serves the emoji data itself. `NoteTitle` shows a note's name with its
+emoji, keeping an empty slot in lists so names align.
+
 Motion is limited to tokenized colour changes, pending/twinkle states, notice entrance, and one explicit exception:
 the mobile navigation drawer may enter horizontally using `--dur-drawer` and `--ease-drawer`. Other slide, bounce, and
 skeleton motion remains unsupported, and reduced-motion disables nonessential animation and transitions.

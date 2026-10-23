@@ -314,6 +314,23 @@ describe('ConstellationPicker', () => {
             expect(screen.getByRole('button', {name: '+ New constellation'})).toBeInTheDocument()
         })
 
+        it('shows the icon of a note before its name, keeps the slot for notes without one and searches names only', async () => {
+            const items = [{...NOTES[2], icon: '🎷'}, NOTES[3]]
+            const onPick = vi.fn()
+            const {container} = render(<ConstellationPicker items={[]} action={add} onPick={vi.fn()}
+                                                            notes={{items, action: under, onPick}}/>)
+
+            expect(rowNames()).toEqual(['Gone place', '🎷 Loose thought'])
+            const slots = container.querySelectorAll('[data-note-icon]')
+            expect(slots).toHaveLength(2)
+            expect(slots[0]).toBeEmptyDOMElement()
+
+            await userEvent.type(search(), 'loose')
+            expect(screen.getByRole('button', {name: '🎷 Loose thought'})).toHaveAttribute('aria-pressed', 'true')
+            await userEvent.click(screen.getByRole('button', {name: 'Summarize under 🎷 Loose thought'}))
+            expect(onPick).toHaveBeenCalledWith('loose')
+        })
+
         it('lists notes as roots without constellations', async () => {
             render(<ConstellationPicker items={[]} action={add} onPick={vi.fn()}
                                         notes={{items: NOTES, action: (title) => `Move under ${title}`, onPick: vi.fn()}}/>)

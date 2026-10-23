@@ -89,3 +89,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** `PlaceField` props changed (no `children`), `Notice` gained `step`; a Claude Design sync is due
   after merge.
 - **Source:** task `docs/tasks/2026-10-22-picker-tree-notes.md`, manual check 2.
+
+## 2026-10-23 — Note emoji through emoji-picker-element, shown by NoteTitle
+
+- **Decision:** `EmojiPicker` wraps `emoji-picker-element` (exact version, lazy-loaded, themed through its CSS
+  variables) and takes the data URL from the consumer, which serves `emoji-picker-element-data` itself. `IconPicker`
+  is the 48px square beside a name field: on its own it opens the picker under itself (Escape, a click outside or a
+  second click close it, its Escape is marked handled); in a `Notice` the host shows `EmojiPicker` as the notice's
+  `step`, as with `PlaceField`, so the card keeps its size and the dialog's focus trap holds. Favorites stay in the
+  library's IndexedDB: a browser without any gets a 20-emoji starter set once at count 1, and every pick through
+  `EmojiPicker` counts once more than the library does, so the user's picks outrank the starters. `NoteTitle` /
+  `noteTitleText` render "emoji, space, name"; in lists (`slot`, `ListRow.icon`, the picker's note rows) a note without
+  an emoji keeps an empty slot of the same width.
+- **Consequences:** the package gains its first runtime dependency; public props changed (`ListRow.icon`,
+  `ConstellationPickerNoteItem.icon`) and three components were added; a Claude Design sync is due after merge.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 3.

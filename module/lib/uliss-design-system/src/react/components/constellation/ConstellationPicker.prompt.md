@@ -47,10 +47,12 @@ branches down to them and steps through them.
   sits in each of its constellations after their sub-constellations, its sub-notes under it, and notes with no
   constellation of the tree in a last "Without constellation" branch; with `items={[]}` notes are the roots. A picked
   note is confirmed by `notes.action(title)` → `notes.onPick(id)`. Leave it out where only a constellation fits.
+- A note's `icon` stands before its title in the tree (`NoteTitle` with its slot, so names align) and in the title
+  passed to `notes.action` ("🎷 Giant Steps"); the search reads the title only.
 
 ```jsx
 <ConstellationPicker items={items} action={(name) => `Summarize into ${name}`} onPick={summarizeInto}
-  notes={{items: sky.notes.map((n) => ({id: n.id, title: n.title, parentId: n.parentNoteId,
+  notes={{items: sky.notes.map((n) => ({id: n.id, title: n.title, icon: n.icon, parentId: n.parentNoteId,
     constellationIds: n.memberships.map((m) => m.constellationId)})),
     action: (title) => `Summarize under ${title}`, onPick: summarizeUnder}} />
 ```
