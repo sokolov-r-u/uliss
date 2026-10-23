@@ -43,6 +43,9 @@ vi.mock('./chatApi', () => ({
         }
     },
 }))
+vi.mock('emoji-picker-element/database.js', () => import('../test/emojiPickerFake').then((m) => m.databaseModule))
+vi.mock('emoji-picker-element/picker.js', () => import('../test/emojiPickerFake').then((m) => m.pickerModule()))
+
 vi.mock('./streamChatReply', () => ({
     streamAssistantReply: vi.fn(),
     streamInitialAssistantReply: vi.fn(),
@@ -337,6 +340,20 @@ describe('ChatPage summary flow', () => {
 
         expect(await screen.findByText('Answer')).toBeInTheDocument()
         expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+    })
+
+    it('names the note to update with its emoji', async () => {
+        mockedGetMessages.mockResolvedValueOnce({
+            ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]),
+            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip', noteIcon: '✈️'},
+        })
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+
+        expect(screen.getByRole('dialog', {name: 'Update “✈️ Trip”?'})).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: /^Icon:/})).not.toBeInTheDocument()
     })
 
     it('offers to update the current note after new messages', async () => {
@@ -1349,6 +1366,39 @@ describe('ChatPage summary place picker', () => {
 
         await waitFor(() => expect(mockedSummary)
             .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, 'music', undefined, 'Giant Steps', null))
+    })
+
+    it('gives the new note the emoji picked over the card, never one of its own', async () => {
+        const dialog = await openPicker()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Icon: none'}))
+        const picker = screen.getByRole('dialog', {name: 'Choose an icon'})
+        await userEvent.click(await within(picker).findByRole('button', {name: 'saxophone'}))
+        expect(screen.queryByRole('dialog', {name: 'Choose an icon'})).not.toBeInTheDocument()
+        expect(within(dialog).getByRole('button', {name: 'Icon: 🎷'})).toHaveFocus()
+        await userEvent.click(summarizeInDialog())
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, '🎷'))
+    })
+
+    it('changes and removes the emoji before summarizing, and Escape closes only the picker', async () => {
+        const dialog = await openPicker()
+        const iconButton = (name: string) => within(dialog).getByRole('button', {name})
+
+        await userEvent.click(iconButton('Icon: none'))
+        await userEvent.click(await screen.findByRole('button', {name: 'thumbs up, medium skin tone'}))
+        await userEvent.click(iconButton('Icon: 👍🏽'))
+        fireEvent.keyDown(screen.getByRole('dialog', {name: 'Choose an icon'}), {key: 'Escape'})
+        expect(screen.queryByRole('dialog', {name: 'Choose an icon'})).not.toBeInTheDocument()
+        expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
+
+        await userEvent.click(iconButton('Icon: 👍🏽'))
+        await userEvent.click(screen.getByRole('button', {name: 'Remove the icon'}))
+        await userEvent.click(summarizeInDialog())
+
+        await waitFor(() => expect(mockedSummary)
+            .toHaveBeenCalledWith('chat-1', expect.any(String), undefined, undefined, undefined, undefined, null))
     })
 
     it('holds the summary while the name is too long, keeping its action in place', async () => {

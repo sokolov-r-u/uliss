@@ -56,6 +56,15 @@ describe('buildSkyGraph', () => {
         expect(graph.starCount).toBe(4)
     })
 
+    it('labels a star with its icon before the title, a sub-star too', () => {
+        const withIcons = buildSkyGraph({...SKY, notes: SKY.notes.map((note) =>
+            note.id === 'bowie' || note.id === 'low' ? {...note, icon: note.id === 'bowie' ? '🎸' : '🎧️'} : note)})
+
+        expect(withIcons.byId.get('bowie')?.label).toBe('🎸 Bowie')
+        expect(withIcons.byId.get('low')?.label).toBe('🎧️ Low')
+        expect(withIcons.byId.get('loose')?.label).toBe('Loose thought')
+    })
+
     it('draws a secondary edge to each other constellation of a top star only', () => {
         expect(graph.edges.filter((e) => e.kind === 'secondary')).toEqual([{source: 'bowie', target: 'films', kind: 'secondary'}])
     })

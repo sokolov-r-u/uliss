@@ -25,6 +25,9 @@ vi.mock('./noteApi', async (importOriginal) => {
     }
 })
 
+vi.mock('emoji-picker-element/database.js', () => import('../test/emojiPickerFake').then((m) => m.databaseModule))
+vi.mock('emoji-picker-element/picker.js', () => import('../test/emojiPickerFake').then((m) => m.pickerModule()))
+
 const mockedGetNote = vi.mocked(getNote)
 const mockedUpdate = vi.mocked(updateNote)
 
@@ -93,6 +96,38 @@ describe('NoteDetailPage editing', () => {
         expect(await screen.findByRole('heading', {name: 'Better idea'})).toBeInTheDocument()
         expect(screen.queryByRole('textbox', {name: 'Note text'})).not.toBeInTheDocument()
         expect(notifyNotesChanged).toHaveBeenCalled()
+    })
+
+    it('saves an icon change alone and shows the note named with it', async () => {
+        mockedUpdate.mockResolvedValue({...saved, icon: '🎸', version: 4})
+        const {save} = await startEditing()
+        expect(save).toBeDisabled()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Icon: none'}))
+        await userEvent.click(await screen.findByRole('button', {name: 'guitar'}))
+        expect(screen.getByRole('button', {name: 'Icon: 🎸'})).toHaveFocus()
+        await userEvent.click(save)
+
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Idea', content: 'A thought', icon: '🎸', version: 3})
+        expect(await screen.findByRole('heading', {name: '🎸 Idea'})).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Actions for 🎸 Idea'})).toBeInTheDocument()
+    })
+
+    it('removes the icon, and a picker closed without a pick changes nothing', async () => {
+        mockedUpdate.mockResolvedValue({...saved, version: 4})
+        const {save} = await startEditing({...saved, icon: '🎷'})
+        expect(screen.getByRole('heading', {name: '🎷 Idea'})).toBeInTheDocument()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Icon: 🎷'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Close the picker'}))
+        expect(save).toBeDisabled()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Icon: 🎷'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Remove the icon'}))
+        expect(screen.getByRole('button', {name: 'Icon: none'})).toBeInTheDocument()
+        await userEvent.click(save)
+
+        expect(mockedUpdate).toHaveBeenCalledWith('note-1', {title: 'Idea', content: 'A thought', icon: null, version: 3})
     })
 
     it('saves formatting applied with the toolbar as Markdown', async () => {

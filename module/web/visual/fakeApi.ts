@@ -38,7 +38,10 @@ const ancestorsOf = (noteId: string): string[] => {
 }
 const rootOf = (noteId: string) => ancestorsOf(noteId)[0] ?? noteId
 const withParent = <T extends { id: string }>(note: T) => ({...note, parentNoteId: parents.get(note.id) ?? null})
-const ref = (noteId: string) => ({id: noteId, title: NOTES.find((note) => note.id === noteId)?.title ?? null})
+const ref = (noteId: string) => {
+    const note = NOTES.find((item) => item.id === noteId)
+    return {id: noteId, title: note?.title ?? null, ...(note?.icon ? {icon: note.icon} : {})}
+}
 
 const constellations = createConstellationStore(empty, subtreeOf)
 
@@ -112,7 +115,7 @@ function hierarchyResponse(path: string, method: string, body: string, search: U
 }
 
 /** Chat id → its current summary note, as the latest message page reports it. */
-const summaries = new Map<string, { throughMessageId: string; noteId: string; noteTitle: string }>(
+const summaries = new Map<string, { throughMessageId: string; noteId: string; noteTitle: string; noteIcon?: string }>(
     params.get('summary') === 'old' ? [['c1', {throughMessageId: 'm2', noteId: 'n1', noteTitle: 'The empty room'}]] : [])
 
 /** Starts a summary like the service: a new note is generating at once, in the picked place if any. */
@@ -125,6 +128,7 @@ function summarize(chatId: string, body: string): Response {
     const request = body
         ? JSON.parse(body) as {
             mode: string; targetNoteId?: string; constellationId?: string; parentNoteId?: string; title?: string
+            icon?: string
         }
         : null
     if (request?.mode === 'UPDATE') return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
@@ -139,9 +143,10 @@ function summarize(chatId: string, body: string): Response {
     // the user's name, else the chat title standing in for the model's
     const title = request?.title ?? CHATS.find((item) => item.id === chatId)?.title ?? 'Summary'
     NOTES.unshift({id: noteId, source: 'CHAT_SUMMARY', status: 'GENERATING', title, content: null,
-        createdAt: '2026-06-24T11:30:00Z'})
+        createdAt: '2026-06-24T11:30:00Z', ...(request?.icon ? {icon: request.icon} : {})})
     const messages = CHAT_MESSAGES[chatId] ?? []
-    summaries.set(chatId, {throughMessageId: messages[messages.length - 1]?.id ?? '', noteId, noteTitle: title})
+    summaries.set(chatId, {throughMessageId: messages[messages.length - 1]?.id ?? '', noteId, noteTitle: title,
+        ...(request?.icon ? {noteIcon: request.icon} : {})})
     return json({noteId, chatId, status: 'GENERATING'}, 202)
 }
 
@@ -158,7 +163,8 @@ function constellationResponse(path: string, method: string, body: string, searc
         const stars = notes.filter((note) => note.status === 'READY' && note.title)
             .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)))
             .map((note) => ({
-                id: note.id, title: note.title, parentNoteId: parents.get(note.id) ?? null, createdAt: note.createdAt,
+                id: note.id, title: note.title, ...(note.icon ? {icon: note.icon} : {}),
+                parentNoteId: parents.get(note.id) ?? null, createdAt: note.createdAt,
                 memberships: parents.has(note.id) ? [] : constellations.placesOf(note.id).body,
             }))
         return json({constellations: constellations.list().body, notes: stars})
@@ -246,8 +252,11 @@ function retryReply(chatId: string, turnId: string, messageId: string | null): R
 
 /** Applies an edit to the in-memory fixture, so a reload of the page within the harness shows it. */
 function saveEdit(note: (typeof NOTES)[number], body: string) {
-    const edit = JSON.parse(body) as { title: string; content: string }
+    const edit = JSON.parse(body) as { title: string; content: string; icon: string | null }
     note.title = edit.title
+    // PUT replaces the editable fields: no icon removes it
+    if (edit.icon) note.icon = edit.icon
+    else delete note.icon
     note.content = edit.content
     note.version = (note.version ?? 0) + 1
     return note
