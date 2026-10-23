@@ -24,10 +24,14 @@
 - The converter drops props inherited from `@types/react` (onClick, disabled, aria-*) from every `.d.ts`; the
   conventions header lists which components are native buttons/inputs instead.
 - Validate's `[GRID_OVERFLOW]` did not flag every horizontally cropped grid card; check the contact sheets by eye.
+  It missed `ConstellationColorEditor`/`ConstellationPicker` again on 2026-10-22: give every new component
+  `cardMode: column` up front unless it is an overlay (`single`).
+- `npx playwright install` (run from `.ds-sync`) deletes cached browser builds no installed Playwright pins; after a
+  version bump only the new Chromium remains in `~/Library/Caches/ms-playwright`.
 
 ## Known render warns
 
-- None at the end of the 2026-10-13 sync.
+- None at the end of the 2026-10-24 sync.
 
 ## Re-sync risks
 
@@ -35,5 +39,7 @@
   syntax there needs the sed pattern to keep matching (check `css/uliss.css` size after build).
 - `Ground.tsx` mirrors `app.css` body/focus rules by hand; if the app base changes, update it and the conventions
   header together. Edits to `Ground.tsx` do not re-key grades — recapture affected components deliberately.
+- `EmojiPicker`/`IconPicker` previews load `emoji-picker-element-data@1.8.0` from jsDelivr at render time (the app
+  serves it itself); an offline or blocked CDN leaves the picker grid empty. Keep the version in step with the app's.
 - Constellation previews use hand-picked `oklch(0.62 0.11 <hue>)` colours, not the app's colour function.
 - Converter deps in `.ds-sync/` were installed from the npm registry (playwright pinned to the repo's `@playwright/test` version).
