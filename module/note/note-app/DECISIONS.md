@@ -517,3 +517,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the prompts stay named by title only, so an icon change reindexes (debounced) only the note, not its sub-notes. The
   `NoteDraft` title rule forbids emoji, so the model never duplicates the icon in the name.
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 2.
+
+## 2026-10-23 — The note icon rule checks the shape of the emoji
+
+- **Context:** refines "A note has an emoji icon of the user's choice" after code review: a lone VS16, a lone skin
+  tone or regional indicator, a digit with VS16 and repeated selectors passed as one emoji.
+- **Decision:** the first code point must be an emoji that is not a component, unless the whole icon is a flag (two
+  regional indicators) or a keycap (`#`, `*` or a digit, optional VS16, U+20E3). VS16 only right after a base, never
+  twice; a ZWJ only between two emoji. A well-formed ZWJ sequence that is not RGI still passes (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md` (code review).

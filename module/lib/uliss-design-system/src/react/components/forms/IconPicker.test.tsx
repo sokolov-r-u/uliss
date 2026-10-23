@@ -12,13 +12,20 @@ const library = vi.hoisted(() => ({
     favorites: [] as string[],
     increments: [] as string[],
     readyFails: false,
+    readyGate: null as Promise<void> | null,
+    closed: 0,
     pickers: [] as { dataSource?: string; locale?: string }[],
 }))
 
 vi.mock('emoji-picker-element/database.js', () => ({
     default: class {
         async ready() {
+            if (library.readyGate) await library.readyGate
             if (library.readyFails) throw new Error('IndexedDB is blocked')
+        }
+
+        async close() {
+            library.closed += 1
         }
 
         async getTopFavoriteEmoji(limit: number) {
@@ -56,6 +63,8 @@ beforeEach(() => {
     library.favorites = ['🦊']
     library.increments = []
     library.readyFails = false
+    library.readyGate = null
+    library.closed = 0
     library.pickers = []
 })
 
@@ -201,6 +210,21 @@ describe('EmojiPicker', () => {
         await pickEmoji()
 
         expect(onPick).toHaveBeenCalledWith('👍🏽')
+    })
+
+    it('closes its database when it goes away before the picker was created', async () => {
+        let open = () => undefined as void
+        library.readyGate = new Promise<void>((resolve) => {
+            open = resolve
+        })
+        const {unmount} = render(<EmojiPicker dataSource={DATA} onPick={vi.fn()}/>)
+        await waitFor(() => expect(library.readyGate).not.toBeNull())
+
+        unmount()
+        open()
+
+        await waitFor(() => expect(library.closed).toBe(1))
+        expect(library.pickers).toEqual([])
     })
 
     it('keeps the same box while the picker loads and once it has loaded', async () => {

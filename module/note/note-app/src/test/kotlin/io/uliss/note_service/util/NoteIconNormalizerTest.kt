@@ -34,6 +34,22 @@ class NoteIconNormalizerTest {
         assertNull(NoteIconNormalizer.normalize(raw), "accepted \"$raw\"")
     }
 
+    @ParameterizedTest
+    @ValueSource(
+        strings = [
+            "\uFE0F", "1\uFE0F", "😀\uFE0F\uFE0F", "🏽", "🇺", "\u200D", "😀\u200D", "\u20E3", "#\u20E3\uFE0F",
+        ]
+    )
+    fun `a lone selector, modifier, joiner or indicator, or a misplaced one, is refused`(raw: String) {
+        assertNull(NoteIconNormalizer.normalize(raw), "accepted \"$raw\"")
+    }
+
+    @Test
+    fun `a keycap with or without its selector is one emoji`() {
+        assertEquals("#\u20E3", NoteIconNormalizer.normalize("#\u20E3"))
+        assertEquals("1\uFE0F\u20E3", NoteIconNormalizer.normalize("1\uFE0F\u20E3"))
+    }
+
     @Test
     fun `an overlong value is refused without reading it`() {
         assertNull(NoteIconNormalizer.normalize("🎷" + "\u200D🎷".repeat(40)))

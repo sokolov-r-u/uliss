@@ -723,3 +723,13 @@ the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-secur
   if it committed first, loses its `PENDING` request to `ON DELETE CASCADE` and its note ends `FAILED`. Fix: lock the
   chat row in the summary request transaction too.
 - Source: `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).
+
+## Focus traps do not see shadow DOM
+
+- `useFocusTrap` finds focusable elements with `querySelectorAll`, which does not reach into shadow roots. In the
+  Summarize dialog's "Choose an icon" step (`emoji-picker-element` draws in a shadow root) Tab from the picker's last
+  control leaves the card once; the next Tab brings it back, and Shift+Tab from Back cannot reach the picker. Fix:
+  walk open shadow roots when collecting focusables, or bring the focus back on a `focusin` outside the trap.
+- `NoteIconNormalizer` accepts any well-formed ZWJ sequence of emoji, also one that is not RGI (`😀‍😀`, drawn as two);
+  checking against the RGI list would need the emoji data on the server.
+- Source: `docs/tasks/2026-10-22-note-icon-emoji.md` (code review).

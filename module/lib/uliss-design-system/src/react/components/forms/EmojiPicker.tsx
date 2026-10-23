@@ -62,10 +62,15 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
                 import('emoji-picker-element/database.js'),
                 import('emoji-picker-element/picker.js'),
             ])
-            const database = new Database({dataSource, locale: 'en'})
+            const store = new Database({dataSource, locale: 'en'})
             // a browser that blocks storage still gets a picker, only without the starter favorites
-            await seedFavoriteEmoji(database).catch(() => undefined)
-            if (cancelled || !hostRef.current) return
+            await seedFavoriteEmoji(store).catch(() => undefined)
+            if (cancelled) {
+                // no picker shares the connection yet; once one does, its own disconnect closes it
+                void store.close().catch(() => undefined)
+                return
+            }
+            if (!hostRef.current) return
             picker = new Picker({dataSource, locale: 'en'})
             picker.classList.add('dark')
             Object.entries(THEME).forEach(([name, value]) => picker?.style.setProperty(name, value))
@@ -75,7 +80,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
                 if (!emoji) return
                 // the library counted the click; one more lifts the user's pick over the starter set
                 const key = detail.emoji.unicode ?? detail.emoji.name
-                if (key) void database.incrementFavoriteEmojiCount(key).catch(() => undefined)
+                if (key) void store.incrementFavoriteEmojiCount(key).catch(() => undefined)
                 onPickRef.current(emoji)
             })
             hostRef.current.append(picker)
