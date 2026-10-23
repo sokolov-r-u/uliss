@@ -5,6 +5,7 @@ import {seedFavoriteEmoji} from './emojiFavorites'
 // The full Unicode emoji set with search, favorites and skin tones: a wrapper over
 // `emoji-picker-element`, loaded on first open, themed with our tokens. The box keeps
 // its size while the library loads. The host serves the data (`dataSource`); no CDN.
+// Favorites stand above the grid, under the categories, not at the library's foot.
 
 export interface EmojiPickerProps {
     /** URL of `emoji-picker-element-data`'s `en/emojibase/data.json`, served by the app itself. */
@@ -13,8 +14,6 @@ export interface EmojiPickerProps {
     onPick: (emoji: string) => void
     /** Adds a "Remove the icon" action under the picker; pass it only while there is an icon. */
     onRemove?: () => void
-    /** Fills its container (a `Notice` step) instead of the default 320 × 380 box. */
-    fill?: boolean
 }
 
 interface EmojiClickDetail {
@@ -47,7 +46,13 @@ const THEME = {
     '--skintone-border-radius': '0',
 } as Record<string, string>
 
-export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiPickerProps) {
+/** Injected into the library's shadow root (its README's way): the picker is a flex column, so `order` moves rows. */
+const FAVORITES_ON_TOP = `
+.favorites { order: 1; border-top: 0; border-bottom: var(--border-size) solid var(--border-color); }
+.tabpanel { order: 2; }
+`
+
+export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
     const hostRef = useRef<HTMLDivElement>(null)
     const onPickRef = useRef(onPick)
     useLayoutEffect(() => {
@@ -74,6 +79,9 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             picker = new Picker({dataSource, locale: 'en'})
             picker.classList.add('dark')
             Object.entries(THEME).forEach(([name, value]) => picker?.style.setProperty(name, value))
+            const style = document.createElement('style')
+            style.textContent = FAVORITES_ON_TOP
+            picker.shadowRoot?.append(style)
             picker.addEventListener('emoji-click', (event) => {
                 const detail = (event as CustomEvent<EmojiClickDetail>).detail
                 const emoji = detail.unicode ?? detail.emoji.unicode
@@ -93,9 +101,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
         }
     }, [dataSource])
 
-    const box: CSSProperties = fill
-        ? {display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minHeight: 0}
-        : {display: 'flex', flexDirection: 'column', width: 320, maxWidth: '100%', height: 380}
+    const box: CSSProperties = {display: 'flex', flexDirection: 'column', width: 320, maxWidth: '100%', height: 380}
     return (
         <div style={box}>
             <div ref={hostRef} style={{flex: 1, minHeight: 0, display: 'flex', background: 'var(--bg-panel)'}}/>

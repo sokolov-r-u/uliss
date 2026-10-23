@@ -104,3 +104,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the package gains its first runtime dependency; public props changed (`ListRow.icon`,
   `ConstellationPickerNoteItem.icon`) and three components were added; a Claude Design sync is due after merge.
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 3.
+
+## 2026-10-23 — The emoji picker is one dropdown everywhere, favorites on top
+
+- **Context:** the user's UI check: as a `Notice` step the picker was squeezed to the card's height, its favorites
+  row was cut off, and it looked unlike the dropdown of the note edit form; the library draws favorites at its foot.
+- **Decision:** `IconPicker` always opens its own dropdown, portalled into the nearest `[data-popover-root]`
+  (`POPOVER_ROOT_ATTRIBUTE`) or the page, fixed under the square (above it when short of room, kept in the window).
+  A dialog overlay marks its content as the root, so the dropdown stays in the focus trap and the card keeps its
+  size. The hosted mode (`open`/`onOpen`) and `EmojiPicker.fill` are gone. `EmojiPicker` appends a style to the
+  library's shadow root that puts the favorites row under the categories, above the grid. Replaces the `Notice` step
+  of "Note emoji through emoji-picker-element, shown by NoteTitle".
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 1.

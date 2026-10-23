@@ -30,8 +30,8 @@ states instead of simulated data. Notes use the note-service list, detail, and a
 without `READY`/`FAILED` (the service closes it after 10 minutes) is re-read and reconnected while the note is still
 generating, up to `MAX_STATUS_RECONNECTS` times per load. A `READY` note with `updating: true` keeps its content
 visible under an "Updating this note…" notice and is re-read when the update finishes.
-A note's emoji (`icon`) is chosen with the design system's `IconPicker`: in the Summarize dialog as the dialog's own
-"Choose an icon" step, in the note edit form as a dropdown beside the title. The picker's data is
+A note's emoji (`icon`) is chosen with the design system's `IconPicker`, a dropdown beside the name in the Summarize
+dialog and beside the title in the note edit form (`NoticeOverlay` is its popover root, so the card keeps its size). The picker's data is
 `emoji-picker-element-data`'s `en/emojibase/data.json`, imported with `?url` (`lib/emojiData.ts`), so Vite emits it
 under `/assets/` and the app serves it itself; the picker and its data load only on first open. Every place that
 names a note shows "emoji, space, name" (`NoteTitle`, `noteTitleText`); lists keep an empty slot for notes without one.

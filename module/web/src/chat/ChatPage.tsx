@@ -1,7 +1,7 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, EmojiPicker, IconPicker, Notice, noteTitleText, PlaceField} from '@uliss/design-system'
+import {ActionChip, Button, IconPicker, Notice, noteTitleText, PlaceField} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
@@ -176,8 +176,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [pickingPlace, setPickingPlace] = useState(false)
     /** The user's emoji for a new summary note; Uliss never picks one. */
     const [summaryIcon, setSummaryIcon] = useState<string | null>(null)
-    /** The dialog shows its "Choose an icon" step. */
-    const [pickingIcon, setPickingIcon] = useState(false)
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
@@ -878,7 +876,6 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                       setSummaryPlace(null)
                                       setPickingPlace(false)
                                       setSummaryIcon(null)
-                                      setPickingIcon(false)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
@@ -923,24 +920,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                                               setSummaryPlace(place)
                                                               setPickingPlace(false)
                                                           }}/>,
-                        } : pickingIcon ? {
-                            title: 'Choose an icon',
-                            onBack: () => setPickingIcon(false),
-                            children: <EmojiPicker fill dataSource={EMOJI_DATA_URL}
-                                                   onPick={(icon) => {
-                                                       setSummaryIcon(icon)
-                                                       setPickingIcon(false)
-                                                   }}
-                                                   onRemove={summaryIcon ? () => {
-                                                       setSummaryIcon(null)
-                                                       setPickingIcon(false)
-                                                   } : undefined}/>,
                         } : undefined}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}
                                           leading={<IconPicker label="Icon" value={summaryIcon} disabled={summaryPending}
-                                                               dataSource={EMOJI_DATA_URL} open={pickingIcon}
-                                                               onOpen={() => setPickingIcon(true)}/>}/>
+                                                               dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}/>}/>
                         <PlaceField label="Place" placeholder="Choose a place" disabled={summaryPending}
                                     value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
                                     open={pickingPlace} onOpen={() => setPickingPlace(true)}

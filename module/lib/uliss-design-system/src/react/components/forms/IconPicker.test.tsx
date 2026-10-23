@@ -42,6 +42,7 @@ vi.mock('emoji-picker-element/picker.js', () => {
     class FakePicker extends HTMLElement {
         constructor(options: { dataSource?: string; locale?: string } = {}) {
             super()
+            this.attachShadow({mode: 'open'})
             library.pickers.push(options)
         }
 
@@ -161,18 +162,29 @@ describe('IconPicker', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
     })
 
-    it('in a host step only asks the host to open and takes the focus back when it closes', async () => {
-        const onOpen = vi.fn()
-        const {rerender} = render(<IconPicker label="Icon" value="🎷" open={false} onOpen={onOpen} dataSource={DATA}/>)
+    it('opens over the nearest popover root, so a dialog card neither clips nor grows', async () => {
+        render(<div data-popover-root="">
+            <div style={{overflow: 'hidden'}}><Dropdown/></div>
+        </div>)
 
         await userEvent.click(trigger())
-        expect(onOpen).toHaveBeenCalled()
-        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
 
-        rerender(<IconPicker label="Icon" value="🎷" open onOpen={onOpen} dataSource={DATA}/>)
-        expect(trigger()).toHaveAttribute('aria-expanded', 'true')
-        rerender(<IconPicker label="Icon" value="🎷" open={false} onOpen={onOpen} dataSource={DATA}/>)
-        expect(trigger()).toHaveFocus()
+        const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
+        expect(dialog.parentElement).toHaveAttribute('data-popover-root')
+        expect(dialog).toHaveStyle({position: 'fixed'})
+        await pickEmoji()
+        expect(screen.getByLabelText('Chosen')).toHaveTextContent('👍🏽')
+    })
+
+    it('opens over the page when there is no popover root and a click inside keeps it open', async () => {
+        render(<Dropdown/>)
+
+        await userEvent.click(trigger())
+        const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
+        expect(dialog.parentElement).toBe(document.body)
+        fireEvent.pointerDown(dialog)
+
+        expect(screen.getByRole('dialog')).toBeInTheDocument()
     })
 
     it('does not open while disabled', async () => {
@@ -225,6 +237,16 @@ describe('EmojiPicker', () => {
 
         await waitFor(() => expect(library.closed).toBe(1))
         expect(library.pickers).toEqual([])
+    })
+
+    it('shows the favorites above the emoji grid', async () => {
+        render(<EmojiPicker dataSource={DATA} onPick={vi.fn()}/>)
+
+        await screen.findByRole('button', {name: 'thumbs up, medium skin tone'})
+
+        const style = document.querySelector('emoji-picker')?.shadowRoot?.querySelector('style')
+        expect(style?.textContent).toMatch(/\.favorites\s*\{[^}]*order:\s*1/)
+        expect(style?.textContent).toMatch(/\.tabpanel\s*\{[^}]*order:\s*2/)
     })
 
     it('keeps the same box while the picker loads and once it has loaded', async () => {

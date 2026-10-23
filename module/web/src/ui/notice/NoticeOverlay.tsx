@@ -3,7 +3,7 @@
  * Mirrors the dimmed-blurred scenes in Claude Design `uliss-notify.jsx`, but sits over the
  * real app (via a portal) instead of a demo screen. `backdrop-filter` blurs whatever is behind.
  */
-import {useFocusTrap} from '@uliss/design-system'
+import {POPOVER_ROOT_ATTRIBUTE, useFocusTrap} from '@uliss/design-system'
 import {type ReactNode, useRef} from 'react'
 import {createPortal} from 'react-dom'
 
@@ -46,7 +46,8 @@ export function NoticeOverlay({
                     background: 'transparent',
                     cursor: 'default'
                 }}/>}
-            <div ref={contentRef} style={{position: 'relative', display: 'flex'}}>
+            {/* a picker opened in the card is portalled here: inside the focus trap, not clipped by the card */}
+            <div ref={contentRef} {...{[POPOVER_ROOT_ATTRIBUTE]: ''}} style={{position: 'relative', display: 'flex'}}>
                 {children}
             </div>
         </div>,
