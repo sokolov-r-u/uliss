@@ -129,3 +129,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the window, over the square when neither side has room. Replaces the favorites placement of "The emoji picker is
   one dropdown everywhere, favorites on top".
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 2.
+
+## 2026-10-23 — In a dialog the emoji picker covers the card
+
+- **Context:** the user's UI check 3: the dropdown hanging over part of the Summarize card looked crooked; the user
+  asked for one card to stand in for the other.
+- **Decision:** `IconPicker` takes `cover`: the picker lies over the nearest `[data-popover-root]` (the dialog's card)
+  in its place and size, titled "Choose an icon" with a close button; `EmojiPicker` regains `fill` (three rows of
+  favorites, the grid takes the rest). Pages keep the dropdown. "Remove the icon" takes room only while it is shown.
+  Refines "The emoji picker is one dropdown everywhere, favorites on top" for dialogs.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 3.

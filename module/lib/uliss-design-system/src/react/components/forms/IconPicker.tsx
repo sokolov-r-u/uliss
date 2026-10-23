@@ -1,6 +1,7 @@
 import {type KeyboardEvent, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
+import {IconButton} from '../actions/IconButton'
 import {EMOJI_PICKER_HEIGHT, EmojiPicker} from './EmojiPicker'
 
 // A 48px square that shows a note's emoji (or a faint plus) next to its name field.
@@ -8,6 +9,8 @@ import {EMOJI_PICKER_HEIGHT, EmojiPicker} from './EmojiPicker'
 // Escape, a click outside or a second click close it. The picker is portalled into
 // the nearest `[data-popover-root]` (a dialog overlay, so its focus trap holds) or
 // the page, so a card that clips its content neither cuts nor grows around it.
+// With `cover` it lies over that root instead (a dialog's card), titled, so one
+// card stands in for the other until the pick.
 
 export interface IconPickerProps {
     /** Names the control: "Icon: 🎷", "Icon: none". */
@@ -18,6 +21,11 @@ export interface IconPickerProps {
     /** Served by the app itself; see `EmojiPicker`. */
     dataSource: string
     disabled?: boolean
+    /**
+     * Lies over the nearest `[data-popover-root]` (a dialog's card), in its place and size, with its own title and
+     * close button, instead of hanging under the square. Without a root it falls back to the dropdown.
+     */
+    cover?: boolean
 }
 
 /** Marks the element a picker opened inside it is portalled into. */
@@ -29,9 +37,10 @@ const EDGE = 8
 const PANEL_WIDTH = 338
 const PANEL_HEIGHT = EMOJI_PICKER_HEIGHT + 18
 
-export function IconPicker({label, value, onChange, dataSource, disabled = false}: IconPickerProps) {
+export function IconPicker({label, value, onChange, dataSource, disabled = false, cover = false}: IconPickerProps) {
     const [open, setOpen] = useState(false)
-    const [position, setPosition] = useState<{ top: number; left: number } | null>(null)
+    const [position, setPosition] = useState<{ top: number; left: number; width?: number; height?: number } | null>(
+        null)
     const wrapRef = useRef<HTMLDivElement>(null)
     const panelRef = useRef<HTMLDivElement>(null)
     const buttonRef = useRef<HTMLButtonElement>(null)
@@ -41,6 +50,12 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
     useLayoutEffect(() => {
         if (!open) return
         const place = () => {
+            const root = popoverRoot()
+            if (cover && root) {
+                const card = root.getBoundingClientRect()
+                setPosition({top: card.top, left: card.left, width: card.width, height: card.height})
+                return
+            }
             const rect = buttonRef.current?.getBoundingClientRect()
             if (!rect) return
             const below = window.innerHeight - rect.bottom
@@ -58,7 +73,7 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
             window.removeEventListener('resize', place)
             window.removeEventListener('scroll', place, true)
         }
-    }, [open])
+    }, [open, cover])
 
     useEffect(() => {
         if (!open) return
@@ -85,7 +100,10 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
         event.preventDefault()
         close()
     }
-    const root = wrapRef.current?.closest<HTMLElement>(`[${POPOVER_ROOT_ATTRIBUTE}]`) ?? document.body
+    function popoverRoot(): HTMLElement | null {
+        return wrapRef.current?.closest<HTMLElement>(`[${POPOVER_ROOT_ATTRIBUTE}]`) ?? null
+    }
+    const covering = cover && position?.width != null
 
     return (
         <div ref={wrapRef} onKeyDown={onKeyDown} style={{position: 'relative', flex: '0 0 auto'}}>
@@ -114,18 +132,36 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                     position: 'fixed',
                     top: position?.top ?? 0,
                     left: position?.left ?? 0,
+                    width: position?.width,
+                    height: position?.height,
+                    boxSizing: 'border-box',
+                    display: 'flex',
+                    flexDirection: 'column',
                     visibility: position ? 'visible' : 'hidden',
                     // above page menus (1050), dialogs (1100) and the full-title panel of list rows (1150)
                     zIndex: 1160,
-                    padding: 8,
+                    padding: covering ? '18px 20px 20px' : 8,
                     background: 'var(--bg-panel)',
                     border: '1px solid var(--line-strong)',
                     boxShadow: 'var(--shadow-modal)',
                 }}>
-                    <EmojiPicker dataSource={dataSource} onPick={choose}
-                                 onRemove={value ? () => choose(null) : undefined}/>
+                    {covering && <div style={{display: 'flex', alignItems: 'center', marginBottom: 10}}>
+                        <span style={{
+                            flex: 1,
+                            fontFamily: 'var(--heading-font)',
+                            fontSize: 20,
+                            color: 'var(--heading-color)',
+                        }}>Choose an icon</span>
+                        <IconButton title="Close the picker" s={30} onClick={close}>
+                            <Icon name="close" size={13}/>
+                        </IconButton>
+                    </div>}
+                    <div style={{flex: covering ? 1 : undefined, minHeight: 0, display: 'flex'}}>
+                        <EmojiPicker dataSource={dataSource} onPick={choose} fill={covering}
+                                     onRemove={value ? () => choose(null) : undefined}/>
+                    </div>
                 </div>,
-                root,
+                popoverRoot() ?? document.body,
             )}
         </div>
     )

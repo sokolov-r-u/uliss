@@ -12,5 +12,5 @@ The full Unicode emoji set with search, favorites ("frequently used") and skin t
   that scrolls. Favorites live in the browser (the library's IndexedDB). A browser without any gets a starter set once
   (instruments, books, film, ideas, travel, code…), each at count 1; a pick counts twice, so the user's own picks push
   the starters out. There is no way to open on a category.
-- A 320px wide box of fixed height (`EMOJI_PICKER_HEIGHT`) that keeps its size while the library loads and with or
-  without the "Remove the icon" line (only with `onRemove`). Square, dark, our tokens; the search field takes the focus when it loads.
+- A 320px wide box of fixed height that keeps its size while the library loads; the "Remove the icon" line comes only
+  with `onRemove`. `fill` fills the container instead: three rows of favorites, the grid takes the rest. Square, dark, our tokens; the search field takes the focus when it loads.

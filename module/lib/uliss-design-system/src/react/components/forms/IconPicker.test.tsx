@@ -190,6 +190,24 @@ describe('IconPicker', () => {
         expect(screen.getByLabelText('Chosen')).toHaveTextContent('👍🏽')
     })
 
+    it('in cover mode lies over the popover root, has its own title and closes with its close button', async () => {
+        render(<div data-popover-root="" ref={(root) => {
+            if (root) vi.spyOn(root, 'getBoundingClientRect').mockReturnValue(
+                {top: 100, bottom: 600, left: 40, right: 400, width: 360, height: 500, x: 40, y: 100} as DOMRect)
+        }}>
+            <IconPicker label="Icon" value="🎷" onChange={vi.fn()} dataSource={DATA} cover/>
+        </div>)
+
+        await userEvent.click(trigger())
+
+        const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
+        expect(dialog).toHaveStyle({position: 'fixed', top: '100px', left: '40px', width: '360px', height: '500px'})
+        expect(screen.getByText('Choose an icon')).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Close the picker'}))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(trigger()).toHaveFocus()
+    })
+
     it('stays inside a short window, opening on the side with more room', async () => {
         const height = window.innerHeight
         window.innerHeight = 560
@@ -202,7 +220,7 @@ describe('IconPicker', () => {
 
             const dialog = screen.getByRole('dialog', {name: 'Choose an icon'})
             const top = parseFloat(dialog.style.top)
-            const box = dialog.firstElementChild as HTMLElement
+            const box = dialog.firstElementChild?.firstElementChild as HTMLElement
             expect(top).toBeGreaterThanOrEqual(8)
             expect(top + parseFloat(box.style.height) + 18).toBeLessThanOrEqual(560 - 8)
         } finally {
@@ -309,6 +327,14 @@ describe('EmojiPicker', () => {
         fireEvent(document.querySelector('emoji-picker')!, new CustomEvent('skin-tone-change', {detail: {skinTone: 5}}))
 
         await waitFor(() => expect(favorite).toHaveTextContent('👍🏿'))
+    })
+
+    it('fills its container when asked, keeping the three rows of favorites', async () => {
+        const {container} = render(<EmojiPicker dataSource={DATA} onPick={vi.fn()} fill/>)
+
+        await screen.findByRole('group', {name: 'Favorites'})
+
+        expect(container.firstElementChild).toHaveStyle({height: '100%'})
     })
 
     it('keeps the same box while the picker loads and once it has loaded', async () => {

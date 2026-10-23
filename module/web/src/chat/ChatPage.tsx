@@ -924,7 +924,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}
                                           leading={<IconPicker label="Icon" value={summaryIcon} disabled={summaryPending}
-                                                               dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}/>}/>
+                                                               dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}
+                                                               cover/>}/>
                         <PlaceField label="Place" placeholder="Choose a place" disabled={summaryPending}
                                     value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
                                     open={pickingPlace} onOpen={() => setPickingPlace(true)}

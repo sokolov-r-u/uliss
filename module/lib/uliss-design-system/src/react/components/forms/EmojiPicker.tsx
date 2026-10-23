@@ -15,6 +15,8 @@ export interface EmojiPickerProps {
     onPick: (emoji: string) => void
     /** Adds a "Remove the icon" action under the picker; pass it only while there is an icon. */
     onRemove?: () => void
+    /** Fills its container: the favorites keep three rows, the grid takes the rest of the height. */
+    fill?: boolean
 }
 
 interface EmojiClickDetail {
@@ -46,14 +48,14 @@ const FAVORITES_HEIGHT = FAVORITE_ROWS * CELL + 8
 // the library's own rows: border, top pad, search, categories, indicator, a category label and three emoji rows
 const LIBRARY_HEIGHT = 2 + EMOJI_PADDING + 39 + CELL + 4 + 29 + 3 * CELL
 const REMOVE_HEIGHT = 44
-/** The whole box, the same before and after the library loads and with or without "Remove the icon". */
+/** The tallest box (with "Remove the icon"); it keeps its height while the library loads. */
 export const EMOJI_PICKER_HEIGHT = FAVORITES_HEIGHT + LIBRARY_HEIGHT + REMOVE_HEIGHT
 const WIDTH = 320
 
 /** The library's own CSS variables, mapped to our tokens; square like the rest of the kit. */
 const THEME = {
     width: '100%',
-    height: `${LIBRARY_HEIGHT}px`,
+    height: '100%',
     '--background': 'var(--bg-panel)',
     '--border-color': 'var(--line)',
     '--border-size': '1px',
@@ -102,7 +104,7 @@ const FAVORITE_BUTTON: CSSProperties = {
     cursor: 'pointer',
 }
 
-export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
+export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiPickerProps) {
     const hostRef = useRef<HTMLDivElement>(null)
     const storeRef = useRef<{ incrementFavoriteEmojiCount(unicode: string): Promise<void> } | null>(null)
     const [favorites, setFavorites] = useState<Favorite[]>([])
@@ -173,7 +175,14 @@ export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
     }
 
     return (
-        <div style={{display: 'flex', flexDirection: 'column', width: WIDTH, maxWidth: '100%', height: EMOJI_PICKER_HEIGHT}}>
+        <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            width: fill ? '100%' : WIDTH,
+            maxWidth: '100%',
+            height: fill ? '100%' : EMOJI_PICKER_HEIGHT - (onRemove ? 0 : REMOVE_HEIGHT),
+            minHeight: 0,
+        }}>
             <div role="group" aria-label="Favorites" style={{
                 flex: `0 0 ${FAVORITES_HEIGHT}px`,
                 display: 'grid',
@@ -193,10 +202,20 @@ export function EmojiPicker({dataSource, onPick, onRemove}: EmojiPickerProps) {
                     </button>
                 })}
             </div>
-            <div ref={hostRef} style={{flex: `0 0 ${LIBRARY_HEIGHT}px`, display: 'flex', background: 'var(--bg-panel)'}}/>
-            <div style={{flex: `0 0 ${REMOVE_HEIGHT}px`, display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-end'}}>
-                {onRemove && <Button variant="quiet" onClick={onRemove}>Remove the icon</Button>}
-            </div>
+            <div ref={hostRef} style={{
+                flex: fill ? '1 1 auto' : `0 0 ${LIBRARY_HEIGHT}px`,
+                minHeight: fill ? LIBRARY_HEIGHT : undefined,
+                display: 'flex',
+                background: 'var(--bg-panel)',
+            }}/>
+            {onRemove && <div style={{
+                flex: `0 0 ${REMOVE_HEIGHT}px`,
+                display: 'flex',
+                justifyContent: 'flex-end',
+                alignItems: 'flex-end',
+            }}>
+                <Button variant="quiet" onClick={onRemove}>Remove the icon</Button>
+            </div>}
         </div>
     )
 }
