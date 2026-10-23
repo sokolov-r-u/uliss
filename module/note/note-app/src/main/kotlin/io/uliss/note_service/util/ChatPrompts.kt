@@ -199,15 +199,16 @@ object ChatPrompts {
         chunks: List<RetrievedChunk>,
         /** The note's name when the user gave one; the model then writes only the body. */
         userTitle: String? = null,
+        /** The note's emoji when the user chose one. */
+        userIcon: String? = null,
     ): String = buildString {
         appendLine("CURRENT CHAT (authoritative):")
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
         appendLine()
-        if (userTitle != null) {
-            appendLine("Note title (set by the user): $userTitle")
-            appendLine()
-        }
+        if (userTitle != null) appendLine("Note title (set by the user): $userTitle")
+        if (userIcon != null) appendLine("Note icon (set by the user): $userIcon")
+        if (userTitle != null || userIcon != null) appendLine()
         appendNotePlace(place)
         appendLine()
         appendRelatedNotes(chunks)
@@ -219,9 +220,10 @@ object ChatPrompts {
         context: ChatSummaryContext,
         place: NotePlaceDescription,
         chunks: List<RetrievedChunk>,
+        noteIcon: String? = null,
     ): String = buildString {
         appendLine("EXISTING NOTE (already written; do not repeat):")
-        appendLine("Title: ${noteTitle ?: "(untitled)"}")
+        appendLine("Title: ${NotePlaceText.titleWithIcon(noteTitle ?: "(untitled)", noteIcon)}")
         appendLine(noteContent)
         appendLine()
         appendLine("CURRENT CHAT — messages after the existing note (authoritative):")

@@ -68,6 +68,31 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `summary user prompt names the user's icon next to the title only when there is one`() {
+        val named = ChatPrompts.noteSummaryUserPrompt(
+            context(), NO_PLACE, emptyList(), userTitle = "Giant Steps", userIcon = "🎷",
+        )
+        val iconOnly = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userIcon = "🎷")
+        val plain = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userTitle = "Giant Steps")
+
+        assertTrue(
+            "Note title (set by the user): Giant Steps\nNote icon (set by the user): 🎷\n" in named,
+            named,
+        )
+        assertTrue(iconOnly.indexOf("Note icon (set by the user): 🎷\n") in 0 until iconOnly.indexOf("NOTE PLACE"))
+        assertTrue("Note icon" !in plain)
+    }
+
+    @Test
+    fun `update user prompt shows the existing note's icon before its title`() {
+        val prompt = ChatPrompts.noteUpdateUserPrompt(
+            "Trip plan", "Fly to Rome.", context(), NO_PLACE, emptyList(), noteIcon = "✈️",
+        )
+
+        assertTrue("EXISTING NOTE (already written; do not repeat):\nTitle: ✈️ Trip plan\n" in prompt, prompt)
+    }
+
+    @Test
     fun `summary user prompt names the user's title before the note place only when there is one`() {
         val named = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userTitle = "Giant Steps")
         val unnamed = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList())

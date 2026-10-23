@@ -118,7 +118,8 @@ current chat is authoritative; related notes are delimited as untrusted secondar
 update prompt carry a `NOTE PLACE` block read when the worker runs: the full name path of every constellation of the
 note's top note (main first) and its parent notes from the top down, or "none — the user has not applied any tags
 yet". A note the user named gets `Note title (set by the user)` in the prompt and a `NoteBodyDraft` (no `title`) from
-the same single call; its title is kept. Otherwise one
+the same single call; its title is kept. A user icon adds `Note icon (set by the user)`, and the update prompt shows the
+existing note as `Title: 🎷 Giant Steps`; the `NoteDraft` title rule forbids emoji, since the icon is shown apart. Otherwise one
 non-streaming structured-output call (`.call().entity(NoteDraft)`) returns the note `title`, a
 Markdown `mainThought`, and `secondaryThoughts` without a fixed limit; field rules live in the `NoteDraft` JSON
 schema descriptions. The schema is sent as a provider-native constraint (`useProviderStructuredOutput()`,
@@ -271,8 +272,8 @@ RAG chunks live in the domain-owned `note.rag_chunks` table. `user_id` and `note
 columns with an ownership-preserving composite foreign key; they are not authorization metadata in
 generic JSON. Spring AI still owns token splitting and embedding/batching. `JdbcRagChunkStore`
 performs replacement and ownership-filtered exact cosine retrieval. Every chunk of a note starts with a header of its
-place and title (`Constellations: Music / Jazz; Films`, `Parent notes: "Coltrane"`, `Title: …`; lines without data are
-left out), read when the index event runs, so the place shapes every chunk's embedding; the header counts toward
+place and title (`Constellations: Music / Jazz; Films`, `Parent notes: "Coltrane"`, `Title: 🎷 Giant Steps` with the
+note's icon; parent notes are named by title only; lines without data are left out), read when the index event runs, so the place shapes every chunk's embedding; the header counts toward
 `note.rag.chunk-size`. `READY` means the note is readable; its follow-up indexing event may still be pending.
 
 A new summary note is indexed at once (`NOTE_INDEX_REQUESTED` without a key). Every later change reindexes a `READY`
@@ -280,7 +281,8 @@ note no earlier than `note.rag.reindex-delay` (default `1h`) after its last chan
 keeps one `PENDING` event per `dedup_key` `NOTE_INDEX_REQUESTED:<noteId>` and moves its `next_attempt_at`. A change
 while the event is running queues another one. What reindexes which notes:
 
-- edit of the content: the note; edit of the title or a rename: the note and its sub-notes (their parent chain);
+- edit of the content or the icon: the note; edit of the title or a rename: the note and its sub-notes (their parent
+  chain);
 - an applied summary update: the note;
 - adding, changing the main of, or removing a place; moving under a note or out: the note and its sub-notes;
 - deleting a note but keeping its sub-notes: those sub-notes and theirs;

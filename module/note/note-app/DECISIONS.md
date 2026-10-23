@@ -509,3 +509,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   `PUT /notes/{id}` (absent or null removes it, as PUT replaces the editable fields); the model never chooses one. Every
   response that names a note carries `icon` next to `title`.
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 1.
+
+## 2026-10-23 — The note icon goes into the prompts and the index title line
+
+- **Decision:** the summary prompt adds `Note icon (set by the user): 🎷` next to the user's title, the update prompt
+  and the RAG header's title line show `🎷 Giant Steps` (`NotePlaceText.titleWithIcon`). Parent notes in the header and
+  the prompts stay named by title only, so an icon change reindexes (debounced) only the note, not its sub-notes. The
+  `NoteDraft` title rule forbids emoji, so the model never duplicates the icon in the name.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 2.

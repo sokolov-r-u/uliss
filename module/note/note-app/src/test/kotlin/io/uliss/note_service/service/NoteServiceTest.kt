@@ -251,6 +251,27 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `updateNote of the icon alone saves it and reindexes only the note later`() {
+        val userId = UUID.randomUUID()
+        val note = readyNote(userId, version = 3)
+
+        val response = noteService.updateNote(userId, note.id, "Title", "body", 3, " 🎷 ")
+
+        assertEquals("🎷", response.icon)
+        Mockito.verify(noteRepository).saveAndFlush(note)
+        Mockito.verify(indexRequests).requestLater(userId, listOf(note.id))
+        Mockito.verifyNoMoreInteractions(indexRequests)
+    }
+
+    @Test
+    fun `updateNote rejects an icon that is not one emoji before loading the note`() {
+        assertFailsWith<BadRequestException> {
+            noteService.updateNote(UUID.randomUUID(), UUID.randomUUID(), "Title", "body", 0, "🎷🎺")
+        }
+        Mockito.verifyNoInteractions(noteRepository)
+    }
+
+    @Test
     fun `updateNote with nothing changed neither saves nor reindexes`() {
         val userId = UUID.randomUUID()
         val note = readyNote(userId, version = 3)
