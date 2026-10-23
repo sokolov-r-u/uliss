@@ -498,3 +498,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** every retry spends an attempt, so after `maxAttempts` attempts a turn whose lease later expires
   (a restart mid-reply) is failed instead of reclaimed by the resend after a reload; the user retries it again.
 - **Source:** task `docs/tasks/2026-10-22-chat-turn-detach-retry.md` (code review).
+
+## 2026-10-23 — A note has an emoji icon of the user's choice
+
+- **Decision:** `notes.icon` (nullable `varchar(32)`) holds one emoji, separate from the title, so renames, the
+  50-code-point title rule and search stay as they are. `NoteIconNormalizer` accepts exactly one extended grapheme
+  cluster (`BreakIterator`) made only of emoji and emoji components, whose base is emoji-presented (Emoji_Presentation,
+  VS16 or a keycap), so ZWJ sequences, skin tones, flags and keycaps pass and text, a bare digit or `©`, two emoji or
+  combining marks are `400`. The user sets it in `SummarizeRequest.icon` (CREATE only, stored on the placeholder) and in
+  `PUT /notes/{id}` (absent or null removes it, as PUT replaces the editable fields); the model never chooses one. Every
+  response that names a note carries `icon` next to `title`.
+- **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, block 1.

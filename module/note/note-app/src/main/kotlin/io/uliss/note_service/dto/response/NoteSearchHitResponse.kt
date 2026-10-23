@@ -9,6 +9,7 @@ data class NoteSearchHitResponse(
     val title: String?,
     val ancestors: List<NoteRefResponse>,
     val constellationId: UUID?,
+    val icon: String? = null,
 )
 
 fun NoteSearchHit.toResponse() = NoteSearchHitResponse(
@@ -16,4 +17,5 @@ fun NoteSearchHit.toResponse() = NoteSearchHitResponse(
     title = note.title,
     ancestors = ancestors.map { it.toRefResponse() },
     constellationId = constellationId,
+    icon = note.icon,
 )

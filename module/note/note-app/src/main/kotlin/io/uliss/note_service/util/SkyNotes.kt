@@ -27,6 +27,7 @@ object SkyNotes {
                     title = row.title.orEmpty(),
                     parentNoteId = parent?.id,
                     createdAt = row.createdAt,
+                    icon = row.icon,
                     memberships = if (parent == null) {
                         NotePlacement.ordered(memberships[(ancestors.lastOrNull() ?: row).id].orEmpty())
                     } else {

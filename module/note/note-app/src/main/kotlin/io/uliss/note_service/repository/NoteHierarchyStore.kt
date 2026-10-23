@@ -21,6 +21,7 @@ class NoteHierarchyStore(private val jdbcTemplate: JdbcTemplate) {
                     parentNoteId = rs.getObject("parent_note_id", UUID::class.java),
                     title = rs.getString("title"),
                     createdAt = rs.getTimestamp("created_at").toInstant(),
+                    icon = rs.getString("icon"),
                 )
             },
             userId,
@@ -45,7 +46,7 @@ class NoteHierarchyStore(private val jdbcTemplate: JdbcTemplate) {
 
     private companion object {
         const val FIND_NODES_SQL = """
-            SELECT id, parent_note_id, title, created_at
+            SELECT id, parent_note_id, title, icon, created_at
             FROM note.notes
             WHERE user_id = ?
         """

@@ -69,7 +69,7 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
     @Query(
         """
         SELECT new io.uliss.note_service.model.projection.CurrentChatSummary(
-            n.id, n.title, cn.summarizedThroughMessageId)
+            n.id, n.title, cn.summarizedThroughMessageId, n.icon)
         FROM ChatNoteEntity cn, NoteEntity n
         WHERE n.id = cn.chatNoteId.noteId
           AND cn.chatNoteId.chatId = :chatId

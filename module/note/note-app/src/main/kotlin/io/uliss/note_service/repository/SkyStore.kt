@@ -21,6 +21,7 @@ class SkyStore(private val jdbcTemplate: JdbcTemplate) {
                     title = rs.getString("title"),
                     status = NoteStatus.valueOf(rs.getString("status")),
                     createdAt = rs.getTimestamp("created_at").toInstant(),
+                    icon = rs.getString("icon"),
                 )
             },
             userId,
@@ -42,7 +43,7 @@ class SkyStore(private val jdbcTemplate: JdbcTemplate) {
 
     private companion object {
         const val FIND_NOTES_SQL = """
-            SELECT id, parent_note_id, title, status, created_at
+            SELECT id, parent_note_id, title, icon, status, created_at
             FROM note.notes
             WHERE user_id = ?
         """

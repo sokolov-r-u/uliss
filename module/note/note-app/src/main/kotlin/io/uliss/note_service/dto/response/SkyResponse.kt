@@ -18,8 +18,10 @@ data class SkyNoteResponse(
     val parentNoteId: UUID?,
     val createdAt: Instant,
     val memberships: List<NoteConstellationResponse>,
+    val icon: String? = null,
 )
 
 fun SkyView.toResponse() = SkyResponse(constellations.map { it.toResponse() }, notes.map { it.toResponse() })
 
-fun SkyNote.toResponse() = SkyNoteResponse(id, title, parentNoteId, createdAt, memberships.map { it.toResponse() })
+fun SkyNote.toResponse() =
+    SkyNoteResponse(id, title, parentNoteId, createdAt, memberships.map { it.toResponse() }, icon)

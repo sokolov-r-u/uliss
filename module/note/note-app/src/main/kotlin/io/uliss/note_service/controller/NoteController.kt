@@ -170,6 +170,7 @@ class NoteController(
         request.content,
         // Validated as @NotNull before the call.
         checkNotNull(request.version),
+        request.icon,
     )
 
     /** Streams a model rewrite of [AiEditNoteRequest.content]; refusals come back as JSON before the stream opens. */

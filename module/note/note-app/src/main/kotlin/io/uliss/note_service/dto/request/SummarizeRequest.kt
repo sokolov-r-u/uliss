@@ -12,4 +12,6 @@ data class SummarizeRequest(
     val parentNoteId: UUID? = null,
     /** The user's name for the new note (CREATE only); blank lets the model name it. */
     val title: String? = null,
+    /** The user's emoji for the new note (CREATE only); blank means none. */
+    val icon: String? = null,
 )

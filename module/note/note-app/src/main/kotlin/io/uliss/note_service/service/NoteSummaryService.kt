@@ -67,7 +67,7 @@ class NoteSummaryService(
      * summary worker later replaces the placeholder content and queues indexing after success.
      * A [constellationId] becomes the new note's main place, or a [parentNoteId] its parent, in the same transaction;
      * a replayed key keeps the place of its original request. A [title] is the user's name for the note; the worker
-     * then keeps it instead of asking the model for one.
+     * then keeps it instead of asking the model for one. An [icon] is the user's emoji; the model never sets one.
      */
     @Transactional
     fun requestChatSummary(
@@ -78,6 +78,7 @@ class NoteSummaryService(
         constellationId: UUID? = null,
         parentNoteId: UUID? = null,
         title: String? = null,
+        icon: String? = null,
     ): NoteEntity {
         val candidateNote = NoteEntity(
             userId = userId,
@@ -85,6 +86,7 @@ class NoteSummaryService(
             source = NoteSource.CHAT_SUMMARY,
             status = NoteStatus.GENERATING,
             title = title,
+            icon = icon,
         )
         val reservation = summaryRequestStore.reserve(
             userId = userId,

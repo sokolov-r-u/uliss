@@ -16,6 +16,7 @@ import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.service.tool.NoteSearch
+import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -103,8 +104,8 @@ class ChatFacade(
     /**
      * A known key replays its earlier result before the mode rules, so a retry after the boundary moved still gets
      * its note. CREATE needs a chat without a current note and may place the new note in [constellationId] or under
-     * [parentNoteId] (not both) and take the user's [title]; UPDATE must target the current note and have new
-     * messages, and takes no place or title. A new request, not a replay, lifts the chat in chat lists.
+     * [parentNoteId] (not both) and take the user's [title] and [icon]; UPDATE must target the current note and have
+     * new messages, and takes no place, title or icon. A new request, not a replay, lifts the chat in chat lists.
      */
     @Transactional
     fun requestSummary(
@@ -116,6 +117,7 @@ class ChatFacade(
         constellationId: UUID? = null,
         parentNoteId: UUID? = null,
         title: String? = null,
+        icon: String? = null,
     ): NoteEntity {
         if (mode == SummaryMode.UPDATE && (constellationId != null || parentNoteId != null)) {
             throw BadRequestException("an update keeps the note's place; change it on the note")
@@ -123,8 +125,13 @@ class ChatFacade(
         if (mode == SummaryMode.UPDATE && title != null) {
             throw BadRequestException("an update keeps the note's title; rename the note instead")
         }
+        if (mode == SummaryMode.UPDATE && icon != null) {
+            throw BadRequestException("an update keeps the note's icon; change it on the note")
+        }
         val userTitle = title?.takeIf { it.isNotBlank() }
             ?.let { TitleNormalizer.normalizeUserTitle(it) ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE) }
+        val userIcon = icon?.takeIf { it.isNotBlank() }
+            ?.let { NoteIconNormalizer.normalize(it) ?: throw BadRequestException(NoteIconNormalizer.USER_ICON_RULE) }
         if (constellationId != null && parentNoteId != null) {
             throw BadRequestException("a new note takes one place: a constellation or a parent note")
         }
@@ -138,7 +145,7 @@ class ChatFacade(
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
                 noteSummaryService.requestChatSummary(
-                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId, userTitle,
+                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId, userTitle, userIcon,
                 )
             }
 

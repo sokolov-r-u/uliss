@@ -736,7 +736,7 @@ class ChatControllerTest {
         val chatId = UUID.randomUUID()
         Mockito.`when`(chatFacade.requestSummary(
             anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull(),
-            Mockito.isNull(),
+            Mockito.isNull(), Mockito.isNull(),
         ))
             .thenThrow(NotFoundException("chat id=$chatId not found"))
 
@@ -754,7 +754,7 @@ class ChatControllerTest {
         val chatId = UUID.randomUUID()
         Mockito.`when`(chatFacade.requestSummary(
             anyValue(), anyValue(), anyValue(), anyValue(), Mockito.isNull(), Mockito.isNull(), Mockito.isNull(),
-            Mockito.isNull(),
+            Mockito.isNull(), Mockito.isNull(),
         ))
             .thenThrow(BadRequestException("chat id=$chatId has no messages to summarize"))
 

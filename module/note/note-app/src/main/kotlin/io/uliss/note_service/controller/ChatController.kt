@@ -162,7 +162,7 @@ class ChatController(
         val summarize = request ?: SummarizeRequest()
         val note = chatFacade.requestSummary(
             jwt.getUserId(), chatId, idempotencyKey, summarize.mode, summarize.targetNoteId, summarize.constellationId,
-            summarize.parentNoteId, summarize.title,
+            summarize.parentNoteId, summarize.title, summarize.icon,
         )
         val response = note.toChatSummaryResponse(chatId)
         // A replayed create may already be READY; the client tracks it from GENERATING.
