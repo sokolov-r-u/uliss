@@ -223,3 +223,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   over the card inside its focus trap and the card keeps its size. Replaces the step of "The app serves the emoji
   picker's data itself".
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 1.
+
+## 2026-10-27 — The note panel places a note with one picker and a path of crosses
+
+- **Context:** the panel had "+ Add constellation", "Move under a note", "Move out" and secondary places as chips.
+- **Decision:** the domain model stays (a note lives in constellations or under one parent note). Every place is a
+  full path row with a cross on each segment; a cross moves the note to the segment before it after a `Dialog` naming
+  the target and what is lost. A sub-note's path follows its top note's main line; leaving the parent drops the
+  parent's other places. "Add to…" offers constellations and notes to a top note, constellations to a sub-note. Every
+  move is one existing atomic request: a top note joins the ancestor (`NotePlacement.add` makes the place on that line
+  give way and pass on the main flag), a root cross removes the place, a sub-note uses `PUT`/`DELETE …/parent`. Adding
+  a constellation asks only when a place on the same line gives way. The dialog stacks its body with the longest error
+  in one grid cell, so a failure does not resize it.
+- **Consequences:** no server change; long paths wrap instead of collapsing to `root › … › leaf`.
+- **Source:** task `docs/tasks/2026-10-22-note-panel-place.md`, block 1.
