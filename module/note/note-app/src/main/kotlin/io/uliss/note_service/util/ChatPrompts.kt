@@ -119,10 +119,22 @@ object ChatPrompts {
         the thought is then left without reasoning. A sparse note is better than one filled with the assistant's
         views. Never add reasons, motives, or feelings the user did not state.
 
+        When the user accepts an assistant's explanation and draws their own conclusion from it ("so it's not a
+        flaw, it's just subtler than I thought"), the conclusion is the user's thought, not a passing reaction.
+        Keep only as much of the explanation as the conclusion needs to make sense on its own.
+
         New directions the assistant introduced (recommendations, lists, side topics) count only to the extent
         the user picked them up, agreed with them, pushed back on them, or built on them —
         keep just the part the user engaged with, framed the way the user took it, and drop the rest.
         Drop everything else, including the assistant's offers and follow-up questions.
+    """.trimIndent()
+
+    /** How the main thought is chosen; shared by the create and update prompts. */
+    private val MAIN_THOUGHT_RULES: String = """
+        When the user's view changed during the chat — they started with a doubt, a question, or an opinion and
+        reached a different one ("I thought X, but it turns out Y") — that change is usually the main thought:
+        write both where the user started and where they arrived. Never pick the main thought by what was
+        discussed last.
     """.trimIndent()
 
     /** Language, Markdown, terminology and related-note rules; shared by the create and update prompts. */
@@ -169,6 +181,7 @@ object ChatPrompts {
         The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
         so that together they read as one coherent note, not as separate fragments.
         """.trimIndent(),
+        MAIN_THOUGHT_RULES,
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
 
@@ -190,6 +203,7 @@ object ChatPrompts {
         that only support the main thought. There is no fixed limit, but never pad. The addition is shown under a
         date heading after the existing note, so do not add headings or a title.
         """.trimIndent(),
+        MAIN_THOUGHT_RULES,
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
 
