@@ -18,7 +18,7 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
 }) {
     return <>
         <PanelSection label="Constellation">
-            <NoteConstellationSection noteId={note.id} noteTitle={note.title} noteIcon={note.icon}
+            <NoteConstellationSection key={note.id} noteId={note.id} noteTitle={note.title} noteIcon={note.icon}
                                       onChanged={onPlaceChanged}/>
         </PanelSection>
         <SubNotesSection noteId={note.id} onOpen={onOpenNote}/>

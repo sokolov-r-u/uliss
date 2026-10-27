@@ -115,7 +115,7 @@ describe('NoteConstellationSection', () => {
         vi.mocked(setMainNoteConstellation).mockResolvedValue([place('films', true), place('jazz', false)])
 
         expect(within(screen.getByRole('group', {name: 'Music / Jazz'})).getByText('Main')).toBeInTheDocument()
-        await userEvent.click(screen.getByRole('button', {name: 'Films'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Make Films main'}))
 
         expect(setMainNoteConstellation).toHaveBeenCalledWith('n1', 'films', false)
         expect(await within(screen.getByRole('group', {name: 'Films'})).findByText('Main')).toBeInTheDocument()
@@ -282,13 +282,27 @@ describe('NoteConstellationSection', () => {
             expect(moveNoteUnder).toHaveBeenCalledWith('n1', 'bowie')
         })
 
+        it('names every parent note it leaves when the cross is higher up the chain', async () => {
+            vi.mocked(listConstellations).mockResolvedValue(SUB_TREE)
+            vi.mocked(getNotePlace).mockResolvedValue({
+                ancestors: [{id: 'bowie', title: 'Bowie'}, {id: 'low', title: 'Low'}, {id: 'side', title: 'Side A'}],
+                constellations: [place('rock', true)],
+            })
+            render(<MemoryRouter><NoteConstellationSection noteId="n1" noteTitle="Warszawa"/></MemoryRouter>)
+
+            await userEvent.click(await screen.findByRole('button', {name: 'Out of “Low”'}))
+
+            expect(screen.getByRole('dialog', {name: 'Move under “Bowie”?'}))
+                .toHaveTextContent('It leaves “Low” / “Side A” and lives where “Bowie” lives.')
+        })
+
         it('leaves the top note into its main constellation, naming the places it loses', async () => {
             await renderSubNote()
             vi.mocked(moveNoteOut).mockResolvedValue({ancestors: [], constellations: [place('rock', true)]})
 
             await userEvent.click(screen.getByRole('button', {name: 'Out of “Bowie”'}))
             expect(screen.getByRole('dialog', {name: 'Move to Music / Rock?'})).toHaveTextContent(
-                'It leaves “Low” and goes to Music / Rock only. It will no longer be in Films.')
+                'It leaves “Bowie” / “Low” and goes to Music / Rock only. It will no longer be in Films.')
             await userEvent.click(screen.getByRole('button', {name: 'Move'}))
 
             expect(moveNoteOut).toHaveBeenCalledWith('n1', 'rock')

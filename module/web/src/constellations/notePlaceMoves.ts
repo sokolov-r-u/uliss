@@ -16,6 +16,8 @@ export interface PlaceConfirmation {
     title: string
     body: string
     confirm: string
+    /** The confirm label while the change runs. */
+    busy: string
     change: PlaceChange
 }
 
@@ -28,6 +30,11 @@ export interface PlacedNode {
 /** A constellation's path from the root, `Music / Jazz`. */
 export function placePath(node: ConstellationNode): string {
     return [...node.ancestors, node].map((item) => item.name).join(' / ')
+}
+
+/** The parent notes a sub-note leaves, top first: `“Miles Davis” / “Kind of Blue”`. */
+function chain(notes: NoteRef[]): string {
+    return notes.map(quotedNote).join(' / ')
 }
 
 /** A note's name in a sentence, quoted. */
@@ -61,6 +68,7 @@ export function topMoveTo(places: PlacedNode[], target: ConstellationNode): Plac
         title: `Move to ${placePath(target)}?`,
         body: `It leaves ${list(lost.map((place) => placePath(place.node)))}.${stays}`,
         confirm: 'Move',
+        busy: 'Moving…',
         change: {kind: 'add', constellationId: target.id},
     }
 }
@@ -80,6 +88,7 @@ export function topCross(places: PlacedNode[], place: PlacedNode, index: number)
             ? 'The note will have no place left.'
             : `It stays in ${list(kept.map((item) => placePath(item.node)))}.${heir}`,
         confirm: 'Remove',
+        busy: 'Removing…',
         change: {kind: 'remove', constellationId: place.node.id},
     }
 }
@@ -92,6 +101,7 @@ export function topUnder(places: PlacedNode[], parent: NoteRef): PlaceConfirmati
         title: `Move under ${quotedNote(parent)}?`,
         body: `${leaves} where ${quotedNote(parent)} lives.`,
         confirm: 'Move',
+        busy: 'Moving…',
         change: {kind: 'under', parentNoteId: parent.id},
     }
 }
@@ -102,13 +112,15 @@ export function topUnder(places: PlacedNode[], parent: NoteRef): PlaceConfirmati
  */
 export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: ConstellationNode | null): PlaceConfirmation {
     const parent = ancestors[ancestors.length - 1]
+    // Leaving the parent leaves every note above it too.
     const lost = topPlaces.map((place) => placePath(place.node)).filter((path) => target === null || path !== placePath(target))
     const goes = target ? ` and goes to ${placePath(target)} only.` : ' and will have no place.'
     const noLonger = lost.length > 0 ? ` It will no longer be in ${list(lost)}.` : ''
     return {
         title: target ? `Move to ${placePath(target)}?` : `Move out of ${quotedNote(parent)}?`,
-        body: `It leaves ${quotedNote(parent)}${goes}${noLonger}`,
+        body: `It leaves ${chain(ancestors)}${goes}${noLonger}`,
         confirm: 'Move',
+        busy: 'Moving…',
         change: {kind: 'out', moveTo: target?.id ?? null},
     }
 }
@@ -126,12 +138,12 @@ export function subCross(ancestors: NoteRef[], topPlaces: PlacedNode[], index: n
     }
     const at = index - constellations.length
     if (at === 0) return subOut(ancestors, topPlaces, main)
-    const left = ancestors[at]
     const target = ancestors[at - 1]
     return {
         title: `Move under ${quotedNote(target)}?`,
-        body: `It leaves ${quotedNote(left)} and lives where ${quotedNote(target)} lives.`,
+        body: `It leaves ${chain(ancestors.slice(at))} and lives where ${quotedNote(target)} lives.`,
         confirm: 'Move',
+        busy: 'Moving…',
         change: {kind: 'under', parentNoteId: target.id},
     }
 }

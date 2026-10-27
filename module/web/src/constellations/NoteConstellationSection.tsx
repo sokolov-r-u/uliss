@@ -270,7 +270,7 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
             {picker}
             {error && <p className="note-places-error" role="alert">{error}</p>}
             {confirmation && <Dialog title={confirmation.title} width={340} busy={pending}
-                                     confirm={pending ? 'Moving…' : confirmation.confirm} cancel="Cancel"
+                                     confirm={pending ? confirmation.busy : confirmation.confirm} cancel="Cancel"
                                      confirmDisabled={pending}
                                      onConfirm={() => apply(confirmation.change, true)}
                                      onCancel={() => {
@@ -318,6 +318,7 @@ function PlacePath({place, marked, disabled, onMain, onCross}: {
                     <span className="note-places-segment">
                         {choosable
                             ? <button type="button" className="note-places-name" title="Make this place main"
+                                      aria-label={`Make ${placePath(place.node)} main`}
                                       disabled={disabled} onClick={onMain}>{node.name}</button>
                             : <span className={index === segments.length - 1
                                 ? 'note-places-name note-places-leaf' : 'note-places-name'}>{node.name}</span>}
