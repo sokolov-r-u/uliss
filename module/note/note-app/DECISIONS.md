@@ -526,3 +526,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   regional indicators) or a keycap (`#`, `*` or a digit, optional VS16, U+20E3). VS16 only right after a base, never
   twice; a ZWJ only between two emoji. A well-formed ZWJ sequence that is not RGI still passes (`docs/TECH_DEBT.md`).
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md` (code review).
+
+## 2026-10-27 — A conclusion from an accepted explanation and a changed view lead the note
+
+- **Context:** an update dropped the chat's main point ("I thought the finale was a plot hole, it is just subtler")
+  and led with the last topic: the conclusion rested on an assistant explanation the user accepted, which the thought
+  rules treated as the assistant's view, and nothing ranked a change of the user's view.
+- **Decision:** `USER_THOUGHT_RULES` counts a conclusion the user draws from an accepted assistant explanation as the
+  user's thought, keeping only as much of the explanation as it needs. A shared `MAIN_THOUGHT_RULES` block in both the
+  create and update prompts makes a change of the user's view during the chat (from a doubt, question or opinion to a
+  different one) the usual main thought, written as where they started and where they arrived, and forbids picking
+  the main thought by recency.
+- **Source:** branch `DE-note-summary-main-thought`.
