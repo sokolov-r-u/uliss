@@ -6,7 +6,8 @@ description: Use when the user brings a new feature, bug or change that needs a 
 # Spec-driven discussion in uliss
 
 Ideas adapted from Superpowers `brainstorming` v7 (github.com/obra/superpowers, MIT) and the EARS requirement form
-used by Kiro. Output is one task file from `docs/TASK_TEMPLATE.md`; nothing else is written.
+used by Kiro. Output is one task file from `docs/TASK_TEMPLATE.md`, plus `docs/TECH_DEBT.md` entries for problems the
+user defers; no code is written.
 
 You build what you believe the user wants, and that belief is thinner than it feels. The goal is a task file a
 builder could implement without asking anything that changes the result — and the user having seen every

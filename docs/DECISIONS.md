@@ -205,3 +205,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a hook can block a legitimate call; the fix is to change the hook with its tests, not to work
   around it. Env files are off limits to the agent. Personal permissions stay in `settings.local.json`.
 - **Source:** task `docs/tasks/2026-10-28-claude-tooling.md`, blocks 1–5.
+
+## 2026-10-28 — Spec-driven discussion is a project skill, not Spec Kit or Kiro
+
+- **Context:** with Superpowers disabled, the discussion step lost `brainstorming`; the user wants every task to
+  surface architecture problems and trade-offs, not only how to build it.
+- **Decision:** the `discuss` skill drives the Discussion and Plan steps: questions after reading the code, a
+  checklist (errors, data, contracts, transactions, security, performance, observability, scope), architecture
+  forks with two or three options and their trade-offs, EARS acceptance criteria, and a `builder-check` agent that
+  reads the task file before «го». GitHub Spec Kit was rejected for its own `specs/` tree and a `constitution.md`
+  duplicating CLAUDE.md; Kiro's three files per task for their weight. `docs/TASK_TEMPLATE.md` gains «Архитектурные
+  варианты».
+- **Source:** task `docs/tasks/2026-10-28-claude-tooling.md`, block 6.

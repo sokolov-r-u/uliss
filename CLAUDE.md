@@ -110,7 +110,8 @@
 
 ## Subagents and skills
 
-- Use subagents for: the code review before the report; broad read-only searches across many files (`Explore`, a
+- Use subagents for: the code review before the report; the `builder-check` of a task file before «го»; broad
+  read-only searches across many files (`Explore`, a
   cheaper model such as Sonnet or Haiku); self-contained web research.
 - The code review runs in separate agents without the implementing conversation's context, never inline in it: the
   author reviewing its own work misses what it already believes. Spawn them (`Agent`) with a self-contained brief: the

@@ -35,7 +35,8 @@ Adapted from Superpowers `systematic-debugging` (github.com/obra/superpowers, MI
 ## 4. Fix
 
 - Write a regression test that reproduces the bug and fails for the right reason (see the `tdd` skill), then make
-  one fix for the root cause. No "while I'm here" changes.
+  one fix for the root cause. No "while I'm here" changes. Exception: in `module/web` fix first and add the tests
+  after the user confirms the result in the UI (`module/web/CLAUDE.md`).
 - Re-run the failing test and the module's tests; report the command and its output.
 - **Three failed fixes → stop.** Each fix revealing a new problem elsewhere points at the design, not the code.
   Describe what you found to the user and discuss the options before a fourth attempt.
