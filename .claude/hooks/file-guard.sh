@@ -7,6 +7,13 @@ input=$(cat)
 path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' <<<"$input")
 [ -z "$path" ] && exit 0
 
+case "$path" in
+  */.claude/tdd-state/* | .claude/tdd-state/*)
+    echo "Blocked by .claude/hooks/file-guard.sh: the TDD hook state belongs to the hooks; only the user switches the rule off." >&2
+    exit 2
+    ;;
+esac
+
 name=$(basename "$path")
 if [[ "$name" =~ ^\.env(\.[[:alnum:]_-]+)*$ ]] && [ "$name" != ".env.example" ]; then
   echo "Blocked by .claude/hooks/file-guard.sh: env files are off limits; use .env.example or ask the user." >&2

@@ -70,6 +70,10 @@ if has "(^|[^[:alnum:]_-])psql([[:space:]]|$)"; then
   block "database scripts and psql need the user's explicit permission."
 fi
 
+if grep -q "tdd-state" <<<"$cmd"; then
+  block "the TDD hook state belongs to the hooks; only the user switches the rule off."
+fi
+
 # Env files hold secrets; quoted paths count too, so this checks the raw command.
 if perl -ne 'while (/(?<![\w.\/-])(?:[\w.\/-]*\/)?(\.env(?:\.[\w-]+)*)(?![\w])/g) { $f = 1 if $1 ne ".env.example" } END { exit !$f }' <<<"$cmd"; then
   block "env files are off limits; use .env.example or ask the user for the value you need."

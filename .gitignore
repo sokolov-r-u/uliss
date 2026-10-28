@@ -61,6 +61,9 @@ ds-bundle/
 .design-sync/learnings/
 .design-sync/node_modules
 
+# Claude Code TDD hook state
+/.claude/tdd-state/
+
 # jqwik local run database
 .jqwik-database
 
