@@ -70,4 +70,22 @@ if has "(^|[^[:alnum:]_-])psql([[:space:]]|$)"; then
   block "database scripts and psql need the user's explicit permission."
 fi
 
+# Env files hold secrets; quoted paths count too, so this checks the raw command.
+if perl -ne 'while (/(?<![\w.\/-])(?:[\w.\/-]*\/)?(\.env(?:\.[\w-]+)*)(?![\w])/g) { $f = 1 if $1 ne ".env.example" } END { exit !$f }' <<<"$cmd"; then
+  block "env files are off limits; use .env.example or ask the user for the value you need."
+fi
+
+ask() {
+  jq -n --arg r "$1" \
+    '{hookSpecificOutput: {hookEventName: "PreToolUse", permissionDecision: "ask", permissionDecisionReason: $r}}'
+  exit 0
+}
+
+if has "(^|[[:space:]:])boot(Test)?Run([[:space:]]|$)" \
+  || has "${start}java([[:space:]]+-[^[:space:]]+)*[[:space:]]+-jar([[:space:]]|$)" \
+  || has "${start}docker([[:space:]]+compose|-compose)([[:space:]]+[^;&|]*)?[[:space:]](up|start|restart)([[:space:]]|$)" \
+  || has "${start}npm[[:space:]]+(run[[:space:]]+)?(dev|preview|start)([[:space:]]|$)"; then
+  ask "Starting an application needs the user's permission (CLAUDE.md, Hard operational limits)."
+fi
+
 exit 0
