@@ -19,6 +19,7 @@
 
 1. **Discussion.** Before any code, ask until the final result and acceptance criteria are unambiguous: behavior,
    edge cases, errors, UI, what is out of scope. Ask in Russian; use the web when it helps. Do not write code yet.
+   Follow the `discuss` skill: architecture options with trade-offs, EARS criteria, builder check before «го».
 2. **Plan.** Write `docs/tasks/YYYY-MM-DD-<short-name>.md` from `docs/TASK_TEMPLATE.md`, in Russian. Split the work
    into logical blocks; each block is one commit and lists its tests. Skip the file only when the user explicitly says
    to just do a small change.
@@ -120,8 +121,8 @@
 - Do not use subagents for implementation, TDD steps, or anything that needs this conversation's context.
 - A subagent brief is self-contained. Its output is a claim, not a fact: verify every finding against the code before
   acting, evaluate findings in Russian, and fix only confirmed ones.
-- Project skills in `.claude/skills/`: `tdd` for every behavior change in a JVM module, `debugging` for any failure
-  before a fix. Superpowers is disabled for this project.
+- Project skills in `.claude/skills/`: `discuss` for a new task, `tdd` for every behavior change in a JVM module,
+  `debugging` for any failure before a fix. Superpowers is disabled for this project.
 - Hooks in `.claude/hooks/` enforce the rules without exceptions (git, processes, env files, skipped tests, TODOs,
   inline versions, test first). A blocked call's message says why: follow it, never work around it. Hook tests:
   `.claude/hooks/test/run.sh`.
