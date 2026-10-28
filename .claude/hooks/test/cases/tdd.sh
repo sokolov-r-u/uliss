@@ -68,6 +68,11 @@ edited s-e "$NOTE_TEST"
 failed_run s-e "Execution failed for task ':note:compileKotlin'."
 expect block tdd-gate.sh "$(gate_call s-e "$NOTE_MAIN")" "main compilation failure"
 
+# A red run before the test edit is an old failure, not the new test
+failed_run s-f "Execution failed for task ':note:test'."
+edited s-f "$NOTE_TEST"
+expect block tdd-gate.sh "$(gate_call s-f "$NOTE_MAIN")" "red recorded before the test edit"
+
 # Paths outside production Kotlin are not gated
 expect allow tdd-gate.sh "$(gate_call s-x "$NOTE_TEST")" "test file"
 expect allow tdd-gate.sh "$(gate_call s-x "$PROJECT/module/note/note-app/src/main/resources/application.yml")" "resources"

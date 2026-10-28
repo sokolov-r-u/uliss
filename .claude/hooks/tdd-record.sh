@@ -9,13 +9,23 @@ session=$(jq -r '.session_id // empty' <<<"$input")
 tool=$(jq -r '.tool_name // empty' <<<"$input")
 [ -z "$session" ] && exit 0
 
+file=$(state_file "$session")
+
+# Adds a module to a key; a red counts only after a test edit of that module. A lock directory serializes
+# concurrent hook runs of one session.
 add() { # key module
-  local file tmp
-  file=$(state_file "$session")
+  local lock="$file.lock" tries=0 tmp="$file.$$"
   mkdir -p "$STATE_DIR"
+  until mkdir "$lock" 2>/dev/null; do
+    tries=$((tries + 1))
+    [ "$tries" -gt 50 ] && return 0
+    sleep 0.1
+  done
   [ -f "$file" ] || echo '{"tests": [], "red": []}' >"$file"
-  tmp="$file.$$"
-  jq --arg k "$1" --arg m "$2" '.[$k] = ((.[$k] + [$m]) | unique)' "$file" >"$tmp" && mv "$tmp" "$file"
+  jq --arg k "$1" --arg m "$2" '
+    if $k == "red" and ((.tests | index($m)) | not) then . else .[$k] = ((.[$k] + [$m]) | unique) end
+  ' "$file" >"$tmp" && mv "$tmp" "$file"
+  rmdir "$lock"
 }
 
 case "$tool" in

@@ -4,8 +4,7 @@
 set -u
 
 input=$(cat)
-path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // empty' <<<"$input")
-[ -z "$path" ] && exit 0
+path=$(jq -r '.tool_input.file_path // .tool_input.notebook_path // .tool_input.path // "."' <<<"$input")
 
 case "$path" in
   */.claude/tdd-state/* | .claude/tdd-state/*)
@@ -14,10 +13,24 @@ case "$path" in
     ;;
 esac
 
-name=$(basename "$path")
-if [[ "$name" =~ ^\.env(\.[[:alnum:]_-]+)*$ ]] && [ "$name" != ".env.example" ]; then
+env_block() {
   echo "Blocked by .claude/hooks/file-guard.sh: env files are off limits; use .env.example or ask the user." >&2
   exit 2
+}
+
+name=$(basename "$path")
+if [[ "$name" =~ ^\.env(\.[[:alnum:]_-]+)*$ ]] && [ "$name" != ".env.example" ]; then
+  env_block
+fi
+
+# A Grep glob that starts with a dot and matches an env file name.
+glob=$(jq -r '.tool_input.glob // empty' <<<"$input")
+glob="${glob##*/}"
+if [[ "$glob" == .* ]]; then
+  for candidate in .env .env.local .env.production; do
+    # shellcheck disable=SC2053 # the glob is a pattern on purpose
+    [[ "$candidate" == $glob ]] && env_block
+  done
 fi
 
 exit 0
