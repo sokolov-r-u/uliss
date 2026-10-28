@@ -23,11 +23,11 @@ if [[ "$name" =~ ^\.env(\.[[:alnum:]_-]+)*$ ]] && [ "$name" != ".env.example" ];
   env_block
 fi
 
-# A Grep glob that starts with a dot and matches an env file name.
+# A Grep glob that names env files; a bare * is left alone, as ripgrep skips hidden and ignored files.
 glob=$(jq -r '.tool_input.glob // empty' <<<"$input")
 glob="${glob##*/}"
-if [[ "$glob" == .* ]]; then
-  for candidate in .env .env.local .env.production; do
+if [[ "$glob" == *env* ]]; then
+  for candidate in .env .env.local .env.development .env.production; do
     # shellcheck disable=SC2053 # the glob is a pattern on purpose
     [[ "$candidate" == $glob ]] && env_block
   done

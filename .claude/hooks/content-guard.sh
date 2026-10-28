@@ -44,7 +44,7 @@ case "$path" in
 esac
 
 if $is_test; then
-  if adds "@(Disabled|Ignore)([^[:alnum:]_]|$)"; then
+  if adds "@(Disabled[[:alnum:]_]*|Ignore)([^[:alnum:]_]|$)"; then
     block "tests are never disabled (CLAUDE.md, Testing rules); fix the test or ask the user."
   fi
   if adds "(^|[^[:alnum:]_])(it|test|describe|suite|context)\.(skip|only|todo|fixme|skipIf|runIf)([^[:alnum:]_]|$)" \

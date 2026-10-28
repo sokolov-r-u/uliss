@@ -90,4 +90,10 @@ expect block file-guard.sh "$(jq -n --arg p "$PROJECT/.claude/tdd-state/off" \
   '{hook_event_name: "PreToolUse", session_id: "s1", tool_name: "Write", tool_input: {file_path: $p, content: ""}}')" \
   "agent switches the rule off through Write"
 
+# A stale lock left by a crashed hook does not lose records
+mkdir -p "$(dirname "$PROJECT")/proj/.claude/tdd-state/s-lock.json.lock"
+TDD_LOCK_TRIES=2 edited s-lock "$NOTE_TEST"
+TDD_LOCK_TRIES=2 failed_run s-lock "Execution failed for task ':note:test'."
+expect allow tdd-gate.sh "$(gate_call s-lock "$NOTE_MAIN")" "records after a stale lock"
+
 unset PROJECT

@@ -18,7 +18,12 @@ add() { # key module
   mkdir -p "$STATE_DIR"
   until mkdir "$lock" 2>/dev/null; do
     tries=$((tries + 1))
-    [ "$tries" -gt 50 ] && return 0
+    if [ "$tries" -gt "${TDD_LOCK_TRIES:-50}" ]; then
+      # A lock older than the wait belongs to a crashed run.
+      rmdir "$lock" 2>/dev/null
+      tries=0
+      continue
+    fi
     sleep 0.1
   done
   [ -f "$file" ] || echo '{"tests": [], "red": []}' >"$file"
