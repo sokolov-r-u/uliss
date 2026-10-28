@@ -14,13 +14,15 @@ file=$(state_file "$session")
 # Adds a module to a key; a red counts only after a test edit of that module. A lock directory serializes
 # concurrent hook runs of one session.
 add() { # key module
-  local lock="$file.lock" tries=0 tmp="$file.$$"
+  local lock="$file.lock" tries=0 stale=false tmp="$file.$$"
   mkdir -p "$STATE_DIR"
   until mkdir "$lock" 2>/dev/null; do
     tries=$((tries + 1))
     if [ "$tries" -gt "${TDD_LOCK_TRIES:-50}" ]; then
-      # A lock older than the wait belongs to a crashed run.
+      # A lock older than the wait belongs to a crashed run; remove it once, then give up.
+      $stale && return 0
       rmdir "$lock" 2>/dev/null
+      stale=true
       tries=0
       continue
     fi

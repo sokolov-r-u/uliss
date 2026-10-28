@@ -15,7 +15,7 @@ my (@heredocs, @shell_fed);
 $cmd =~ s{(^|\n)([^\n]*?)<<-?[ \t]*(["']?)(\w+)\3([^\n]*)\n((?:.*?\n)?)[ \t]*\4[ \t]*(?=\n|$)}{
   my ($nl, $pre, $rest, $body) = ($1, $2, $5, $6);
   push @heredocs, $body;
-  push @shell_fed, $body if $pre =~ /(?:^|[\s;&|(])(?:ba|z|da)?sh(?:\s|$)/;
+  push @shell_fed, $body if $pre =~ /(?:^|[\s;&|(])(?:ba|z|da)?sh(?:\s|$)/ || $rest =~ /\|\s*(?:\S*\/)?(?:ba|z|da)?sh(?:\s|$)/;
   "$nl$pre<<HD$#heredocs$rest"
 }gse;
 
@@ -28,11 +28,12 @@ sub scan {
     my ($sq, $dq, $plain) = ($1, $2, $3);
     if (defined $plain) { $code .= $plain; $text .= $plain; next }
     my $body = defined $sq ? $sq : $dq;
-    my $is_message = $code =~ /(?:^|\s)(?:-[A-Za-z]*m|--message=?)\s*$/;
-    push @inner, $body if $code =~ /(?:^|[\s;&|(])(?:(?:ba|z|da)?sh\s+(?:-\w+\s+)*-\w*c|eval)\s*$/;
+    my $tail = substr($code, -80);
+    my $is_message = $tail =~ /(?:^|\s)(?:-[A-Za-z]*m|--message=?)\s*$/;
+    push @inner, $body if $tail =~ /(?:^|[\s;&|(])(?:(?:ba|z|da)?sh\s+(?:-\w+\s+)*-\w*c|eval)\s*$/;
     if (defined $dq) {
-      push @inner, $1 while $dq =~ /\$\(([^()]*)\)/g;
-      push @inner, $1 while $dq =~ /`([^`]*)`/g;
+      push @inner, $1 while $dq =~ /(?<!\\)\$\(([^()]*)\)/g;
+      push @inner, $1 while $dq =~ /(?<!\\)`((?:[^`\\]|\\.)*)`/g;
     }
     $code .= ' ';
     $text .= $is_message ? ' ' : " $body ";
@@ -57,7 +58,7 @@ my $text = join "\n", @texts;
 
 my $end = qr/(?=\s|$|[;&|)`}])/;
 my $seg = qr/[^;&|\n]*/;
-my $start = qr/(?:^|[;&|(`{]|\b(?:then|do|else|elif)\b)\s*(?:(?:[A-Za-z_]\w*=\S*|env|command|time|nohup|sudo|builtin|exec|nice(?:\s+-n\s*\S+)?|xargs(?:\s+(?:-[IEdLnPs]\s+\S+|-\S+))*)\s+)*/m;
+my $start = qr/(?:^|[;&|(`{]|\b(?:then|do|else|elif|if|while|until)\b|!)\s*(?:(?:[A-Za-z_]\w*=\S*|env|command|time|nohup|sudo|builtin|exec|npx|nice(?:\s+-n\s*\S+)?|xargs(?:\s+(?:-[IEdLnPs]\s+\S+|-\S+))*)\s+)*/m;
 my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path)(?:=\S+|\s+\S+)|--[a-z-]+(?:=\S+)?|-[A-Za-z]))*\s+/m;
 
 # Git, processes and the database
@@ -79,7 +80,8 @@ while ($code =~ /${git}restore$end($seg)/mg) {
 decide('block', "stage explicit paths, never git add -A / . / -u / * (CLAUDE.md, Commits).")
   if $code =~ /${git}add\s+(?:$seg\s)?(?:--all|--update|-(?!-)[A-Za-z]*[Au][A-Za-z]*|\.\/?|:\/|\*)(?=\s|$|[;&|)])/m;
 decide('block', "stopping processes needs the user's explicit permission; ask the user to do it.")
-  if $code =~ /${start}(?:\S*\/)?(?:kill|pkill|killall)$end/m;
+  if $code =~ /${start}(?:\S*\/)?(?:kill|pkill|killall|kill-port)$end/m
+  || $code =~ /${start}(?:\S*\/)?fuser\b$seg\s-\w*k/m;
 decide('block', "database scripts and psql need the user's explicit permission.")
   if $code =~ /${start}(?:\S*\/)?psql$end/m || $code =~ /\bexec\b$seg\spsql$end/m;
 
@@ -112,7 +114,11 @@ my $branch;
 for my $source (@sources) {
   for my $words (commands($source)) {
     my @w = @$words;
-    shift @w while @w && ($w[0] =~ /^[A-Za-z_]\w*=/ || $w[0] =~ /^(?:env|command|time|nohup|sudo|builtin|exec|nice)$/);
+    while (@w) {
+      if ($w[0] =~ /^[A-Za-z_]\w*=/ || $w[0] =~ /^(?:env|command|time|nohup|sudo|builtin|exec|nice|then|do|else|elif|if|while|until|!)$/) { shift @w }
+      elsif ($w[0] eq "xargs") { shift @w; while (@w && $w[0] =~ /^-/) { my $o = shift @w; shift @w if $o =~ /^-[IEdLnPs]$/ } }
+      else { last }
+    }
     next unless @w && $w[0] =~ m{(?:^|/)git$};
     shift @w;
     while (@w && $w[0] =~ /^-/) {
@@ -145,7 +151,7 @@ for my $source (@sources) {
     decide('block', "never commit to main; ask the user which branch to create or switch to.") if $branch eq 'main';
     my $message = join "\n\n", @messages;
     if (defined $file) {
-      if ($file eq '-') {
+      if ($file eq "-" || $file eq "/dev/stdin") {
         my ($hd) = map { /^<<HD(\d+)/ ? $1 : () } @w;
         $message = defined $hd ? $heredocs[$hd] : '';
       } else {
@@ -181,6 +187,8 @@ decide('ask', "Starting or stopping an application needs the user's permission (
   || $code =~ /${start}docker(?:\s+compose|-compose)\b$seg\s(?:up|start|restart|stop|down|kill|rm|run|create|pause)(?=\s|$)/m
   || $code =~ /${start}docker\s+(?:container\s+)?(?:run|start|restart|stop|kill|rm|pause)(?=\s|$)/m
   || $code =~ /${start}npm\b$seg\s(?:dev|preview|start|[\w:-]*serve)(?=\s|$)/m
-  || $code =~ /${start}(?:npx\s+)?vite(?:\s+(?:dev|serve|preview)(?=\s|$)|\s*(?=$|[;&|)]))/m;
+  || $code =~ /${start}(?:npx\s+)?vite(?:\s+(?:dev|serve|preview)(?=\s|$)|(?=\s+-)|\s*(?=$|[;&|)]))/m
+  || $code =~ /${start}docker\s+(?:volume|image|system|container|network)\s+(?:rm|prune)(?=\s|$)/m
+  || $code =~ /gradlew\b$seg\s--stop(?=\s|$)/m;
 
 exit 0;
