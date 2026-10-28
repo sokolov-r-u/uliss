@@ -111,18 +111,21 @@
 
 - Use subagents for: the code review before the report; broad read-only searches across many files (`Explore`, a
   cheaper model such as Sonnet or Haiku); self-contained web research.
-- The code review runs in a separate agent without the implementing conversation's context, never inline in it: the
-  author reviewing its own work misses what it already believes. Spawn it (`Agent`) with a self-contained brief: the
-  task's commit range (base commit..HEAD), the task file, and the review recipe (`/code-review` at medium effort; high
-  plus `/security-review` for auth/security changes). Cover the whole range, including commits made after an earlier
+- The code review runs in separate agents without the implementing conversation's context, never inline in it: the
+  author reviewing its own work misses what it already believes. Spawn them (`Agent`) with a self-contained brief: the
+  task's commit range (base commit..HEAD) and the task file. Two reviews: a bug review (`/code-review` at medium effort;
+  high plus `/security-review` for auth/security changes) and the `reviewer` agent (`.claude/agents/reviewer.md`),
+  which checks the range against the task file. Cover the whole range, including commits made after an earlier
   review round.
 - Do not use subagents for implementation, TDD steps, or anything that needs this conversation's context.
 - A subagent brief is self-contained. Its output is a claim, not a fact: verify every finding against the code before
   acting, evaluate findings in Russian, and fix only confirmed ones.
-- Superpowers: use `test-driven-development`, `verification-before-completion`, and `systematic-debugging`.
-  `brainstorming` and `writing-plans` may guide the discussion and plan, but their output goes only into the task file
-  in `docs/tasks/` — never `docs/superpowers/`, never committed. Do not use `finishing-a-development-branch` or
-  `using-git-worktrees`; use `subagent-driven-development` only when the user asks.
+- Project skills in `.claude/skills/`: `tdd` for every behavior change in a JVM module, `debugging` for any failure
+  before a fix. Superpowers is disabled for this project.
+- Hooks in `.claude/hooks/` enforce the rules without exceptions (git, processes, env files, skipped tests, TODOs,
+  inline versions, test first). A blocked call's message says why: follow it, never work around it. Hook tests:
+  `.claude/hooks/test/run.sh`.
+- Before claiming that a check passes, run it in the same turn and report the command and its result.
 
 ## Final report
 
