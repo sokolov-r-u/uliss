@@ -189,3 +189,31 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   in `io.uliss.kotlin-conventions` reminds of it; `.github/dependabot.yml` is unchanged and its Kotlin updates are
   reverted in the monthly review.
 - **Source:** task `docs/tasks/2026-10-21-dependency-majors.md`, block 2.
+
+## 2026-10-28 — Claude Code rules without exceptions are hooks; project skills replace Superpowers
+
+- **Context:** CLAUDE.md rules are read by the model and followed most of the time, not every time. Superpowers
+  injected its bootstrap into every session, pushed its own brainstorming and plan flow against the task lifecycle,
+  and most of its skills were forbidden or unused here.
+- **Decision:** rules with zero exceptions live in `.claude/hooks/` (bash + jq, tested by
+  `.claude/hooks/test/run.sh`) and permission rules in `.claude/settings.json`, which is now committed. Test first
+  is enforced by a deterministic hook (`tdd-gate.sh`: a test edit plus a red Gradle run of the same module in the
+  session), not by an LLM validator such as TDD Guard, which supports neither Kotlin nor Gradle. Superpowers and the
+  plugins duplicating built-ins (`code-review`, `code-simplifier`) are disabled for the project; project skills
+  `tdd` (rules adapted from TDD Guard) and `debugging` (adapted from Superpowers) replace them; the
+  `reviewer` agent checks a commit range against its task file next to `/code-review`.
+- **Consequences:** a hook can block a legitimate call; the fix is to change the hook with its tests, not to work
+  around it. Env files are off limits to the agent. Personal permissions stay in `settings.local.json`.
+- **Source:** task `docs/tasks/2026-10-28-claude-tooling.md`, blocks 1–5.
+
+## 2026-10-28 — Spec-driven discussion is a project skill, not Spec Kit or Kiro
+
+- **Context:** with Superpowers disabled, the discussion step lost `brainstorming`; the user wants every task to
+  surface architecture problems and trade-offs, not only how to build it.
+- **Decision:** the `discuss` skill drives the Discussion and Plan steps: questions after reading the code, a
+  checklist (errors, data, contracts, transactions, security, performance, observability, scope), architecture
+  forks with two or three options and their trade-offs, EARS acceptance criteria, and a `builder-check` agent that
+  reads the task file before «го». GitHub Spec Kit was rejected for its own `specs/` tree and a `constitution.md`
+  duplicating CLAUDE.md; Kiro's three files per task for their weight. `docs/TASK_TEMPLATE.md` gains «Архитектурные
+  варианты».
+- **Source:** task `docs/tasks/2026-10-28-claude-tooling.md`, block 6.

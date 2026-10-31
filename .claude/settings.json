@@ -1,0 +1,99 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(git push:*)",
+      "Bash(git reset:*)",
+      "Bash(git rebase:*)",
+      "Bash(git revert:*)",
+      "Bash(git commit --amend:*)",
+      "Bash(kill:*)",
+      "Bash(pkill:*)",
+      "Bash(psql:*)",
+      "EnterWorktree",
+      "Read(**/.env)"
+    ],
+    "ask": [
+      "DesignSync",
+      "mcp__idea__execute_terminal_command",
+      "mcp__idea__execute_run_configuration",
+      "mcp__idea__execute_tool",
+      "mcp__idea__run_inspection_kts",
+      "mcp__idea__xdebug_start_debugger_session",
+      "mcp__idea__xdebug_set_variable",
+      "mcp__idea__apply_patch",
+      "mcp__idea__create_new_file",
+      "mcp__idea__rename_refactoring",
+      "mcp__idea__reformat_file",
+      "mcp__idea__create_notebook",
+      "mcp__idea__edit_notebook",
+      "mcp__idea__run_notebook_cell",
+      "mcp__idea__execute_code_on_kernel",
+      "mcp__idea__configure_python_interpreter",
+      "mcp__idea__execute_sql_query",
+      "mcp__idea__create_database_connection",
+      "mcp__idea__edit_database_connection"
+    ]
+  },
+  "enabledPlugins": {
+    "superpowers@claude-plugins-official": false,
+    "code-review@claude-plugins-official": false,
+    "code-simplifier@claude-plugins-official": false
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/bash-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Read|Edit|Write|MultiEdit|NotebookEdit|Grep",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/file-guard.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/content-guard.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd-gate.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash|Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd-record.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/tdd-record.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

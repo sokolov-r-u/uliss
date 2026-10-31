@@ -60,7 +60,10 @@ ds-bundle/
 .design-sync/.cache/
 .design-sync/learnings/
 .design-sync/node_modules
-/.claude/settings.json
+
+# Claude Code personal settings and TDD hook state
+/.claude/settings.local.json
+/.claude/tdd-state/
 
 # jqwik local run database
 .jqwik-database
