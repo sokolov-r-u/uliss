@@ -6,6 +6,7 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import java.security.MessageDigest
+import java.time.Clock
 import java.util.HexFormat
 
 /**
@@ -16,6 +17,7 @@ import java.util.HexFormat
 class ReuseDetectingAuthorizationService(
     private val delegate: OAuth2AuthorizationService,
     private val jdbcTemplate: JdbcTemplate,
+    private val clock: Clock,
 ) : OAuth2AuthorizationService by delegate {
 
     private val log = AppLogger.of(ReuseDetectingAuthorizationService::class)
@@ -30,7 +32,9 @@ class ReuseDetectingAuthorizationService(
     }
 
     override fun findByToken(token: String, tokenType: OAuth2TokenType?): OAuth2Authorization? {
+        val start = clock.millis()
         val found = delegate.findByToken(token, tokenType)
+        log.debug("findByToken") { "find by ${tokenType?.value} found=${found != null} took ${clock.millis() - start} ms" }
         if (found != null || (tokenType != null && tokenType != OAuth2TokenType.REFRESH_TOKEN)) return found
 
         val reusedFrom = jdbcTemplate.queryForList(FIND_ROTATED, String::class.java, hash(token)).firstOrNull()

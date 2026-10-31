@@ -1,5 +1,8 @@
 package io.uliss.auth
 
+import ch.qos.logback.classic.Logger
+import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.core.read.ListAppender
 import com.jayway.jsonpath.JsonPath
 import com.nimbusds.jwt.JWTClaimsSet
 import com.nimbusds.jwt.SignedJWT
@@ -8,6 +11,7 @@ import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.TestContainersConfiguration
+import io.uliss.auth.filter.TokenRequestTimingFilter
 import io.uliss.auth.model.UserEntity
 import io.uliss.auth.model.UserStatus
 import io.uliss.auth.repository.UserRepository
@@ -15,6 +19,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
+import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -37,6 +42,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
 
 @Tag("integration")
 @SpringBootTest
@@ -190,6 +196,25 @@ class OAuth2ErrorContractTests {
             status { isBadRequest() }
             jsonPath("$.error") { value("invalid_grant") }
         }
+    }
+
+    @Test
+    fun `token endpoint logs the request timing including client authentication`() {
+        val timingLogger = LoggerFactory.getLogger(TokenRequestTimingFilter::class.java) as Logger
+        val logEvents = ListAppender<ILoggingEvent>().apply { start() }
+        timingLogger.addAppender(logEvents)
+        try {
+            mockMvc.post("/oauth2/token") {
+                param("grant_type", "refresh_token")
+                param("refresh_token", "not-a-real-refresh-token")
+                with(httpBasic(WEB_CLIENT, "wrong-secret"))
+            }.andExpect { status { isUnauthorized() } }
+        } finally {
+            timingLogger.detachAppender(logEvents)
+        }
+
+        val message = logEvents.list.single().formattedMessage
+        assertTrue("grant_type=refresh_token status=401" in message, message)
     }
 
     // ---------- authorize endpoint ----------
