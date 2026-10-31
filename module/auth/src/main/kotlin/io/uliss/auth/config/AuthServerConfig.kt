@@ -14,6 +14,8 @@ import org.springframework.security.oauth2.server.authorization.OAuth2Authorizat
 import org.springframework.security.oauth2.server.authorization.client.JdbcRegisteredClientRepository
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.security.oauth2.server.authorization.settings.AuthorizationServerSettings
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 
 @Configuration
@@ -35,6 +37,7 @@ class AuthServerConfig(
         registeredClientRepository: RegisteredClientRepository,
         authorizationSessionRepository: AuthorizationSessionRepository,
         clock: Clock,
+        transactionManager: PlatformTransactionManager,
     ): OAuth2AuthorizationService = ReuseDetectingAuthorizationService(
         SessionTrackingAuthorizationService(
             JdbcOAuth2AuthorizationService(jdbcTemplate, registeredClientRepository),
@@ -42,6 +45,7 @@ class AuthServerConfig(
         ),
         jdbcTemplate,
         clock,
+        TransactionTemplate(transactionManager),
     )
 
     @Bean

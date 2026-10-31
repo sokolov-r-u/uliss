@@ -10,6 +10,8 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.uliss.api.user.v1.UserInfoResponse
 import io.uliss.api.user.v1.UserServiceGrpc
+import io.uliss.auth.config.MutableClock
+import io.uliss.auth.config.MutableClockConfiguration
 import io.uliss.auth.config.TestContainersConfiguration
 import io.uliss.auth.filter.TokenRequestTimingFilter
 import io.uliss.auth.model.UserEntity
@@ -25,7 +27,12 @@ import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.context.annotation.Import
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException
+import org.springframework.security.oauth2.core.OAuth2ErrorCodes
+import org.springframework.security.oauth2.core.OAuth2RefreshToken
 import org.springframework.security.oauth2.server.authorization.JdbcOAuth2AuthorizationService
+import org.springframework.security.oauth2.server.authorization.OAuth2Authorization
+import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
 import org.springframework.security.oauth2.server.authorization.client.RegisteredClientRepository
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic
@@ -37,21 +44,31 @@ import org.springframework.test.web.servlet.post
 import org.springframework.web.util.UriComponentsBuilder
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
+import java.time.Duration
+import java.time.Instant
 import java.util.Base64
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 @Tag("integration")
 @SpringBootTest
 @AutoConfigureMockMvc
-@Import(TestContainersConfiguration::class)
+@Import(TestContainersConfiguration::class, MutableClockConfiguration::class)
 class OAuth2ErrorContractTests {
 
     @Autowired
     lateinit var mockMvc: MockMvc
+
+    @Autowired
+    lateinit var clock: MutableClock
+
+    @Autowired
+    lateinit var authorizationService: OAuth2AuthorizationService
 
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
@@ -67,6 +84,11 @@ class OAuth2ErrorContractTests {
 
     /** The auth-user id, as a real login sets it; refresh checks that user. */
     private lateinit var userIdName: String
+
+    @BeforeEach
+    fun resetClock() {
+        clock.reset()
+    }
 
     @BeforeEach
     fun createUser() {
@@ -354,7 +376,8 @@ class OAuth2ErrorContractTests {
         assertNotNull(refresh2)
         assertNotEquals(refresh1, refresh2, "reuseRefreshTokens=false -> refresh must rotate")
 
-        // old refresh no longer works
+        // old refresh no longer works once the retry grace window is over
+        clock.advance(GRACE_PASSED)
         mockMvc.post("/oauth2/token") {
             param("grant_type", "refresh_token")
             param("refresh_token", refresh1)
@@ -468,6 +491,7 @@ class OAuth2ErrorContractTests {
         assertNotNull(refresh2)
 
         // a stolen copy of the old token shows up: the session cannot tell who is legitimate and ends
+        clock.advance(GRACE_PASSED)
         refreshRequest(refresh1).andExpect {
             status { isBadRequest() }
             jsonPath("$.error") { value("invalid_grant") }
@@ -476,6 +500,86 @@ class OAuth2ErrorContractTests {
             status { isBadRequest() }
             jsonPath("$.error") { value("invalid_grant") }
         }
+    }
+
+    @Test
+    fun `a refresh repeated with the token it just rotated gets a new pair and keeps the session`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        refreshTokenOf(refreshRequest(refresh1).andExpect { status { isOk() } }.andReturn().response.contentAsString)
+
+        // the answer to the first refresh never reached the client, which repeats it
+        clock.advance(Duration.ofSeconds(29))
+        val retried = refreshTokenOf(
+            refreshRequest(refresh1).andExpect { status { isOk() } }.andReturn().response.contentAsString
+        )
+
+        refreshRequest(retried).andExpect { status { isOk() } }
+    }
+
+    @Test
+    fun `a token older than the last rotation revokes the session even within the grace window`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        val refresh2 = refreshTokenOf(refreshRequest(refresh1).andReturn().response.contentAsString)
+        val refresh3 = refreshTokenOf(refreshRequest(refresh2).andReturn().response.contentAsString)
+
+        refreshRequest(refresh1).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+        refreshRequest(refresh3).andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `a rotated token serves one retry only`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        refreshRequest(refresh1).andExpect { status { isOk() } }
+        val retried = refreshTokenOf(refreshRequest(refresh1).andReturn().response.contentAsString)
+
+        refreshRequest(refresh1).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.error") { value("invalid_grant") }
+        }
+        refreshRequest(retried).andExpect { status { isBadRequest() } }
+    }
+
+    @Test
+    fun `of two refreshes with one token only the first saved rotation wins, the other is temporarily unavailable`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        // both requests loaded the authorization before either saved its rotation
+        val first = assertNotNull(authorizationService.findByToken(refresh1, OAuth2TokenType.REFRESH_TOKEN))
+        val second = assertNotNull(authorizationService.findByToken(refresh1, OAuth2TokenType.REFRESH_TOKEN))
+
+        authorizationService.save(rotated(first, "first-rotation"))
+        val error = assertFailsWith<OAuth2AuthenticationException> {
+            authorizationService.save(rotated(second, "second-rotation"))
+        }
+
+        assertEquals(OAuth2ErrorCodes.TEMPORARILY_UNAVAILABLE, error.error.errorCode)
+        assertNotNull(authorizationService.findByToken("first-rotation", OAuth2TokenType.REFRESH_TOKEN))
+        assertNull(authorizationService.findByToken("second-rotation", OAuth2TokenType.REFRESH_TOKEN))
+    }
+
+    @Test
+    fun `a refresh stores no copy of the token it replaced in the authorization attributes`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        refreshRequest(refresh1).andExpect { status { isOk() } }
+
+        val attributes = jdbcTemplate.queryForList("select attributes from oauth2_authorization", String::class.java)
+        assertTrue(attributes.none { it?.contains(refresh1) == true }, "the replaced refresh token must not be persisted")
+    }
+
+    @Test
+    fun `signing out with a just-rotated token still ends the session`() {
+        val refresh1 = refreshTokenOf(exchange(obtainAuthorizationCode(VERIFIER)))
+        val refresh2 = refreshTokenOf(refreshRequest(refresh1).andReturn().response.contentAsString)
+
+        mockMvc.post("/oauth2/revoke") {
+            param("token", refresh1)
+            param("token_type_hint", "refresh_token")
+            with(httpBasic(WEB_CLIENT, WEB_SECRET))
+        }.andExpect { status { isOk() } }
+
+        refreshRequest(refresh2).andExpect { status { isBadRequest() } }
     }
 
     // ---------- helpers ----------
@@ -487,6 +591,17 @@ class OAuth2ErrorContractTests {
         param("code_verifier", VERIFIER)
         with(httpBasic(WEB_CLIENT, WEB_SECRET))
     }
+
+    /** What the refresh grant saves: the loaded authorization with a new refresh token. */
+    private fun rotated(authorization: OAuth2Authorization, refreshToken: String): OAuth2Authorization {
+        val now = Instant.now()
+        return OAuth2Authorization.from(authorization)
+            .refreshToken(OAuth2RefreshToken(refreshToken, now, now.plus(Duration.ofDays(1))))
+            .build()
+    }
+
+    private fun refreshTokenOf(tokenJson: String): String =
+        assertNotNull(readOrNull(tokenJson, "$.refresh_token"), "expected refresh_token")
 
     private fun exchange(code: String): String =
         exchangeRequest(code).andExpect { status { isOk() } }.andReturn().response.contentAsString
@@ -546,6 +661,7 @@ class OAuth2ErrorContractTests {
         runCatching { JsonPath.read<Any?>(json, path)?.toString() }.getOrNull()
 
     companion object {
+        val GRACE_PASSED: Duration = Duration.ofSeconds(31)
         const val WEB_CLIENT = "test-web-client"
         const val WEB_SECRET = "test-web-secret-0123456789abcdef0123"
         const val REDIRECT_URI = "http://localhost:3000/callback"

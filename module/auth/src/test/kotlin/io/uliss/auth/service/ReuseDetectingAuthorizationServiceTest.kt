@@ -13,6 +13,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.security.oauth2.server.authorization.OAuth2Authorization
 import org.springframework.security.oauth2.server.authorization.OAuth2AuthorizationService
 import org.springframework.security.oauth2.server.authorization.OAuth2TokenType
+import org.springframework.transaction.support.TransactionTemplate
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -46,7 +47,7 @@ class ReuseDetectingAuthorizationServiceTest {
     fun `logs how long finding an authorization by refresh token took`() {
         val authorization = Mockito.mock(OAuth2Authorization::class.java)
         val delegate = FindingDelegate(authorization) { clock.advance(Duration.ofMillis(4_200)) }
-        val service = ReuseDetectingAuthorizationService(delegate, JdbcTemplate(), clock)
+        val service = ReuseDetectingAuthorizationService(delegate, JdbcTemplate(), clock, TransactionTemplate())
 
         val found = service.findByToken("secret-refresh-token", OAuth2TokenType.REFRESH_TOKEN)
 
