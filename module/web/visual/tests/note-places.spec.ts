@@ -80,7 +80,12 @@ test('a cross moves the note to the segment before it, and the dialog keeps its 
     await expect(dialog.getByRole('alert')).toContainText('This note or constellation no longer exists.')
     expect(await dialog.boundingBox()).toEqual(before)
 
+    // While the move runs the dialog says so, at the same size.
+    await page.evaluate(() => sessionStorage.setItem('visual.place', 'hold'))
     await dialog.getByRole('button', {name: 'Move'}).click()
+    await expect(dialog.getByRole('button', {name: 'Moving…'})).toBeDisabled()
+    expect(await dialog.boundingBox()).toEqual(before)
+    await page.evaluate(() => sessionStorage.removeItem('visual.place'))
     await expect(dialog).toHaveCount(0)
     await expect(placeRow(page, 'Music')).toBeVisible()
     await expect(placeRow(page, 'Music').getByText('Main', {exact: true})).toBeVisible()

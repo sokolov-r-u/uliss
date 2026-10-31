@@ -298,7 +298,7 @@ function Cross({name, disabled, onClick}: { name: string; disabled: boolean; onC
 
 /**
  * A top note's place as a full path, leaf in accent, a cross on each segment. With several places the main one is
- * marked and a click on a segment name of another row makes that row main.
+ * marked; on another row the dot is the one "make main" button and a click on a segment name does the same.
  */
 function PlacePath({place, marked, disabled, onMain, onCross}: {
     place: PlacedNode
@@ -311,15 +311,22 @@ function PlacePath({place, marked, disabled, onMain, onCross}: {
     const choosable = marked && !place.main
     return (
         <div className="note-places-path" role="group" aria-label={placePath(place.node)}>
-            <TagDot color={constellationColor(place.node.hue, place.node.lightness)} size={8}/>
+            {choosable
+                ? <button type="button" className="note-places-dot" title="Make this place main"
+                          aria-label={`Make ${placePath(place.node)} main`} disabled={disabled} onClick={onMain}>
+                    <TagDot color={constellationColor(place.node.hue, place.node.lightness)} size={8}/>
+                </button>
+                : <TagDot color={constellationColor(place.node.hue, place.node.lightness)} size={8}/>}
             {segments.map((node, index) => (
                 <Fragment key={node.id}>
                     {index > 0 && <span className="note-places-sep" aria-hidden="true">/</span>}
                     <span className="note-places-segment">
                         {choosable
-                            ? <button type="button" className="note-places-name" title="Make this place main"
-                                      aria-label={`Make ${placePath(place.node)} main`}
-                                      disabled={disabled} onClick={onMain}>{node.name}</button>
+                            // The names repeat the dot's action for the mouse; the dot is the one control.
+                            ? <button type="button" tabIndex={-1} aria-hidden="true" disabled={disabled}
+                                      className={index === segments.length - 1
+                                          ? 'note-places-name note-places-leaf' : 'note-places-name'}
+                                      onClick={onMain}>{node.name}</button>
                             : <span className={index === segments.length - 1
                                 ? 'note-places-name note-places-leaf' : 'note-places-name'}>{node.name}</span>}
                         <Cross name={node.name} disabled={disabled} onClick={() => onCross(index)}/>

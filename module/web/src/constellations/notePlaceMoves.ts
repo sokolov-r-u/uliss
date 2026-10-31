@@ -113,7 +113,7 @@ export function topUnder(places: PlacedNode[], parent: NoteRef): PlaceConfirmati
 export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: ConstellationNode | null): PlaceConfirmation {
     const parent = ancestors[ancestors.length - 1]
     // Leaving the parent leaves every note above it too.
-    const lost = topPlaces.map((place) => placePath(place.node)).filter((path) => target === null || path !== placePath(target))
+    const lost = topPlaces.filter((place) => place.node.id !== target?.id).map((place) => placePath(place.node))
     const goes = target ? ` and goes to ${placePath(target)} only.` : ' and will have no place.'
     const noLonger = lost.length > 0 ? ` It will no longer be in ${list(lost)}.` : ''
     return {

@@ -68,12 +68,25 @@
     overflow-wrap: anywhere;
 }
 
+/* Another row: its dot makes it main, its names repeat that for the mouse. */
+.note-places-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
 button.note-places-name {
     cursor: pointer;
 }
 
-button.note-places-name:hover,
-button.note-places-name:focus-visible {
+.note-places-path:has(.note-places-dot:hover, .note-places-dot:focus-visible) .note-places-name,
+button.note-places-name:hover {
     color: var(--cream-dim);
 }
 
