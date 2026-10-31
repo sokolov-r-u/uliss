@@ -14,10 +14,10 @@ test('a star opens in the panel, takes a place there, shows up in Focus and is w
     await expect(panel.getByRole('heading', {name: 'The empty room'})).toBeVisible()
     await expect(panel).toContainText('Not in a constellation yet.')
 
-    await panel.getByRole('button', {name: /^\+ Add/}).click()
+    await panel.getByRole('button', {name: 'Add to…'}).click()
     await panel.getByRole('button', {name: /^Music/}).click()
     await panel.getByRole('button', {name: 'Add to Music'}).click()
-    await expect(panel.getByRole('button', {name: /^Music$/})).toBeVisible()
+    await expect(panel.getByRole('group', {name: 'Music', exact: true})).toBeVisible()
 
     // Skeleton hides the stars; Focus on Music shows the note placed there, and only it.
     await page.getByRole('button', {name: 'Skeleton'}).click()
@@ -90,11 +90,11 @@ test('a note found in the filter shows its constellation, its star and its panel
     await openRoute(page, '/sky')
     await sky(page).getByRole('button', {name: 'The empty room'}).click()
     const panel = starPanel(page)
-    await panel.getByRole('button', {name: /^\+ Add/}).click()
+    await panel.getByRole('button', {name: 'Add to…'}).click()
     await panel.getByRole('button', {name: /^Music/}).click()
     await panel.getByRole('button', {name: 'Add to Music'}).click()
     // the place is stored and the sky has read it again before the filter looks the note up
-    await expect(panel.getByRole('button', {name: /^Music$/})).toBeVisible()
+    await expect(panel.getByRole('group', {name: 'Music', exact: true})).toBeVisible()
     await page.getByRole('button', {name: 'Close'}).click()
     await page.getByRole('button', {name: 'Skeleton'}).click()
     await expect(sky(page).getByRole('button', {name: 'The empty room'})).toHaveCount(0)

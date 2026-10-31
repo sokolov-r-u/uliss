@@ -5,7 +5,8 @@
  * constellation tree lives in memory (`constellationsFake.ts`) and is empty with `?data=empty`. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
  * Summarize creates a generating note in the picked place or under a picked note; `?summary=old` gives chat c1 a note
- * that covers only its first answer, so Summarize offers an update. Notes can move under notes and back, and a note
+ * that covers only its first answer, so Summarize offers an update. `visual.place=fail-once` in `sessionStorage` fails
+ * the next change of a note's place. Notes can move under notes and back, and a note
  * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
@@ -286,6 +287,12 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/user/users/me/onboarding') return method === 'GET' ? json(onboarding()) : json({})
     if (url.pathname === '/note/chats') return json(chats)
     if (url.pathname === '/note/notes') return json(notes)
+    // Fails one change of a note's place when asked to, so the place dialog's error state can be checked
+    if (method !== 'GET' && /^\/note\/notes\/[^/]+\/(constellations|parent)/.test(url.pathname)
+        && sessionStorage.getItem('visual.place') === 'fail-once') {
+        sessionStorage.removeItem('visual.place')
+        return json({}, 404)
+    }
     const hierarchy = hierarchyResponse(url.pathname, method, String(init?.body ?? ''), url.searchParams)
     if (hierarchy) return hierarchy
     const constellation = constellationResponse(url.pathname, method, String(init?.body ?? ''), url.searchParams)

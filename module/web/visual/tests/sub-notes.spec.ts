@@ -13,23 +13,27 @@ async function openNote(page: Page, title: string) {
     await recentNotes(page).getByRole('button', {name: new RegExp(`^${title}`)}).first().click()
 }
 
-/** Puts the open note into Music › Jazz through its panel. */
-async function placeInJazz(page: Page) {
+/** Adds the open top note to the constellation reached through [walk]. */
+async function addPlace(page: Page, walk: string[]) {
     const panel = notePanel(page)
-    await panel.getByRole('button', {name: /^\+ Add/}).click()
-    await panel.getByRole('button', {name: /^Music/}).click()
-    await panel.getByRole('button', {name: /^Jazz/}).click()
-    await panel.getByRole('button', {name: 'Add to Jazz'}).click()
-    await expect(panel.getByRole('button', {name: /Music ›\s*Jazz/})).toBeVisible()
+    await panel.getByRole('button', {name: 'Add to…'}).click()
+    for (const name of walk) await panel.getByRole('button', {name: new RegExp(`^${name}`)}).click()
+    await panel.getByRole('button', {name: `Add to ${walk[walk.length - 1]}`}).click()
+    await expect(panel.getByRole('group', {name: walk.join(' / '), exact: true})).toBeVisible()
 }
 
-/** Moves the open note under the note found by [query]. */
+/** Puts the open note into Music / Jazz through its panel. */
+async function placeInJazz(page: Page) {
+    await addPlace(page, ['Music', 'Jazz'])
+}
+
+/** Moves the open note under the note found by [query], confirming the move. */
 async function moveUnder(page: Page, query: string, title: string) {
     const panel = notePanel(page)
-    await panel.getByRole('button', {name: 'Move under a note'}).click()
-    await panel.getByRole('textbox', {name: 'Move this note under…'}).fill(query)
-    await panel.getByRole('button', {name: new RegExp(`^${title}`)}).click()
+    await panel.getByRole('button', {name: 'Add to…'}).click()
+    await panel.getByRole('textbox', {name: 'Add this note to…'}).fill(query)
     await panel.getByRole('button', {name: `Move under ${title}`}).click()
+    await page.getByRole('dialog', {name: `Move under “${title}”?`}).getByRole('button', {name: 'Move'}).click()
     await expect(panel.getByRole('link', {name: title})).toBeVisible()
 }
 
@@ -47,9 +51,9 @@ const treeRow = (page: Page, name: string) => page.getByRole('list', {name: 'Con
 test('a note moved under another lives in its place, is counted there and nests under it', async ({page}) => {
     await nestUnderParent(page)
     const panel = notePanel(page)
-    await expect(panel).toContainText(`Lives where ${PARENT} lives.`)
-    await expect(panel).toContainText('Jazz ›')
-    await expect(panel.getByRole('button', {name: /^\+ Add/})).toHaveCount(0)
+    const path = panel.getByRole('group', {name: 'Place'})
+    await expect(path).toContainText('Jazz')
+    await expect(path.getByRole('button', {name: `Out of “${PARENT}”`})).toBeVisible()
 
     await panel.getByRole('link', {name: PARENT}).click()
     const subNotes = notePanel(page)
@@ -72,16 +76,41 @@ test('a sub-note moves out into a constellation, and never under its own sub-not
 
     // Moving the parent: its own sub-note is not offered.
     await panel.getByRole('link', {name: PARENT}).click()
-    await notePanel(page).getByRole('button', {name: 'Move under a note'}).click()
-    await notePanel(page).getByRole('textbox', {name: 'Move this note under…'}).fill('empty')
-    await expect(notePanel(page)).toContainText('Nothing matches.')
+    await notePanel(page).getByRole('button', {name: 'Add to…'}).click()
+    await notePanel(page).getByRole('textbox', {name: 'Add this note to…'}).fill('empty')
+    await expect(notePanel(page).getByText('0 / 0')).toBeVisible()
     await notePanel(page).getByRole('button', {name: 'Close picker'}).click()
 
     await openNote(page, 'The empty room')
-    await notePanel(page).getByRole('button', {name: 'Move out'}).click()
+    // A sub-note's picker offers constellations only.
+    await notePanel(page).getByRole('button', {name: 'Add to…'}).click()
     await notePanel(page).getByRole('button', {name: /^Films/}).click()
     await notePanel(page).getByRole('button', {name: 'Move to Films'}).click()
-    await expect(notePanel(page).getByRole('button', {name: 'Remove from Films'})).toBeVisible()
+    const dialog = page.getByRole('dialog', {name: 'Move to Films?'})
+    await expect(dialog).toContainText(`It leaves “${PARENT}” and goes to Films only. It will no longer be in Music / Jazz.`)
+    await dialog.getByRole('button', {name: 'Move'}).click()
+    await expect(notePanel(page).getByRole('group', {name: 'Films'})).toBeVisible()
+    await expect(notePanel(page).getByRole('link', {name: PARENT})).toHaveCount(0)
+})
+
+test('a cross on the parent leaves it along its main line, naming the parent\'s other places', async ({page}) => {
+    await openRoute(page, '/notes/n2')
+    await placeInJazz(page)
+    await addPlace(page, ['Films'])
+    await openNote(page, 'The empty room')
+    await moveUnder(page, 'gram', PARENT)
+    await openNote(page, 'Why I resisted it')
+    await moveUnder(page, 'empty', 'The empty room')
+
+    const path = notePanel(page).getByRole('group', {name: 'Place'})
+    // The main line of the top note, then the parent notes: a cross on each segment.
+    await expect(path.getByRole('button')).toHaveCount(4)
+    await path.getByRole('button', {name: `Out of “${PARENT}”`}).click()
+    const dialog = page.getByRole('dialog', {name: 'Move to Music / Jazz?'})
+    await expect(dialog).toContainText(`It leaves “${PARENT}” / “The empty room” and goes to Music / Jazz only.`
+        + ' It will no longer be in Films.')
+    await dialog.getByRole('button', {name: 'Move'}).click()
+    await expect(notePanel(page).getByRole('group', {name: 'Music / Jazz', exact: true})).toBeVisible()
     await expect(notePanel(page).getByRole('link', {name: PARENT})).toHaveCount(0)
 })
 
@@ -99,7 +128,7 @@ test('deleting a parent keeps its sub-notes in its place when asked to', async (
     await expect(dialog).toHaveCount(0)
 
     await openNote(page, 'The empty room')
-    await expect(notePanel(page).getByRole('button', {name: /Music ›\s*Jazz/})).toBeVisible()
+    await expect(notePanel(page).getByRole('group', {name: 'Music / Jazz', exact: true})).toBeVisible()
 })
 
 test('deleting a parent with all its sub-notes takes the whole branch', async ({page}) => {
