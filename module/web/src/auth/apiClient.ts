@@ -50,10 +50,27 @@ function signInAgain(): never {
   throw new AuthRequiredError()
 }
 
+/** Pause before repeating a refresh that failed on the network or server side. */
+export const REFRESH_RETRY_DELAY_MS = 1_000
+
+/**
+ * A failed refresh may still have rotated the token on the auth server (its answer was lost); the auth server accepts
+ * a repeat with the old token shortly after, so one retry recovers instead of showing an error.
+ */
+async function refreshWithRetry(refreshToken: string, idToken: string | null): Promise<Tokens> {
+  try {
+    return await refreshTokens(refreshToken, idToken)
+  } catch (error) {
+    if (error instanceof RefreshRejectedError) throw error
+    await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS))
+    return refreshTokens(refreshToken, idToken)
+  }
+}
+
 async function runRefresh(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
   if (!refreshToken) signInAgain()
   try {
-    return await refreshTokens(refreshToken, idToken)
+    return await refreshWithRetry(refreshToken, idToken)
   } catch (error) {
     if (error instanceof RefreshRejectedError) signInAgain()
     throw new SessionRefreshError(error)
