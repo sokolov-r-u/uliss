@@ -47,6 +47,18 @@ class BrokenToString {
     override fun toString(): String = throw IllegalStateException("toString failed")
 }
 
+/** Inherits `Object.toString`, which renders through `hashCode`; like `URL.hashCode`, this one is expensive. */
+class ExpensiveHash {
+    var hashCalls = 0
+
+    override fun hashCode(): Int {
+        hashCalls += 1
+        return 7
+    }
+
+    override fun equals(other: Any?): Boolean = other is ExpensiveHash
+}
+
 class LoggingAspectTest {
 
     private val logger = LoggerFactory.getLogger(SampleService::class.java) as Logger
@@ -186,6 +198,16 @@ class LoggingAspectTest {
 
         assertEquals("value=<unrenderable: IllegalStateException>", keyValues(0).getValue("args"))
         assertEquals("accepted", keyValues(0).getValue("result"))
+    }
+
+    @Test
+    fun `renders a value without its own toString by class and identity, never calling its hashCode`() {
+        val value = ExpensiveHash()
+
+        service.accept(value)
+
+        assertEquals(0, value.hashCalls)
+        assertEquals("value=ExpensiveHash@${Integer.toHexString(System.identityHashCode(value))}", keyValues(0).getValue("args"))
     }
 
     private companion object {

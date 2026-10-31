@@ -733,3 +733,14 @@ the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-secur
 - `NoteIconNormalizer` accepts any well-formed ZWJ sequence of emoji, also one that is not RGI (`😀‍😀`, drawn as two);
   checking against the RGI list would need the emoji data on the server.
 - Source: `docs/tasks/2026-10-22-note-icon-emoji.md` (code review).
+
+## Public host names resolve slowly inside containers (`infra`)
+
+Found 2026-10-31 (`docs/tasks/2026-10-31-refresh-timeout-session-loss.md`). Inside the Compose network,
+`auth.uliss.home` and `uliss.home` take about 4 s to resolve in the JVM (`InetAddress.getByName`) and 8 s with
+`getent`, then answer `127.0.0.1`; service names such as `auth` take under 1 ms. The JVM caches a positive answer for
+30 s, so the cost hits the first lookup after a pause. Nothing on a request path resolves these names any more (the
+`LoggingAspect` trace that did is fixed), but any future `URL.equals/hashCode`, HTTP call or client to the public
+host from a container would stall the same way. Likely an AAAA or upstream query through the Docker Desktop host
+resolver timing out; check `docker run --rm --network infra_default <image> getent ahosts auth.uliss.home` and fix in
+`infra/docker-compose.yml` (for example `extra_hosts` or a resolver option) without breaking the VPN access path.

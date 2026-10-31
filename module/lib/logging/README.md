@@ -10,6 +10,7 @@ Shared logging library for the JVM services (auto-configured, package `io.uliss.
   (`call` with `args`, `result`, `durationMs`; `call failed` with `args`, `exception`, `durationMs`). Nested calls
   therefore appear innermost first. Active only when the class logger is at DEBUG (`LOG_LEVEL_ULISS=debug`); disable entirely with
   `uliss.logging.aspect.enabled=false`. Values are truncated to 500 characters; reactive results are not rendered.
+  A value whose class inherits `Object.toString` prints as `ClassName@identity`, never through its `hashCode`.
 - `ConsoleLogPatternEnvironmentPostProcessor` — default text console pattern with `%kvp`, so key values stay visible
   outside structured logging.
 

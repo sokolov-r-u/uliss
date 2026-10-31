@@ -33,3 +33,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the interface methods. `@Sensitive` on a function masks its result. The fallback regex adds `credential`, `cookie`,
   `jwt`, `otp`, `state` and names ending in `code`. The unused `@MeasureTime` is removed.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 6.
+
+## 2026-10-31 — Traced values without their own toString print their identity
+
+- **Context:** `Object.toString` renders through `hashCode`. Tracing `RefreshGrantPolicy.checkRefresh` rendered an
+  `OAuth2Authorization`, whose `hashCode` reaches the `iss` claim stored as `java.net.URL`; `URL.hashCode` resolves the
+  host, and resolving the public auth host inside Docker took about 4 seconds. Every refresh after a pause ran into
+  the mediator's 5-second timeout.
+- **Decision:** `LoggingAspect` renders a value whose class inherits `Object.toString` as
+  `SimpleName@identityHashCode` and never calls its `hashCode`; the per-class check is cached in a `ClassValue`.
+- **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, block 5.
