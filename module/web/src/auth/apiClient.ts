@@ -4,8 +4,9 @@
  * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
-import {clearTokens, getTokens, isExpired, type Tokens} from './tokenStore'
+import {endSessionKeepingChatState, getTokens, isExpired, type Tokens} from './tokenStore'
 import {login, RefreshRejectedError, refreshTokens} from './authApi'
+import {readJwtClaims} from './jwtClaims'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
 export class AuthRequiredError extends Error {
@@ -45,7 +46,8 @@ function needsAuth(res: Response): boolean {
 let refreshing: Promise<Tokens> | null = null
 
 function signInAgain(): never {
-  clearTokens()
+  // the session ended on its own: a turn the user just sent survives the sign-in if the same user comes back
+  endSessionKeepingChatState()
   login()
   throw new AuthRequiredError()
 }
@@ -108,14 +110,7 @@ export async function refreshSession(): Promise<void> {
 
 /** Whether the current access token says blocking onboarding is pending; the services enforce it either way. */
 export function tokenRequiresOnboarding(): boolean {
-  const payload = getTokens()?.accessToken.split('.')[1]
-  if (!payload) return false
-  try {
-    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    return (JSON.parse(json) as { onboardingRequired?: unknown }).onboardingRequired === true
-  } catch {
-    return false
-  }
+  return readJwtClaims(getTokens()?.accessToken)?.onboardingRequired === true
 }
 
 const ONBOARDING_REQUIRED = 'ONBOARDING_REQUIRED'

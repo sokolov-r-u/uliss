@@ -5,7 +5,7 @@
  * are relative: in dev they go through the Vite proxy (same-origin), in prod the frontend is
  * served behind the same origin as the services.
  */
-import {clearTokens, setTokens, type Tokens} from './tokenStore'
+import {clearSession, setTokens, type Tokens} from './tokenStore'
 
 const RETURN_TO_KEY = 'uliss.returnTo'
 const LOGIN_RETRIED_KEY = 'uliss.loginRetried'
@@ -149,6 +149,6 @@ export async function logout(refreshToken: string | null, idToken: string | null
       // ignore — logout is best-effort
     }
   }
-  clearTokens()
+  clearSession()
   return redirectUrl
 }

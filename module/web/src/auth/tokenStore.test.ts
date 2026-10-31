@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it} from 'vitest'
-import {clearTokens, getTokens, setTokens} from './tokenStore'
+import {clearSession, getTokens, setTokens} from './tokenStore'
 
-describe('clearTokens', () => {
+describe('clearSession', () => {
     beforeEach(() => sessionStorage.clear())
 
     it("drops the tokens and the user's unsent chat turns and summary requests, nothing else", () => {
@@ -10,7 +10,7 @@ describe('clearTokens', () => {
         sessionStorage.setItem('uliss.chat-summary.v1:c2', '{}')
         sessionStorage.setItem('uliss.returnTo', '/notes')
 
-        clearTokens()
+        clearSession()
 
         expect(getTokens()).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-initial-turn.v1')).toBeNull()
