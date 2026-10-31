@@ -48,8 +48,9 @@ editing the SPA.
   then deploy it (`./gradlew buildAllImages`, `docker compose -f infra/docker-compose.yml --profile full up -d`) for
   the user's manual UI check.
 - After the user confirms the result in the UI, write the Vitest and Playwright tests for the changed behavior and run
-  `test`, `build`, and the Playwright specs of the touched screens; commit the tests with the code (or as a follow-up
-  commit of the same task). The full visual suite runs in CI on every pull request (`visual-checks` in
+  `test` and `build`; then run the code review and fix its confirmed findings, and only after that the Playwright
+  specs of the touched screens and any full visual run (they take minutes in Docker); commit the tests with the code
+  (or as a follow-up commit of the same task). The full visual suite runs in CI on every pull request (`visual-checks` in
   `.github/workflows/pr-checks.yml`); run it locally only when asked or in an epic's final task.
 - Inside an epic, a Playwright/visual test that fails because the task changes a screen that a later task of the same
   epic changes again may be skipped instead of updated:

@@ -112,6 +112,24 @@
     },
     "PendingStatus": {
       "cardMode": "column"
+    },
+    "ConstellationColorEditor": {
+      "cardMode": "column"
+    },
+    "ConstellationPicker": {
+      "cardMode": "column"
+    },
+    "EmojiPicker": {
+      "cardMode": "column"
+    },
+    "IconPicker": {
+      "cardMode": "column"
+    },
+    "NoteTitle": {
+      "cardMode": "column"
+    },
+    "PlaceField": {
+      "cardMode": "column"
     }
   },
   "readmeHeader": ".design-sync/conventions.md"

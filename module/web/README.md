@@ -64,6 +64,12 @@ for a sub-constellation), New sub-constellation, Move (`ConstellationPicker` wit
 "Make it a root" first) and Delete (the branch with its sub-constellations). Every change re-reads the tree; a refusal
 (taken name, cycle, gone) stays in the dialog or the panel. "Notes here" stays empty until notes join constellations.
 
+A note's panel shows its place (`NoteConstellationSection`): every constellation of a top note as a full path row (the
+main one marked; a click on another row makes it main), or for a sub-note one row — its top note's main line, its
+parent notes, itself. Each segment has a cross that moves the note to the segment before it (off the root: out of that
+place); `notePlaceMoves.ts` maps each cross and pick to one note-service request and the dialog text that names the
+target and what is lost. "Add to…" opens the picker with constellations and notes (a sub-note: constellations only).
+
 ## Chat
 
 `chatApi.ts` contains thin authenticated API wrappers. `lib/sse.ts` parses arbitrary SSE frames from an authenticated

@@ -31,9 +31,10 @@
 5. **Implement.** Follow the plan block by block with TDD and commit each block (see Commits). Do not stop between
    blocks. Stop and ask only when the plan or a contract must change, a failure is unrelated or repeats without
    progress, a contract would have to be weakened, or the scope grows materially.
-6. **Finish.** Run the final verification, the code review (see Subagents), fix confirmed findings, write the report
-   into the task file, and give the user a short version of it in the final message (see Final report). The task is
-   done only after the user reports the manual test result.
+6. **Finish.** Run the code review (see Subagents) and fix confirmed findings before the slow Docker-based checks
+   (the Playwright/visual suite, `integrationTest`), so a finding never forces another long run; then run the final
+   verification, write the report into the task file, and give the user a short version of it in the final message
+   (see Final report). The task is done only after the user reports the manual test result.
 
 - Do not resume an existing task file merely because its name looks related. First verify its status, base commit, and
   claims against the current branch and code.

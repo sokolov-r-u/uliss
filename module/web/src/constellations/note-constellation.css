@@ -12,65 +12,22 @@
     gap: 8px;
 }
 
-.note-places-main {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-}
-
-.note-places-main .context-text {
-    flex: 1;
-}
-
-.note-places-path,
-.note-places-action,
 .note-places-add {
-    min-height: 36px;
+    align-self: flex-start;
+    min-height: 32px;
     padding: 0 2px;
     border: 0;
     background: transparent;
     font-family: var(--font-text);
+    font-size: 9.5px;
+    letter-spacing: 2px;
     text-transform: uppercase;
+    color: var(--cream-dim);
     cursor: pointer;
 }
 
-.note-places-path {
-    flex: 0 1 auto;
-    display: inline-flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-    min-width: 0;
-    font-size: 10.5px;
-    letter-spacing: 1.6px;
-    text-align: left;
-}
-
-.note-places-crumb {
-    color: var(--text-faint);
-}
-
-.note-places-leaf {
-    color: var(--accent-2);
-}
-
-.note-places-action,
-.note-places-add {
-    font-size: 9.5px;
-    letter-spacing: 2px;
-    color: var(--text-muted);
-}
-
-.note-places-action.accent,
-.note-places-action[aria-expanded='true'],
 .note-places-add[aria-expanded='true'] {
     color: var(--accent-2);
-}
-
-.note-places-add {
-    align-self: flex-start;
-    color: var(--cream-dim);
 }
 
 .note-places button:disabled {
@@ -78,15 +35,106 @@
     cursor: not-allowed;
 }
 
-.note-places-chips {
+/* One place as a full path; a long path wraps between segments. */
+.note-places-path {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 14px;
+    gap: 2px 6px;
+    min-height: 36px;
+    padding: 4px 2px;
+    font-family: var(--font-text);
+    font-size: 10.5px;
+    letter-spacing: 1.6px;
+    line-height: 1.6;
+    text-transform: uppercase;
 }
 
-.note-places-chips button {
-    min-height: 32px;
+.note-places-segment {
+    display: inline-flex;
+    align-items: center;
+    gap: 1px;
+    min-width: 0;
+}
+
+.note-places-name {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: var(--text-faint);
+    overflow-wrap: anywhere;
+}
+
+/* Another row: its dot makes it main, its names repeat that for the mouse. */
+.note-places-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    cursor: pointer;
+}
+
+button.note-places-name {
+    cursor: pointer;
+}
+
+.note-places-path:has(.note-places-dot:hover, .note-places-dot:focus-visible) .note-places-name,
+button.note-places-name:hover {
+    color: var(--cream-dim);
+}
+
+.note-places-leaf {
+    color: var(--accent-2);
+}
+
+.note-places-sep {
+    color: var(--text-faint);
+    opacity: 0.6;
+}
+
+.note-places-cross {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--text-faint);
+    cursor: pointer;
+}
+
+.note-places-cross:hover,
+.note-places-cross:focus-visible {
+    color: var(--terracotta);
+}
+
+.note-places-mark {
+    margin-left: 4px;
+    font-size: 8.5px;
+    letter-spacing: 2px;
+    color: var(--accent-2);
+    opacity: 0.8;
+}
+
+.note-places-note {
+    color: var(--cream-dim);
+    text-decoration: underline;
+    text-decoration-color: var(--line-strong);
+    text-underline-offset: 3px;
+}
+
+.note-places-note:hover,
+.note-places-note:focus-visible {
+    color: var(--accent-2);
 }
 
 .note-places-picker {
@@ -101,58 +149,21 @@
     color: var(--terracotta);
 }
 
-/* With one place there is nothing to choose: the path stays readable, just not clickable. */
-.note-places .note-places-path:disabled {
-    opacity: 1;
-    cursor: default;
-}
-
-/* The note's other places, offered to become main. */
-.note-places-choice {
-    display: flex;
-    flex-direction: column;
-    border: 1px solid var(--line-strong);
-    background: var(--bg-panel);
-}
-
-.note-places-choice button {
-    width: 100%;
-    min-height: 40px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    padding: 0 11px;
-    border: 0;
-    background: transparent;
+/* The confirmation body: its text, the longest error and a shown error share one cell, so the dialog keeps its size. */
+.note-places-confirm {
+    display: grid;
     font-family: var(--font-text);
-    font-size: 10px;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    text-align: left;
-    color: var(--cream-dim);
-    cursor: pointer;
+    font-size: var(--read-size);
+    line-height: var(--read-leading);
+    font-weight: var(--read-weight);
+    color: var(--text-muted);
+    text-wrap: pretty;
 }
 
-.note-places-choice > * + * button {
-    border-top: 1px solid var(--line);
+.note-places-confirm > * {
+    grid-area: 1 / 1;
 }
 
-/* A sub-note's path: constellations, then its parent notes as links (constellations/NoteConstellationSection.tsx). */
-.note-places-subpath {
-    margin: 0;
-    padding: 8px 2px;
-    cursor: default;
-    line-height: 1.6;
-}
-
-.note-places-note {
-    color: var(--cream-dim);
-    text-decoration: underline;
-    text-decoration-color: var(--line-strong);
-    text-underline-offset: 3px;
-}
-
-.note-places-note:hover,
-.note-places-note:focus-visible {
-    color: var(--accent-2);
+.note-places-confirm-error {
+    color: var(--terracotta);
 }
