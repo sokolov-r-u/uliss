@@ -26,7 +26,7 @@ client that config no longer has is deleted at startup with its authorizations a
   (`ReuseDetectingAuthorizationService`), except one refresh with the token the last rotation replaced within 30
   seconds, which is a client retrying a lost answer and gets a new pair. A refresh whose authorization another refresh
   rotated meanwhile saves nothing and answers 503 `temporarily_unavailable`. `/oauth2/token` logs each request's grant
-  type, status and duration (`TokenRequestTimingFilter`). End-session removes every authorization signed in through the same browser
+  type, status and duration (`RequestTimingFilter` from `:logging`, registered in `WebConfig`). End-session removes every authorization signed in through the same browser
   session (the ID token's `sid`, kept in `auth.authorization_session`), so other tabs cannot refresh either.
 
 Config is the source of truth: at startup an existing client is rebuilt from config, keeping only its id and issue time

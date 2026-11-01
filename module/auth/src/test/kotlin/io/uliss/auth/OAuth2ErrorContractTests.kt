@@ -13,10 +13,10 @@ import io.uliss.api.user.v1.UserServiceGrpc
 import io.uliss.auth.config.MutableClock
 import io.uliss.auth.config.MutableClockConfiguration
 import io.uliss.auth.config.TestContainersConfiguration
-import io.uliss.auth.filter.TokenRequestTimingFilter
 import io.uliss.auth.model.UserEntity
 import io.uliss.auth.model.UserStatus
 import io.uliss.auth.repository.UserRepository
+import io.uliss.logging.filter.RequestTimingFilter
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Tag
 import org.junit.jupiter.api.Test
@@ -222,7 +222,7 @@ class OAuth2ErrorContractTests {
 
     @Test
     fun `token endpoint logs the request timing including client authentication`() {
-        val timingLogger = LoggerFactory.getLogger(TokenRequestTimingFilter::class.java) as Logger
+        val timingLogger = LoggerFactory.getLogger(RequestTimingFilter::class.java) as Logger
         val logEvents = ListAppender<ILoggingEvent>().apply { start() }
         timingLogger.addAppender(logEvents)
         try {
@@ -236,7 +236,7 @@ class OAuth2ErrorContractTests {
         }
 
         val message = logEvents.list.single().formattedMessage
-        assertTrue("grant_type=refresh_token status=401" in message, message)
+        assertTrue("POST /oauth2/token grant_type=refresh_token status=401" in message, message)
     }
 
     // ---------- authorize endpoint ----------

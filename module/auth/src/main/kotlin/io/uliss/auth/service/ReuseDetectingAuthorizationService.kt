@@ -55,9 +55,7 @@ class ReuseDetectingAuthorizationService(
     }
 
     override fun findByToken(token: String, tokenType: OAuth2TokenType?): OAuth2Authorization? {
-        val start = clock.millis()
         val found = delegate.findByToken(token, tokenType)
-        log.debug("findByToken") { "find by ${tokenType?.value} found=${found != null} took ${clock.millis() - start} ms" }
         if (found != null) return if (tokenType == OAuth2TokenType.REFRESH_TOKEN) found.forRefresh() else found
         if (tokenType != null && tokenType != OAuth2TokenType.REFRESH_TOKEN) return null
 

@@ -11,6 +11,9 @@ Shared logging library for the JVM services (auto-configured, package `io.uliss.
   therefore appear innermost first. Active only when the class logger is at DEBUG (`LOG_LEVEL_ULISS=debug`); disable entirely with
   `uliss.logging.aspect.enabled=false`. Values are truncated to 500 characters; reactive results are not rendered.
   A value whose class inherits `Object.toString` prints as `ClassName@identity`, never through its `hashCode`.
+- `RequestTimingFilter` — servlet filter logging at INFO one line per request: method, path, the parameters it was
+  given as safe, status and duration. Never parameters outside that set, bodies or headers. Not auto-configured: a
+  service registers it with a `FilterRegistrationBean` on the paths worth timing (auth: `/oauth2/token`, `grant_type`).
 - `ConsoleLogPatternEnvironmentPostProcessor` — default text console pattern with `%kvp`, so key values stay visible
   outside structured logging.
 

@@ -43,3 +43,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `LoggingAspect` renders a value whose class inherits `Object.toString` as
   `SimpleName@identityHashCode` and never calls its `hashCode`; the per-class check is cached in a `ClassValue`.
 - **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, block 5.
+
+## 2026-11-01 — Request timing is a library filter a service registers itself
+
+- **Context:** auth timed `/oauth2/token` with its own filter and timed `findByToken` by hand to find a slow refresh.
+- **Decision:** `RequestTimingFilter(clock, safeParameters)` lives here and logs only the named parameters. It is not
+  auto-configured: a service registers it on chosen paths, so no service gets request logs it did not ask for. Hand
+  timing inside methods is not kept; `LoggingAspect` already times services and repositories at DEBUG.
+- **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, block 6.
