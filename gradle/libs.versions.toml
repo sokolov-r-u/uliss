@@ -21,6 +21,8 @@ jib = "3.5.4"
 spring-ai = "2.0.2"
 pgvector = "0.1.6"
 jacoco = "0.8.15"
+openfeature-sdk = "1.23.0"
+openfeature-flagd = "0.15.0"
 
 
 [libraries]
@@ -44,6 +46,8 @@ protobuf-java = { module = "com.google.protobuf:protobuf-java" }
 spring-ai-starter-deepseek = { module = "org.springframework.ai:spring-ai-starter-model-deepseek", version.ref = "spring-ai" }
 spring-ai-starter-openai = { module = "org.springframework.ai:spring-ai-starter-model-openai", version.ref = "spring-ai" }
 pgvector = { module = "com.pgvector:pgvector", version.ref = "pgvector" }
+openfeature-sdk = { module = "dev.openfeature:sdk", version.ref = "openfeature-sdk" }
+openfeature-flagd = { module = "dev.openfeature.contrib.providers:flagd", version.ref = "openfeature-flagd" }
 tomcat-annotations-api = { module = "org.apache.tomcat:annotations-api", version.ref = "tomcat-annotations" }
 
 protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobufPlugin" }
