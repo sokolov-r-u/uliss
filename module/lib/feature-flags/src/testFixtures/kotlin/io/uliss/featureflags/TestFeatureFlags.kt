@@ -11,17 +11,25 @@ class TestFeatureFlags {
 
     val provider = InMemoryProvider(emptyMap())
 
+    private val touched = mutableSetOf<String>()
+
     fun enable(key: String) {
-        provider.updateFlag(key, flag { true })
+        set(key, flag { true })
     }
 
     fun enableFor(key: String, vararg userIds: String) {
         val targeted = userIds.toSet()
-        provider.updateFlag(key, flag { targetingKey -> targetingKey in targeted })
+        set(key, flag { targetingKey -> targetingKey in targeted })
     }
 
+    // the provider only adds or replaces flags, so a flag a test turned on is replaced by one that is off
     fun reset() {
-        provider.updateFlags(emptyMap())
+        provider.updateFlags(touched.associateWith { flag { false } })
+    }
+
+    private fun set(key: String, flag: Flag<Boolean>) {
+        touched += key
+        provider.updateFlag(key, flag)
     }
 
     private fun flag(isOn: (targetingKey: String?) -> Boolean): Flag<Boolean> =

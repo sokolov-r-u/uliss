@@ -232,8 +232,12 @@ export function NoteDetailPage() {
         <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}
                         actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
         {resummarizing && note && <ResummarizeDialog noteId={note.id} onClose={() => setResummarizing(false)}
-                                                     onQueued={() => {
+                                                     onQueued={(queued) => {
                                                          setResummarizing(false)
+                                                         // updating at once: the menu item greys before the re-read
+                                                         setState((current) => current.status === 'ready'
+                                                             ? {...current, note: {...current.note, updating: queued.updating === true}}
+                                                             : current)
                                                          // the old text stays under "Updating this note…" until the new one arrives
                                                          void load(true)
                                                      }}/>}

@@ -23,8 +23,9 @@ class FeatureFlagsAutoConfiguration {
 
     private val log = AppLogger.of(FeatureFlagsAutoConfiguration::class)
 
-    // NoOpProvider answers every flag with the caller's default, which is always "off" here
-    @Bean
+    // NoOpProvider answers every flag with the caller's default, which is always "off" here. No destroy method: the
+    // OpenFeature API below shuts its provider down.
+    @Bean(destroyMethod = "")
     @ConditionalOnMissingBean
     fun featureFlagProvider(properties: FeatureFlagsProperties): FeatureProvider {
         val file = properties.file?.takeIf { it.isNotBlank() }

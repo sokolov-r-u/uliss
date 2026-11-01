@@ -10,6 +10,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.outbox.OutboxEventType
+import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
@@ -60,6 +61,9 @@ class NoteResummarizeIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var summaryRequestStore: SummaryRequestStore
+
+    @Autowired
+    lateinit var outboxService: OutboxService
 
     private val userId = UUID.randomUUID()
 
@@ -241,6 +245,41 @@ class NoteResummarizeIntegrationTest : NoteIntegrationTest() {
 
         assertFalse(again)
         assertEquals("First rewrite.", noteRepository.findById(note.id).orElseThrow().content)
+    }
+
+    @Test
+    fun `a terminally failed rewrite keeps the old text and stops showing the note as updating`() {
+        featureFlags.enableFor(FeatureFlagKeys.NOTE_RESUMMARIZE, userId.toString())
+        val (_, note) = summarizedChat()
+        val key = UUID.randomUUID()
+        resummarize(note.id, key).andExpect { status { isAccepted() } }
+        val event = outboxEventRepository.findAll().single {
+            it.type == OutboxEventType.NOTE_RESUMMARIZE_REQUESTED && it.payload.contains(note.id.toString())
+        }
+        val lease = UUID.randomUUID()
+        // the last attempt is running under its lease
+        jdbcTemplate.update(
+            "UPDATE note.outbox_event SET status = 'PROCESSING', attempts = 3, lease_id = ? WHERE id = ?", lease, event.id,
+        )
+
+        outboxService.recordFailure(event.id, lease, RuntimeException("provider unavailable"))
+
+        assertEquals(SummaryRequestStatus.FAILED, summaryRequestStore.find(userId, key)?.status)
+        assertEquals("Fly to Rome.", noteRepository.findById(note.id).orElseThrow().content)
+        mockMvc.get("/note/notes/${note.id}") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { jsonPath("$.updating") { value(false) } }
+    }
+
+    @Test
+    fun `a replay is not found once the flag is off`() {
+        featureFlags.enableFor(FeatureFlagKeys.NOTE_RESUMMARIZE, userId.toString())
+        val (_, note) = summarizedChat()
+        val key = UUID.randomUUID()
+        resummarize(note.id, key).andExpect { status { isAccepted() } }
+        featureFlags.reset()
+
+        resummarize(note.id, key).andExpect { status { isNotFound() } }
     }
 
     private fun indexEvents(noteId: UUID): Int = outboxEventRepository.findAll().count {

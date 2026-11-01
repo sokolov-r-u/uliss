@@ -125,7 +125,8 @@ services:
       - "127.0.0.1:9090:9090"
     volumes:
       - ./volumes/logs:/logs
-      # the directory, not the file: an edited file is a new inode a single-file mount would not see
+      # the directory, not the file: an edited file is a new inode a single-file mount would not see.
+      # flags.json must exist at startup to be watched (docs/DEPLOYMENT.md, Feature flags)
       - ./flags:/flags:ro
     healthcheck:
       test: [ "CMD-SHELL", "curl -f http://localhost:8080/actuator/health || exit 1" ]

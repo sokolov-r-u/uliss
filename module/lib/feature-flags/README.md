@@ -15,7 +15,8 @@ client.getBooleanValue(FeatureFlagKeys.NOTE_RESUMMARIZE, false, ImmutableContext
 
 ## Configuration
 
-- `uliss.feature-flags.file` — path of the flagd file. Unset or missing: every flag is off (warning at startup).
+- `uliss.feature-flags.file` — path of the flagd file. Unset or missing: every flag is off (warning at startup) until
+  the service restarts with the file in place; a file created later is not picked up.
 - `uliss.feature-flags.poll-interval` — how often the file's modification time is checked (default `5s`).
 
 The file follows the flagd schema. On for everyone: `"defaultVariant": "on"`. On for some users only:
