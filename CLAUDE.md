@@ -87,6 +87,9 @@
 - Tests must be useful: assert behavior and contracts, not that a value passes through unchanged. Do not test getters,
   setters, or `toString` without logic, plain DTOs, or plain config. Non-trivial `toString` (inheritance, masking) is
   tested.
+- Before writing a test, name the regression it would catch. A change with no such behavior (diagnostic log lines and
+  their wording, wiring, pure moves) gets no filler test: say so and ask the user to allow it without TDD (they switch
+  `tdd-gate.sh` off; see the `tdd` skill). A log line's real contract, such as never containing secrets, is tested.
 - Tests are deterministic: inject `Clock`, no `Thread.sleep` (use Awaitility), no dependence on execution order.
 - Forbidden: `@Disabled`/`skip`/`only`, weakening assertions, deleting tests to make the build pass, mocking the class
   under test. Test expectations may change only when the requested behavior intentionally changes the contract; explain
