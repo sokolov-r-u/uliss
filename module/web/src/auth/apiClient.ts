@@ -5,7 +5,7 @@
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
 import {endSessionKeepingChatState, getTokens, isExpired, type Tokens} from './tokenStore'
-import {login, RefreshRejectedError, refreshTokens} from './authApi'
+import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {readJwtClaims} from './jwtClaims'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
@@ -63,10 +63,16 @@ async function refreshWithRetry(refreshToken: string, idToken: string | null): P
   try {
     return await refreshTokens(refreshToken, idToken)
   } catch (error) {
-    if (error instanceof RefreshRejectedError) throw error
+    if (!isWorthRepeating(error)) throw error
     await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS))
     return refreshTokens(refreshToken, idToken)
   }
+}
+
+/** A network failure or a server error; a refused token or another client error would only fail again. */
+function isWorthRepeating(error: unknown): boolean {
+  if (error instanceof RefreshRejectedError) return false
+  return !(error instanceof RefreshFailedError) || error.status >= 500
 }
 
 async function runRefresh(refreshToken: string | null, idToken: string | null): Promise<Tokens> {

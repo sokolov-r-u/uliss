@@ -31,11 +31,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.assign(endSession ?? '/signed-out')
   }, [])
 
-  // Signed out in another tab: this tab's tokens belong to the same user and go too.
+  // Signed out in another tab: this tab's tokens belong to the same user and go too, and so does chat state a session
+  // that ended on its own kept for that user's return.
   useEffect(() => onSignOutElsewhere(() => {
-    if (getTokens() == null) return
+    const signedIn = getTokens() != null
     clearSession()
-    window.location.assign('/signed-out')
+    if (signedIn) window.location.assign('/signed-out')
   }), [])
 
   const value = useMemo<AuthState>(

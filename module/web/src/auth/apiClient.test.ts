@@ -9,7 +9,7 @@ import {
     SessionRefreshError,
     tokenRequiresOnboarding,
 } from './apiClient'
-import {login, RefreshRejectedError, refreshTokens} from './authApi'
+import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {getTokens, setTokens, type Tokens} from './tokenStore'
 
 vi.mock('./authApi', async (importOriginal) => ({
@@ -99,7 +99,7 @@ describe('authFetch refresh', () => {
         it('repeats it once with the same token after a pause and carries on', async () => {
             setTokens(expired)
             vi.mocked(refreshTokens)
-                .mockRejectedValueOnce(new Error('token refresh failed (503)'))
+                .mockRejectedValueOnce(new RefreshFailedError(503))
                 .mockImplementationOnce(async () => {
                     setTokens(fresh)
                     return fresh
@@ -114,6 +114,16 @@ describe('authFetch refresh', () => {
 
             expect(res.status).toBe(200)
             expect(refreshTokens).toHaveBeenNthCalledWith(2, 'refresh-1', null)
+            expect(login).not.toHaveBeenCalled()
+        })
+
+        it('does not repeat a client error that is not a rejection', async () => {
+            setTokens(expired)
+            vi.mocked(refreshTokens).mockRejectedValue(new RefreshFailedError(404))
+
+            await expect(authFetch('/note/chats')).rejects.toBeInstanceOf(SessionRefreshError)
+
+            expect(refreshTokens).toHaveBeenCalledOnce()
             expect(login).not.toHaveBeenCalled()
         })
 
