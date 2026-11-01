@@ -152,6 +152,7 @@ class FeatureFlagsAutoConfigurationTest {
 
     private fun flags(defaultVariant: String, state: String = "ENABLED", targeting: String? = null): String = """
         {
+          "${'$'}schema": "https://flagd.dev/schema/v0/flags.json",
           "flags": {
             "${FeatureFlagKeys.NOTE_RESUMMARIZE}": {
               "state": "$state",

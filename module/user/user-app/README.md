@@ -46,6 +46,9 @@ Controller mappings are declared below `/users`; `uliss.web.path-prefix: /user` 
 - `POST /user/users/me/onboarding` accepts `{command, displayName?, birthDate?, gender?}` and returns no content on
   success.
 
+- `GET /user/users/me/features` returns the user's feature flags, `{"note-resummarize": true|false}`, evaluated for the
+  JWT `userId` from the flagd file (`:feature-flags`); available during onboarding.
+
 Skipping `COMPLETE_PROFILE` uses the same POST with empty optional fields. There is no separate skip endpoint. The web
 implementation is documented in `module/web/README.md` once its migration is complete.
 

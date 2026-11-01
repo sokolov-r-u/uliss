@@ -1,0 +1,13 @@
+{
+  "$schema": "https://flagd.dev/schema/v0/flags.json",
+  "flags": {
+    "note-resummarize": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": {
+        "if": [{ "in": [{ "var": "targetingKey" }, ["00000000-0000-0000-0000-000000000000"]] }, "on", "off"]
+      }
+    }
+  }
+}

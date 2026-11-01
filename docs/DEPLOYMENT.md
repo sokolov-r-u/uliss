@@ -159,6 +159,19 @@ so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect; `
    Rollback: the same commands with `-D` instead of `-I`. Like the existing rule, it is lost when the container or
    the server restarts.
 
+## Feature flags
+
+`user` and `note` read flags from `infra/flags/flags.json` (gitignored; it holds user ids), mounted read-only as the
+`infra/flags` directory at `/flags` and named by `ULISS_FEATURE_FLAGS_FILE`. Start from the template:
+`cp infra/flags/flags.example.json infra/flags/flags.json`, then put real user ids in the `targeting` list, or set
+`"defaultVariant": "on"` and drop `targeting` to turn a flag on for everyone. The format and the runtime rules are in
+`module/lib/feature-flags/README.md`.
+
+- Without the file every flag is off and both services log a warning at startup; they still start.
+- An edit is applied within about 5 seconds, without a restart. An invalid edit keeps the previous values (a warning in
+  the log). Deleting the file stops the re-reading until the services restart.
+- Host-based `bootRun` reads the same file when `ULISS_FEATURE_FLAGS_FILE` points at it.
+
 ## Note-service AI credentials and background work
 
 Chat replies, final summaries, and retrieval/indexing embeddings all use `OPENAI_API_KEY`; copy the
