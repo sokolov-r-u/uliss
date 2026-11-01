@@ -279,6 +279,21 @@ export async function getNote(noteId: string, signal?: AbortSignal): Promise<Not
     return note
 }
 
+/**
+ * "Summarize again": queues a rewrite of a summary note from its whole chat. The returned note is `updating` until the
+ * new text replaces the old; a retry with the same [idempotencyKey] queues nothing new.
+ */
+export async function resummarizeNote(noteId: string, idempotencyKey: string): Promise<Note> {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/resummarize`, {
+        method: 'POST',
+        headers: {'Idempotency-Key': idempotencyKey},
+    })
+    await requireOk(response, 'resummarize request')
+    const note = parseNote(await responseJson(response))
+    if (note.id !== noteId) throw new NoteApiError('protocol', 'resummarize response does not match the request')
+    return note
+}
+
 export async function renameNote(noteId: string, title: string): Promise<Note> {
     const response = await fetchNotes(`/note/notes/${segment(noteId)}`, {
         method: 'PATCH',

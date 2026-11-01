@@ -35,6 +35,8 @@ export interface ItemActionsProps {
     deleteDisabled?: boolean
     /** Where this chat's menu sits; with it, a note opened from the delete dialog can come back to the dialog. */
     dialogHost?: DeleteDialogHost
+    /** Items of the screen's own between Rename and Delete; each opens that screen's dialog. */
+    extraActions?: ItemMenuAction[]
     /** Fixture-only: render with the menu already open. */
     initialOpen?: boolean
     children: (openMenu: (anchor: HTMLElement) => void, menuOpen: boolean) => ReactNode
@@ -79,13 +81,14 @@ function failureMessage(target: ItemActionTarget, error: unknown): string {
     return describeError(error)
 }
 
-/** Rename · Delete for one chat or note: menu, dialogs, API calls and in-dialog errors. */
+/** Rename · Delete (and a screen's own items) for one chat or note: menu, dialogs, API calls and in-dialog errors. */
 export function ItemActions({
                                 target,
                                 onRenamed,
                                 onDeleted,
                                 deleteDisabled = false,
                                 dialogHost,
+                                extraActions = [],
                                 initialOpen = false,
                                 children,
                             }: ItemActionsProps) {
@@ -226,6 +229,15 @@ export function ItemActions({
                 setDraft(target.title)
                 setError(null)
                 setDialog('rename')
+            },
+        })
+    }
+    for (const action of extraActions) {
+        actions.push({
+            ...action,
+            onSelect: () => {
+                setAnchor(null)
+                action.onSelect()
             },
         })
     }

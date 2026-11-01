@@ -8,12 +8,18 @@ import {ItemActions} from '../ui/actions/ItemActions'
 import {ContextPanel, PanelToggle, usePanelOpen} from '../ui/ContextPanel'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import {ScreenHeader} from '../ui/ScreenHeader'
+import {listNoteChats, subscribeToChatListChanges} from '../chat/chatApi'
+import {useFeatureFlag} from '../lib/featureFlags'
+import {useLinkedItems} from '../ui/links/useLinkedItems'
 import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
 import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
+import {ResummarizeDialog} from './ResummarizeDialog'
 import './notes.css'
 
 type ReadyNote = Note & { content: string }
+
+const CHAT_SUBSCRIPTIONS = [subscribeToChatListChanges]
 
 /** Status-stream reconnects per load (the service closes a stream after 10 minutes) before offering Retry. */
 export const MAX_STATUS_RECONNECTS = 5
@@ -86,15 +92,22 @@ export function NoteDetailPage() {
     const backToDeleteDialog = isBackToDeleteDialog(useLocation().state)
     const [state, setState] = useState<DetailState>({status: 'loading'})
     const [editing, setEditing] = useState(false)
+    const [resummarizing, setResummarizing] = useState(false)
+    const resummarizeOn = useFeatureFlag('note-resummarize')
+    const summaryNote = state.status === 'ready' && state.note.source === 'CHAT_SUMMARY'
+    // the chats the note was written from, as its details panel lists them: "Summarize again" needs one
+    const {items: noteChats} = useLinkedItems(resummarizeOn && summaryNote ? noteId ?? '' : '', listNoteChats,
+        CHAT_SUBSCRIPTIONS)
     const controllerRef = useRef<AbortController | null>(null)
 
-    const load = useCallback(async () => {
+    /** [keepShown] follows a note already on screen (a queued rewrite) without the Loading state in between. */
+    const load = useCallback(async (keepShown = false) => {
         if (!noteId) return
         controllerRef.current?.abort()
         const controller = new AbortController()
         controllerRef.current = controller
         setEditing(false)
-        setState({status: 'loading'})
+        if (!keepShown) setState({status: 'loading'})
         try {
             let note = await getNote(noteId, controller.signal)
             let settledBeforeStream = true
@@ -194,8 +207,13 @@ export function NoteDetailPage() {
                     onClick={() => setEditing(true)}>
             <Icon name="edit" size={17}/>
         </IconButton>
+    const canResummarize = resummarizeOn && summaryNote && noteChats.length > 0
+    const resummarizeAction = canResummarize
+        ? [{label: 'Summarize again', disabled: state.note.updating === true, onSelect: () => setResummarizing(true)}]
+        : []
     const actions = note && <ItemActions
         target={{kind: 'note', id: note.id, title: noteTitle, icon: note.icon, renamable: note.status === 'READY'}}
+        extraActions={resummarizeAction}
         onRenamed={(title, renamed) => setState((current) => 'note' in current
             ? {...current, note: {...current.note, title, version: renamed?.version ?? current.note.version}} as DetailState
             : current)}
@@ -210,6 +228,14 @@ export function NoteDetailPage() {
     // Opened from the chat delete dialog: the previous history entry is that screen with the dialog open.
     const backButton = backToDeleteDialog && <Button variant="quiet" size="sm" onClick={() => navigate(-1)}>Back</Button>
 
-    return <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}
-                           actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
+    return <>
+        <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}
+                        actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
+        {resummarizing && note && <ResummarizeDialog noteId={note.id} onClose={() => setResummarizing(false)}
+                                                     onQueued={() => {
+                                                         setResummarizing(false)
+                                                         // the old text stays under "Updating this note…" until the new one arrives
+                                                         void load(true)
+                                                     }}/>}
+    </>
 }
