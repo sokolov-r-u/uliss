@@ -65,7 +65,8 @@
 - Message: `<PREFIX>  - <short imperative summary>` in English, where the prefix is the task type: `DE` defect,
   `FE` feature, `TD` tech debt. End with a blank line and
   `Co-Authored-By: Claude <noreply@anthropic.com>` (use the current model name).
-- Never push, amend, revert, reset, rebase, tag, merge, or force anything without explicit per-request permission.
+- Never push, amend, revert, reset, rebase, tag, merge a PR, or force anything without explicit per-request permission.
+  `git pull` and `git merge` are allowed on a task branch (no `--rebase`); on `main` only with `--ff-only`.
 
 ## Testing rules
 

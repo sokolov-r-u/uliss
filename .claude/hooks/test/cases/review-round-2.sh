@@ -45,7 +45,7 @@ expect block bash-guard.sh "$(bash_call "git branch -df x")" "branch -df"
 expect block bash-guard.sh "$(bash_call "git add -Av")" "add -Av"
 expect block bash-guard.sh "$(bash_call "nice git push")" "nice wrapper"
 expect block bash-guard.sh "$(bash_call "exec git push")" "exec wrapper"
-expect block bash-guard.sh "$(bash_call "git pull")" "pull"
+expect allow bash-guard.sh "$(bash_call "git pull")" "pull"
 expect block bash-guard.sh "$(bash_call "gh pr merge 12 --squash")" "gh pr merge"
 expect allow bash-guard.sh "$(bash_call "git branch -a")" "list branches"
 

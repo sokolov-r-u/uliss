@@ -62,9 +62,22 @@ my $start = qr/(?:^|[;&|(`{]|\b(?:then|do|else|elif|if|while|until)\b|!)\s*(?:(?
 my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path)(?:=\S+|\s+\S+)|--[a-z-]+(?:=\S+)?|-[A-Za-z]))*\s+/m;
 
 # Git, processes and the database
-decide('block', "push, pull, history rewrites, tags, merges and clean need the user's explicit per-request permission; ask the user to run it.")
-  if $code =~ /${git}(?:push|pull|reset|rebase|revert|tag|merge|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
+decide('block', "push, history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
+  if $code =~ /${git}(?:push|reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
+# pull and merge are allowed, except a rebasing pull and a merge commit on main.
+my $current_branch;
+while ($code =~ /(${git})(pull|merge)$end($seg)/mg) {
+  my ($prefix, $verb, $args) = ($1, $2, $3);
+  decide('block', "pull --rebase rewrites history; use a merging pull or ask the user to run it.")
+    if $verb eq 'pull'
+    && ($args =~ /(?:^|\s)(?:--rebase(?:=\S+)?|-(?!-)[A-Za-z]*r[A-Za-z]*)(?=\s|$)/ || $prefix =~ /pull\.rebase=(?!false)/);
+  next if $args =~ /(?:^|\s)(?:--ff-only|--abort)(?=\s|$)/;
+  $current_branch //= `git -C '$cwd' branch --show-current 2>/dev/null` // '';
+  chomp $current_branch;
+  decide('block', "on main only git $verb --ff-only is allowed; never create a merge commit on main.")
+    if $current_branch eq 'main';
+}
 decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
   if $code =~ /${git}(?:checkout|switch|worktree)$end/m;
 decide('block', "deleting, renaming or forcing branches needs the user's explicit permission.")
