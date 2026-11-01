@@ -4,6 +4,7 @@ import {
     AuthRequiredError,
     getAccessToken,
     onOnboardingRequired,
+    REFRESH_RETRY_DELAY_MS,
     refreshSession,
     SessionRefreshError,
     tokenRequiresOnboarding,
@@ -37,7 +38,10 @@ describe('authFetch refresh', () => {
             return fresh
         })
     })
-    afterEach(() => vi.unstubAllGlobals())
+    afterEach(() => {
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
 
     it('refreshes once for concurrent calls with an expired access token (rotating refresh tokens)', async () => {
         setTokens(expired)
@@ -72,16 +76,90 @@ describe('authFetch refresh', () => {
         expect(getTokens()?.accessToken).toBe('access-2')
     })
 
-    it('keeps the session when refresh fails for a transient reason', async () => {
+    it('keeps the session when refresh fails for a transient reason twice', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout']})
         setTokens(expired)
         vi.mocked(refreshTokens).mockRejectedValue(new TypeError('Failed to fetch'))
         vi.stubGlobal('fetch', vi.fn(okFor('access-2')))
 
-        await expect(authFetch('/note/chats')).rejects.toBeInstanceOf(SessionRefreshError)
+        const result = expect(authFetch('/note/chats')).rejects.toBeInstanceOf(SessionRefreshError)
+        await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS)
+        await result
 
+        expect(refreshTokens).toHaveBeenCalledTimes(2)
         expect(login).not.toHaveBeenCalled()
         expect(getTokens()).toEqual(expired)
         expect(fetch).not.toHaveBeenCalled()
+    })
+
+    describe('after a refresh that failed on the network or server side', () => {
+        beforeEach(() => vi.useFakeTimers({toFake: ['setTimeout']}))
+        afterEach(() => vi.useRealTimers())
+
+        it('repeats it once with the same token after a pause and carries on', async () => {
+            setTokens(expired)
+            vi.mocked(refreshTokens)
+                .mockRejectedValueOnce(new Error('token refresh failed (503)'))
+                .mockImplementationOnce(async () => {
+                    setTokens(fresh)
+                    return fresh
+                })
+            vi.stubGlobal('fetch', vi.fn(okFor('access-2')))
+
+            const pending = authFetch('/note/chats')
+            await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS - 1)
+            expect(refreshTokens).toHaveBeenCalledOnce()
+            await vi.advanceTimersByTimeAsync(1)
+            const res = await pending
+
+            expect(res.status).toBe(200)
+            expect(refreshTokens).toHaveBeenNthCalledWith(2, 'refresh-1', null)
+            expect(login).not.toHaveBeenCalled()
+        })
+
+        it('signs in again when the repeat is rejected', async () => {
+            setTokens(expired)
+            vi.mocked(refreshTokens)
+                .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+                .mockRejectedValueOnce(new RefreshRejectedError(400))
+            vi.stubGlobal('fetch', vi.fn(okFor('access-2')))
+
+            const result = expect(authFetch('/note/chats')).rejects.toBeInstanceOf(AuthRequiredError)
+            await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS)
+            await result
+
+            expect(refreshTokens).toHaveBeenCalledTimes(2)
+            expect(login).toHaveBeenCalledOnce()
+        })
+
+        it('lets concurrent callers share the repeat instead of refreshing on their own', async () => {
+            setTokens(expired)
+            vi.mocked(refreshTokens)
+                .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+                .mockImplementationOnce(async () => {
+                    setTokens(fresh)
+                    return fresh
+                })
+
+            const pending = Promise.all([getAccessToken(), getAccessToken(), getAccessToken()])
+            await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS)
+
+            expect(await pending).toEqual(['access-2', 'access-2', 'access-2'])
+            expect(refreshTokens).toHaveBeenCalledTimes(2)
+        })
+    })
+
+    it('keeps the chat state of a session that ended on its own for the same user', async () => {
+        const jwt = (payload: object) => `h.${btoa(JSON.stringify(payload))}.s`
+        setTokens({...expired, accessToken: jwt({sub: 'user-1'})})
+        sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
+        vi.mocked(refreshTokens).mockRejectedValue(new RefreshRejectedError(400))
+
+        await expect(getAccessToken()).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(getTokens()).toBeNull()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:c1')).toBe('{"text":"hello"}')
+        expect(sessionStorage.getItem('uliss.chatOwner')).toBe('user-1')
     })
 
     it('signs in again once when the service rejects the refresh token', async () => {
