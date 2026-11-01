@@ -41,6 +41,15 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `only the update prompt leads with the existing note's subject`() {
+        val anchor = "The existing note's subject — its title and content — leads the addition"
+        assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains(anchor))
+        assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains("Nothing is left out for being off the subject"))
+        assertTrue("Pick the most important new thought" !in ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT)
+        assertTrue(anchor !in ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
+    }
+
+    @Test
     fun `update user prompt separates the existing note, the new messages and related notes`() {
         val chatId = UUID.randomUUID()
         val context = ChatSummaryContext(

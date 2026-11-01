@@ -213,11 +213,15 @@ object ChatPrompts {
         a refinement, a reversal, or a decision. Do not restate or summarize what the note already says. If the
         new messages add no thought of the user's, set nothingNew to true.
 
-        Pick the most important new thought as the main thought and give it the most space. Then add the other new
-        thoughts worth remembering on their own: a distinct opinion, conclusion, preference, decision, or intention
-        of the user that would still matter without this chat. Leave out passing remarks and reactions. There is no
-        fixed limit, but never pad. The addition is shown under a
-        date heading after the existing note, so do not add headings or a title.
+        The existing note's subject — its title and content — leads the addition: when the new messages say
+        something new about it, that is the main thought; give it the most space. A change of the user's view
+        counts as the main thought only within this subject; a change of view on another topic becomes the first
+        secondary thought ("thought X, arrived at Y"). New thoughts on other topics follow as secondary thoughts.
+        When nothing new concerns the subject, the most important new thought on another topic is the main
+        thought. Nothing is left out for being off the subject. Then add the other new thoughts worth remembering
+        on their own: a distinct opinion, conclusion, preference, decision, or intention of the user that would
+        still matter without this chat. Leave out passing remarks and reactions. There is no fixed limit, but never
+        pad. The addition is shown under a date heading after the existing note, so do not add headings or a title.
         """.trimIndent(),
         THOUGHT_DETAIL_RULES,
         MAIN_THOUGHT_RULES,

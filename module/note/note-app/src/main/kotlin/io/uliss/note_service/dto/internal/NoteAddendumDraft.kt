@@ -17,7 +17,8 @@ data class NoteAddendumDraft(
     @field:JsonProperty(required = true)
     val nothingNew: Boolean?,
     @field:JsonPropertyDescription(
-        "The most important new thought: one or more paragraphs, with the user's own reasoning if they gave any. " +
+        "The main new thought: what is new about the existing note's subject, otherwise the most important new " +
+                "thought on another topic; one or more paragraphs, with the user's own reasoning if they gave any. " +
                 "Do not restate the existing note and do not use headings."
     )
     @field:JsonProperty(required = true)

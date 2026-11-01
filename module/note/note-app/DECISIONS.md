@@ -554,3 +554,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   thought repeats the main thought. `USER_THOUGHT_RULES` and the secondary-thought descriptions drop a question the
   user asked for information and got answered; only a question the user left open stays.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 1.
+
+## 2026-11-01 — A note update leads with the note's own subject
+
+- **Context:** the update prompt picked "the most important new thought" with no notion of what the note is about.
+- **Decision:** for any note (user or model title, or none), its subject is taken from its title and content. What is
+  new about it is the addendum's main thought; new thoughts on other topics follow as secondary thoughts, and only
+  when nothing new concerns the subject does the most important off-subject thought lead. Nothing is dropped for being
+  off the subject (rejected alternative: drop it, which would lose thoughts no note keeps). This refines "A conclusion
+  from an accepted explanation and a changed view lead the note" (2026-10-27) the same way as the user-title rule: a
+  change of view leads only within the subject; a change on another topic becomes the first secondary thought.
+- **Consequences:** a note can still collect off-subject thoughts; if that hurts, the next step is a separate note for
+  them, not dropping them.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 2.
