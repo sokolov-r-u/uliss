@@ -54,5 +54,7 @@ Then pick the next behavior. Prefer many small cycles over one test that drives 
 `tdd-gate.sh` blocks edits of a module's production code until, in this session, a test of that module was edited
 and a Gradle test task of that module failed (`test`, `integrationTest`, or their test compilation). When it blocks,
 do the missing step; do not work around it through the shell. When a change truly has no behavior to drive
-(a pure refactor started in a new session, generated code), ask the user — only the user switches the rule off with
-`touch .claude/tdd-state/off` and back on by deleting that file.
+(a pure refactor started in a new session, generated code, a diagnostic log line, wiring) or the only test that would
+pass the hook is useless (it asserts wording or that code was called), do not write that test: tell the user why and
+ask them to allow the change without TDD — only the user switches the rule off with `touch .claude/tdd-state/off`
+and back on by deleting that file.

@@ -4,8 +4,9 @@
  * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
-import {clearTokens, getTokens, isExpired, type Tokens} from './tokenStore'
-import {login, RefreshRejectedError, refreshTokens} from './authApi'
+import {endSessionKeepingChatState, getTokens, isExpired, type Tokens} from './tokenStore'
+import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
+import {readJwtClaims} from './jwtClaims'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
 export class AuthRequiredError extends Error {
@@ -45,15 +46,39 @@ function needsAuth(res: Response): boolean {
 let refreshing: Promise<Tokens> | null = null
 
 function signInAgain(): never {
-  clearTokens()
+  // the session ended on its own: a turn the user just sent survives the sign-in if the same user comes back
+  endSessionKeepingChatState()
   login()
   throw new AuthRequiredError()
+}
+
+/** Pause before repeating a refresh that failed on the network or server side. */
+export const REFRESH_RETRY_DELAY_MS = 1_000
+
+/**
+ * A failed refresh may still have rotated the token on the auth server (its answer was lost); the auth server accepts
+ * a repeat with the old token shortly after, so one retry recovers instead of showing an error.
+ */
+async function refreshWithRetry(refreshToken: string, idToken: string | null): Promise<Tokens> {
+  try {
+    return await refreshTokens(refreshToken, idToken)
+  } catch (error) {
+    if (!isWorthRepeating(error)) throw error
+    await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS))
+    return refreshTokens(refreshToken, idToken)
+  }
+}
+
+/** A network failure or a server error; a refused token or another client error would only fail again. */
+function isWorthRepeating(error: unknown): boolean {
+  if (error instanceof RefreshRejectedError) return false
+  return !(error instanceof RefreshFailedError) || error.status >= 500
 }
 
 async function runRefresh(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
   if (!refreshToken) signInAgain()
   try {
-    return await refreshTokens(refreshToken, idToken)
+    return await refreshWithRetry(refreshToken, idToken)
   } catch (error) {
     if (error instanceof RefreshRejectedError) signInAgain()
     throw new SessionRefreshError(error)
@@ -91,14 +116,7 @@ export async function refreshSession(): Promise<void> {
 
 /** Whether the current access token says blocking onboarding is pending; the services enforce it either way. */
 export function tokenRequiresOnboarding(): boolean {
-  const payload = getTokens()?.accessToken.split('.')[1]
-  if (!payload) return false
-  try {
-    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-    return (JSON.parse(json) as { onboardingRequired?: unknown }).onboardingRequired === true
-  } catch {
-    return false
-  }
+  return readJwtClaims(getTokens()?.accessToken)?.onboardingRequired === true
 }
 
 const ONBOARDING_REQUIRED = 'ONBOARDING_REQUIRED'
