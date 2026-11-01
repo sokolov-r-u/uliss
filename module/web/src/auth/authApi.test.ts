@@ -6,6 +6,7 @@ import {
     login,
     LoginRejectedError,
     logout,
+    RefreshFailedError,
     RefreshRejectedError,
     refreshTokens,
     retryLoginOnce,
@@ -26,12 +27,13 @@ describe('refreshTokens', () => {
         await expect(refreshTokens('refresh-1')).rejects.toBeInstanceOf(RefreshRejectedError)
     })
 
-    it('reports a server failure as a plain error, not a rejection', async () => {
-        respondWith(503)
+    it.each([503, 404, 429])('reports any other error status %i as a failure with its status, not a rejection', async (status) => {
+        respondWith(status)
 
         const error = await refreshTokens('refresh-1').catch((e: unknown) => e)
 
-        expect(error).toBeInstanceOf(Error)
+        expect(error).toBeInstanceOf(RefreshFailedError)
+        expect((error as RefreshFailedError).status).toBe(status)
         expect(error).not.toBeInstanceOf(RefreshRejectedError)
     })
 

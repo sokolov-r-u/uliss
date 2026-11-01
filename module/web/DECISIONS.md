@@ -237,3 +237,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   in one grid cell, so a failure does not resize it.
 - **Consequences:** no server change; long paths wrap instead of collapsing to `root › … › leaf`.
 - **Source:** task `docs/tasks/2026-10-22-note-panel-place.md`, block 1.
+
+## 2026-11-01 — A failed refresh is repeated once, and a forced sign-in keeps the user's chat turns
+
+- **Context:** a refresh whose answer was lost left the user on an error screen; the forced sign-in that followed wiped
+  the chat turn they had just sent.
+- **Decision:** `apiClient` repeats a refresh that failed on the network or with a 5xx once, after 1 s, with the same
+  refresh token (the auth server accepts the just-rotated token for 30 s, `module/auth/DECISIONS.md`); other client
+  errors are not repeated and 400/401 still ends the session. Clearing tokens is split: an explicit sign-out (here or
+  in another tab) wipes `uliss.chat-*`; a session that ended on its own keeps it under `uliss.chatOwner` = `sub`, and
+  `/callback` keeps it only when the same `sub` signs in, otherwise wipes it.
+- **Consequences:** the SPA reads `sub` from its own unverified access token only to decide whether to keep local
+  drafts; a missing or unreadable `sub` wipes them.
+- **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, blocks 3–4 and the code review.

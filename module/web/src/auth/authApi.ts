@@ -5,7 +5,7 @@
  * are relative: in dev they go through the Vite proxy (same-origin), in prod the frontend is
  * served behind the same origin as the services.
  */
-import {clearTokens, setTokens, type Tokens} from './tokenStore'
+import {clearSession, setTokens, type Tokens} from './tokenStore'
 
 const RETURN_TO_KEY = 'uliss.returnTo'
 const LOGIN_RETRIED_KEY = 'uliss.loginRetried'
@@ -115,7 +115,18 @@ export class RefreshRejectedError extends Error {
   }
 }
 
-/** Rotates the tokens. Throws `RefreshRejectedError` on 400/401; network and server failures stay plain errors. */
+/** Any other refresh answer that is not a success; only a server failure (5xx) is worth repeating. */
+export class RefreshFailedError extends Error {
+  constructor(public readonly status: number) {
+    super(`token refresh failed (${status})`)
+    this.name = 'RefreshFailedError'
+  }
+}
+
+/**
+ * Rotates the tokens. Throws `RefreshRejectedError` on 400/401 and `RefreshFailedError` on any other error status;
+ * network failures stay plain errors.
+ */
 export async function refreshTokens(refreshToken: string, idToken: string | null = null): Promise<Tokens> {
   const res = await fetch('/user/oauth2/refresh', {
     method: 'POST',
@@ -124,6 +135,7 @@ export async function refreshTokens(refreshToken: string, idToken: string | null
     body: JSON.stringify({ refreshToken }),
   })
   if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
+  if (!res.ok) throw new RefreshFailedError(res.status)
   return readTokens(res, 'token refresh', idToken)
 }
 
@@ -149,6 +161,6 @@ export async function logout(refreshToken: string | null, idToken: string | null
       // ignore — logout is best-effort
     }
   }
-  clearTokens()
+  clearSession()
   return redirectUrl
 }

@@ -19,7 +19,7 @@ import {
     streamInitialAssistantReply,
     streamRetriedReply,
 } from './streamChatReply'
-import {clearTokens} from '../auth/tokenStore'
+import {clearSession} from '../auth/tokenStore'
 import {ChatPage} from './ChatPage'
 import {
     type Constellation,
@@ -1187,12 +1187,12 @@ describe('ChatPage summary flow', () => {
             .toMatchObject({turnId: 'turn-unmounted'})
     })
 
-    it('clears pending operation identities on authentication reset but keeps preferences', () => {
+    it('clears pending operation identities on sign-out but keeps preferences', () => {
         sessionStorage.setItem('uliss.tokens', '{}')
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', '{"turnId":"turn-1"}')
         sessionStorage.setItem('uliss.chat-summary.v1:chat-1', 'key')
         sessionStorage.setItem('preference', 'keep')
-        clearTokens()
+        clearSession()
         expect(sessionStorage.getItem('uliss.tokens')).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()

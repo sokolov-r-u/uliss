@@ -65,3 +65,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   The signing key is created under an advisory lock, so replicas starting on an empty database agree on one key.
   Lookups by token value and state use hash indexes; `client_id` is unique.
 - **Source:** task `docs/tasks/2026-10-21-code-review-fixes.md`, block 4.
+
+## 2026-10-31 — A just-rotated refresh token serves one retry; concurrent rotations compare-and-set
+
+- **Replaces:** in part, "Refresh grants have an absolute limit, check the user and detect reuse" (2026-10-21): a
+  rotated-out token presented again no longer always revokes.
+- **Context:** the `:security` mediator gives up on auth after 5 s, but auth still finished the refresh and rotated
+  the token. The browser kept the old token, its next refresh was taken for theft, and the session was revoked. Any
+  answer lost on the way (timeout, network, closed tab) has the same effect.
+- **Decision:** `ReuseDetectingAuthorizationService` accepts a refresh with the token the last rotation of the
+  authorization replaced, within 30 seconds of that rotation (`rotated_at`, now written from `Clock`): it returns the
+  authorization and Spring issues a new pair. Older or earlier tokens, and revocation with any rotated token, still
+  revoke. An authorization loaded by refresh token carries its stored refresh token in an in-memory attribute;
+  `save` locks the row, saves only if that token is still stored, and otherwise throws `ConcurrentRefreshException`
+  (503 `temporarily_unavailable`, which the mediator retries). The attribute is removed before saving.
+- **Consequences:** a thief holding a token rotated less than 30 seconds ago gets one pair without revoking the
+  session. The user-service gRPC call stays outside any transaction; the row lock lasts only for the save.
+- **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, block 2.

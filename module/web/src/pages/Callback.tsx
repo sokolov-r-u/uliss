@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { clearLoginRetry, exchangeCode, login, LoginRejectedError, retryLoginOnce, takeReturnTo } from '../auth/authApi'
 import { useAuth } from '../auth/AuthContext'
+import { claimChatState } from '../auth/tokenStore'
 import { Shell } from '../ui/Shell'
 
 /**
@@ -38,7 +39,9 @@ export function Callback() {
       return
     }
     exchangeCode(code, state)
-      .then(() => {
+      .then((tokens) => {
+        // before any screen mounts: a chat turn left by an expired session is sent only for its own user
+        claimChatState(tokens)
         clearLoginRetry()
         syncFromStore()
         // marked so the first screen offers no Back into the OAuth redirects
