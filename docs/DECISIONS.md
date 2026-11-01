@@ -217,3 +217,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   duplicating CLAUDE.md; Kiro's three files per task for their weight. `docs/TASK_TEMPLATE.md` gains «Архитектурные
   варианты».
 - **Source:** task `docs/tasks/2026-10-28-claude-tooling.md`, block 6.
+
+## 2026-11-01 — Claude may pull and merge on task branches
+
+- **Context:** `bash-guard.sh` blocked every `git pull` and `git merge`, so updating a branch from `main` always went
+  through the user, even when the user had asked for it in chat; the hook cannot see the chat.
+- **Decision:** the hook allows `git pull` and `git merge` on a task branch; a rebasing pull (`--rebase`, `-r`,
+  `pull.rebase` set on the command line or in git config) stays blocked as a history rewrite. On `main` only
+  `--ff-only` and `merge --abort` pass, so no merge commit lands there. `gh pr merge`, push, reset, rebase, tag and
+  clean stay blocked. Replaces the merge/pull part of "Claude Code rules without exceptions are hooks" (2026-10-28).
+- **Consequences:** the hook does not know the working mode; in manual mode the "no merge" rule of
+  `docs/WORKFLOW_MANUAL.md` rests on the text alone.
+- **Source:** commit `0be0aa0` and the follow-up fix; task `docs/tasks/2026-11-01-dependabot-november.md`.

@@ -62,8 +62,8 @@ my $start = qr/(?:^|[;&|(`{]|\b(?:then|do|else|elif|if|while|until)\b|!)\s*(?:(?
 my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path)(?:=\S+|\s+\S+)|--[a-z-]+(?:=\S+)?|-[A-Za-z]))*\s+/m;
 
 # Git, processes and the database
-decide('block', "push, pull, history rewrites, tags, merges and clean need the user's explicit per-request permission; ask the user to run it.")
-  if $code =~ /${git}(?:push|pull|reset|rebase|revert|tag|merge|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
+decide('block', "push, history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
+  if $code =~ /${git}(?:push|reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
 decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
   if $code =~ /${git}(?:checkout|switch|worktree)$end/m;
@@ -110,22 +110,96 @@ sub message_value {
   return $v;
 }
 
+# Runs git in a directory without a shell; returns its trimmed stdout, or undef when git fails.
+sub git_out {
+  my ($dir, @args) = @_;
+  my $pid = open(my $h, '-|') // return undef;
+  if (!$pid) { open STDERR, '>', '/dev/null'; exec 'git', '-C', $dir, @args; exit 127 }
+  my $out = do { local $/; <$h> } // '';
+  close $h or return undef;
+  chomp $out;
+  return $out;
+}
+
+sub is_false { $_[0] =~ /^(?:false|no|off|0)$/i }
+
+# pull and merge are allowed, except a rebasing pull and a merge commit on main.
+sub pull_or_merge {
+  my ($dir, $config, $foreign, $verb, @args) = @_;
+  decide('block', "cannot tell which branch git $verb would change; run it from the repository without GIT_* or --git-dir.")
+    if $foreign;
+  my $current = git_out($dir, 'branch', '--show-current');
+  decide('block', "cannot tell which branch git $verb would change; check the -C path or ask the user to run it.")
+    unless defined $current;
+  my @opts;
+  for my $raw (@args) {
+    last if $raw eq '--' || $raw =~ /^#/;
+    my $t = dequote($raw);
+    push @opts, $t if $t =~ /^-./;
+  }
+  if ($verb eq 'pull') {
+    my ($set) = map { /^pull\.rebase(?:=(.*))?$/is ? ($1 // 'true') : () } reverse @$config;
+    $set //= git_out($dir, 'config', "branch.$current.rebase") if $current ne '';
+    $set //= git_out($dir, 'config', 'pull.rebase');
+    my $rebase = defined $set && !is_false($set);
+    for (@opts) {
+      if (/^(--[a-z-]+)(?:=(.*))?$/s) {
+        my ($name, $value) = ($1, $2);
+        if (length $name >= 5 && index('--no-rebase', $name) == 0) { $rebase = 0 }
+        elsif (length $name >= 3 && index('--rebase', $name) == 0) { $rebase = !(defined $value && is_false($value)) }
+      } elsif (/^-([^-].*)$/s) {
+        for my $c (split //, $1) { last if $c =~ /[XsSmFj]/; $rebase = 1 if $c eq 'r' }
+      }
+    }
+    decide('block', "pull --rebase rewrites history; use a merging pull or ask the user to run it.") if $rebase;
+  }
+  return unless $current eq 'main';
+  my %has = map { $_ => 1 } @opts;
+  return if $verb eq 'merge' && @opts == 1 && ($has{'--abort'} || $has{'--quit'});
+  my %safe = map { $_ => 1 } qw(--ff-only -q --quiet -v --verbose --no-rebase);
+  decide('block', "on main only git $verb --ff-only is allowed; never create a merge commit on main.")
+    unless $has{'--ff-only'} && !grep { !$safe{$_} } @opts;
+}
+
 my $branch;
 for my $source (@sources) {
   for my $words (commands($source)) {
     my @w = @$words;
+    my $foreign = 0;
     while (@w) {
-      if ($w[0] =~ /^[A-Za-z_]\w*=/ || $w[0] =~ /^(?:env|command|time|nohup|sudo|builtin|exec|nice|then|do|else|elif|if|while|until|!)$/) { shift @w }
+      if ($w[0] =~ /^([A-Za-z_]\w*)=/) {
+        $foreign = 1 if $1 =~ /^GIT_(?:DIR|WORK_TREE|CONFIG\w*|COMMON_DIR|INDEX_FILE)$/;
+        my $a = shift @w;
+        shift @w if $a =~ /=$/ && @w && $w[0] =~ /^["']/;
+      }
+      elsif ($w[0] eq 'env') { shift @w; while (@w && $w[0] =~ /^-/) { my $o = shift @w; shift @w if $o =~ /^-[uCS]$/ } }
+      elsif ($w[0] =~ /^(?:command|time|nohup|sudo|builtin|exec|nice|then|do|else|elif|if|while|until|!)$/) { shift @w }
       elsif ($w[0] eq "xargs") { shift @w; while (@w && $w[0] =~ /^-/) { my $o = shift @w; shift @w if $o =~ /^-[IEdLnPs]$/ } }
       else { last }
     }
-    next unless @w && $w[0] =~ m{(?:^|/)git$};
+    next unless @w && dequote($w[0]) =~ m{(?:^|/)\\?git$};
     shift @w;
+    my ($dir, @config) = ($cwd);
     while (@w && $w[0] =~ /^-/) {
       my $opt = shift @w;
-      shift @w if $opt =~ /^(?:-C|-c|--git-dir|--work-tree|--namespace|--exec-path)$/;
+      if ($opt eq '-C') { my $d = dequote(shift(@w) // ''); $dir = $d =~ m{^/} ? $d : "$dir/$d" }
+      elsif ($opt eq '-c') { push @config, dequote(shift(@w) // '') }
+      elsif ($opt =~ /^-c(.+)$/s) { push @config, dequote($1) }
+      elsif ($opt eq '--config-env') { push @config, (dequote(shift(@w) // '') =~ s/=.*$/=env/sr) }
+      elsif ($opt =~ /^--config-env=(.*)$/s) { push @config, (dequote($1) =~ s/=.*$/=env/sr) }
+      elsif ($opt =~ /^--(?:git-dir|work-tree)(=|$)/) { $foreign = 1; shift @w unless $1 }
+      elsif ($opt =~ /^(?:--namespace|--exec-path)$/) { shift @w }
     }
-    next unless @w && $w[0] eq 'commit';
+    next unless @w;
+    $w[0] = dequote($w[0]);
+    pull_or_merge($dir, \@config, $foreign, @w) if $w[0] eq 'pull' || $w[0] eq 'merge';
+    if ($w[0] eq 'config') {
+      my @v = map { dequote($_) } @w;
+      my ($i) = grep { $v[$_] =~ /^(?:pull|branch\..+)\.rebase$/i } 0 .. $#v;
+      decide('block', "setting pull.rebase or branch.<name>.rebase makes git pull rewrite history; leave it unset.")
+        if defined $i && defined $v[$i + 1] && $v[$i + 1] !~ /^-/ && !is_false($v[$i + 1]);
+    }
+    next unless $w[0] eq 'commit';
     shift @w;
     my (@messages, $file, $amend, $all);
     for (my $i = 0; $i < @w; $i++) {
@@ -146,8 +220,7 @@ for my $source (@sources) {
     }
     decide('block', "amending needs the user's explicit permission; make a new commit.") if $amend;
     decide('block', "commit -a stages every modified file; stage explicit paths with git add <path>.") if $all;
-    $branch //= `git -C '$cwd' branch --show-current 2>/dev/null` // '';
-    chomp $branch;
+    $branch //= git_out($cwd, 'branch', '--show-current') // '';
     decide('block', "never commit to main; ask the user which branch to create or switch to.") if $branch eq 'main';
     my $message = join "\n\n", @messages;
     if (defined $file) {

@@ -688,16 +688,17 @@ in the bot branch.
 - **Kotlin 2.3 → 2.4, together with Spring Boot 4.2.** Kotlin follows the BOM's `kotlin.version` (`docs/DECISIONS.md`).
   The 2.4 attempt failed every `compileKotlin` with `getPluginClasspaths() is null`, likely because
   `io.spring.dependency-management` forces the BOM's 2.3.21 onto the Build Tools API classpath (not verified). Move
-  Kotlin when a stable Boot manages 2.4 (4.2.0-M2 has 2.4.20). Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
+  Kotlin when a stable Boot manages 2.4 (4.2.0-M2 has 2.4.20; Boot 4.1.2 still manages 2.3.21, 2026-11-01). Task `docs/tasks/2026-10-21-kotlin-2-4.md`.
 
-## Tomcat and Jackson pinned over the Spring Boot BOM (`gradle-plugins`)
+## Jackson pinned over the Spring Boot BOM (`gradle-plugins`)
 
-**Status:** added 2026-10-21. Boot 4.1.1 brings Tomcat 11.0.24 (CRITICAL CVE-2026-65182), Jackson 3.1.5 and Jackson 2
-2.21.5 (HIGH), which fail `scan-images`. `io.uliss.kotlin-conventions` overrides the BOM properties `tomcat.version`,
-`jackson-bom.version` and `jackson-2-bom.version` from `tomcat`, `jackson`, `jackson2` in `gradle/libs.versions.toml`.
-Remove the three properties and the catalog entries with the Boot upgrade that ships these versions or newer
-(expected 4.1.2); otherwise they hold back the BOM's later patches. A `check` on the Boot version in the plugin fails
-the build on any Boot change until then. Task `docs/tasks/2026-10-21-image-security-fixes.md`.
+**Status:** added 2026-10-21. Boot 4.1.1 brought Tomcat 11.0.24 (CRITICAL CVE-2026-65182), Jackson 3.1.5 and Jackson 2
+2.21.5 (HIGH), which failed `scan-images`. Boot 4.1.2 manages Tomcat 11.0.27, so its override was dropped
+(2026-11-01); its Jackson 3.1.7 and 2.21.7 are still below ours. `io.uliss.kotlin-conventions` overrides the BOM
+properties `jackson-bom.version` and `jackson-2-bom.version` from `jackson`, `jackson2` in `gradle/libs.versions.toml`.
+Remove both properties and catalog entries with the Boot upgrade that ships these versions or newer; otherwise they
+hold back the BOM's later patches. A `check` on the Boot version in the plugin fails the build on any Boot change until
+then. Tasks `docs/tasks/2026-10-21-image-security-fixes.md`, `docs/tasks/2026-11-01-dependabot-november.md`.
 
 ## Debounced reindex: failure race and large fan-out
 
