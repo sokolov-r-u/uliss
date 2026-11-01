@@ -24,9 +24,12 @@ data class NoteAddendumDraft(
     val mainThought: String?,
     @field:JsonPropertyDescription(
         "Other new thoughts worth remembering on their own, each one or two sentences: a distinct opinion, " +
-                "conclusion, preference, decision, or intention of the user. Not passing remarks or details that " +
-                "only support the main thought. No fixed limit — as many as the new messages really hold, usually " +
-                "a few; an empty list is fine. Each is shown as a list item, so use only inline formatting."
+                "conclusion, preference, decision, or intention of the user. Works, artists, people, or places the " +
+                "user named with their evaluation stay inside the thought they illustrate; one item may list " +
+                "several. Not passing remarks, not a question the user asked for information and got answered, and " +
+                "an item never repeats the main thought or another item. No fixed limit — as many as the new " +
+                "messages really hold, usually a few; an empty list is fine. Each is shown as a list item, so use " +
+                "only inline formatting."
     )
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,

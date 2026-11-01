@@ -38,10 +38,12 @@ internal const val MAIN_THOUGHT_DESCRIPTION = "The main thought: one or more par
         "it here and do not use headings."
 
 internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth remembering on their own, each one or " +
-        "two sentences: a distinct opinion, conclusion, preference, decision, or intention of the user. Not passing " +
-        "remarks or details that only support the main thought. No fixed limit — as many as the chat really holds, " +
-        "usually a few; an empty list is fine. Each is shown as a list item, so use only inline formatting. Put " +
-        "open questions and intentions last."
+        "two sentences: a distinct opinion, conclusion, preference, decision, or intention of the user. Works, " +
+        "artists, people, or places the user named with their evaluation stay inside the thought they illustrate; " +
+        "one item may list several. Not passing remarks, not a question the user asked for information and got " +
+        "answered, and an item never repeats the main thought or another item. No fixed limit — as many as the " +
+        "chat really holds, usually a few; an empty list is fine. Each is shown as a list item, so use only inline " +
+        "formatting. Put questions the user left open and intentions last."
 
 // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
 private val LINE_BREAKS = Regex("\\s*\\R\\s*")

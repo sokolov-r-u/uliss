@@ -31,6 +31,16 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `create and update prompts keep named works, drop answered questions and never repeat the main thought`() {
+        listOf(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT).forEach { prompt ->
+            assertTrue(prompt.contains("A question the user asked for information and got answered is not a thought"))
+            assertTrue(prompt.contains("Keep the specific works, artists, people, and places the user named"))
+            assertTrue(prompt.contains("A secondary thought never repeats the main thought"))
+            assertTrue("details that only support the main thought" !in prompt, prompt)
+        }
+    }
+
+    @Test
     fun `update user prompt separates the existing note, the new messages and related notes`() {
         val chatId = UUID.randomUUID()
         val context = ChatSummaryContext(
@@ -100,6 +110,16 @@ class ChatPromptsTest {
         val title = named.indexOf("Note title (set by the user): Giant Steps\n")
         assertTrue(title in 0 until named.indexOf("NOTE PLACE"))
         assertTrue("Note title (set by the user)" !in unnamed)
+    }
+
+    @Test
+    fun `summary user prompt makes the user's title the subject of the main thought only when there is one`() {
+        val named = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userTitle = "Fishmans")
+        val iconOnly = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userIcon = "🎷")
+
+        val rule = named.indexOf("The user's title names the note's subject")
+        assertTrue(rule in named.indexOf("Note title (set by the user): Fishmans\n") until named.indexOf("NOTE PLACE"))
+        assertTrue("The user's title names" !in iconOnly)
     }
 
     @Test

@@ -103,7 +103,9 @@ class NoteDraftTest {
         assertTrue(secondaryDescription.contains("only inline formatting"))
         assertTrue(secondaryDescription.contains("No fixed limit"))
         assertTrue(secondaryDescription.contains("Not passing remarks"))
-        assertTrue(secondaryDescription.contains("Put open questions and intentions last"))
+        assertTrue(secondaryDescription.contains("never repeats the main thought"))
+        assertTrue(secondaryDescription.contains("not a question the user asked for information and got answered"))
+        assertTrue(secondaryDescription.contains("Put questions the user left open and intentions last"))
         assertEquals("A standalone note capturing the user's thoughts from the current chat.", schema["description"])
     }
 }

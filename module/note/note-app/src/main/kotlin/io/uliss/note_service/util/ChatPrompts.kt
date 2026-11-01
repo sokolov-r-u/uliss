@@ -113,6 +113,10 @@ object ChatPrompts {
         Only the user's perspective matters. A thought counts only if it is the user's own: something the user
         stated, concluded, decided, felt, or intends to do.
 
+        A question the user asked for information and got answered is not a thought and not an intention, even
+        when worded as one ("I want to understand which genre this is"): leave it out. Keep a question only when
+        the user left it open themselves: said they want to figure it out, doubted the answer, or disagreed with it.
+
         Take the reasoning behind a thought only from the user's own words: their explanations, and the
         assistant's readings of their meaning that they explicitly confirmed or corrected (keep the correction).
         An assistant's explanation the user did not respond to is not the user's thought — leave it out, even if
@@ -127,6 +131,17 @@ object ChatPrompts {
         the user picked them up, agreed with them, pushed back on them, or built on them —
         keep just the part the user engaged with, framed the way the user took it, and drop the rest.
         Drop everything else, including the assistant's offers and follow-up questions.
+    """.trimIndent()
+
+    /** What a thought keeps and how thoughts stay distinct; shared by the create and update prompts. */
+    private val THOUGHT_DETAIL_RULES: String = """
+        Keep the specific works, artists, people, and places the user named with their own evaluation — including
+        an assistant's suggestion the user rated ("Paper Sun really works for me") — inside the thought they
+        illustrate; one secondary thought may list several of them. An assistant's suggestion the user did not
+        rate still drops out. Never add descriptions of them the user did not give.
+
+        A secondary thought never repeats the main thought or another secondary thought, and each work or person
+        is named in one place only.
     """.trimIndent()
 
     /** How the main thought is chosen; shared by the create and update prompts. */
@@ -175,12 +190,13 @@ object ChatPrompts {
         Pick one main thought — the line the whole chat followed, the user's central view or conclusion — and give
         it the most space. Then add the other thoughts worth remembering on their own: a distinct opinion,
         conclusion, preference, decision, or intention of the user that would still matter without this chat. Leave
-        out passing remarks, reactions, and details that only support the main thought. A chat usually holds a few
-        such thoughts, not one per message; there is no fixed limit, but never pad.
+        out passing remarks and reactions. A chat usually holds a few such thoughts, not one per message; there is
+        no fixed limit, but never pad.
 
         The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
         so that together they read as one coherent note, not as separate fragments.
         """.trimIndent(),
+        THOUGHT_DETAIL_RULES,
         MAIN_THOUGHT_RULES,
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
@@ -199,13 +215,24 @@ object ChatPrompts {
 
         Pick the most important new thought as the main thought and give it the most space. Then add the other new
         thoughts worth remembering on their own: a distinct opinion, conclusion, preference, decision, or intention
-        of the user that would still matter without this chat. Leave out passing remarks, reactions, and details
-        that only support the main thought. There is no fixed limit, but never pad. The addition is shown under a
+        of the user that would still matter without this chat. Leave out passing remarks and reactions. There is no
+        fixed limit, but never pad. The addition is shown under a
         date heading after the existing note, so do not add headings or a title.
         """.trimIndent(),
+        THOUGHT_DETAIL_RULES,
         MAIN_THOUGHT_RULES,
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
+
+    /** Shown only with the user's own title: it sets the subject of the main thought. */
+    private val USER_TITLE_RULE: String = """
+        The user's title names the note's subject. When the chat says something about it, the main thought is what
+        the user said about this subject, with their own reasoning; if they said little, keep it short and add
+        nothing. A change of the user's view counts as the main thought only within this subject; a change of view
+        on another topic becomes the first secondary thought ("thought X, arrived at Y"). The chat's other thoughts
+        become secondary thoughts. When the title is general or unrelated to the chat, pick the main thought as
+        usual. Name the subject freely in the text, but do not turn the title into a heading.
+    """.trimIndent()
 
     fun noteSummaryUserPrompt(
         context: ChatSummaryContext,
@@ -222,6 +249,7 @@ object ChatPrompts {
         appendLine()
         if (userTitle != null) appendLine("Note title (set by the user): $userTitle")
         if (userIcon != null) appendLine("Note icon (set by the user): $userIcon")
+        if (userTitle != null) appendLine(USER_TITLE_RULE)
         if (userTitle != null || userIcon != null) appendLine()
         appendNotePlace(place)
         appendLine()

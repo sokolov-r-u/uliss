@@ -538,3 +538,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   different one) the usual main thought, written as where they started and where they arrived, and forbids picking
   the main thought by recency.
 - **Source:** branch `DE-note-summary-main-thought`.
+
+## 2026-11-01 — A user's note title sets the subject of the main thought
+
+- **Context:** a note titled «Fishmans» led with the user's taste in psychedelia in general: nothing said what the
+  user's title means, and the shared main-thought description told the model not to repeat the title.
+- **Decision:** only when the user sets the title, the summary user prompt adds a rule right after the title and icon
+  lines: the main thought is what the user said about the title's subject, with their reasoning, short when they said
+  little; a general or unrelated title keeps the usual choice. This refines "A conclusion from an accepted explanation
+  and a changed view lead the note" (2026-10-27): a change of view leads only within the title's subject, a change on
+  another topic becomes the first secondary thought. `NoteBodyDraft` gets its own `mainThought` description without
+  "do not repeat it"; `NoteDraft` keeps it, since its model-written title already names the main thought. Both
+  prompts share `THOUGHT_DETAIL_RULES`: works, artists, people and places the user named with their evaluation stay
+  grouped inside the thought they illustrate (an unrated assistant suggestion still drops out), and no secondary
+  thought repeats the main thought. `USER_THOUGHT_RULES` and the secondary-thought descriptions drop a question the
+  user asked for information and got answered; only a question the user left open stays.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 1.
