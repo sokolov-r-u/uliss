@@ -133,6 +133,16 @@ the same transaction that terminally fails the outbox event.
 If the chat was deleted after the request, the worker fails the note at once through the same terminal-failure
 handler instead of spending retries.
 
+`POST /note/notes/{noteId}/resummarize` ("Summarize again", behind the `note-resummarize` feature flag: `404` while
+it is off for the user) requires `Idempotency-Key` and rewrites a `READY` `CHAT_SUMMARY` note from its whole chat
+through the latest message. It returns `202` with the note (`updating: true`); the old text stays until the new one
+replaces it in one transaction with the boundary, and the note is indexed at once. The worker sends the create prompt
+with the note's title and icon as the user's (`NoteBodyDraft`) and related notes without the note itself. Title, icon,
+constellations, parent and sub-notes do not change. A hand-written note or one whose chat was deleted is
+`409 NOTE_NOT_RESUMMARIZABLE`, another status `409 NOTE_NOT_READY`, a pending request of the chat
+`409 SUMMARY_IN_PROGRESS`, a key used for another note `409 IDEMPOTENCY_KEY_REUSED`. A failure, or text over the
+editable limit, keeps the old text and ends the request `FAILED`.
+
 ## Notes search in chat replies
 
 Chat replies can draw on the user's notes. `AssistantService` registers a per-turn `NotesSearchTool` (`searchNotes`)

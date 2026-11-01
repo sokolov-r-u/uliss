@@ -18,6 +18,8 @@ import io.uliss.note_service.service.facade.ChatFacade
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
+import io.uliss.note_service.util.IDEMPOTENCY_KEY_HEADER
+import io.uliss.note_service.util.parseIdempotencyKey
 import io.uliss.note_service.util.withHeartbeat
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -172,14 +174,6 @@ class ChatController(
             .body(body)
     }
 
-    private fun parseIdempotencyKey(value: String): UUID {
-        return try {
-            UUID.fromString(value)
-        } catch (_: IllegalArgumentException) {
-            throw BadRequestException("invalid $IDEMPOTENCY_KEY_HEADER header")
-        }
-    }
-
     private fun toServerSentEvent(event: AssistantStreamEvent): ServerSentEvent<Any> = when (event) {
         is AssistantStreamEvent.AppendText ->
             ServerSentEvent.builder<Any>(AssistantTextChunkResponse(event.text)).event("append").build()
@@ -196,7 +190,6 @@ class ChatController(
     }
 
     private companion object {
-        const val IDEMPOTENCY_KEY_HEADER = "Idempotency-Key"
         const val CHAT_ID_HEADER = "Chat-Id"
         const val CHAT_TURN_ID_HEADER = "Chat-Turn-Id"
         const val DEFAULT_MESSAGE_PAGE_SIZE = 50
