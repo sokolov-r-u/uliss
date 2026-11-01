@@ -23,6 +23,9 @@ make_repo "$WORK" TD-test
 REBASE="$TMP/rebase"
 make_repo "$REBASE" TD-rebase
 git -C "$REBASE" config pull.rebase true
+BRANCH_REBASE="$TMP/branch-rebase"
+make_repo "$BRANCH_REBASE" TD-branch
+git -C "$BRANCH_REBASE" config branch.TD-branch.rebase true
 
 # Prints block, ask, allow or error<N> for a hook run on the given JSON input.
 decision() {
