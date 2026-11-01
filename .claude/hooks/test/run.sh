@@ -20,6 +20,9 @@ MAIN="$TMP/main"
 WORK="$TMP/work"
 make_repo "$MAIN"
 make_repo "$WORK" TD-test
+REBASE="$TMP/rebase"
+make_repo "$REBASE" TD-rebase
+git -C "$REBASE" config pull.rebase true
 
 # Prints block, ask, allow or error<N> for a hook run on the given JSON input.
 decision() {

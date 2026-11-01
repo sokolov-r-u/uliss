@@ -65,19 +65,6 @@ my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|na
 decide('block', "push, history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
   if $code =~ /${git}(?:push|reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
-# pull and merge are allowed, except a rebasing pull and a merge commit on main.
-my $current_branch;
-while ($code =~ /(${git})(pull|merge)$end($seg)/mg) {
-  my ($prefix, $verb, $args) = ($1, $2, $3);
-  decide('block', "pull --rebase rewrites history; use a merging pull or ask the user to run it.")
-    if $verb eq 'pull'
-    && ($args =~ /(?:^|\s)(?:--rebase(?:=\S+)?|-(?!-)[A-Za-z]*r[A-Za-z]*)(?=\s|$)/ || $prefix =~ /pull\.rebase=(?!false)/);
-  next if $args =~ /(?:^|\s)(?:--ff-only|--abort)(?=\s|$)/;
-  $current_branch //= `git -C '$cwd' branch --show-current 2>/dev/null` // '';
-  chomp $current_branch;
-  decide('block', "on main only git $verb --ff-only is allowed; never create a merge commit on main.")
-    if $current_branch eq 'main';
-}
 decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
   if $code =~ /${git}(?:checkout|switch|worktree)$end/m;
 decide('block', "deleting, renaming or forcing branches needs the user's explicit permission.")
@@ -123,6 +110,34 @@ sub message_value {
   return $v;
 }
 
+# pull and merge are allowed, except a rebasing pull and a merge commit on main.
+sub pull_or_merge {
+  my ($dir, $config, $verb, @args) = @_;
+  my @opts;
+  for my $t (map { dequote($_) } @args) {
+    last if $t eq '--' || $t =~ /^#/;
+    push @opts, $t if $t =~ /^-/;
+  }
+  my %has = map { $_ => 1 } @opts;
+  if ($verb eq 'pull' && !$has{'--no-rebase'}) {
+    my ($set) = map { /^pull\.rebase=(.*)$/s ? $1 : () } reverse @$config;
+    $set //= `git -C '$dir' config --get pull.rebase 2>/dev/null` // '';
+    chomp $set;
+    my $rebase = $set ne '' && $set ne 'false';
+    for (@opts) {
+      if (/^--rebase(?:=(.*))?$/s) { $rebase = !defined $1 || $1 ne 'false' }
+      elsif (/^-(?![-Xs])[A-Za-z]*r/) { $rebase = 1 }
+    }
+    decide('block', "pull --rebase rewrites history; use a merging pull or ask the user to run it.") if $rebase;
+  }
+  return if $verb eq 'merge' && ($has{'--abort'} || $has{'--quit'});
+  return if $has{'--ff-only'} && !grep { $has{$_} } qw(--no-ff --ff --squash --no-ff-only);
+  my $current = `git -C '$dir' branch --show-current 2>/dev/null` // '';
+  chomp $current;
+  decide('block', "on main only git $verb --ff-only is allowed; never create a merge commit on main.")
+    if $current eq 'main';
+}
+
 my $branch;
 for my $source (@sources) {
   for my $words (commands($source)) {
@@ -134,11 +149,23 @@ for my $source (@sources) {
     }
     next unless @w && $w[0] =~ m{(?:^|/)git$};
     shift @w;
+    my ($dir, @config) = ($cwd);
     while (@w && $w[0] =~ /^-/) {
       my $opt = shift @w;
-      shift @w if $opt =~ /^(?:-C|-c|--git-dir|--work-tree|--namespace|--exec-path)$/;
+      if ($opt eq '-C') { my $d = dequote(shift(@w) // ''); $dir = $d =~ m{^/} ? $d : "$dir/$d" }
+      elsif ($opt eq '-c') { push @config, dequote(shift(@w) // '') }
+      elsif ($opt =~ /^-c(.+)$/s) { push @config, dequote($1) }
+      elsif ($opt =~ /^(?:--git-dir|--work-tree|--namespace|--exec-path)$/) { shift @w }
     }
-    next unless @w && $w[0] eq 'commit';
+    next unless @w;
+    pull_or_merge($dir, \@config, @w) if $w[0] eq 'pull' || $w[0] eq 'merge';
+    if ($w[0] eq 'config') {
+      my @v = map { dequote($_) } @w;
+      my ($i) = grep { $v[$_] eq 'pull.rebase' } 0 .. $#v;
+      decide('block', "setting pull.rebase makes git pull rewrite history; leave it unset.")
+        if defined $i && defined $v[$i + 1] && $v[$i + 1] !~ /^(?:false|-.*)$/;
+    }
+    next unless $w[0] eq 'commit';
     shift @w;
     my (@messages, $file, $amend, $all);
     for (my $i = 0; $i < @w; $i++) {
