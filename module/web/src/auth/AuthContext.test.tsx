@@ -82,4 +82,19 @@ describe('AuthProvider', () => {
         tab.close()
         probe.close()
     })
+
+    it("drops chat state kept for the user's return when another tab signs out", async () => {
+        sessionStorage.clear()
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
+        render(<AuthProvider><SignOut/></AuthProvider>)
+        const tab = otherTab()
+
+        act(() => tab.postMessage('signed-out'))
+
+        await waitFor(() => expect(sessionStorage.getItem('uliss.chat-turn.v1:c1')).toBeNull())
+        expect(sessionStorage.getItem('uliss.chatOwner')).toBeNull()
+        expect(assign).not.toHaveBeenCalled()
+        tab.close()
+    })
 })

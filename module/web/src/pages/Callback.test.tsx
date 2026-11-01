@@ -41,6 +41,20 @@ describe('Callback', () => {
         expect(syncFromStore).toHaveBeenCalled()
     })
 
+    it.each([
+        ['keeps', 'user-1', '{"text":"hello"}'],
+        ['wipes', 'user-2', null],
+    ])('%s a chat turn left by an expired session when %s signs in', async (_, sub, expected) => {
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
+        vi.mocked(exchangeCode).mockResolvedValue({accessToken: `h.${btoa(JSON.stringify({sub}))}.s`, refreshToken: 'r', expiresAt: 1})
+
+        renderCallback('?code=c1&state=s1')
+
+        expect(await screen.findByTestId('return-route')).toBeInTheDocument()
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:c1')).toBe(expected)
+    })
+
     it('reports a refused or cancelled sign-in without exchanging anything', async () => {
         renderCallback('?error=access_denied&state=s1')
 

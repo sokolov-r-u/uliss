@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { clearTokens, getTokens } from './tokenStore'
+import { clearSession, getTokens } from './tokenStore'
 import { login as startLogin, logout as revokeAndClear } from './authApi'
 import { announceSignOut, onSignOutElsewhere } from './signOutBroadcast'
 
@@ -26,16 +26,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const tokens = getTokens()
     const endSession = await revokeAndClear(tokens?.refreshToken ?? null, tokens?.idToken ?? null)
-    clearTokens()
+    clearSession()
     announceSignOut()
     window.location.assign(endSession ?? '/signed-out')
   }, [])
 
-  // Signed out in another tab: this tab's tokens belong to the same user and go too.
+  // Signed out in another tab: this tab's tokens belong to the same user and go too, and so does chat state a session
+  // that ended on its own kept for that user's return.
   useEffect(() => onSignOutElsewhere(() => {
-    if (getTokens() == null) return
-    clearTokens()
-    window.location.assign('/signed-out')
+    const signedIn = getTokens() != null
+    clearSession()
+    if (signedIn) window.location.assign('/signed-out')
   }), [])
 
   const value = useMemo<AuthState>(

@@ -82,10 +82,19 @@ class LoggingAspect {
      */
     private fun render(value: Any?): String =
         try {
-            truncate(value?.toString() ?: "null")
+            truncate(if (value == null) "null" else if (hasOwnToString(value)) value.toString() else identity(value))
         } catch (ex: Exception) {
             "<unrenderable: ${ex.javaClass.simpleName}>"
         }
+
+    /**
+     * `Object.toString` renders through `hashCode`, which may do I/O: `URL.hashCode` resolves the host, and a token
+     * holding an `iss` URL made one traced argument wait seconds for DNS. Such values print their identity instead.
+     */
+    private fun hasOwnToString(value: Any): Boolean = OWN_TO_STRING.get(value.javaClass)
+
+    private fun identity(value: Any): String =
+        "${value.javaClass.simpleName}@${Integer.toHexString(System.identityHashCode(value))}"
 
     private fun truncate(text: String): String =
         if (text.length <= MAX_VALUE_LENGTH) text
@@ -96,6 +105,10 @@ class LoggingAspect {
         const val NANOS_PER_MILLI = 1_000_000L
         const val MASK = "***"
         const val REACTOR_PACKAGE = "reactor.core.publisher."
+        val OWN_TO_STRING = object : ClassValue<Boolean>() {
+            override fun computeValue(type: Class<*>): Boolean =
+                type.getMethod("toString").declaringClass != Any::class.java
+        }
         val SECRET_NAME = Regex(
             "password|secret|token|verifier|privatekey|apikey|credential|cookie|jwt|otp|state|code$",
             RegexOption.IGNORE_CASE,

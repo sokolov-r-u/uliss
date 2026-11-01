@@ -9,11 +9,15 @@ whose backends do not exist yet.
 The SPA uses only relative same-origin routes. In development, Vite proxies `/user` and `/note` using node-side
 environment variables; those service addresses are not included in the browser bundle.
 
-- `auth/tokenStore.ts` stores access and refresh tokens in `sessionStorage`.
+- `auth/tokenStore.ts` stores access and refresh tokens in `sessionStorage`. An explicit sign-out (`clearSession`)
+  also wipes chat drafts and pending turns (`uliss.chat-*`); a session that ended on its own
+  (`endSessionKeepingChatState`) keeps them marked with the token's `sub` (`uliss.chatOwner`).
 - `auth/authApi.ts` calls the shared security mediator under `/user/oauth2/*`.
 - `auth/apiClient.ts` provides `authFetch`, adds bearer authorization, refreshes proactively and after authentication
-  failures, and redirects to login when refresh cannot recover.
-- `pages/Callback.tsx` exchanges the authorization code once and restores the original route.
+  failures, and redirects to login when refresh cannot recover. A refresh that failed on the network or with a 5xx is
+  repeated once after `REFRESH_RETRY_DELAY_MS` with the same token; 400/401 sends the user to sign in.
+- `pages/Callback.tsx` exchanges the authorization code once, keeps chat state left behind only for the same `sub`
+  (`claimChatState`), and restores the original route.
 
 The HTML entry applies the persisted ground, accent, and reading-size theme before React renders. Hashed assets are
 cacheable; HTML is served with `no-store` behavior.
