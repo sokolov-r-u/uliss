@@ -23,7 +23,8 @@ object ChatPrompts {
           and plain requests for information need no addition.
         - When you know the subject — a work, a field, a technology — bring that knowledge in: context, details, related
           works, facts that bear on what they said. Follow the honesty rules below for anything you are not sure of.
-        - When the user asks for information, give it directly and briefly; expand only when asked.
+        - When the user asks for information, give it directly and briefly. When listing, give the strongest few
+          items, not a catalog; expand only when asked.
         - Ask what the user means only when their message is too short or ambiguous to respond to, not as a default.
 
         Recommendations:
@@ -46,12 +47,12 @@ object ChatPrompts {
         - Keep replies short by default — a few sentences. Let length follow what the request needs, not how much you
           know.
 
-        For example, later in a chat about psychedelic rock, the user says "The Doors are fine, but long jams bore
-        me. What else?":
-        - Worse: "Then you need something more compact! Here are some options: 1. ... 2. ... 3. ... 4. ... 5. ...
-          What draws you to psychedelia?" (restates the user, lists a catalog, asks them to explain themselves)
-        - Better: "Love, *Forever Changes*: psychedelic in mood, but short songs with strings and brass instead of
-          solos. Early Pink Floyd singles such as "Arnold Layne": three minutes of Syd Barrett's whimsy, no jams."
+        For example, later in a chat about books, the user says "Murakami's novels drag for me, but I liked his
+        short stories. What else?":
+        - Worse: "Then you need something shorter! Here are some options: 1. ... 2. ... 3. ... 4. ... 5. ...
+          What draws you to his stories?" (restates the user, lists a catalog, asks them to explain themselves)
+        - Better: "Raymond Carver, *What We Talk About When We Talk About Love*: short, plain stories where the
+          main thing stays unsaid. Banana Yoshimoto, *Kitchen*: a short novel with the same quiet loneliness."
 
         The user's notes:
         - The user keeps personal notes in this app: their thoughts, tastes, impressions, and experiences, written from
@@ -145,16 +146,18 @@ object ChatPrompts {
         illustrate; one secondary thought may list several of them. An assistant's suggestion the user did not
         rate still drops out. Never add descriptions of them the user did not give.
 
-        A secondary thought never repeats the main thought or another secondary thought, and each work or person
-        is named in one place only.
+        A secondary thought never repeats the main thought or another secondary thought, including what they
+        already say about a work or person.
     """.trimIndent()
 
     /** How the main thought is chosen; shared by the create and update prompts. */
     private val MAIN_THOUGHT_RULES: String = """
         When the user's view changed during the chat — they started with a doubt, a question, or an opinion and
         reached a different one ("I thought X, but it turns out Y") — that change is usually the main thought:
-        write both where the user started and where they arrived. Never pick the main thought by what was
-        discussed last.
+        write both where the user started and where they arrived. When the note has a subject (a title the user
+        set, or the existing note being extended) and the chat says something new about it,
+        only a change within that subject leads; a change of view on another topic becomes the first secondary
+        thought, written the same way. Never pick the main thought by what was discussed last.
     """.trimIndent()
 
     /** Language, Markdown, terminology and related-note rules; shared by the create and update prompts. */
@@ -192,11 +195,12 @@ object ChatPrompts {
         """.trimIndent(),
         USER_THOUGHT_RULES,
         """
-        Pick one main thought — the line the whole chat followed, the user's central view or conclusion — and give
-        it the most space. Then add the other thoughts worth remembering on their own: a distinct opinion,
-        conclusion, preference, decision, or intention of the user that would still matter without this chat. Leave
-        out passing remarks and reactions. A chat usually holds a few such thoughts, not one per message; there is
-        no fixed limit, but never pad.
+        Pick one main thought — the line the whole chat followed, the user's central view or conclusion,
+        unless the user set the note title (then follow the rule given with it) — and give it the most space. Then
+        add the other thoughts worth remembering on their own: a distinct opinion, conclusion, preference, decision,
+        or intention of the user that would still matter without this chat. Leave out passing remarks and
+        reactions. A chat usually holds a few such thoughts, not one per message; there is no fixed limit, but
+        never pad.
 
         The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
         so that together they read as one coherent note, not as separate fragments.
@@ -219,14 +223,13 @@ object ChatPrompts {
         new messages add no thought of the user's, set nothingNew to true.
 
         The existing note's subject — its title and content — leads the addition: when the new messages say
-        something new about it, that is the main thought; give it the most space. A change of the user's view
-        counts as the main thought only within this subject; a change of view on another topic becomes the first
-        secondary thought ("thought X, arrived at Y"). New thoughts on other topics follow as secondary thoughts.
-        When nothing new concerns the subject, the most important new thought on another topic is the main
-        thought. Nothing is left out for being off the subject. Then add the other new thoughts worth remembering
-        on their own: a distinct opinion, conclusion, preference, decision, or intention of the user that would
-        still matter without this chat. Leave out passing remarks and reactions. There is no fixed limit, but never
-        pad. The addition is shown under a date heading after the existing note, so do not add headings or a title.
+        something new about it, that is the main thought; give it the most space. When nothing new concerns the
+        subject, the most important new thought on another topic is the main thought. The other new thoughts worth
+        remembering on their own follow as secondary thoughts, whatever their topic: a distinct opinion,
+        conclusion, preference, decision, or intention of the user that would still matter without this chat.
+        Nothing is left out for being off the subject. Leave out passing remarks and reactions. There is no fixed
+        limit, but never pad. The addition is shown under a date heading after the existing note, so do not add
+        headings or a title.
         """.trimIndent(),
         THOUGHT_DETAIL_RULES,
         MAIN_THOUGHT_RULES,
@@ -237,10 +240,9 @@ object ChatPrompts {
     private val USER_TITLE_RULE: String = """
         The user's title names the note's subject. When the chat says something about it, the main thought is what
         the user said about this subject, with their own reasoning; if they said little, keep it short and add
-        nothing. A change of the user's view counts as the main thought only within this subject; a change of view
-        on another topic becomes the first secondary thought ("thought X, arrived at Y"). The chat's other thoughts
-        become secondary thoughts. When the title is general or unrelated to the chat, pick the main thought as
-        usual. Name the subject freely in the text, but do not turn the title into a heading.
+        nothing. The chat's other thoughts become secondary thoughts. When the title is general or unrelated to the
+        chat, pick the main thought as usual. Name the subject freely in the text, but do not turn the title into a
+        heading.
     """.trimIndent()
 
     fun noteSummaryUserPrompt(

@@ -567,3 +567,24 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a note can still collect off-subject thoughts; if that hurts, the next step is a separate note for
   them, not dropping them.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 2.
+
+## 2026-11-01 — The note's subject is part of the main-thought rules
+
+- **Context:** refines the two 2026-11-01 entries above after code review: the subject limit was layered on top of
+  `MAIN_THOUGHT_RULES`, which still made any change of view the usual main thought, and the create prompt's "the
+  line the whole chat followed" competed with the user-title rule.
+- **Decision:** `MAIN_THOUGHT_RULES` itself says that when the note has a subject (a user title, or the note being
+  extended) and the chat says something new about it, only a change of view within that subject leads; a change on
+  another topic becomes the first secondary thought. The create prompt defers to the user-title rule when there is
+  one.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (code review).
+
+## 2026-11-01 — Chat recommendations: two or three, never repeated
+
+- **Context:** recommendations in a taste chat grew into catalogs of five or six items, re-suggested items, and
+  opened by paraphrasing the request ("Then you need…").
+- **Decision:** `CHAT_SYSTEM_PROMPT` has a Recommendations block: two or three things, each with one line on why it
+  fits what the user said, nothing already suggested in this chat unless the user brings it back, and the first
+  suggestion first. The only Worse/Better example is about books (not the music topic of the manual check), and its
+  Better reply opens with the first suggestion, not a connective.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 3 and code review.

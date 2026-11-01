@@ -12,8 +12,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 data class NoteBodyDraft(
     @field:JsonPropertyDescription(
         "The main thought: one or more paragraphs, as many as the thought needs, with the user's own reasoning if " +
-                "they gave any. The title is the user's and names the note's subject, so name it freely; do not use " +
-                "headings."
+                "they gave any. The title is the user's and shown separately: its subject may be named freely in the " +
+                "text, but do not use headings."
     )
     @field:JsonProperty(required = true)
     val mainThought: String?,

@@ -41,6 +41,14 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `a note's subject limits which change of view leads, in both prompts`() {
+        listOf(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT).forEach { prompt ->
+            assertTrue(prompt.contains("only a change within that subject leads"), prompt)
+        }
+        assertTrue(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT.contains("unless the user set the note title"))
+    }
+
+    @Test
     fun `only the update prompt leads with the existing note's subject`() {
         val anchor = "The existing note's subject — its title and content — leads the addition"
         assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains(anchor))
