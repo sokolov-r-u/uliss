@@ -63,6 +63,19 @@ describe('ItemActions', () => {
         vi.mocked(listSubNotes).mockReset().mockResolvedValue([])
     })
 
+    it('puts a screen item between Rename and Delete and closes the menu when it is picked', async () => {
+        const onSelect = vi.fn()
+        renderRow(note, {extraActions: [{label: 'Summarize again', onSelect}]})
+        await openMenu('Idea')
+
+        const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((item) => item.textContent)
+        expect(items).toEqual(['Rename', 'Summarize again', 'Delete'])
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Summarize again'}))
+
+        expect(onSelect).toHaveBeenCalledOnce()
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+
     it('lists the notes that survive a chat delete and opens one from the dialog', async () => {
         vi.mocked(listChatNotes).mockResolvedValue([
             {id: 'n-7', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon notes', content: 'Body'},

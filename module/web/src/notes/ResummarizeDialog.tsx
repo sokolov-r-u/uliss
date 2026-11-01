@@ -1,8 +1,9 @@
 import {useState} from 'react'
-import {Dialog} from '@uliss/design-system'
+import {Notice} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {describeError} from '../lib/apiHelpers'
 import {generateClientUuid} from '../lib/clientUuid'
+import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {type Note, NoteApiError, resummarizeNote} from './noteApi'
 
 const BODY = 'Uliss rewrites the text from the whole chat. Your edits and additions are replaced; the title, icon and ' +
@@ -42,10 +43,14 @@ export function ResummarizeDialog({noteId, onQueued, onClose}: {
         }
     }
 
-    return <Dialog title="Summarize this note again?" width={340} body={error ?? BODY}
-                   confirm={pending ? 'Summarizing…' : 'Summarize'} cancel="Cancel" busy={pending}
-                   confirmDisabled={pending} onConfirm={() => void confirm()}
-                   onCancel={() => {
-                       if (!pending) onClose()
-                   }}/>
+    const close = () => {
+        if (!pending) onClose()
+    }
+    // One text block for the description and every refusal, three lines tall: the card keeps its size.
+    return <NoticeOverlay blocking={pending} onBackdropClick={close}>
+        <Notice title="Summarize this note again?" width={340}
+                body={<span className={`resummarize-text${error ? ' resummarize-error' : ''}`}>{error ?? BODY}</span>}
+                primary={pending ? 'Summarizing…' : 'Summarize'} secondary="Cancel" secondaryDisabled={pending}
+                busy={pending} primaryDisabled={pending} onPrimary={() => void confirm()} onSecondary={close}/>
+    </NoticeOverlay>
 }
