@@ -22,6 +22,8 @@ import io.uliss.note_service.service.NotePlacementService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.NoteStatusService
 import io.uliss.note_service.service.facade.NoteFacade
+import io.uliss.note_service.util.IDEMPOTENCY_KEY_HEADER
+import io.uliss.note_service.util.parseIdempotencyKey
 import io.uliss.note_service.util.withHeartbeat
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
@@ -30,6 +32,7 @@ import java.util.UUID
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.oauth2.jwt.Jwt
@@ -40,6 +43,7 @@ import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -172,6 +176,19 @@ class NoteController(
         checkNotNull(request.version),
         request.icon,
     )
+
+    /** Queues "Summarize again": the note's content is rewritten from its whole chat in the background. */
+    @PostMapping("/{noteId}/resummarize")
+    fun resummarizeNote(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
+    ): ResponseEntity<NoteResponse> {
+        val idempotencyKey = parseIdempotencyKey(idempotencyKeyHeader)
+        return ResponseEntity.accepted()
+            .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
+            .body(noteFacade.resummarize(jwt.getUserId(), noteId, idempotencyKey))
+    }
 
     /** Streams a model rewrite of [AiEditNoteRequest.content]; refusals come back as JSON before the stream opens. */
     @PostMapping("/{noteId}/ai-edit", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])

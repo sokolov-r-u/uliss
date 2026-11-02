@@ -1,7 +1,6 @@
 {
   "permissions": {
     "deny": [
-      "Bash(git push:*)",
       "Bash(git reset:*)",
       "Bash(git rebase:*)",
       "Bash(git revert:*)",
@@ -13,6 +12,8 @@
       "Read(**/.env)"
     ],
     "ask": [
+      "Bash(git push:*)",
+      "Bash(gh pr create:*)",
       "DesignSync",
       "mcp__idea__execute_terminal_command",
       "mcp__idea__execute_run_configuration",

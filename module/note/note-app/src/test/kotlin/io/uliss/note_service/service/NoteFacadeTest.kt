@@ -1,5 +1,6 @@
 package io.uliss.note_service.service
 
+import dev.openfeature.sdk.Client
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.model.ChatEntity
@@ -14,7 +15,8 @@ class NoteFacadeTest {
 
     private val noteService = Mockito.mock(NoteService::class.java)
     private val chatService = Mockito.mock(ChatService::class.java)
-    private val noteFacade = NoteFacade(noteService, chatService)
+    private val noteSummaryService = Mockito.mock(NoteSummaryService::class.java)
+    private val noteFacade = NoteFacade(noteService, chatService, noteSummaryService, Mockito.mock(Client::class.java))
 
     @Test
     fun `note chats keep the chat order and default missing note counts to zero`() {

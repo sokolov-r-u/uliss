@@ -39,12 +39,12 @@ expect allow bash-guard.sh "$(bash_call "git restore -S module/a.kt")" "restore 
 expect allow bash-guard.sh "$(bash_call "docker compose -f config/compose.yml ps")" "config as a path"
 
 # Wrappers and combined flags
-expect block bash-guard.sh "$(bash_call "bash -lc 'git push'")" "bash -lc"
+expect block bash-guard.sh "$(bash_call "bash -lc 'git push'" "$MAIN")" "bash -lc"
 expect block bash-guard.sh "$(bash_call "lsof -ti :8080 | xargs -I {} kill {}")" "xargs -I value"
 expect block bash-guard.sh "$(bash_call "git branch -df x")" "branch -df"
 expect block bash-guard.sh "$(bash_call "git add -Av")" "add -Av"
-expect block bash-guard.sh "$(bash_call "nice git push")" "nice wrapper"
-expect block bash-guard.sh "$(bash_call "exec git push")" "exec wrapper"
+expect block bash-guard.sh "$(bash_call "nice git push" "$MAIN")" "nice wrapper"
+expect block bash-guard.sh "$(bash_call "exec git push" "$MAIN")" "exec wrapper"
 expect allow bash-guard.sh "$(bash_call "git pull")" "pull"
 expect block bash-guard.sh "$(bash_call "gh pr merge 12 --squash")" "gh pr merge"
 expect allow bash-guard.sh "$(bash_call "git branch -a")" "list branches"

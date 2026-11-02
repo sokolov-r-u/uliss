@@ -7,6 +7,8 @@
  * Summarize creates a generating note in the picked place or under a picked note; `?summary=old` gives chat c1 a note
  * that covers only its first answer, so Summarize offers an update. `visual.place=fail-once` in `sessionStorage` fails
  * the next change of a note's place; `visual.place=hold` holds such changes until it is removed.
+ * `?flags=resummarize` turns on "Summarize again", which rewrites the note at once; `&resummarize=busy` refuses it
+ * as a chat already being summarized.
  * Notes can move under notes and back, and a note
  * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
  */
@@ -286,6 +288,18 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     const notes = empty ? [] : NOTES
 
     if (url.pathname === '/user/users/me/onboarding') return method === 'GET' ? json(onboarding()) : json({})
+    if (url.pathname === '/user/users/me/features') {
+        return json({'note-resummarize': params.get('flags') === 'resummarize'})
+    }
+    const resummarize = url.pathname.match(/^\/note\/notes\/([^/]+)\/resummarize$/)
+    if (resummarize && method === 'POST') {
+        const found = NOTES.find((item) => item.id === resummarize[1])
+        if (!found) return json({}, 404)
+        if (params.get('resummarize') === 'busy') return json({code: 'SUMMARY_IN_PROGRESS'}, 409)
+        // the worker is instant here: the next read already has the new text
+        found.content = 'Written again from the whole chat.'
+        return json(withParent(found), 202)
+    }
     if (url.pathname === '/note/chats') return json(chats)
     if (url.pathname === '/note/notes') return json(notes)
     // A change of a note's place fails once or waits while asked to, so the place dialog's states can be checked

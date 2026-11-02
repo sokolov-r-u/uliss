@@ -8,6 +8,7 @@ import {
     listSubNotes,
     renameNote,
     requestChatSummary,
+    resummarizeNote,
     streamNoteStatus,
     updateNote,
 } from './noteApi'
@@ -115,6 +116,31 @@ describe('noteApi', () => {
 
         await expect(requestChatSummary('chat-1', 'request-1', undefined, 'gone'))
             .rejects.toMatchObject({kind: 'http', status: 404, code: 'CONSTELLATION_NOT_FOUND'})
+    })
+
+    it('queues Summarize again with the key and returns the updating note', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', content: 'Old', updating: true,
+        }, 202))
+
+        await expect(resummarizeNote('note-1', 'request-1')).resolves.toMatchObject({id: 'note-1', updating: true})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes/note-1/resummarize', {
+            method: 'POST',
+            headers: {'Idempotency-Key': 'request-1'},
+        })
+    })
+
+    it('carries the error code of a refused Summarize again', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({code: 'SUMMARY_IN_PROGRESS'}, 409))
+
+        await expect(resummarizeNote('note-1', 'request-1'))
+            .rejects.toMatchObject({kind: 'http', status: 409, code: 'SUMMARY_IN_PROGRESS'})
+    })
+
+    it('rejects a Summarize again response for another note', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({id: 'note-2', source: 'CHAT_SUMMARY', status: 'READY', content: 'x'}, 202))
+
+        await expect(resummarizeNote('note-1', 'request-1')).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('creates a sub-note under the chosen parent note in a CREATE body', async () => {

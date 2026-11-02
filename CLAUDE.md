@@ -55,8 +55,8 @@
 ## Commits
 
 - Never commit to `main`. If the current branch is `main`, stop and ask the user which branch to create or switch to.
-- Branch names: `<PREFIX>-<short-kebab-name>` with the task-type prefix (e.g. `FE-constellations-tree`). No `claude/`
-  or other folder prefix, no hash or random suffix.
+- A branch you create is named `<PREFIX>-<short-kebab-name>` with the task-type prefix (e.g. `FE-constellations-tree`).
+  A branch the app created for the session (`claude/<name>-<hash>`) keeps its name; it is committed and pushed as is.
 - Work in the main checkout, not in worktrees: no `git worktree`/`EnterWorktree`, and start sessions with
   `use_worktree: false`. Never switch the checkout's branch (including back to `main`) without the user asking.
 - Work on the current branch. One commit per logical block, containing the block's code and its tests; the touched
@@ -65,13 +65,18 @@
 - Message: `<PREFIX>  - <short imperative summary>` in English, where the prefix is the task type: `DE` defect,
   `FE` feature, `TD` tech debt. End with a blank line and
   `Co-Authored-By: Claude <noreply@anthropic.com>` (use the current model name).
-- Never push, amend, revert, reset, rebase, tag, merge a PR, or force anything without explicit per-request permission.
+- At the end of a task, push the task branch and open a PR (`gh pr create`) only after the user confirms each one; the
+  hook asks. Never push `main` or force-push.
+- Never amend, revert, reset, rebase, tag, merge a PR, or force anything without explicit per-request permission.
   `git pull` and `git merge` are allowed on a task branch (no `--rebase`); on `main` only with `--ff-only`.
 
 ## Testing rules
 
 - Red–Green–Refactor: write the test first, run it and see it fail for the expected reason (record the reason in the
   task file), implement until green, then refactor with the tests still green.
+- TDD and test-first apply only to behavior in `module/**/src/main`. Config files, examples, documentation, and answers
+  to the user's questions are just changed, with no tests; a library claim is checked from its docs or source, not with
+  a test added to the repository.
 - A bug fix starts with a regression test that reproduces the bug.
 - Exception — `module/web` (its tests are slow): no TDD and no regression-test-first. Implement, run `typecheck`, deploy
   for the user's UI check, and write and run the Vitest/Playwright tests only after the user confirms the result in the
@@ -151,7 +156,8 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 - Do not stop processes with `kill`, `pkill`, PID/port termination, or equivalents.
 - Do not execute database scripts, migrations, DDL/DML, `psql`, or database writes. Database inspection is read-only and
   only when explicitly requested.
-- Do not push or rewrite history (see Commits); commits themselves follow the current mode.
+- Do not push without the user's confirmation, never push `main`, and do not rewrite history (see Commits); commits
+  themselves follow the current mode.
 - Do not upload to Claude Design (`/design-sync`) unless the request asks for a sync.
 - Tests and read-only build/compile tasks may run without additional permission. Anything else that executes project
   behavior requires permission.

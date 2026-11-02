@@ -539,6 +539,24 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the main thought by recency.
 - **Source:** branch `DE-note-summary-main-thought`.
 
+## 2026-11-01 — "Summarize again" rewrites a summary note from its whole chat
+
+- **Context:** prompt changes need a way to regenerate an existing note; a test tool behind the `note-resummarize`
+  feature flag (`docs/DECISIONS.md`, feature flags through OpenFeature).
+- **Decision:** `POST /notes/{noteId}/resummarize` (Idempotency-Key) reserves a request in the existing summary request
+  store and publishes `NOTE_RESUMMARIZE_REQUESTED` (migration V18 widens the outbox type check). The flag is checked
+  first, a replay included, and answers 404 when off. Only a READY `CHAT_SUMMARY` note whose chat still exists
+  qualifies (`409 NOTE_NOT_RESUMMARIZABLE`, `409 NOTE_NOT_READY`); the chat comes from the note's link, and the
+  request covers the chat through its latest message, even without new messages. One pending request per chat
+  (`409 SUMMARY_IN_PROGRESS`) and the existing `updating` flag (any PENDING request of a READY note) need no new
+  column. The worker uses the create prompt with the note's title and icon as the user's, so it asks for a
+  `NoteBodyDraft`; an untitled legacy note keeps no title. RAG excludes the note itself and the old text is not
+  shown. Text and boundary change in one transaction and the note is indexed at once; title, icon and place stay. A
+  failure, or text over `NoteContentNormalizer.MAX_CHARS`, keeps the old text and closes the request as FAILED.
+- **Consequences:** a resummarize discards the user's edits and earlier addenda by design (the web asks for
+  confirmation). A failure is only in the logs, like a failed update (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-11-01-note-resummarize.md`, block 3.
+
 ## 2026-11-01 — A user's note title sets the subject of the main thought
 
 - **Context:** a note titled «Fishmans» led with the user's taste in psychedelia in general: nothing said what the

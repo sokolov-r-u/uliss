@@ -5,7 +5,7 @@ type Subscribe = (listener: () => void) => () => void
 /**
  * Items linked to [id] (the notes of a chat, the chats of a note), reloaded whenever a [subscriptions] source fires or
  * [reload] is called. Items belong to the id they were loaded for, so another id never shows them; a failed load keeps
- * what is shown for the same id.
+ * what is shown for the same id. An empty id loads nothing and stays `loading`.
  */
 export function useLinkedItems<T>(
     id: string,
@@ -24,6 +24,8 @@ export function useLinkedItems<T>(
     }, [reload])
 
     useEffect(() => {
+        // an empty id asks for nothing (a screen that needs the items only sometimes)
+        if (!id) return
         const controller = new AbortController()
         load(id, controller.signal)
             .then((items) => {

@@ -1,0 +1,87 @@
+// Feature flags template. NOT valid JSON because of these comments: after
+//   cp infra/flags/flags.example.json infra/flags/flags.json
+// delete every // line in flags.json, otherwise the services see an invalid file and every flag stays off.
+//
+// How a flag is evaluated:
+// - Every request is evaluated for one user; the only attribute is "targetingKey" = the user id (UUID).
+// - "state": "DISABLED" -> off for everyone, whatever else the flag says.
+// - "targeting" (JsonLogic, https://flagd.dev/reference/flag-definitions/#targeting-rules) picks a variant per user.
+// - No "targeting", or it returns nothing -> "defaultVariant".
+// - Only keys from FeatureFlagKeys are read by the code; the example-* flags below are ignored and only show patterns.
+// - Edits apply within ~5 s without a restart; an invalid edit keeps the previous values.
+{
+  "$schema": "https://flagd.dev/schema/v0/flags.json",
+  "flags": {
+    // The real flag: on for the shared "betaUsers" list (see $evaluators at the bottom), off for everyone else.
+    // On for everyone: set "defaultVariant": "on" and delete "targeting".
+    "note-resummarize": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "if": [{ "$ref": "betaUsers" }, "on", "off"] }
+    },
+
+    // On for everyone: no targeting, so the default variant applies.
+    "example-everyone": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "on"
+    },
+
+    // Kill switch: DISABLED turns the flag off for everyone, even with "defaultVariant": "on".
+    "example-disabled": {
+      "state": "DISABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "on"
+    },
+
+    // Specific users: on only for the ids listed in this flag.
+    "example-listed-users": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": {
+        "if": [
+          { "in": [{ "var": "targetingKey" }, ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000004"]] },
+          "on",
+          "off"
+        ]
+      }
+    },
+
+    // A/B test: half of the users get "on", half "off".
+    // "fractional" hashes the flag key with the user id, so a user stays in one group on every request and in every
+    // service, and different flags split users independently.
+    // Nothing records which group a user was in: measuring the result needs separate analytics.
+    "example-ab-test": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "fractional": [["on", 50], ["off", 50]] }
+    },
+
+    // Gradual rollout: on for 10% of users. Raising 10/90 to 20/80 keeps the first 10% on and adds new users.
+    "example-gradual-rollout": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "fractional": [["on", 10], ["off", 90]] }
+    },
+
+    // Combined: beta users always on, plus 20% of everyone else.
+    "example-beta-and-rollout": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "if": [{ "$ref": "betaUsers" }, "on", { "fractional": [["on", 20], ["off", 80]] }] }
+    }
+  },
+
+  // Rules shared by several flags; a flag refers to one with { "$ref": "<name>" }.
+  // Put real user ids (UUID) here.
+  "$evaluators": {
+    "betaUsers": {
+      "in": [{ "var": "targetingKey" }, ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]]
+    }
+  }
+}

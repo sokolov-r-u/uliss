@@ -3,14 +3,15 @@ import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {listNoteChats, notifyChatListChanged} from '../chat/chatApi'
-import {deleteNote, getNote, NoteApiError, renameNote, streamNoteStatus} from './noteApi'
+import {useFeatureFlag} from '../lib/featureFlags'
+import {deleteNote, getNote, NoteApiError, renameNote, resummarizeNote, streamNoteStatus} from './noteApi'
 import {MAX_STATUS_RECONNECTS, NoteDetailPage} from './NoteDetailPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
     return {
         ...actual, getNote: vi.fn(), streamNoteStatus: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn(),
-        listSubNotes: vi.fn(() => Promise.resolve([])),
+        resummarizeNote: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([])),
     }
 })
 
@@ -19,6 +20,10 @@ vi.mock('../chat/chatApi', async (importOriginal) => {
     return {...actual, listNoteChats: vi.fn()}
 })
 
+vi.mock('../lib/featureFlags', () => ({useFeatureFlag: vi.fn(() => false)}))
+
+const mockedFlag = vi.mocked(useFeatureFlag)
+const mockedResummarize = vi.mocked(resummarizeNote)
 const mockedGetNote = vi.mocked(getNote)
 const mockedNoteChats = vi.mocked(listNoteChats)
 const mockedStatus = vi.mocked(streamNoteStatus)
@@ -49,6 +54,8 @@ function renderPage() {
 describe('NoteDetailPage', () => {
     beforeEach(() => {
         mockedNoteChats.mockReset().mockResolvedValue([])
+        mockedFlag.mockReset().mockReturnValue(false)
+        mockedResummarize.mockReset()
         mockedGetNote.mockReset()
         mockedStatus.mockReset()
     })
@@ -419,5 +426,87 @@ describe('NoteDetailPage', () => {
         expect(await screen.findByRole('complementary', {name: 'This note'})).toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Note details'})).toHaveAttribute('aria-pressed', 'true')
         vi.unstubAllGlobals()
+    })
+
+    describe('Summarize again', () => {
+        const summary = {id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Old text'} as const
+        const chat = {id: 'c-1', title: 'The small room', noteCount: 1}
+
+        async function openMenu() {
+            await userEvent.click(await screen.findByRole('button', {name: 'Actions for Idea'}))
+            return screen.getByRole('menu')
+        }
+
+        it('rewrites a summary note behind a confirmation and shows the new text once it is written', async () => {
+            mockedFlag.mockReturnValue(true)
+            mockedNoteChats.mockResolvedValue([chat])
+            mockedGetNote
+                .mockResolvedValueOnce(summary)
+                .mockResolvedValueOnce({...summary, updating: true})
+                .mockResolvedValueOnce({...summary, content: 'New text'})
+            mockedStatus.mockResolvedValueOnce('READY')
+            mockedResummarize.mockResolvedValue({...summary, updating: true})
+            renderPage()
+            await waitFor(() => expect(mockedNoteChats).toHaveBeenCalled())
+
+            await userEvent.click(within(await openMenu()).getByRole('menuitem', {name: 'Summarize again'}))
+            expect(screen.getByRole('dialog', {name: 'Summarize this note again?'})).toBeInTheDocument()
+            expect(mockedResummarize).not.toHaveBeenCalled()
+            await userEvent.click(screen.getByRole('button', {name: 'Summarize'}))
+
+            expect(mockedResummarize).toHaveBeenCalledWith('note-1', expect.any(String))
+            expect(await screen.findByText('New text')).toBeInTheDocument()
+            expect(screen.queryByText('Updating this note…')).not.toBeInTheDocument()
+            expect(mockedStatus).toHaveBeenCalledWith('note-1', expect.anything())
+        })
+
+        it('keeps the old text on screen, without Loading, while the rewrite is queued and written', async () => {
+            mockedFlag.mockReturnValue(true)
+            mockedNoteChats.mockResolvedValue([chat])
+            let resolveReread: (note: typeof summary & { updating: boolean }) => void = () => undefined
+            mockedGetNote
+                .mockResolvedValueOnce(summary)
+                .mockReturnValueOnce(new Promise((resolve) => {
+                    resolveReread = resolve
+                }))
+            mockedStatus.mockReturnValue(new Promise(() => {}))
+            mockedResummarize.mockResolvedValue({...summary, updating: true})
+            renderPage()
+            await waitFor(() => expect(mockedNoteChats).toHaveBeenCalled())
+
+            await userEvent.click(within(await openMenu()).getByRole('menuitem', {name: 'Summarize again'}))
+            await userEvent.click(screen.getByRole('button', {name: 'Summarize'}))
+
+            // the re-read is still pending: the page keeps the note it showed
+            await waitFor(() => expect(mockedGetNote).toHaveBeenCalledTimes(2))
+            expect(screen.getByText('Old text')).toBeInTheDocument()
+            expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
+            expect(within(await openMenu()).getByRole('menuitem', {name: 'Summarize again'})).toBeDisabled()
+            await userEvent.keyboard('{Escape}')
+
+            await act(async () => resolveReread({...summary, updating: true}))
+
+            expect(await screen.findByText('Updating this note…')).toBeInTheDocument()
+            expect(screen.getByText('Old text')).toBeInTheDocument()
+        })
+
+        it.each([
+            ['the flag is off', false, summary, [chat]],
+            ['the note is hand-written', true, {...summary, source: 'MANUAL'} as const, [chat]],
+            ['the chat is gone', true, summary, []],
+        ])('is not offered when %s', async (_, flag, note, chats) => {
+            mockedFlag.mockReturnValue(flag)
+            mockedNoteChats.mockResolvedValue(chats)
+            mockedGetNote.mockResolvedValue(note)
+            renderPage()
+            await screen.findByText('Old text')
+            await act(async () => {
+                await Promise.resolve()
+            })
+
+            const menu = await openMenu()
+            expect(within(menu).queryByRole('menuitem', {name: 'Summarize again'})).not.toBeInTheDocument()
+            expect(within(menu).getByRole('menuitem', {name: 'Delete'})).toBeInTheDocument()
+        })
     })
 })
