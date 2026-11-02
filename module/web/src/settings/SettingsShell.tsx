@@ -3,8 +3,8 @@ import {Link} from 'react-router-dom'
 import {Kicker} from '@uliss/design-system'
 
 /** Sub-screen frame for Settings — a back link to the root + the section kicker, over a
- *  scrolling body with a reading-width column. */
-export function SettingsShell({kicker, children}: { kicker: string; children: ReactNode }) {
+ *  scrolling body with a reading-width column; `wide` gives long text the chat's reading width. */
+export function SettingsShell({kicker, wide = false, children}: { kicker: string; wide?: boolean; children: ReactNode }) {
     return (
         <div className="screen">
             <header className="settings-header">
@@ -12,7 +12,7 @@ export function SettingsShell({kicker, children}: { kicker: string; children: Re
                 <Kicker size={9} spacing="3px" color="var(--accent)">{kicker}</Kicker>
             </header>
             <div className="settings-body">
-                <div className="settings-col">{children}</div>
+                <div className={wide ? 'settings-col settings-col-wide' : 'settings-col'}>{children}</div>
             </div>
         </div>
     )
