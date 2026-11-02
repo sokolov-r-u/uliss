@@ -780,7 +780,8 @@ changes move and read the profile by it.
 
 ## User profile: a batch the model always fails on stops the profile (`note-service`)
 
-**Status:** open; decide in the epic's task 2 (`docs/tasks/2026-11-02-user-profile-epic.md`).
+**Status:** completed 2026-11-03 (`docs/tasks/2026-11-02-user-profile-rebuild.md`): a batch that fails for good is
+halved an hour later, and a single failing note is skipped past the mark with an `error` log naming it.
 
 A batch the provider refuses for its content, or answers with blank text every time, fails its event after
 `note.outbox.max-attempts`; the mark does not move, so every night queues the same batch again and the profile never
