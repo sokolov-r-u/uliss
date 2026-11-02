@@ -1,5 +1,6 @@
 package io.uliss.note_service.service.handler
 
+import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.UserProfileRefreshRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
@@ -21,6 +22,8 @@ class UserProfileRefreshRequestedHandler(
     private val properties: UserProfileProperties,
 ) : OutboxHandler {
 
+    private val log = AppLogger.of(UserProfileRefreshRequestedHandler::class)
+
     override val type: OutboxEventType = OutboxEventType.USER_PROFILE_REFRESH_REQUESTED
 
     override fun handle(event: OutboxEventEntity) {
@@ -35,7 +38,15 @@ class UserProfileRefreshRequestedHandler(
             write(
                 UserProfilePrompts.COMPACT_SYSTEM_PROMPT,
                 UserProfilePrompts.compactUserPrompt(written, properties.compactTargetChars),
-            )
+            ).also { compacted ->
+                if (compacted.length > properties.maxChars) {
+                    log.warn(
+                        "profile of user=${payload.userId} is still ${compacted.length} chars after compacting " +
+                            "(limit ${properties.maxChars}); saving it as is",
+                        "handle",
+                    )
+                }
+            }
         } else {
             written
         }
