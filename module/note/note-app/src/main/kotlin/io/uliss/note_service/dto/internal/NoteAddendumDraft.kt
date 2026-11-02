@@ -19,8 +19,8 @@ data class NoteAddendumDraft(
     @field:JsonPropertyDescription(
         "The main new thought: what is new about the existing note's subject, otherwise the most important new " +
                 "thought on another topic; one or more paragraphs, with the user's own reasoning if they gave any. " +
-                "Works, artists, people, or places the user named with their evaluation that illustrate it are " +
-                "named here. " +
+                "It does not list other works: it names only its subject and at most one work it cannot be " +
+                "understood without. " +
                 "Do not restate the existing note and do not use headings."
     )
     @field:JsonProperty(required = true)
@@ -28,9 +28,10 @@ data class NoteAddendumDraft(
     @field:JsonPropertyDescription(
         "Other new thoughts worth remembering on their own, each one or two sentences: a distinct opinion, " +
                 "conclusion, preference, decision, or intention of the user. Works, artists, people, or places the " +
-                "user named with their evaluation stay inside the thought they illustrate; one item may list " +
-                "several. Not passing remarks, not a question the user asked for information and got answered, and " +
-                "an item never repeats the main thought or another item. No fixed limit — as many as the new " +
+                "user named with their evaluation go here, grouped by what the user thinks of them; one item may " +
+                "list several, and none repeats a work the main thought names. Not passing remarks, not a question " +
+                "the user asked for information and got answered, and an item never repeats the main thought or " +
+                "another item. No fixed limit — as many as the new " +
                 "messages really hold, usually a few; an empty list is fine. Each is shown as a list item, so use " +
                 "only inline formatting."
     )

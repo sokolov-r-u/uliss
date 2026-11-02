@@ -617,3 +617,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   thought are named in its paragraphs. `USER_THOUGHT_RULES` keeps an assistant's reason out even when the user liked
   the thing it explained.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — Rated works go to grouped secondary thoughts, not the main thought
+
+- **Context:** replaces the works part of "Named works illustrate the main thought too": the main thought turned
+  into a list of everything the user liked, and The Doors, "White Rabbit" and Grateful Dead from the first message
+  still dropped out.
+- **Decision:** every work the user rated is kept wherever it came up in the chat; the main thought states the
+  user's view and names only the note's subject and at most one work it needs, and the rest go to secondary thoughts
+  grouped by the user's evaluation; a work the main thought names gets no item of its own. The create prompt no
+  longer asks for a "short" note, and `note.summary.verbosity` is `medium` (was `low`). Keeping an assistant's
+  reason out stays.
+- **Consequences:** notes may grow longer; checked manually.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).

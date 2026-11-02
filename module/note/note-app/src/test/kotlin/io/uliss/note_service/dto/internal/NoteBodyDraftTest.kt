@@ -33,7 +33,7 @@ class NoteBodyDraftTest {
         @Suppress("UNCHECKED_CAST")
         val mainDescription = (properties["mainThought"] as Map<String, Any>)["description"] as String
         assertTrue(mainDescription.contains("one or more paragraphs"))
-        assertTrue(mainDescription.contains("named with their evaluation"))
+        assertTrue(mainDescription.contains("does not list other works"))
         assertTrue("do not repeat" !in mainDescription, mainDescription)
         assertEquals(fullProperties["secondaryThoughts"], properties["secondaryThoughts"])
     }

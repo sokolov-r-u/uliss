@@ -143,16 +143,17 @@ object ChatPrompts {
 
     /** What a thought keeps and how thoughts stay distinct; shared by the create and update prompts. */
     private val THOUGHT_DETAIL_RULES: String = """
-        Keep the specific works, artists, people, and places the user named with their own evaluation — including
-        an assistant's suggestion the user rated ("Paper Sun really works for me") — inside the thought they
-        illustrate; one secondary thought may list several of them. This holds for the main thought too: the
-        works that show what the user likes or dislikes about its subject are named in its paragraphs, with the
-        user's evaluation ("I like The Doors and 'White Rabbit'; Grateful Dead's songs seemed dull"). An
-        assistant's suggestion the user did not rate still drops out. Never add descriptions of them the user did
-        not give.
+        Keep every specific work, artist, person, and place the user named with their own evaluation,
+        wherever they came up in the chat, including the first message and an assistant's suggestion the user
+        rated ("Paper Sun really works for me").
+        The main thought does not list them: it states the user's view and names only the note's subject and, at
+        most, one work it cannot be understood without. The rest go to secondary thoughts, grouped by what the
+        user thinks of them ("I like The Doors, 'White Rabbit' and 'Paper Sun'"; "Grateful Dead's songs seemed
+        dull"). An assistant's suggestion the user did not rate still drops out. Never add descriptions of them
+        the user did not give.
 
         A secondary thought never repeats the main thought or another secondary thought, including what they
-        already say about a work or person.
+        already say about a work or person. A work named in the main thought gets no secondary thought of its own.
     """.trimIndent()
 
     /** How the main thought is chosen; shared by the create and update prompts. */
@@ -195,7 +196,7 @@ object ChatPrompts {
 
     val NOTE_SUMMARY_SYSTEM_PROMPT: String = listOf(
         """
-        Create a short standalone note capturing the user's thoughts from the current chat. The unit of the note
+        Create a standalone note capturing the user's thoughts from the current chat. The unit of the note
         is a thought, not a topic, a message, or a recommendation.
         """.trimIndent(),
         USER_THOUGHT_RULES,
