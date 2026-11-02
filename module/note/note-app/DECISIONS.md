@@ -630,3 +630,10 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reason out stays.
 - **Consequences:** notes may grow longer; checked manually.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — Summary verbosity back to low
+
+- **Context:** replaces the verbosity part of "Rated works go to grouped secondary thoughts, not the main thought":
+  with `medium`, a note from a long chat grew into a dozen long bullets.
+- **Decision:** `note.summary.verbosity` is `low` again; the prompt changes of that entry stay.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
