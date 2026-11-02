@@ -30,6 +30,7 @@ class OutboxLeasePolicy(
 ) {
     private val indexLease: Duration
     private val summaryLease: Duration
+    private val profileLease: Duration
     private val safetyFactor = outboxProperties.leaseSafetyFactor
 
     init {
@@ -39,7 +40,9 @@ class OutboxLeasePolicy(
 
         val embeddingBudget = callBudget(embedding.timeout, embedding.maxRetries)
         indexLease = withSafetyFactor(embeddingBudget)
-        summaryLease = withSafetyFactor(embeddingBudget.plus(callBudget(chat.timeout, chat.maxRetries)))
+        val chatBudget = callBudget(chat.timeout, chat.maxRetries)
+        summaryLease = withSafetyFactor(embeddingBudget.plus(chatBudget))
+        profileLease = withSafetyFactor(chatBudget.multipliedBy(2))
     }
 
     fun leaseFor(type: OutboxEventType): Duration = when (type) {
@@ -49,6 +52,8 @@ class OutboxLeasePolicy(
         OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED,
         OutboxEventType.NOTE_RESUMMARIZE_REQUESTED,
         -> summaryLease
+        // An update of the profile and, when it grew over its limit, a compact.
+        OutboxEventType.USER_PROFILE_REFRESH_REQUESTED -> profileLease
     }
 
     private fun callBudget(timeout: Duration, maxRetries: Int): Duration {

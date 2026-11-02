@@ -61,6 +61,12 @@ class OutboxLeasePolicyTest {
     }
 
     @Test
+    fun `profile refresh lease covers two chat calls, an update and a compact, and no embedding`() {
+        // chat (60s * 4 calls + 0.5 + 1 + 2 backoff) = 243.5s, twice = 487s, * 1.3
+        assertEquals(Duration.ofMillis(633_100), policy().leaseFor(OutboxEventType.USER_PROFILE_REFRESH_REQUESTED))
+    }
+
+    @Test
     fun `chat-level timeout and retries take precedence over the common ones`() {
         val chat = OpenAiChatProperties().apply {
             timeout = Duration.ofSeconds(300)
