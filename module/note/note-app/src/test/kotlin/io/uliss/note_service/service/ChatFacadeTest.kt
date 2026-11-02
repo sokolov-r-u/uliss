@@ -7,6 +7,7 @@ import io.uliss.note_service.eqValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
@@ -37,7 +38,10 @@ class ChatFacadeTest {
     private val noteSummaryService = Mockito.mock(NoteSummaryService::class.java)
     private val chatTurnService = Mockito.mock(ChatTurnService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
-    private val chatFacade = ChatFacade(chatService, assistantService, noteService, noteSummaryService, chatTurnService, ragService)
+    private val userProfileService = Mockito.mock(UserProfileService::class.java)
+    private val chatFacade = ChatFacade(
+        chatService, assistantService, noteService, noteSummaryService, chatTurnService, ragService, userProfileService,
+    )
 
     @Test
     fun `streamReply creates a missing chat and exposes its backend identity`() {
@@ -51,7 +55,7 @@ class ChatFacadeTest {
             .thenReturn(chat)
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -73,7 +77,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -117,13 +121,45 @@ class ChatFacadeTest {
         val captor = captorFor<NoteSearch>(NoteSearch::class.java)
         Mockito.verify(assistantService).streamReply(
             eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"),
-            captor.captureValue(),
+            captor.captureValue(), anyValue(),
         )
 
         assertSame(found, captor.value.search("music", 5, 0.7))
         Mockito.verify(ragService).search(userId, "music", 5, 0.7)
         assertSame(found, captor.value.search("music", 5, 0.7))
         Mockito.verify(ragService).searchExcluding(userId, "music", 5, 0.7, currentNoteId)
+    }
+
+    @Test
+    fun `a reply gets the user's profile, and none while the user has no profile yet`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(userProfileService.findProfile(userId))
+            .thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH), null)
+
+        chatFacade.streamReply(userId, chatId, UUID.randomUUID(), "hello")
+        chatFacade.streamReply(userId, chatId, UUID.randomUUID(), "hello")
+
+        val profiles = Mockito.mockingDetails(assistantService).invocations
+            .filter { it.method.name == "streamReply" }
+            .map { it.arguments[5] }
+        assertEquals(listOf("Loves jazz.", null), profiles)
+    }
+
+    @Test
+    fun `a retried reply gets the user's profile too`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(userProfileService.findProfile(userId)).thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH))
+
+        chatFacade.retryReply(userId, chatId, UUID.randomUUID(), UUID.randomUUID())
+
+        val retry = Mockito.mockingDetails(assistantService).invocations.single { it.method.name == "retryReply" }
+        assertEquals("Loves jazz.", retry.arguments[5])
     }
 
     @Test

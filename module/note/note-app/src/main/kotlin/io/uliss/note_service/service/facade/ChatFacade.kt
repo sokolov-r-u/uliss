@@ -14,6 +14,7 @@ import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.note_service.service.tool.NoteSearch
 import io.uliss.note_service.util.NoteIconNormalizer
@@ -30,6 +31,7 @@ class ChatFacade(
     private val noteSummaryService: NoteSummaryService,
     private val chatTurnService: ChatTurnService,
     private val ragService: RagService,
+    private val userProfileService: UserProfileService,
 ) {
 
     fun getChats(userId: UUID): List<ChatWithNoteCount> {
@@ -75,17 +77,23 @@ class ChatFacade(
         } else {
             chatService.getOwnedChat(userId, chatId)
         }
-        return assistantService.streamReply(userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id))
+        return assistantService.streamReply(
+            userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userProfile(userId),
+        )
     }
 
     /** A summary note that covered the replaced reply now ends before it, in the turn's restart transaction. */
     @Transactional
     fun retryReply(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): AssistantReplyStream {
         chatService.getOwnedChat(userId, chatId)
-        return assistantService.retryReply(userId, chatId, turnId, messageId, noteSearch(userId, chatId)) { replyId ->
+        return assistantService.retryReply(
+            userId, chatId, turnId, messageId, noteSearch(userId, chatId), userProfile(userId),
+        ) { replyId ->
             noteSummaryService.releaseReplyForRetry(chatId, replyId)
         }
     }
+
+    private fun userProfile(userId: UUID): String? = userProfileService.findProfile(userId)?.content
 
     /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->

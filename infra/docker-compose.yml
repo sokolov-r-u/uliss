@@ -152,6 +152,8 @@ services:
       <<: [ *auth-urls, *file-logging, *jvm-runtime ]
       LOGGING_FILE_NAME: /logs/note.log
       ULISS_FEATURE_FLAGS_FILE: /flags/flags.json
+      # user profile refresh, UTC; set "0 * * * * *" in infra/.env to refresh every minute
+      NOTE_PROFILE_REFRESH_CRON: ${NOTE_PROFILE_REFRESH_CRON:-0 0 3 * * *}
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/note-%d{yyyy-MM-dd}.%i.log
     ports:

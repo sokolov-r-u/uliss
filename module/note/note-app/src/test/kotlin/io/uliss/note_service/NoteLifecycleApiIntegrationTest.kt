@@ -222,7 +222,7 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
             anyValue(),
         )
 
-        val reply = assistantService.streamReply(userId, chat.id, UUID.randomUUID(), "Question") { _, _, _ -> emptyList() }
+        val reply = assistantService.streamReply(userId, chat.id, UUID.randomUUID(), "Question", { _, _, _ -> emptyList() })
         val streamedReply = reply.events.collectList().toFuture()
 
         try {

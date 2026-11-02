@@ -10,20 +10,30 @@ function renderSettings(path: string) {
         <Route path="/settings" element={<SettingsPage/>}>
             <Route index element={<AppearanceSettings/>}/>
             <Route path="appearance" element={<AppearanceSettings/>}/>
+            <Route path="about-you" element={<p>About you pane</p>}/>
             <Route path="account" element={<p>Account pane</p>}/>
         </Route>
     </Routes></MemoryRouter>)
 }
 
 describe('SettingsPage', () => {
-    it('lists the four sections beside the open one and marks it current', () => {
+    it('lists the five sections beside the open one and marks it current', () => {
         renderSettings('/settings/account')
 
-        for (const label of ['Appearance', 'Sky', 'Account', 'Language']) {
+        for (const label of ['Appearance', 'Sky', 'About you', 'Account', 'Language']) {
             expect(screen.getByRole('button', {name: new RegExp(`^${label}`)})).toBeInTheDocument()
         }
         expect(screen.getByRole('button', {name: /^Account/})).toHaveAttribute('aria-current', 'page')
         expect(screen.getByText('Account pane')).toBeInTheDocument()
+    })
+
+    it('opens About you from its row', async () => {
+        renderSettings('/settings/account')
+
+        await userEvent.click(screen.getByRole('button', {name: /^About you/}))
+
+        expect(screen.getByRole('button', {name: /^About you/})).toHaveAttribute('aria-current', 'page')
+        expect(screen.getByText('About you pane')).toBeInTheDocument()
     })
 
     it('opens Appearance for the bare settings route', () => {

@@ -563,6 +563,11 @@
     padding: 18px 18px 40px;
 }
 
+/* a section of long text (About you) reads at the chat's width */
+.settings-col-wide {
+    max-width: 720px;
+}
+
 .settings-section {
     display: flex;
     align-items: center;
@@ -618,6 +623,11 @@
     font-weight: var(--w-body);
     color: var(--text-faint);
     text-wrap: pretty;
+}
+
+/* About you: the date under the profile text */
+.settings-profile-date {
+    margin-top: 16px;
 }
 
 .settings-inert {
@@ -1164,7 +1174,9 @@
         display: flex;
     }
 
-    .settings-layout .settings-rows {
+    /* is-section in the selector: the phone rule hiding the rows is that specific too */
+    .settings-layout .settings-rows,
+    .settings-layout.is-section .settings-rows {
         display: block;
         flex: 0 0 268px;
         width: 268px;

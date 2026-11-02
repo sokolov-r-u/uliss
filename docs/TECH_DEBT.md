@@ -769,3 +769,21 @@ showing "Updating this note…", so the user cannot tell a failure from a result
 
 Expose the last request's outcome on the note (or in its status stream) and show a short notice with a retry.
 
+## User profile: a note is re-read after a rename or an icon change (`note-service`)
+
+**Status:** accepted for now (2026-11-02, `docs/tasks/2026-11-02-user-profile.md`).
+
+The profile reads notes after its `(updated_at, id)` mark, and JPA auditing moves `updated_at` on every save, so a
+rename or an icon change sends the unchanged note to the next profile update. The cost is one extra note in a batch and
+a profile rewrite that should change little. If it shows in practice, add a `content_updated_at` column that only text
+changes move and read the profile by it.
+
+## User profile: a batch the model always fails on stops the profile (`note-service`)
+
+**Status:** open; decide in the epic's task 2 (`docs/tasks/2026-11-02-user-profile-epic.md`).
+
+A batch the provider refuses for its content, or answers with blank text every time, fails its event after
+`note.outbox.max-attempts`; the mark does not move, so every night queues the same batch again and the profile never
+moves on. Nothing tells the user. Options: treat a content refusal as non-retryable and skip the batch past the mark
+(its notes never reach the profile), or skip one note after N failed nights. A terminal-failure `error` log naming the
+user and the mark is part of finding these cases.

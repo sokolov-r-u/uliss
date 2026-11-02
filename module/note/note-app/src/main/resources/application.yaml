@@ -92,6 +92,14 @@ note:
     reasoning-effort: low
     # low verbosity invites the model to shorten a note it should only edit
     verbosity: medium
+  profile:
+    # nightly, UTC; "0 * * * * *" refreshes every minute for a manual check
+    refresh-cron: ${NOTE_PROFILE_REFRESH_CRON:0 0 3 * * *}
+    max-chars: 8000
+    compact-target-chars: 5000
+    batch-max-chars: 60000
+    reasoning-effort: medium
+    verbosity: medium
   speech:
     # the browser stops recording here; gpt-4o-transcribe truncation on longer files is unverified
     max-duration: 5m

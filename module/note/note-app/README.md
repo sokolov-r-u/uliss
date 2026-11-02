@@ -157,6 +157,26 @@ the limit ends the turn, and so does a search whose turn has lost its lease (`No
 exception that Spring AI rethrows). Each search extends the turn's lease by one full lease, because it adds a model call
 to the attempt. Search results are not persisted with the reply.
 
+## User profile
+
+Every chat reply also gets the user profile: one Markdown document about the user (who they are, tastes, views,
+projects, recurring themes) that the model compiles from their notes. `AssistantService` sends it as a system message
+ahead of the history, delimited as untrusted data; `ChatFacade` reads it through `UserProfileService`. Without a
+profile the request is unchanged. `GET /note/profile` returns the caller's `{content, updatedAt}`, both null until
+the first refresh; nobody edits the profile by hand.
+
+The profile reads notes in `(updated_at, id)` order and keeps the last one it read (`note.user_profile`,
+`notes_through_at`/`notes_through_id`). `UserProfileRefreshScheduler` runs on `note.profile.refresh-cron` (03:00 UTC;
+`NOTE_PROFILE_REFRESH_CRON` overrides it, `"-"` disables it) and queues a `USER_PROFILE_REFRESH_REQUESTED` event,
+deduplicated per user, for every user with a `READY` note after that mark. Notes changed in the last
+`note.profile.settle-delay` (5 minutes) wait for the next run, so a commit with an older `updated_at` is not skipped.
+The handler reads one batch (up to `batch-max-notes` notes and `batch-max-chars` characters; an oversized note is cut),
+asks the model to build the profile (no profile yet) or to merge the batch into it, compacts the result when it is over
+`max-chars` (8,000) towards `compact-target-chars` (5,000), saves it with the new mark, and queues the next batch at
+once while notes remain. A batch read from an older profile version is dropped. A blank model answer fails the event,
+so the batch is read again. Renames and icon changes move `updated_at` too, so such a note is read again; deleted notes
+stay in the profile until a full rebuild (not built yet).
+
 ## Note API and status delivery
 
 - `GET /note/notes` returns the authenticated user's notes newest first.

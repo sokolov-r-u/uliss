@@ -93,7 +93,7 @@ class AssistantServiceToolCallingTest {
         var searches = 0
 
         val events = assistantService(endless)
-            .streamReply(userId, chatId, turnId, "What music do I like?") { _, _, _ -> searches++; emptyList() }
+            .streamReply(userId, chatId, turnId, "What music do I like?", { _, _, _ -> searches++; emptyList() })
             .events
 
         StepVerifier.create(events.filter { it !is AssistantStreamEvent.Activity }).verifyError()

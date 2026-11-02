@@ -654,3 +654,26 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   label naming its topic (`**Epilogue.** ...`); a shorter item has none. Inline Markdown only, so rendering and
   `formatNoteThoughts` stay as they are.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — User profile compiled nightly from notes
+
+- **Context:** the chat model knew the user only through the notes search it chooses to call.
+- **Decision:** one profile per user (`note.user_profile`), compiled by the model from the user's notes and sent with
+  every chat reply as a system message after the system prompt, delimited as untrusted data. A nightly cron only
+  queues one deduplicated outbox event per user with unread notes; the outbox handler calls the model, one batch per
+  event, and queues the next batch at once while notes remain. Three prompts: initial (no profile), update (the
+  whole profile is rewritten with the batch merged in, never appended to), and compact (over `max-chars`). The profile
+  reads notes by an `(updated_at, id)` mark and skips notes changed within a settle delay. A batch read from an older
+  profile version is dropped on save. Nobody edits the profile by hand; deletions are not followed yet.
+- **Consequences:** the chat prompt cache prefix changes once a day for a user whose profile changed. A deleted note
+  stays in the profile until a rebuild (epic task 2). The profile lease covers two chat calls and no embedding.
+- **Source:** task `docs/tasks/2026-11-02-user-profile.md`, epic `docs/tasks/2026-11-02-user-profile-epic.md`.
+
+## 2026-11-02 — Profile prompt: neutral headings, fewer examples, no one-off intentions
+
+- **Context:** the first real profile (7,500 characters) opened with "Кто они" (a literal "Who they are"), guessed the
+  user's gender, listed some twenty artists in one bullet, and kept one-off plans such as an album to listen to.
+- **Decision:** the profile prompt names the sections Context, Interests and tastes, Views, Goals, Recurring themes
+  (translated), writes without a subject or pronoun for the user, names two or three telling examples per taste, and
+  keeps only lasting goals. The chat system prompt is unchanged.
+- **Source:** task `docs/tasks/2026-11-02-user-profile.md` (manual check).

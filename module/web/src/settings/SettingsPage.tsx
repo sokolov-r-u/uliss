@@ -7,10 +7,10 @@ import {readTheme, THEME_EVENT} from '../ui/theme'
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 /**
- * Settings — four rows, four screens; each hint states the current value (see `SettingsRow.prompt.md`). One layout
+ * Settings — five rows, five screens; each hint states the current value (see `SettingsRow.prompt.md`). One layout
  * for every breakpoint: on the phone the root shows the rows and a section replaces them; from 1024px the rows stay
- * on the left and the section opens on the right (kit two-pane). The bare route opens Appearance. Only Appearance
- * is wired to real behaviour; the rest are static (no backend).
+ * on the left and the section opens on the right (kit two-pane). The bare route opens Appearance. Appearance, Sky
+ * and About you are wired to real behaviour; the rest are static (no backend).
  */
 export function SettingsPage() {
     const navigate = useNavigate()
@@ -27,6 +27,7 @@ export function SettingsPage() {
     const rows = [
         {id: 'appearance', label: 'Appearance', hint: `${cap(theme.ground)} · ${cap(theme.accent)} · ${cap(theme.read)} text`},
         {id: 'sky', label: 'Sky', hint: 'Names · stars · connections'},
+        {id: 'about-you', label: 'About you', hint: 'From your notes · read-only'},
         {id: 'account', label: 'Account', hint: 'Sign out available'},
         {id: 'language', label: 'Language', hint: 'English · fixed'},
     ]

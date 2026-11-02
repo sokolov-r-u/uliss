@@ -30,6 +30,7 @@ import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
+import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.metadata.ChatResponseMetadata
 import org.springframework.ai.chat.metadata.DefaultUsage
@@ -380,6 +381,26 @@ class AssistantServiceTest {
             .expectNext(AssistantStreamEvent.AppendText("obsolete"))
             .expectNext(AssistantStreamEvent.GenerationPending(60_000))
             .verifyComplete()
+    }
+
+    @Test
+    fun `the user profile goes to the model as data in a system message ahead of the history`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val turnId = UUID.randomUUID()
+        startGeneration(userId, chatId, turnId, replies("ok"))
+        Mockito.`when`(chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "ok", ChatTurnStatus.COMPLETE))
+            .thenReturn(true)
+
+        val reply = assistantService.streamReply(userId, chatId, turnId, "hi", noSearch, userProfile = "Loves jazz.")
+        StepVerifier.create(reply.events).expectNextCount(2).verifyComplete()
+
+        val captor = captorFor<List<Message>>(List::class.java)
+        Mockito.verify(requestSpec).messages(captor.captureValue())
+        val profile = captor.value[0] as SystemMessage
+        assertEquals(ChatPrompts.userProfileMessage("Loves jazz."), profile.text)
+        assertTrue(profile.text.orEmpty().contains("Loves jazz."), "the profile itself reaches the model")
+        assertEquals("hi", (captor.value[1] as UserMessage).text)
     }
 
     private fun startGeneration(userId: UUID, chatId: UUID, turnId: UUID, provider: Flux<ChatResponse>) {

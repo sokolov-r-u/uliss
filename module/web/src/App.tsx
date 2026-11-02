@@ -16,6 +16,7 @@ import {SettingsPage} from './settings/SettingsPage'
 import {AppearanceSettings} from './settings/AppearanceSettings'
 import {SkySettings} from './settings/SkySettings'
 import {AccountSettings} from './settings/AccountSettings'
+import {AboutYouSettings} from './settings/AboutYouSettings'
 import {LanguageSettings} from './settings/LanguageSettings'
 
 // The heaviest screens (the editor, the tree, the sky renderer) load on first visit, not with the first page.
@@ -71,6 +72,7 @@ export function App() {
               <Route index element={<AppearanceSettings/>}/>
               <Route path="appearance" element={<AppearanceSettings/>}/>
               <Route path="sky" element={<SkySettings/>}/>
+              <Route path="about-you" element={<AboutYouSettings/>}/>
               <Route path="account" element={<AccountSettings/>}/>
               <Route path="language" element={<LanguageSettings/>}/>
           </Route>
