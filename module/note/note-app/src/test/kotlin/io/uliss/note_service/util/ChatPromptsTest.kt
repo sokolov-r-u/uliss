@@ -24,10 +24,43 @@ class ChatPromptsTest {
             assertTrue(prompt.contains("The note place shows where the user keeps this note"))
             assertTrue(prompt.contains("Never mention the note place"))
         }
-        assertTrue(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT.startsWith("Create a short standalone note"))
+        assertTrue(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT.startsWith("Create a standalone note"))
         assertTrue(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT.contains("Pick one main thought"))
         assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains("set nothingNew to true"))
         assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains("Do not restate"))
+    }
+
+    @Test
+    fun `create and update prompts keep named works, drop answered questions and never repeat the main thought`() {
+        listOf(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT).forEach { prompt ->
+            assertTrue(prompt.contains("A question the user asked for information and got answered is not a thought"))
+            assertTrue(prompt.contains("Keep every specific work, artist, person, and place the user named"))
+            assertTrue(prompt.contains("A secondary thought never repeats the main thought"))
+            assertTrue("details that only support the main thought" !in prompt, prompt)
+            assertTrue(prompt.contains("wherever they came up in the chat"), prompt)
+            assertTrue(prompt.contains("The main thought does not list them"), prompt)
+            assertTrue(prompt.contains("Each secondary thought covers one topic"), prompt)
+            assertTrue(prompt.contains("even reworded"), prompt)
+            assertTrue(prompt.contains("A work named in the main thought gets no secondary thought of its own"))
+            assertTrue(prompt.contains("A reason the assistant gave stays out even when the user liked"), prompt)
+        }
+    }
+
+    @Test
+    fun `a note's subject limits which change of view leads, in both prompts`() {
+        listOf(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT).forEach { prompt ->
+            assertTrue(prompt.contains("only a change within that subject leads"), prompt)
+        }
+        assertTrue(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT.contains("unless the user set the note title"))
+    }
+
+    @Test
+    fun `only the update prompt leads with the existing note's subject`() {
+        val anchor = "The existing note's subject — its title and content — leads the addition"
+        assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains(anchor))
+        assertTrue(ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT.contains("Nothing is left out for being off the subject"))
+        assertTrue("Pick the most important new thought" !in ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT)
+        assertTrue(anchor !in ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
     }
 
     @Test
@@ -100,6 +133,16 @@ class ChatPromptsTest {
         val title = named.indexOf("Note title (set by the user): Giant Steps\n")
         assertTrue(title in 0 until named.indexOf("NOTE PLACE"))
         assertTrue("Note title (set by the user)" !in unnamed)
+    }
+
+    @Test
+    fun `summary user prompt makes the user's title the subject of the main thought only when there is one`() {
+        val named = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userTitle = "Fishmans")
+        val iconOnly = ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userIcon = "🎷")
+
+        val rule = named.indexOf("The user's title names the note's subject")
+        assertTrue(rule in named.indexOf("Note title (set by the user): Fishmans\n") until named.indexOf("NOTE PLACE"))
+        assertTrue("The user's title names" !in iconOnly)
     }
 
     @Test

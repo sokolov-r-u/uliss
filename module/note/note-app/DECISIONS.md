@@ -556,3 +556,101 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a resummarize discards the user's edits and earlier addenda by design (the web asks for
   confirmation). A failure is only in the logs, like a failed update (`docs/TECH_DEBT.md`).
 - **Source:** task `docs/tasks/2026-11-01-note-resummarize.md`, block 3.
+
+## 2026-11-01 — A user's note title sets the subject of the main thought
+
+- **Context:** a note titled «Fishmans» led with the user's taste in psychedelia in general: nothing said what the
+  user's title means, and the shared main-thought description told the model not to repeat the title.
+- **Decision:** only when the user sets the title, the summary user prompt adds a rule right after the title and icon
+  lines: the main thought is what the user said about the title's subject, with their reasoning, short when they said
+  little; a general or unrelated title keeps the usual choice. This refines "A conclusion from an accepted explanation
+  and a changed view lead the note" (2026-10-27): a change of view leads only within the title's subject, a change on
+  another topic becomes the first secondary thought. `NoteBodyDraft` gets its own `mainThought` description without
+  "do not repeat it"; `NoteDraft` keeps it, since its model-written title already names the main thought. Both
+  prompts share `THOUGHT_DETAIL_RULES`: works, artists, people and places the user named with their evaluation stay
+  grouped inside the thought they illustrate (an unrated assistant suggestion still drops out), and no secondary
+  thought repeats the main thought. `USER_THOUGHT_RULES` and the secondary-thought descriptions drop a question the
+  user asked for information and got answered; only a question the user left open stays.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 1.
+
+## 2026-11-01 — A note update leads with the note's own subject
+
+- **Context:** the update prompt picked "the most important new thought" with no notion of what the note is about.
+- **Decision:** for any note (user or model title, or none), its subject is taken from its title and content. What is
+  new about it is the addendum's main thought; new thoughts on other topics follow as secondary thoughts, and only
+  when nothing new concerns the subject does the most important off-subject thought lead. Nothing is dropped for being
+  off the subject (rejected alternative: drop it, which would lose thoughts no note keeps). This refines "A conclusion
+  from an accepted explanation and a changed view lead the note" (2026-10-27) the same way as the user-title rule: a
+  change of view leads only within the subject; a change on another topic becomes the first secondary thought.
+- **Consequences:** a note can still collect off-subject thoughts; if that hurts, the next step is a separate note for
+  them, not dropping them.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 2.
+
+## 2026-11-01 — The note's subject is part of the main-thought rules
+
+- **Context:** refines the two 2026-11-01 entries above after code review: the subject limit was layered on top of
+  `MAIN_THOUGHT_RULES`, which still made any change of view the usual main thought, and the create prompt's "the
+  line the whole chat followed" competed with the user-title rule.
+- **Decision:** `MAIN_THOUGHT_RULES` itself says that when the note has a subject (a user title, or the note being
+  extended) and the chat says something new about it, only a change of view within that subject leads; a change on
+  another topic becomes the first secondary thought. The create prompt defers to the user-title rule when there is
+  one.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (code review).
+
+## 2026-11-01 — Chat recommendations: two or three, never repeated
+
+- **Context:** recommendations in a taste chat grew into catalogs of five or six items, re-suggested items, and
+  opened by paraphrasing the request ("Then you need…").
+- **Decision:** `CHAT_SYSTEM_PROMPT` has a Recommendations block: two or three things, each with one line on why it
+  fits what the user said, nothing already suggested in this chat unless the user brings it back, and the first
+  suggestion first. The only Worse/Better example is about books (not the music topic of the manual check), and its
+  Better reply opens with the first suggestion, not a connective.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 3 and code review.
+
+## 2026-11-02 — Named works illustrate the main thought too
+
+- **Context:** refines "A user's note title sets the subject of the main thought" after the manual check: the
+  «Fishmans» note dropped The Doors, "White Rabbit" and Grateful Dead, which the user rated and which illustrate the
+  main thought, because the named-works rule spoke only of secondary thoughts; a bullet kept the assistant's reason
+  for liking a song the user only said they love.
+- **Decision:** `THOUGHT_DETAIL_RULES` and every `mainThought` description say that rated works illustrating the main
+  thought are named in its paragraphs. `USER_THOUGHT_RULES` keeps an assistant's reason out even when the user liked
+  the thing it explained.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — Rated works go to grouped secondary thoughts, not the main thought
+
+- **Context:** replaces the works part of "Named works illustrate the main thought too": the main thought turned
+  into a list of everything the user liked, and The Doors, "White Rabbit" and Grateful Dead from the first message
+  still dropped out.
+- **Decision:** every work the user rated is kept wherever it came up in the chat; the main thought states the
+  user's view and names only the note's subject and at most one work it needs, and the rest go to secondary thoughts
+  grouped by the user's evaluation; a work the main thought names gets no item of its own. The create prompt no
+  longer asks for a "short" note, and `note.summary.verbosity` is `medium` (was `low`). Keeping an assistant's
+  reason out stays.
+- **Consequences:** notes may grow longer; checked manually.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — Summary verbosity back to low
+
+- **Context:** replaces the verbosity part of "Rated works go to grouped secondary thoughts, not the main thought":
+  with `medium`, a note from a long chat grew into a dozen long bullets.
+- **Decision:** `note.summary.verbosity` is `low` again; the prompt changes of that entry stay.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — One topic per secondary thought
+
+- **Context:** with `verbosity: low` a long chat still gave a dozen scattered bullets, and the Fishmans note split
+  rated works into one bullet each and repeated the main thought in rewording.
+- **Decision:** each secondary thought covers one topic: everything the user thinks about one work, person or topic
+  goes into one item of a few sentences (was "one or two sentences" each), works rated the same way share an item,
+  and no item repeats the main thought even reworded. Still no fixed limit on the number of items.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — A long secondary thought opens with a bold topic label
+
+- **Context:** one topic per item made items long; a reader skimming the note could not tell what each is about.
+- **Decision:** the secondary-thought descriptions ask an item longer than two sentences to start with a short bold
+  label naming its topic (`**Epilogue.** ...`); a shorter item has none. Inline Markdown only, so rendering and
+  `formatNoteThoughts` stay as they are.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).

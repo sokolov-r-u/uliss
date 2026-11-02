@@ -35,9 +35,17 @@ class NoteAddendumDraftTest {
         val properties = schema["properties"] as Map<String, Map<String, Any>>
         assertEquals(setOf("nothingNew", "mainThought", "secondaryThoughts"), properties.keys)
         assertEquals(properties.keys, (schema["required"] as List<*>).toSet())
-        assertTrue((properties.getValue("mainThought")["description"] as String).contains("do not use headings"))
+        val mainDescription = properties.getValue("mainThought")["description"] as String
+        assertTrue(mainDescription.contains("do not use headings"))
+        assertTrue(mainDescription.contains("does not list other works"))
+        assertTrue(mainDescription.contains("about the existing note's subject"))
         val secondaryDescription = properties.getValue("secondaryThoughts")["description"] as String
         assertTrue(secondaryDescription.contains("No fixed limit"))
         assertTrue(secondaryDescription.contains("Not passing remarks"))
+        assertTrue(secondaryDescription.contains("never repeats the main thought"))
+        assertTrue(secondaryDescription.contains("One topic per item"))
+        // a long item opens with its topic in bold so the list can be skimmed; a short one does not
+        assertTrue(secondaryDescription.contains("starts with a short bold label naming its topic"))
+        assertTrue(secondaryDescription.contains("not a question the user asked for information and got answered"))
     }
 }

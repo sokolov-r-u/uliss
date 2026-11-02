@@ -100,10 +100,17 @@ class NoteDraftTest {
         assertTrue(titleDescription.contains("no emoji"))
         assertTrue(mainDescription.contains("do not repeat it here"))
         assertTrue(mainDescription.contains("one or more paragraphs"))
+        assertTrue(mainDescription.contains("does not list other works"))
         assertTrue(secondaryDescription.contains("only inline formatting"))
         assertTrue(secondaryDescription.contains("No fixed limit"))
         assertTrue(secondaryDescription.contains("Not passing remarks"))
-        assertTrue(secondaryDescription.contains("Put open questions and intentions last"))
+        assertTrue(secondaryDescription.contains("never repeats the main thought"))
+        assertTrue(secondaryDescription.contains("One topic per item"))
+        // a long item opens with its topic in bold so the list can be skimmed; a short one does not
+        assertTrue(secondaryDescription.contains("starts with a short bold label naming its topic"))
+        assertTrue(secondaryDescription.contains("works the user rated the same way share one item"))
+        assertTrue(secondaryDescription.contains("not a question the user asked for information and got answered"))
+        assertTrue(secondaryDescription.contains("Put questions the user left open and intentions last"))
         assertEquals("A standalone note capturing the user's thoughts from the current chat.", schema["description"])
     }
 }

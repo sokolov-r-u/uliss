@@ -10,7 +10,12 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
  */
 @JsonClassDescription("A standalone note capturing the user's thoughts from the current chat.")
 data class NoteBodyDraft(
-    @field:JsonPropertyDescription(MAIN_THOUGHT_DESCRIPTION)
+    @field:JsonPropertyDescription(
+        "The main thought: one or more paragraphs, as many as the thought needs, with the user's own reasoning if " +
+                "they gave any. It does not list other works: it names only its subject and at most one work it " +
+                "cannot be understood without. The title is the user's and shown separately: its subject may be " +
+                "named freely in the text, but do not use headings."
+    )
     @field:JsonProperty(required = true)
     val mainThought: String?,
     @field:JsonPropertyDescription(SECONDARY_THOUGHTS_DESCRIPTION)

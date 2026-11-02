@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.ai.converter.BeanOutputConverter
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class NoteBodyDraftTest {
 
@@ -28,7 +29,12 @@ class NoteBodyDraftTest {
         assertEquals(setOf("mainThought", "secondaryThoughts"), properties.keys)
         assertEquals(properties.keys, (schema["required"] as List<*>).toSet())
         assertEquals(false, schema["additionalProperties"])
-        assertEquals(fullProperties["mainThought"], properties["mainThought"])
+        // the user's title names the subject, so the main thought may name it too
+        @Suppress("UNCHECKED_CAST")
+        val mainDescription = (properties["mainThought"] as Map<String, Any>)["description"] as String
+        assertTrue(mainDescription.contains("one or more paragraphs"))
+        assertTrue(mainDescription.contains("does not list other works"))
+        assertTrue("do not repeat" !in mainDescription, mainDescription)
         assertEquals(fullProperties["secondaryThoughts"], properties["secondaryThoughts"])
     }
 }
