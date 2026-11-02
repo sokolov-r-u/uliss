@@ -24,6 +24,10 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
             Timestamp.from(settledBefore),
         )
 
+    /** Whether the user has a READY note, settled or not. */
+    fun existsReadyNote(userId: UUID): Boolean =
+        jdbcTemplate.queryForObject(EXISTS_READY_NOTE_SQL, Boolean::class.java, userId) == true
+
     /** Up to [limit] notes after [after] (from the first note when null). */
     fun findNotesAfter(userId: UUID, after: NotesMark?, settledBefore: Instant, limit: Int): List<ProfileNote> {
         val markAt = Timestamp.from(after?.updatedAt ?: Instant.EPOCH)
@@ -81,6 +85,10 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
                                          WHERE r.user_id = p.user_id
                                            AND r.status = 'RUNNING'
                                            AND n.created_at <= r.through_at)))
+        """
+
+        const val EXISTS_READY_NOTE_SQL = """
+            SELECT EXISTS (SELECT 1 FROM note.notes WHERE user_id = ? AND status = 'READY')
         """
 
         const val FIND_NOTES_AFTER_SQL = """

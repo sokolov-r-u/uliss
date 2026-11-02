@@ -24,6 +24,10 @@ data class UserProfileProperties(
     /** The notes one batch query fetches at most. */
     @field:Min(1)
     val batchMaxNotes: Int = 200,
+    /** How many full rebuilds the user may start within [rebuildWindow]. */
+    @field:Min(1)
+    val rebuildLimit: Int = 2,
+    val rebuildWindow: Duration = Duration.ofDays(30),
     /** After a batch failed for good it is halved and tried again this much later. */
     val shrinkRetryDelay: Duration = Duration.ofHours(1),
     /** A profile flagged by deletions is rebuilt at most this often (counted from the last finished rebuild). */

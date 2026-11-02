@@ -2,6 +2,10 @@ package io.uliss.note_service.service
 
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ProfileBatch
+import io.uliss.note_service.dto.internal.ProfileRebuildState
+import io.uliss.note_service.exception.ProfileNothingToRebuildException
+import io.uliss.note_service.exception.ProfileRebuildLimitException
+import io.uliss.note_service.exception.ProfileRebuildRunningException
 import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.model.ProfileRebuildStatus
 import io.uliss.note_service.model.ProfileRebuildTrigger
@@ -130,6 +134,34 @@ class UserProfileService(
         requestRefresh(userId)
     }
 
+    /** Whether a rebuild of the user's profile runs, and how many the user may still start. */
+    @Transactional(readOnly = true)
+    fun getRebuildState(userId: UUID): ProfileRebuildState {
+        val running = rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING) != null
+        return rebuildState(userId, running)
+    }
+
+    /**
+     * Starts a full rebuild the user asked for. Refused while one runs, when there is nothing to read, and when the
+     * user's rebuilds in the window are used up; rebuilds started for deletions do not count.
+     */
+    @Transactional
+    fun requestRebuild(userId: UUID): ProfileRebuildState {
+        rebuildRepository.lockUserRebuilds(userId)
+        if (rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING) != null) {
+            throw ProfileRebuildRunningException(userId)
+        }
+        val profile = profileRepository.findByUserId(userId)
+        if (profile?.content == null && !noteStore.existsReadyNote(userId)) throw ProfileNothingToRebuildException(userId)
+        rebuildState(userId, running = false).availableAt?.let { throw ProfileRebuildLimitException(it) }
+        // the row holds the deletion flag while the first profile is built
+        if (profile == null) profileRepository.save(UserProfileEntity(userId, null, null, null))
+        rebuildRepository.save(UserProfileRebuildEntity(userId, ProfileRebuildTrigger.USER))
+        requestRefresh(userId)
+        log.info("profile rebuild of user=$userId requested", "requestRebuild")
+        return rebuildState(userId, running = true)
+    }
+
     /** Flags the profile for a full rebuild when it may hold text of [noteIds]; call before deleting them. */
     @Transactional(propagation = Propagation.MANDATORY)
     fun markNotesDeleted(userId: UUID, noteIds: Collection<UUID>) {
@@ -166,6 +198,16 @@ class UserProfileService(
             rebuildRepository.save(UserProfileRebuildEntity(userId, trigger))
         }
         requestRefresh(userId)
+    }
+
+    private fun rebuildState(userId: UUID, running: Boolean): ProfileRebuildState {
+        val starts = rebuildRepository.findStartsAfter(
+            userId, ProfileRebuildTrigger.USER, clock.instant().minus(properties.rebuildWindow),
+        )
+        val remaining = (properties.rebuildLimit - starts.size).coerceAtLeast(0)
+        // a try comes back when enough starts leave the window to drop below the limit
+        val availableAt = starts.getOrNull(starts.size - properties.rebuildLimit)?.plus(properties.rebuildWindow)
+        return ProfileRebuildState(running, remaining, availableAt)
     }
 
     /** A batch [shrink] times halved after failures; it always reads at least one note. */
