@@ -13,16 +13,18 @@ object UserProfilePrompts {
         section headings are these words, translated:
         - Context: occupation, where they live, life circumstances that shape what they choose.
         - Interests and tastes: what they like and dislike.
-        - Views: positions and opinions they hold.
+        - Views: general positions they hold, each stated once.
         - Goals: lasting projects and aims.
-        - Recurring themes: subjects they keep coming back to.
+        - Recurring themes: subjects they keep coming back to that the sections above do not already state.
 
         Rules:
         - Generalize; never retell notes one by one. Merge what several notes say about one subject into one
           statement. Keep a detail only when it tells something lasting about the user, such as a favorite work or a
           firm dislike.
-        - Name two or three of the most telling works, artists, or places for a taste, not every one the notes
+        - Name at most three works, artists, or places per section, the most telling ones, not every one the notes
           mention; the assistant can search the notes for the rest.
+        - A judgment of one work (its plot, seasons, characters, ending, sequel) is a detail of the notes, not of
+          the user: keep only the lasting preference it shows, with the work as its one example at most.
         - Goals are lasting projects and aims. Leave out one-off intentions such as an album to listen to or a film to
           watch next; they go stale within weeks.
         - No dates, no quotes, no mentions of the notes themselves ("in a note they wrote").

@@ -710,3 +710,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   after the note place; the system prompts say it only helps understand the user and nothing from it goes into the
   note unless the chat says it.
 - **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md`.
+
+## 2026-11-03 — Profile prompt: positions, not reviews; themes not repeated
+
+- **Context:** refines "Profile prompt: neutral headings, fewer examples, no one-off intentions": the first rebuilt
+  profile turned Views into reviews of single works (seasons, characters, a sequel's ending), repeated Views under
+  Recurring themes, and named some ten artists across the music bullets.
+- **Decision:** Views states general positions once each; a judgment of one work keeps only the lasting preference it
+  shows, with the work as one example at most; at most three works, artists, or places per section; Recurring themes
+  holds only what the sections above do not state. The nightly run also leaves alone a user whose refresh event
+  already waits or runs, so a halved batch keeps its delay and no second event reads the same batch.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (manual check).
