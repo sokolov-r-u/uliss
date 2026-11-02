@@ -71,8 +71,9 @@ panel of a note lists the chats it was written from, and the chat delete dialog 
 - Address the user by display name in chat and summary prompts.
 - User profile from notes: all of the user's notes are compiled into one document about the user (tastes, views,
   recurring themes) that is attached to every chat request next to the system prompt, so the model knows the user
-  without searching. Design first: how the profile is built and refreshed as notes change, its size limit, and how it
-  stays consistent with the notes search in chat.
+  without searching. In progress as an epic (`docs/tasks/2026-11-02-user-profile-epic.md`): a nightly update with a
+  read-only page first; then rebuilds after deletions, a rebuild button and the profile in summaries; then "about
+  you" text and rules from the user.
 - Chat context through its summary: when the chat has a summary note, the model receives the system prompt, the
   note's current text and every message after the summary boundary, always; without a note (or after it was deleted)
   it receives the full history. A turn whose context exceeds 200,000 characters is not created, and the user is asked

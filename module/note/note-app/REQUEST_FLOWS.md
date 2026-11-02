@@ -527,3 +527,5 @@ leaked.
 | Delete chat          | Lock chat, reject a live turn, delete chat (FK cascades)          | —                                                            |
 | Rename note          | Update title, publish debounced index events                      | Indexing handler an hour after the last change               |
 | Delete note          | Delete note (FK cascades)                                         | —                                                            |
+| Nightly profile run  | Queue one deduplicated refresh event per user with unread notes   | Refresh handler                                              |
+| Refresh profile      | Save the profile and its mark, queue the next batch if any remain | Profile model calls (update, then compact when too long)     |
