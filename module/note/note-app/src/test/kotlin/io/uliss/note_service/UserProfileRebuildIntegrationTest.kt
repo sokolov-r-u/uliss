@@ -24,6 +24,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.TestPropertySource
 import tools.jackson.databind.ObjectMapper
 import java.sql.Timestamp
+import java.time.Duration
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
@@ -177,6 +178,25 @@ class UserProfileRebuildIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `the nightly request leaves a refresh that already waits or runs alone, so a halved batch keeps its delay`() {
+        note("Opera", "Tosca moved me.", hourAgo)
+        liveProfile("old profile", NotesMark(twoHoursAgo, UUID.randomUUID()))
+        startRebuild()
+        service.requestRefresh(userId, Duration.ofHours(1))
+        val due = nextAttemptAt()
+
+        service.requestRefreshes()
+
+        assertEquals(due, nextAttemptAt())
+        jdbcTemplate.update(
+            "UPDATE note.outbox_event SET status = 'PROCESSING' WHERE dedup_key = ?",
+            "USER_PROFILE_REFRESH_REQUESTED:$userId",
+        )
+        service.requestRefreshes()
+        assertEquals(0, pendingRefreshEvents(), "a second event would read the same batch in parallel")
+    }
+
+    @Test
     fun `the nightly request starts no rebuild for a profile without deletions`() {
         liveProfile("old profile", NotesMark(hourAgo, UUID.randomUUID()))
 
@@ -215,6 +235,12 @@ class UserProfileRebuildIntegrationTest : NoteIntegrationTest() {
         Int::class.java,
         "USER_PROFILE_REFRESH_REQUESTED:$userId",
     )!!
+
+    private fun nextAttemptAt(): Instant = jdbcTemplate.queryForObject(
+        "SELECT next_attempt_at FROM note.outbox_event WHERE status = 'PENDING' AND dedup_key = ?",
+        Timestamp::class.java,
+        "USER_PROFILE_REFRESH_REQUESTED:$userId",
+    )!!.toInstant()
 
     private fun userPrompts(): List<String> = Mockito.mockingDetails(request).invocations
         .filter { it.method.name == "user" }

@@ -171,8 +171,9 @@ class UserProfileService(
 
     /**
      * Queues a refresh for every user whose profile has settled notes to read or a rebuild running (its event may be
-     * gone), and starts a rebuild for every profile flagged by deletions and not rebuilt within the interval. An event
-     * already waiting is reused.
+     * gone), and starts a rebuild for every profile flagged by deletions and not rebuilt within the interval. A user
+     * whose refresh event already waits or runs is left alone: moving it would cut a halved batch's delay, and a second
+     * event would read the same batch in parallel; that event continues a rebuild started here.
      */
     @Transactional
     fun requestRefreshes() {
@@ -183,7 +184,11 @@ class UserProfileService(
             rebuildRepository.findUserIdsByStatus(ProfileRebuildStatus.RUNNING)
         // one order for every transaction: two runs locking and upserting the same users cannot deadlock
         users.sorted().forEach { userId ->
-            if (userId in toRebuild) startRebuild(userId, ProfileRebuildTrigger.DELETIONS) else requestRefresh(userId)
+            val live = outboxService.hasLiveEvent(refreshKey(userId))
+            when {
+                userId in toRebuild -> startRebuild(userId, ProfileRebuildTrigger.DELETIONS, queue = !live)
+                !live -> requestRefresh(userId)
+            }
         }
         log.info(
             "queued profile refresh for ${users.size} users, ${toRebuild.size} of them full rebuilds",
@@ -191,13 +196,13 @@ class UserProfileService(
         )
     }
 
-    /** Starts a full rebuild of the user's profile and queues its first batch; a running one is only queued again. */
-    private fun startRebuild(userId: UUID, trigger: ProfileRebuildTrigger) {
+    /** Starts a full rebuild of the user's profile and, when [queue], queues its first batch. */
+    private fun startRebuild(userId: UUID, trigger: ProfileRebuildTrigger, queue: Boolean) {
         rebuildRepository.lockUserRebuilds(userId)
         if (rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING) == null) {
             rebuildRepository.save(UserProfileRebuildEntity(userId, trigger))
         }
-        requestRefresh(userId)
+        if (queue) requestRefresh(userId)
     }
 
     private fun rebuildState(userId: UUID, running: Boolean): ProfileRebuildState {
@@ -261,8 +266,10 @@ class UserProfileService(
         outboxService.publishDebounced(
             OutboxEventType.USER_PROFILE_REFRESH_REQUESTED,
             objectMapper.writeValueAsString(UserProfileRefreshRequestedPayload(userId)),
-            "${OutboxEventType.USER_PROFILE_REFRESH_REQUESTED}:$userId",
+            refreshKey(userId),
             delay,
         )
     }
+
+    private fun refreshKey(userId: UUID) = "${OutboxEventType.USER_PROFILE_REFRESH_REQUESTED}:$userId"
 }

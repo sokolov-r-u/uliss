@@ -61,6 +61,11 @@ class OutboxService(
         outboxEventRepository.upsertPendingByDedupKey(generateId(), type.name, payload, dedupKey, now.plus(delay), now)
     }
 
+    /** Whether an event under [dedupKey] waits or is being processed. */
+    @Transactional(readOnly = true)
+    fun hasLiveEvent(dedupKey: String): Boolean =
+        outboxEventRepository.existsByDedupKeyAndStatusIn(dedupKey, CLAIMABLE_STATUSES)
+
     /**
      * Own short transaction, claims events for processing.
      *
