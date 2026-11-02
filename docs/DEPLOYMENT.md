@@ -163,9 +163,9 @@ so HTTPS needs port 443 in the tunnel and in ufw. Keep `:80` for the redirect; `
 
 `user` and `note` read flags from `infra/flags/flags.json` (gitignored; it holds user ids), mounted read-only as the
 `infra/flags` directory at `/flags` and named by `ULISS_FEATURE_FLAGS_FILE`. Start from the template:
-`cp infra/flags/flags.example.json infra/flags/flags.json`, then put real user ids in the `targeting` list, or set
-`"defaultVariant": "on"` and drop `targeting` to turn a flag on for everyone. The format and the runtime rules are in
-`module/lib/feature-flags/README.md`.
+`cp infra/flags/flags.example.json infra/flags/flags.json`, then put real user ids in `$evaluators.betaUsers`, or set
+`"defaultVariant": "on"` and drop `targeting` to turn a flag on for everyone. The `example-*` flags show per-user,
+percentage and A/B rules; the format and the runtime rules are in `module/lib/feature-flags/README.md`.
 
 - Without the file every flag is off and both services log a warning at startup; they still start. A file created
   later is read only after `user` and `note` restart; from then on edits apply live.

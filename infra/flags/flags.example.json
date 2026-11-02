@@ -5,9 +5,52 @@
       "state": "ENABLED",
       "variants": { "on": true, "off": false },
       "defaultVariant": "off",
+      "targeting": { "if": [{ "$ref": "betaUsers" }, "on", "off"] }
+    },
+    "example-everyone": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "on"
+    },
+    "example-disabled": {
+      "state": "DISABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "on"
+    },
+    "example-listed-users": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
       "targeting": {
-        "if": [{ "in": [{ "var": "targetingKey" }, ["00000000-0000-0000-0000-000000000000"]] }, "on", "off"]
+        "if": [
+          { "in": [{ "var": "targetingKey" }, ["00000000-0000-4000-8000-000000000003", "00000000-0000-4000-8000-000000000004"]] },
+          "on",
+          "off"
+        ]
       }
+    },
+    "example-ab-test": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "fractional": [["on", 50], ["off", 50]] }
+    },
+    "example-gradual-rollout": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "fractional": [["on", 10], ["off", 90]] }
+    },
+    "example-beta-and-rollout": {
+      "state": "ENABLED",
+      "variants": { "on": true, "off": false },
+      "defaultVariant": "off",
+      "targeting": { "if": [{ "$ref": "betaUsers" }, "on", { "fractional": [["on", 20], ["off", 80]] }] }
+    }
+  },
+  "$evaluators": {
+    "betaUsers": {
+      "in": [{ "var": "targetingKey" }, ["00000000-0000-4000-8000-000000000001", "00000000-0000-4000-8000-000000000002"]]
     }
   }
 }

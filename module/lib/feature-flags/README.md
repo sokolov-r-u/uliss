@@ -19,20 +19,27 @@ client.getBooleanValue(FeatureFlagKeys.NOTE_RESUMMARIZE, false, ImmutableContext
   the service restarts with the file in place; a file created later is not picked up.
 - `uliss.feature-flags.poll-interval` — how often the file's modification time is checked (default `5s`).
 
-The file follows the flagd schema. On for everyone: `"defaultVariant": "on"`. On for some users only:
+The file follows the flagd schema; `infra/flags/flags.example.json` shows every pattern below. A flag is `variants`
+(`on`/`off`), `defaultVariant` (used when there is no `targeting` or it returns nothing), and an optional `targeting`
+rule ([JsonLogic](https://flagd.dev/reference/flag-definitions/#targeting-rules)) that picks a variant per user. The
+only context attribute is `targetingKey`, the user id.
 
-```json
-{
-  "flags": {
-    "note-resummarize": {
-      "state": "ENABLED",
-      "variants": { "on": true, "off": false },
-      "defaultVariant": "off",
-      "targeting": { "if": [{ "in": [{ "var": "targetingKey" }, ["<userId>"]] }, "on", "off"] }
-    }
-  }
-}
-```
+| Example flag               | Rule                                                        | Result                                  |
+|----------------------------|-------------------------------------------------------------|-----------------------------------------|
+| `example-everyone`         | `"defaultVariant": "on"`, no `targeting`                     | on for everyone                         |
+| `example-disabled`         | `"state": "DISABLED"`                                        | off for everyone, whatever the rule     |
+| `example-listed-users`     | `{"if": [{"in": [{"var": "targetingKey"}, [ids]]}, "on", "off"]}` | on for the listed ids               |
+| `note-resummarize`         | `{"if": [{"$ref": "betaUsers"}, "on", "off"]}`               | on for the shared `betaUsers` list      |
+| `example-ab-test`          | `{"fractional": [["on", 50], ["off", 50]]}`                  | half of users in each group             |
+| `example-gradual-rollout`  | `{"fractional": [["on", 10], ["off", 90]]}`                  | on for 10% of users                     |
+| `example-beta-and-rollout` | `if` beta users `on`, else `fractional` 20/80                | beta users plus 20% of the rest         |
+
+- `$evaluators` holds rules shared by several flags (`betaUsers`); a flag refers to one with `{"$ref": "<name>"}`.
+- `fractional` hashes the flag key with the user id: a user stays in the same group on every request and in every
+  service, and different flags split users independently. Raising 10 → 20 keeps the first 10% on.
+- An A/B test here only splits users: nothing records which group a user saw, so measuring the result needs its own
+  analytics.
+- Flags the code does not know (the `example-*` ones) are ignored; only `FeatureFlagKeys` are evaluated.
 
 ## Runtime behavior
 
