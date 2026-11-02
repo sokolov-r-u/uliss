@@ -72,6 +72,9 @@
 
 - Red–Green–Refactor: write the test first, run it and see it fail for the expected reason (record the reason in the
   task file), implement until green, then refactor with the tests still green.
+- TDD and test-first apply only to behavior in `module/**/src/main`. Config files, examples, documentation, and answers
+  to the user's questions are just changed, with no tests; a library claim is checked from its docs or source, not with
+  a test added to the repository.
 - A bug fix starts with a regression test that reproduces the bug.
 - Exception — `module/web` (its tests are slow): no TDD and no regression-test-first. Implement, run `typecheck`, deploy
   for the user's UI check, and write and run the Vitest/Playwright tests only after the user confirms the result in the
