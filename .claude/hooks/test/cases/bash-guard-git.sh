@@ -31,8 +31,19 @@ expect allow bash-guard.sh "$(bash_call "git add .claude/hooks/bash-guard.sh")" 
 
 # Branches and worktrees
 expect block bash-guard.sh "$(bash_call "git checkout main")" "checkout branch"
-expect block bash-guard.sh "$(bash_call "git checkout -b x")" "checkout -b"
 expect block bash-guard.sh "$(bash_call "git switch main")" "switch"
+# Creating a new branch keeps the work in place; resetting or replacing one does not
+expect allow bash-guard.sh "$(bash_call "git switch -c FE-x --no-track")" "switch -c new branch"
+expect allow bash-guard.sh "$(bash_call "git switch --create=FE-x origin/main")" "switch --create with start point"
+expect allow bash-guard.sh "$(bash_call "git -C /repo checkout -b FE-x")" "checkout -b new branch"
+expect block bash-guard.sh "$(bash_call "git switch -C FE-x")" "switch -C resets an existing branch"
+expect block bash-guard.sh "$(bash_call "git checkout -B FE-x")" "checkout -B resets an existing branch"
+expect block bash-guard.sh "$(bash_call "git switch -c FE-x --discard-changes")" "switch -c discarding changes"
+expect block bash-guard.sh "$(bash_call "git checkout -f -b FE-x")" "checkout -b forced"
+expect block bash-guard.sh "$(bash_call "git checkout -b FE-x -- file")" "checkout -b with paths"
+expect block bash-guard.sh "$(bash_call "git switch --orphan FE-x")" "switch --orphan"
+expect block bash-guard.sh "$(bash_call "git switch -c FE-x && git switch main")" "create then switch back"
+expect block bash-guard.sh "$(bash_call "git checkout -bFE-x")" "checkout -b glued"
 expect block bash-guard.sh "$(bash_call "git worktree add ../x")" "worktree"
 expect allow bash-guard.sh "$(bash_call "git branch --show-current")" "show current branch"
 

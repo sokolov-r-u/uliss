@@ -65,8 +65,18 @@ my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|na
 decide('block', "history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
   if $code =~ /${git}(?:reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
-decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
-  if $code =~ /${git}(?:checkout|switch|worktree)$end/m;
+# Only a new branch keeps the checkout's work: switch -c / checkout -b with a name and an optional start point.
+while ($code =~ /${git}(checkout|switch|worktree)$end($seg)/mg) {
+  my ($verb, @w) = ($1, split ' ', $2);
+  my $create = $verb eq 'switch' ? qr/^(?:-c|--create(?:=\S+)?)$/ : qr/^-b$/;
+  my @flags = grep { /^-/ } @w;
+  my $new_branch = $verb ne 'worktree'
+    && scalar(grep { /$create/ } @flags) == 1
+    && !grep({ !/$create/ && !/^--(?:no-)?track$/ } @flags)
+    && scalar(grep { !/^-/ } @w) <= 2;
+  decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
+    unless $new_branch;
+}
 decide('block', "deleting, renaming or forcing branches needs the user's explicit permission.")
   if $code =~ /${git}branch\s+(?:$seg\s)?(?:--delete|--move|--force|-(?!-)[A-Za-z]*[dDmMf][A-Za-z]*)(?=\s|$)/m;
 if ($code =~ /${git}stash\s+(?:drop|clear)$end/m) {
