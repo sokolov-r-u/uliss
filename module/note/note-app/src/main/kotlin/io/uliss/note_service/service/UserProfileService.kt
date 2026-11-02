@@ -52,11 +52,11 @@ class UserProfileService(
     fun findBatch(userId: UUID): ProfileBatch? {
         val rebuild = rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING)
         if (rebuild != null) {
-            return findBatchAfter(userId, rebuild.through)
+            return findBatchAfter(userId, rebuild.through, rebuild.batchShrink)
                 ?.copy(profile = rebuild.content, profileVersion = rebuild.version, rebuildId = rebuild.id)
         }
         val profile = profileRepository.findByUserId(userId)
-        return findBatchAfter(userId, profile?.notesThrough)
+        return findBatchAfter(userId, profile?.notesThrough, profile?.batchShrink ?: 0)
             ?.copy(profile = profile?.content, profileVersion = profile?.version)
     }
 
@@ -80,6 +80,7 @@ class UserProfileService(
             profile.content = content
             profile.notesThroughAt = batch.through.updatedAt
             profile.notesThroughId = batch.through.noteId
+            profile.batchShrink = 0
         }
         if (batch.remain) requestRefresh(userId)
     }
@@ -88,6 +89,45 @@ class UserProfileService(
     @Transactional
     fun finishRebuild(userId: UUID) {
         rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING)?.let(::finish)
+    }
+
+    /**
+     * The next batch failed every attempt. A batch of several notes is halved and tried again after
+     * `shrink-retry-delay`, so a short provider outage does not cut it down to a healthy note; a single note that
+     * fails is skipped: the mark (of the rebuild draft while one runs) moves past it, and the next batch goes at once.
+     */
+    @Transactional
+    fun handleFailedBatch(userId: UUID) {
+        val batch = findBatch(userId) ?: return
+        val rebuild = batch.rebuildId?.let { rebuildRepository.findByIdOrNull(it) }
+        val profile = if (rebuild == null) {
+            profileRepository.findByUserId(userId) ?: profileRepository.save(UserProfileEntity(userId, null, null, null))
+        } else {
+            null
+        }
+        if (batch.notes.size > 1) {
+            rebuild?.let { it.batchShrink++ }
+            profile?.let { it.batchShrink++ }
+            log.warn(
+                "profile batch of user=$userId with ${batch.notes.size} notes failed for good, halving it",
+                "handleFailedBatch",
+            )
+            requestRefresh(userId, properties.shrinkRetryDelay)
+            return
+        }
+        val skipped = batch.through
+        rebuild?.let {
+            it.throughAt = skipped.updatedAt
+            it.throughId = skipped.noteId
+            it.batchShrink = 0
+        }
+        profile?.let {
+            it.notesThroughAt = skipped.updatedAt
+            it.notesThroughId = skipped.noteId
+            it.batchShrink = 0
+        }
+        log.error("profile of user=$userId skips note id=${skipped.noteId}: the model fails on it", "handleFailedBatch")
+        requestRefresh(userId)
     }
 
     /** Flags the profile for a full rebuild when it may hold text of [noteIds]; call before deleting them. */
@@ -128,17 +168,19 @@ class UserProfileService(
         requestRefresh(userId)
     }
 
-    private fun findBatchAfter(userId: UUID, mark: NotesMark?): ProfileBatch? {
+    /** A batch [shrink] times halved after failures; it always reads at least one note. */
+    private fun findBatchAfter(userId: UUID, mark: NotesMark?, shrink: Int): ProfileBatch? {
         val settledBefore = clock.instant().minus(properties.settleDelay)
-        val notes = noteStore.findNotesAfter(userId, mark, settledBefore, properties.batchMaxNotes)
-        val batch = ProfileNoteBatch.take(notes, properties.batchMaxChars)
+        val maxNotes = (properties.batchMaxNotes shr shrink).coerceAtLeast(1)
+        val notes = noteStore.findNotesAfter(userId, mark, settledBefore, maxNotes)
+        val batch = ProfileNoteBatch.take(notes, (properties.batchMaxChars shr shrink).coerceAtLeast(1))
         val last = batch.lastOrNull() ?: return null
         return ProfileBatch(
             profile = null,
             profileVersion = null,
             notes = batch,
             through = NotesMark(last.updatedAt, last.id),
-            remain = batch.size < notes.size || notes.size == properties.batchMaxNotes,
+            remain = batch.size < notes.size || notes.size == maxNotes,
         )
     }
 
@@ -151,6 +193,7 @@ class UserProfileService(
         rebuild.content = content
         rebuild.throughAt = batch.through.updatedAt
         rebuild.throughId = batch.through.noteId
+        rebuild.batchShrink = 0
         if (batch.remain) requestRefresh(userId) else finish(rebuild)
     }
 
@@ -171,13 +214,13 @@ class UserProfileService(
         log.info("profile rebuild of user=${rebuild.userId} (${rebuild.trigger}) finished", "finish")
     }
 
-    /** Queues a refresh of the user's profile; one already waiting is reused. */
-    fun requestRefresh(userId: UUID) {
+    /** Queues a refresh of the user's profile, due after [delay]; one already waiting is moved, not duplicated. */
+    fun requestRefresh(userId: UUID, delay: Duration = Duration.ZERO) {
         outboxService.publishDebounced(
             OutboxEventType.USER_PROFILE_REFRESH_REQUESTED,
             objectMapper.writeValueAsString(UserProfileRefreshRequestedPayload(userId)),
             "${OutboxEventType.USER_PROFILE_REFRESH_REQUESTED}:$userId",
-            Duration.ZERO,
+            delay,
         )
     }
 }
