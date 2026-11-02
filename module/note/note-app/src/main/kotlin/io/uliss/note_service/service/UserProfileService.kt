@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ProfileBatch
+import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.model.UserProfileEntity
 import io.uliss.note_service.model.payload.UserProfileRefreshRequestedPayload
 import io.uliss.note_service.model.projection.NotesMark
@@ -28,6 +29,11 @@ class UserProfileService(
     private val clock: Clock = Clock.systemUTC(),
 ) {
     private val log = AppLogger.of(UserProfileService::class)
+
+    /** The user's profile, or null until the first refresh writes it. */
+    @Transactional(readOnly = true)
+    fun findProfile(userId: UUID): UserProfileView? =
+        profileRepository.findByUserId(userId)?.let { UserProfileView(it.content, checkNotNull(it.updatedAt)) }
 
     /** The next notes the profile has not read, as many as one model call takes; null when it has read them all. */
     @Transactional(readOnly = true)

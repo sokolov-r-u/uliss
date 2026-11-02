@@ -16,6 +16,7 @@ import io.uliss.note_service.util.isEmptyAssistantReply
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.messages.AssistantMessage
 import org.springframework.ai.chat.messages.Message
+import org.springframework.ai.chat.messages.SystemMessage
 import org.springframework.ai.chat.messages.UserMessage
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -42,15 +43,20 @@ class AssistantService(
     /** Generations running on this instance, so canceling a turn stops its provider call instead of waiting it out. */
     private val activeGenerations = ConcurrentHashMap<UUID, Disposable>()
 
-    /** [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. */
+    /**
+     * [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. [userProfile] is what the
+     * model knows about the user from their notes, sent ahead of the history; null when there is none yet.
+     */
     fun streamReply(
         userId: UUID,
         chatId: UUID,
         idempotencyKey: UUID,
         prompt: String,
         noteSearch: NoteSearch,
-    ): AssistantReplyStream =
-        toReplyStream(chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt), noteSearch)
+        userProfile: String? = null,
+    ): AssistantReplyStream = toReplyStream(
+        chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt), noteSearch, userProfile,
+    )
 
     /** Regenerates the failed or interrupted reply [messageId] of turn [turnId]; see [ChatTurnService.resolveRetryRequest]. */
     fun retryReply(
@@ -59,16 +65,22 @@ class AssistantService(
         turnId: UUID,
         messageId: UUID,
         noteSearch: NoteSearch,
+        userProfile: String? = null,
         beforeReplace: (replyId: UUID) -> Unit,
-    ): AssistantReplyStream =
-        toReplyStream(chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId, beforeReplace), noteSearch)
+    ): AssistantReplyStream = toReplyStream(
+        chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId, beforeReplace), noteSearch, userProfile,
+    )
 
-    private fun toReplyStream(resolution: ChatTurnRequestResolution, noteSearch: NoteSearch): AssistantReplyStream {
+    private fun toReplyStream(
+        resolution: ChatTurnRequestResolution,
+        noteSearch: NoteSearch,
+        userProfile: String?,
+    ): AssistantReplyStream {
         return when (resolution) {
             is ChatTurnRequestResolution.StartGeneration ->
                 AssistantReplyStream(
                     resolution.turn.id,
-                    detached(resolution.turn.id, streamNewGeneration(resolution, noteSearch)),
+                    detached(resolution.turn.id, streamNewGeneration(resolution, noteSearch, userProfile)),
                     resolution.turn.chatId,
                 )
 
@@ -119,6 +131,7 @@ class AssistantService(
     private fun streamNewGeneration(
         resolution: ChatTurnRequestResolution.StartGeneration,
         noteSearch: NoteSearch,
+        userProfile: String?,
     ): Flux<AssistantStreamEvent> = Flux.defer {
         var finalized = false
         Flux.usingWhen(
@@ -139,7 +152,7 @@ class AssistantService(
                         activities.tryEmitNext(AssistantStreamEvent.Activity(AssistantActivity.THINKING))
                     },
                 )
-                val text = streamProviderTokens(resolution.turn.chatId, resolution.history, tool)
+                val text = streamProviderTokens(resolution.turn.chatId, resolution.history, userProfile, tool)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
                     .doFinally { activities.tryEmitComplete() }
@@ -177,11 +190,13 @@ class AssistantService(
     private fun streamProviderTokens(
         chatId: UUID,
         history: List<ChatMessageEntity>,
+        userProfile: String?,
         notesSearchTool: NotesSearchTool,
     ): Flux<String> = Flux.defer {
+        val profile = listOfNotNull(userProfile?.let { SystemMessage(ChatPrompts.userProfileMessage(it)) })
         chatClient.prompt()
             .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
-            .messages(toAiMessages(history))
+            .messages(profile + toAiMessages(history))
             .tools(notesSearchTool)
             .options(
                 OpenAiChatOptions.builder()
