@@ -52,13 +52,17 @@ class UserProfileNoteStoreIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
-    fun `users to refresh have settled READY notes after their mark, or notes and no profile yet`() {
+    fun `users to refresh have settled READY notes after their mark, or notes and no profile or mark yet`() {
         val noon = Instant.parse("2026-11-01T12:00:00Z")
         val newcomer = UUID.randomUUID().also { note("New", noon, owner = it) }
         val upToDate = UUID.randomUUID().also { profile(it, NotesMark(noon, note("Read", noon, owner = it))) }
         val withNewNote = UUID.randomUUID().also {
             profile(it, NotesMark(noon, note("Read", noon, owner = it)))
             note("Fresh", noon.plusSeconds(60), owner = it)
+        }
+        val markless = UUID.randomUUID().also {
+            profileRepository.saveAndFlush(UserProfileEntity(it, null, null, null))
+            note("After an empty rebuild", noon, owner = it)
         }
         val onlyGenerating = UUID.randomUUID().also { note("Gen", noon, NoteStatus.GENERATING, owner = it) }
         val onlyUnsettled = UUID.randomUUID().also { note("Late", settled.plusSeconds(1), owner = it) }
@@ -67,6 +71,7 @@ class UserProfileNoteStoreIntegrationTest : NoteIntegrationTest() {
 
         assertTrue(newcomer in users)
         assertTrue(withNewNote in users)
+        assertTrue(markless in users, "a profile without a mark reads from the first note")
         assertFalse(upToDate in users)
         assertFalse(onlyGenerating in users)
         assertFalse(onlyUnsettled in users)

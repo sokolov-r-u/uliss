@@ -24,6 +24,8 @@ data class UserProfileProperties(
     /** The notes one batch query fetches at most. */
     @field:Min(1)
     val batchMaxNotes: Int = 200,
+    /** A profile flagged by deletions is rebuilt at most this often (counted from the last finished rebuild). */
+    val deletionRebuildInterval: Duration = Duration.ofDays(30),
     /** OpenAI per-call options for the profile calls; passed to the provider as-is. */
     val reasoningEffort: String = "medium",
     val verbosity: String = "medium",

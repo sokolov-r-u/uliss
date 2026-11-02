@@ -16,7 +16,7 @@ import java.util.UUID
 @Repository
 class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
 
-    /** Users with a settled READY note their profile has not read yet; a user with notes and no profile counts. */
+    /** Users with a settled READY note their profile has not read yet; notes and no profile (or no mark) count. */
     fun findUsersToRefresh(settledBefore: Instant): List<UUID> =
         jdbcTemplate.query(
             FIND_USERS_TO_REFRESH_SQL,
@@ -63,7 +63,7 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
                      LEFT JOIN note.user_profile p ON p.user_id = n.user_id
             WHERE n.status = 'READY'
               AND n.updated_at < ?
-              AND (p.user_id IS NULL OR (n.updated_at, n.id) > (p.notes_through_at, p.notes_through_id))
+              AND (p.notes_through_at IS NULL OR (n.updated_at, n.id) > (p.notes_through_at, p.notes_through_id))
         """
 
         // created_at, not updated_at: a note read and then edited past the mark still left its old text in the profile

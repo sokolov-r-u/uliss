@@ -98,6 +98,8 @@ note:
     max-chars: 8000
     compact-target-chars: 5000
     batch-max-chars: 60000
+    # a profile flagged by note deletions is rebuilt at most this often; shorten for a manual check
+    deletion-rebuild-interval: ${NOTE_PROFILE_DELETION_REBUILD_INTERVAL:30d}
     reasoning-effort: medium
     verbosity: medium
   speech:
