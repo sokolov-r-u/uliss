@@ -44,6 +44,8 @@ class NoteAddendumDraftTest {
         assertTrue(secondaryDescription.contains("Not passing remarks"))
         assertTrue(secondaryDescription.contains("never repeats the main thought"))
         assertTrue(secondaryDescription.contains("One topic per item"))
+        // a long item opens with its topic in bold so the list can be skimmed; a short one does not
+        assertTrue(secondaryDescription.contains("starts with a short bold label naming its topic"))
         assertTrue(secondaryDescription.contains("not a question the user asked for information and got answered"))
     }
 }

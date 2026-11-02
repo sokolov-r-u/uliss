@@ -33,8 +33,9 @@ data class NoteAddendumDraft(
                 "go here, and none repeats a work the main thought names. Not passing remarks, not a question the " +
                 "user asked for information and got answered, and an item never repeats the main thought or " +
                 "another item, even reworded. No fixed limit — as many topics as the new messages really hold; an " +
-                "empty list is fine. Each is shown as a list item, so use " +
-                "only inline formatting."
+                "empty list is fine. Each is shown as a list item, so use only inline formatting; an item longer " +
+                "than two sentences starts with a short bold label naming its topic (**Epilogue.** ...), a " +
+                "shorter one has none."
     )
     @field:JsonProperty(required = true)
     val secondaryThoughts: List<String>?,

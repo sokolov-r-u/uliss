@@ -46,8 +46,9 @@ internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth rememb
         "places the user named with their evaluation go here, and none repeats a work the main thought names. Not " +
         "passing remarks, not a question the user asked for information and got answered, and an item never " +
         "repeats the main thought or another item, even reworded. No fixed limit — as many topics as the chat " +
-        "really holds; an empty list is fine. Each is shown as a list item, so use only inline " +
-        "formatting. Put questions the user left open and intentions last."
+        "really holds; an empty list is fine. Each is shown as a list item, so use only inline formatting; an " +
+        "item longer than two sentences starts with a short bold label naming its topic (**Epilogue.** ...), a " +
+        "shorter one has none. Put questions the user left open and intentions last."
 
 // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
 private val LINE_BREAKS = Regex("\\s*\\R\\s*")

@@ -646,3 +646,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   goes into one item of a few sentences (was "one or two sentences" each), works rated the same way share an item,
   and no item repeats the main thought even reworded. Still no fixed limit on the number of items.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — A long secondary thought opens with a bold topic label
+
+- **Context:** one topic per item made items long; a reader skimming the note could not tell what each is about.
+- **Decision:** the secondary-thought descriptions ask an item longer than two sentences to start with a short bold
+  label naming its topic (`**Epilogue.** ...`); a shorter item has none. Inline Markdown only, so rendering and
+  `formatNoteThoughts` stay as they are.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
