@@ -46,6 +46,9 @@ spring:
 # Long enough that the poller never fires during a test's lifetime - it's not what's under test
 # in most full-context tests, and a tick mid-test would add unrelated DB activity/flakiness.
 note:
+  profile:
+    # "-" disables the nightly refresh; tests call the service directly
+    refresh-cron: "-"
   speech:
     max-duration: 90s
     max-file-size: 1KB

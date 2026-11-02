@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.UserProfileEntity
 import io.uliss.note_service.model.projection.NotesMark
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.UserProfileRepository
@@ -93,14 +94,29 @@ class UserProfileServiceIntegrationTest : NoteIntegrationTest() {
         assertEquals("second winner", profileRepository.findByUserId(userId)!!.content)
     }
 
-    private fun pendingRefreshEvents(): Int = jdbcTemplate.queryForObject(
+    @Test
+    fun `the nightly request queues one refresh per user with unread notes, and running it again adds none`() {
+        note("First", hourAgo)
+        val upToDate = UUID.randomUUID()
+        profileRepository.saveAndFlush(
+            UserProfileEntity(upToDate, "read", hourAgo, note("Read", hourAgo, owner = upToDate))
+        )
+
+        service.requestRefreshes()
+        service.requestRefreshes()
+
+        assertEquals(1, pendingRefreshEvents())
+        assertEquals(0, pendingRefreshEvents(upToDate))
+    }
+
+    private fun pendingRefreshEvents(owner: UUID = userId): Int = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM note.outbox_event WHERE status = 'PENDING' AND dedup_key = ?",
         Int::class.java,
-        "USER_PROFILE_REFRESH_REQUESTED:$userId",
+        "USER_PROFILE_REFRESH_REQUESTED:$owner",
     )!!
 
-    private fun note(title: String, updatedAt: Instant): UUID {
-        val note = noteRepository.saveAndFlush(NoteEntity(userId, "$title text", title = title))
+    private fun note(title: String, updatedAt: Instant, owner: UUID = userId): UUID {
+        val note = noteRepository.saveAndFlush(NoteEntity(owner, "$title text", title = title))
         jdbcTemplate.update("UPDATE note.notes SET updated_at = ? WHERE id = ?", Timestamp.from(updatedAt), note.id)
         return note.id
     }

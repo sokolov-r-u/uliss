@@ -68,6 +68,15 @@ class UserProfileService(
         if (batch.remain) requestRefresh(userId)
     }
 
+    /** Queues a refresh for every user whose profile has settled notes to read; one already waiting is reused. */
+    @Transactional
+    fun requestRefreshes() {
+        val users = noteStore.findUsersToRefresh(clock.instant().minus(properties.settleDelay))
+        // one order for every transaction: two runs upserting the same events cannot deadlock
+        users.sorted().forEach(::requestRefresh)
+        log.info("queued profile refresh for ${users.size} users", "requestRefreshes")
+    }
+
     /** Queues a refresh of the user's profile; one already waiting is reused. */
     fun requestRefresh(userId: UUID) {
         outboxService.publishDebounced(
