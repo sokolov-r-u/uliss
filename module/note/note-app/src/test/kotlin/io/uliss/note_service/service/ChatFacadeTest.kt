@@ -149,6 +149,20 @@ class ChatFacadeTest {
     }
 
     @Test
+    fun `a retried reply gets the user's profile too`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
+        Mockito.`when`(userProfileService.findProfile(userId)).thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH))
+
+        chatFacade.retryReply(userId, chatId, UUID.randomUUID(), UUID.randomUUID())
+
+        val retry = Mockito.mockingDetails(assistantService).invocations.single { it.method.name == "retryReply" }
+        assertEquals("Loves jazz.", retry.arguments[5])
+    }
+
+    @Test
     fun `requestSummary rejects a chat with no messages`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
