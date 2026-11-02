@@ -7,7 +7,7 @@ expect block bash-guard.sh "$(bash_call "if true; then git commit --amend --no-e
 expect block bash-guard.sh "$(bash_call "for i in 1; do git commit -a -m 'TD  - x' -m '$CO'; done")" "commit -a after do"
 expect block bash-guard.sh "$(bash_call "if git commit -m 'bad'; then echo ok; fi")" "bad message after if"
 expect block bash-guard.sh "$(bash_call "echo | xargs git commit --amend --no-edit")" "amend after xargs"
-expect block bash-guard.sh "$(bash_call "if git push origin HEAD; then echo ok; fi")" "push after if"
+expect block bash-guard.sh "$(bash_call "if git push origin HEAD; then echo ok; fi" "$MAIN")" "push after if"
 expect block bash-guard.sh "$(bash_call "! git pull --rebase")" "pull after !"
 expect block bash-guard.sh "$(bash_call "while git stash drop; do :; done")" "stash drop after while"
 
@@ -26,7 +26,7 @@ expect allow bash-guard.sh "$(bash_call "./gradlew :note:test --no-daemon")" "gr
 # Heredocs piped into a shell
 expect block bash-guard.sh "$(bash_call "cat <<'EOF' | sh
 git push
-EOF")" "heredoc piped into sh"
+EOF" "$MAIN")" "heredoc piped into sh"
 
 # Commit message from /dev/stdin
 expect allow bash-guard.sh "$(bash_call "git commit -F /dev/stdin <<'EOF'

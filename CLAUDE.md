@@ -65,7 +65,9 @@
 - Message: `<PREFIX>  - <short imperative summary>` in English, where the prefix is the task type: `DE` defect,
   `FE` feature, `TD` tech debt. End with a blank line and
   `Co-Authored-By: Claude <noreply@anthropic.com>` (use the current model name).
-- Never push, amend, revert, reset, rebase, tag, merge a PR, or force anything without explicit per-request permission.
+- At the end of a task, push the task branch and open a PR (`gh pr create`) only after the user confirms each one; the
+  hook asks. Never push `main` or force-push.
+- Never amend, revert, reset, rebase, tag, merge a PR, or force anything without explicit per-request permission.
   `git pull` and `git merge` are allowed on a task branch (no `--rebase`); on `main` only with `--ff-only`.
 
 ## Testing rules
@@ -154,7 +156,8 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 - Do not stop processes with `kill`, `pkill`, PID/port termination, or equivalents.
 - Do not execute database scripts, migrations, DDL/DML, `psql`, or database writes. Database inspection is read-only and
   only when explicitly requested.
-- Do not push or rewrite history (see Commits); commits themselves follow the current mode.
+- Do not push without the user's confirmation, never push `main`, and do not rewrite history (see Commits); commits
+  themselves follow the current mode.
 - Do not upload to Claude Design (`/design-sync`) unless the request asks for a sync.
 - Tests and read-only build/compile tasks may run without additional permission. Anything else that executes project
   behavior requires permission.

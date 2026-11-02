@@ -3,24 +3,24 @@
 CO='Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>'
 
 # Prefixes and wrappers
-expect block bash-guard.sh "$(bash_call "FOO=1 git push")" "env assignment prefix"
-expect block bash-guard.sh "$(bash_call "env git push")" "env wrapper"
-expect block bash-guard.sh "$(bash_call "command git push")" "command wrapper"
+expect block bash-guard.sh "$(bash_call "FOO=1 git push" "$MAIN")" "env assignment prefix"
+expect block bash-guard.sh "$(bash_call "env git push" "$MAIN")" "env wrapper"
+expect block bash-guard.sh "$(bash_call "command git push" "$MAIN")" "command wrapper"
 expect block bash-guard.sh "$(bash_call "time kill 12")" "time wrapper"
 expect block bash-guard.sh "$(bash_call "/usr/bin/git push -f")" "absolute git path"
-expect block bash-guard.sh "$(bash_call "{ git push; }")" "brace group"
-expect block bash-guard.sh "$(bash_call "if true; then git push; fi")" "then branch"
-expect block bash-guard.sh "$(bash_call "echo \`git push\`")" "backticks"
-expect block bash-guard.sh "$(bash_call "git -P push")" "uppercase git option"
+expect block bash-guard.sh "$(bash_call "{ git push; }" "$MAIN")" "brace group"
+expect block bash-guard.sh "$(bash_call "if true; then git push; fi" "$MAIN")" "then branch"
+expect block bash-guard.sh "$(bash_call "echo \`git push\`" "$MAIN")" "backticks"
+expect block bash-guard.sh "$(bash_call "git -P push" "$MAIN")" "uppercase git option"
 expect block bash-guard.sh "$(bash_call "git --git-dir .git push")" "git option with a separate value"
 expect block bash-guard.sh "$(bash_call "bash -c 'git checkout main'")" "bash -c"
 expect block bash-guard.sh "$(bash_call "sh -c \"kill 1\"")" "sh -c"
 
 # Quote and heredoc stripping must not hide commands
-expect block bash-guard.sh "$(bash_call "echo \"don't\" && git push && echo 'x'")" "apostrophe inside double quotes"
+expect block bash-guard.sh "$(bash_call "echo \"don't\" && git push && echo 'x'" "$MAIN")" "apostrophe inside double quotes"
 expect block bash-guard.sh "$(bash_call "cat <<EOF > /dev/null && git push
 x
-EOF")" "command after a heredoc opener"
+EOF" "$MAIN")" "command after a heredoc opener"
 
 # Staging through commit
 expect block bash-guard.sh "$(bash_call "git commit -am 'TD  - x' -m '$CO'")" "commit -am"
