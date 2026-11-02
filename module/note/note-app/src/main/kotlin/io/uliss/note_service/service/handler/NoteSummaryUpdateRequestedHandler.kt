@@ -12,6 +12,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.SummaryRetrievalQuery
 import org.springframework.ai.chat.client.ChatClient
@@ -29,6 +30,7 @@ class NoteSummaryUpdateRequestedHandler(
     private val ragService: RagService,
     private val noteSummaryService: NoteSummaryService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val userProfileService: UserProfileService,
     private val properties: NoteSummaryProperties,
     /** Addendum dates are UTC; tests pass a fixed clock. */
     private val clock: Clock = Clock.systemUTC(),
@@ -63,6 +65,7 @@ class NoteSummaryUpdateRequestedHandler(
             .user(
                 ChatPrompts.noteUpdateUserPrompt(
                     note.title, note.content.orEmpty(), context, place, relatedChunks, note.icon,
+                    userProfileService.findProfile(payload.userId)?.content,
                 )
             )
             .options(

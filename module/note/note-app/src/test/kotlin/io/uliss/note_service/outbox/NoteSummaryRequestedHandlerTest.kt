@@ -7,6 +7,7 @@ import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
+import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -21,6 +22,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryRequestedHandler
 import io.uliss.note_service.util.ChatPrompts
@@ -46,6 +48,7 @@ class NoteSummaryRequestedHandlerTest {
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteSummaryService::class.java)
     private val hierarchyService = Mockito.mock(NoteHierarchyService::class.java)
+    private val profileService = Mockito.mock(UserProfileService::class.java)
     private val properties = NoteSummaryProperties(
         retrievalQueryMaxChars = 400,
         retrievalTopK = 3,
@@ -60,6 +63,7 @@ class NoteSummaryRequestedHandlerTest {
         ragService,
         noteService,
         hierarchyService,
+        profileService,
         properties,
     )
 
@@ -143,6 +147,19 @@ class NoteSummaryRequestedHandlerTest {
         Mockito.verify(entityParamSpec).useProviderStructuredOutput()
         Mockito.verify(noteService)
             .completeChatSummary(payload.userId, payload.noteId, "Ownership columns", "Final summary")
+    }
+
+    @Test
+    fun `the user profile reaches the prompt as background`() {
+        val payload = payload()
+        Mockito.`when`(profileService.findProfile(payload.userId)).thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH))
+
+        handleWithDraft(payload, NoteDraft("Model title", "Summary", null))
+
+        val userPrompt = Mockito.mockingDetails(chatClient.prompt()).invocations
+            .single { it.method.name == "user" }
+            .arguments[0] as String
+        assertTrue(userPrompt.contains("<user_profile>\nLoves jazz.\n</user_profile>"))
     }
 
     @Test

@@ -13,6 +13,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.SummaryRetrievalQuery
 import io.uliss.note_service.util.TitleNormalizer
@@ -29,6 +30,7 @@ class NoteSummaryRequestedHandler(
     private val ragService: RagService,
     private val noteSummaryService: NoteSummaryService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val userProfileService: UserProfileService,
     private val properties: NoteSummaryProperties,
 ) : OutboxHandler {
 
@@ -59,9 +61,10 @@ class NoteSummaryRequestedHandler(
             limit = properties.retrievalTopK,
             minSimilarity = properties.retrievalMinSimilarity,
         )
+        val profile = userProfileService.findProfile(payload.userId)?.content
         val request = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, userTitle, note.icon))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, userTitle, note.icon, profile))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

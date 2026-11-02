@@ -6,6 +6,7 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
+import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -19,6 +20,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.service.handler.NoteSummaryProperties
 import io.uliss.note_service.service.handler.NoteSummaryUpdateRequestedHandler
 import io.uliss.note_service.util.ChatPrompts
@@ -44,10 +46,11 @@ class NoteSummaryUpdateRequestedHandlerTest {
     private val ragService = Mockito.mock(RagService::class.java)
     private val noteService = Mockito.mock(NoteSummaryService::class.java)
     private val hierarchyService = Mockito.mock(NoteHierarchyService::class.java)
+    private val profileService = Mockito.mock(UserProfileService::class.java)
     private val properties = NoteSummaryProperties(retrievalQueryMaxChars = 400, retrievalTopK = 3, retrievalMinSimilarity = 0.75)
     private val clock = Clock.fixed(Instant.parse("2026-10-08T23:30:00Z"), ZoneOffset.UTC)
     private val handler = NoteSummaryUpdateRequestedHandler(
-        objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, properties, clock,
+        objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, profileService, properties, clock,
     )
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
     private val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
@@ -131,6 +134,22 @@ class NoteSummaryUpdateRequestedHandlerTest {
             .applyChatSummaryUpdate(
                 anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
             )
+    }
+
+    @Test
+    fun `the user profile reaches the prompt as background`() {
+        val payload = payload()
+        Mockito.`when`(noteService.findReadyNote(payload.userId, payload.noteId))
+            .thenReturn(NoteEntity(payload.userId, "Fly to Rome.", NoteSource.CHAT_SUMMARY, NoteStatus.READY, "Trip"))
+        Mockito.`when`(profileService.findProfile(payload.userId)).thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH))
+        stubContext(payload, "Rather by train")
+        stubModel(NoteAddendumDraft(false, "Go by night train.", emptyList()))
+
+        handler.handle(event(payload))
+
+        val userPrompt = Mockito.mockingDetails(requestSpec).invocations.single { it.method.name == "user" }
+            .arguments[0] as String
+        assertTrue(userPrompt.contains("<user_profile>\nLoves jazz.\n</user_profile>"))
     }
 
     private fun stubContext(payload: NoteSummaryUpdateRequestedPayload, content: String) {
