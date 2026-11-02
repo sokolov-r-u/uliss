@@ -16,7 +16,7 @@ abstract class UuidEntity(
         if (this === other) {
             return true
         }
-        if (other == null || Hibernate.getClass<AbstractEntity?>(this) != Hibernate.getClass(other)) {
+        if (other == null || Hibernate.getClass(this) != Hibernate.getClass(other)) {
             return false
         }
         val that = other as UuidEntity

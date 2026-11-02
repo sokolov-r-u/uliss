@@ -18,7 +18,10 @@ import java.util.UUID
 @Repository
 interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
 
-    /** Notes of the chat that cover [messageId] now cover the message before it (null when it is the first). */
+    /**
+     * Notes of the chat that cover [messageId] now cover the message before it (null when it is the first).
+     * The version is left alone: callers first check that no summary request is pending through [messageId].
+     */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query(
         value = """

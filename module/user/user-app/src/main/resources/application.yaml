@@ -15,7 +15,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${POSTGRES_URL}?currentSchema=profile
+    url: ${POSTGRES_URL}?currentSchema=profile&reWriteBatchedInserts=true
   flyway:
     schemas: profile
     default-schema: profile
