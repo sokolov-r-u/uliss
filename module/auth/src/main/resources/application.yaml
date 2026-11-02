@@ -21,7 +21,7 @@ spring:
     virtual:
       enabled: true
   datasource:
-    url: ${POSTGRES_URL}?currentSchema=auth
+    url: ${POSTGRES_URL}?currentSchema=auth&reWriteBatchedInserts=true
   flyway:
     schemas: auth
     default-schema: auth

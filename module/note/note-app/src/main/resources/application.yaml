@@ -24,7 +24,7 @@ spring:
       max-file-size: 11MB
       max-request-size: 11MB
   datasource:
-    url: ${POSTGRES_URL}?currentSchema=note
+    url: ${POSTGRES_URL}?currentSchema=note&reWriteBatchedInserts=true
   flyway:
     schemas: note
     default-schema: note
