@@ -3,6 +3,8 @@ HELP.md
 .gradle
 build/
 /infra/volumes/**
+# real feature flags hold user ids; infra/flags/flags.example.json is the template
+/infra/flags/flags.json
 /docs/tasks/
 !gradle/wrapper/gradle-wrapper.jar
 !**/src/main/**/build/

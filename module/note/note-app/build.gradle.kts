@@ -14,6 +14,8 @@ dependencies {
     implementation(project(":logging"))
     implementation(project(":validation"))
     implementation(project(":monitoring"))
+    implementation(project(":feature-flags"))
+    testImplementation(testFixtures(project(":feature-flags")))
 
     implementation(libs.spring.ai.starter.deepseek)
     implementation(libs.spring.ai.starter.openai)

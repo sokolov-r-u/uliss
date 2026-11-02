@@ -1,6 +1,7 @@
 package io.uliss.note_service.service
 
 import io.uliss.exception.common.InternalException
+import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.model.ChatNoteEntity
@@ -9,6 +10,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
+import io.uliss.note_service.model.payload.NoteResummarizeRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.model.projection.CurrentChatSummary
@@ -43,6 +45,8 @@ class NoteSummaryService(
     private val noteHierarchyService: NoteHierarchyService,
     private val noteIndexRequestService: NoteIndexRequestService,
 ) {
+
+    private val log = AppLogger.of(NoteSummaryService::class)
 
     /** The chat's latest READY summary note; null when there is none. Callers pass an owned chat id. */
     fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
@@ -140,6 +144,71 @@ class NoteSummaryService(
             NoteSummaryUpdateRequestedPayload(noteId, userId, chatId, idempotencyKey, afterMessageId, throughMessageId)
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, payload)
+        return noteRepository.getOwnedNote(userId, noteId)
+    }
+
+    /**
+     * Reserves a rewrite of a READY summary note from its whole chat through [throughMessageId]; the note changes only
+     * when the rewrite is applied.
+     */
+    @Transactional
+    fun requestResummarize(
+        userId: UUID,
+        chatId: UUID,
+        noteId: UUID,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+    ): NoteEntity {
+        summaryRequestStore.reserve(userId, idempotencyKey, chatId, throughMessageId, noteId)
+            ?: return findResummarizeReplay(userId, noteId, idempotencyKey)
+                ?: throw InternalException("resummarize reservation lost to a request that could not be loaded")
+        val payload = objectMapper.writeValueAsString(
+            NoteResummarizeRequestedPayload(noteId, userId, chatId, idempotencyKey, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_RESUMMARIZE_REQUESTED, payload)
+        return noteRepository.getOwnedNote(userId, noteId)
+    }
+
+    /**
+     * Replaces the note's content and moves its boundary to [throughMessageId] in one transaction; title, icon and
+     * place stay. Returns false when the request already left PENDING (a redelivered event), or when the note is gone,
+     * no longer READY or no longer linked to the chat; the last case also closes the request as FAILED.
+     */
+    @Transactional
+    fun applyResummarize(
+        userId: UUID,
+        idempotencyKey: UUID,
+        noteId: UUID,
+        chatId: UUID,
+        throughMessageId: UUID,
+        content: String,
+    ): Boolean {
+        val note = findReadyNote(userId, noteId)
+        val link = note?.let { chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) }
+        // a note past the editable limit could not be saved by its owner any more
+        val tooLong = content.length > NoteContentNormalizer.MAX_CHARS
+        if (note == null || link == null || tooLong) {
+            log.warn(
+                "resummarize of note id={} failed: note gone or not ready={}, unlinked={}, {} chars",
+                "applyResummarize", noteId, note == null, link == null, content.length,
+            )
+            summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.FAILED)
+            return false
+        }
+        summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.APPLIED) ?: return false
+        note.content = content
+        noteRepository.save(note)
+        link.summarizedThroughMessageId = throughMessageId
+        chatNoteRepository.save(link)
+        // the whole text changed: searches should see it at once, as after a new summary
+        noteIndexRequestService.requestNow(userId, noteId)
+        return true
+    }
+
+    /** The note of an earlier resummarize with this key; null when the key is new. */
+    fun findResummarizeReplay(userId: UUID, noteId: UUID, idempotencyKey: UUID): NoteEntity? {
+        val existing = summaryRequestStore.find(userId, idempotencyKey) ?: return null
+        if (existing.noteId != noteId) throw IdempotencyKeyReusedException()
         return noteRepository.getOwnedNote(userId, noteId)
     }
 

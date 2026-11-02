@@ -229,3 +229,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the hook does not know the working mode; in manual mode the "no merge" rule of
   `docs/WORKFLOW_MANUAL.md` rests on the text alone.
 - **Source:** commit `0be0aa0` and the follow-up fix; task `docs/tasks/2026-11-01-dependabot-november.md`.
+
+## 2026-11-01 — Feature flags through OpenFeature with an in-process flagd file
+
+- **Context:** the first flag (`note-resummarize`, a prompt-testing tool) must turn on per user and without a
+  restart, behind a standard API, without another container.
+- **Decision:** a shared `:feature-flags` library evaluates flags through the OpenFeature SDK with the flagd provider
+  reading `infra/flags/flags.json` in-process; targeting uses `targetingKey` = the JWT `userId`. Each service checks
+  its own flags (`note` guards its endpoint); the web client reads the user's flags from `GET /user/users/me/features`
+  (user-service, allowed during onboarding), and the key list is `FeatureFlagKeys.ALL`. Unleash was rejected for its
+  extra ~200–400 MB container, own flag tables in user-service for being outside its role, Togglz for lacking
+  confirmed Spring Boot 4 support. There is no admin UI: flags change by editing the file on the server.
+- **Consequences:** the real file stays out of git like `infra/.env`; a missing or invalid file means every flag is
+  off. An admin UI later means switching the provider (e.g. Unleash) behind the same OpenFeature calls.
+- **Source:** task `docs/tasks/2026-11-01-note-resummarize.md`, blocks 1–2.

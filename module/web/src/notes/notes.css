@@ -133,3 +133,17 @@
     color: var(--terracotta);
     font-size: var(--text-sm);
 }
+
+/* The text of the Summarize again notice: description and refusals share three lines, so the card keeps its size */
+.resummarize-text {
+    display: -webkit-box;
+    height: 4.95em;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.resummarize-error {
+    color: var(--terracotta);
+}
+

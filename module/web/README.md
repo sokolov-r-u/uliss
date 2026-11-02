@@ -34,6 +34,10 @@ states instead of simulated data. Notes use the note-service list, detail, and a
 without `READY`/`FAILED` (the service closes it after 10 minutes) is re-read and reconnected while the note is still
 generating, up to `MAX_STATUS_RECONNECTS` times per load. A `READY` note with `updating: true` keeps its content
 visible under an "Updating this note…" notice and is re-read when the update finishes.
+With the `note-resummarize` feature flag on (`useFeatureFlag`, read from `GET /user/users/me/features`; any error
+means every flag is off), the note page's menu adds "Summarize again" for a `READY` summary note that still has a chat:
+a confirmation (`ResummarizeDialog`) queues the rewrite, and the page keeps the old text under the same notice until
+the new one replaces it.
 A note's emoji (`icon`) is chosen with the design system's `IconPicker`, a dropdown beside the name in the Summarize
 dialog and beside the title in the note edit form (`NoticeOverlay` is its popover root, so the card keeps its size). The picker's data is
 `emoji-picker-element-data`'s `en/emojibase/data.json`, imported with `?url` (`lib/emojiData.ts`), so Vite emits it

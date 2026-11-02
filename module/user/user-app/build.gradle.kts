@@ -15,6 +15,8 @@ dependencies {
     implementation(project(":logging"))
     implementation(project(":validation"))
     implementation(project(":monitoring"))
+    implementation(project(":feature-flags"))
+    testImplementation(testFixtures(project(":feature-flags")))
 
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("tools.jackson.module:jackson-module-kotlin")

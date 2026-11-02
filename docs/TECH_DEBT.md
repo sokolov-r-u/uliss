@@ -745,3 +745,27 @@ Found 2026-10-31 (`docs/tasks/2026-10-31-refresh-timeout-session-loss.md`). Insi
 host from a container would stall the same way. Likely an AAAA or upstream query through the Docker Desktop host
 resolver timing out; check `docker run --rm --network infra_default <image> getent ahosts auth.uliss.home` and fix in
 `infra/docker-compose.yml` (for example `extra_hosts` or a resolver option) without breaking the VPN access path.
+
+## Remove or disable "Summarize again" before the public launch (`note-service`, `web`)
+
+**Status:** deferred; behind the `note-resummarize` feature flag (task `docs/tasks/2026-11-01-note-resummarize.md`).
+
+"Summarize again" exists to test prompt changes on real notes. It replaces the user's edits and additions, so it is not
+a product feature yet. Before the public launch either remove it (endpoint, worker, menu item, flag key) or keep the flag
+off for everyone and decide whether users get it.
+
+## An admin UI for feature flags (`lib/feature-flags`, `infra`)
+
+**Status:** not needed yet. Flags are edited in `infra/flags/flags.json` on the server.
+
+If flags must change without server access, or by someone else, switch the OpenFeature provider to Unleash (or another
+provider with an admin UI) behind the same `Client` calls; the services and the web endpoint stay. The Kubernetes
+manifests (not maintained) do not mount the flags file either.
+
+## Show a failed summary update or "Summarize again" to the user (`note-service`, `web`)
+
+**Status:** deferred. Both end their request as `FAILED`, keep the old text and only log the failure; the note just stops
+showing "Updating this note…", so the user cannot tell a failure from a result that changed nothing.
+
+Expose the last request's outcome on the note (or in its status stream) and show a short notice with a retry.
+

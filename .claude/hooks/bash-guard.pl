@@ -62,8 +62,8 @@ my $start = qr/(?:^|[;&|(`{]|\b(?:then|do|else|elif|if|while|until)\b|!)\s*(?:(?
 my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|namespace|exec-path)(?:=\S+|\s+\S+)|--[a-z-]+(?:=\S+)?|-[A-Za-z]))*\s+/m;
 
 # Git, processes and the database
-decide('block', "push, history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
-  if $code =~ /${git}(?:push|reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
+decide('block', "history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
+  if $code =~ /${git}(?:reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
 decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
   if $code =~ /${git}(?:checkout|switch|worktree)$end/m;
@@ -161,6 +161,50 @@ sub pull_or_merge {
     unless $has{'--ff-only'} && !grep { !$safe{$_} } @opts;
 }
 
+# push never updates main and never forces; any other push is asked at the end.
+my $pushes = 0;
+sub push_check {
+  my ($dir, $config, $foreign, @args) = @_;
+  $pushes++;
+  my $unclear = "cannot tell which branch git push would update; name the branch (git push origin <branch>) or ask the user to run it.";
+  decide('block', $unclear) if $foreign;
+  my $current = git_out($dir, 'branch', '--show-current');
+  decide('block', $unclear) unless defined $current;
+  my @pos;
+  for (my $i = 0; $i < @args; $i++) {
+    my $t = dequote($args[$i]);
+    last if $t =~ /^#/;
+    if ($t eq '--') { push @pos, map { dequote($_) } @args[$i + 1 .. $#args]; last }
+    if ($t =~ /^(?:--repo|--receive-pack|--exec|--push-option|-o)$/) { $i++; next }
+    decide('block', "force push rewrites history; ask the user to run it.")
+      if $t =~ /^--force(?:-with-lease(?:=.*)?|-if-includes)?$/s || $t =~ /^-[A-Za-z0-9]*f[A-Za-z0-9]*$/;
+    decide('block', "git push $t would update main too; push the task branch only.") if $t =~ /^--(?:all|branches|mirror)$/;
+    push @pos, $t unless $t =~ /^-/;
+  }
+  shift @pos;
+  my @targets;
+  if (@pos) {
+    for my $spec (@pos) {
+      decide('block', "force push rewrites history; ask the user to run it.") if $spec =~ /^\+/;
+      my ($src, $dst) = $spec =~ /^([^:]*)(?::(.*))?$/s;
+      $dst = $src unless defined $dst && $dst ne '';
+      push @targets, $dst;
+    }
+  } else {
+    my ($default) = map { /^push\.default=(.*)$/is ? lc $1 : () } reverse @$config;
+    $default //= lc(git_out($dir, 'config', 'push.default') // 'simple');
+    decide('block', "push.default=matching would update main too; push the task branch only.") if $default eq 'matching';
+    decide('block', $unclear) if $current eq '';
+    my $upstream = git_out($dir, 'config', "branch.$current.merge") // '';
+    push @targets, $default =~ /^(?:upstream|tracking)$/ && $upstream ne '' ? $upstream : $current;
+  }
+  for my $target (@targets) {
+    $target = $current if $target eq 'HEAD' || $target eq '@';
+    $target =~ s{^refs/heads/}{};
+    decide('block', "never push main; push the task branch and open a PR.") if $target eq 'main' || $target =~ /\*/;
+  }
+}
+
 my $branch;
 for my $source (@sources) {
   for my $words (commands($source)) {
@@ -193,6 +237,7 @@ for my $source (@sources) {
     next unless @w;
     $w[0] = dequote($w[0]);
     pull_or_merge($dir, \@config, $foreign, @w) if $w[0] eq 'pull' || $w[0] eq 'merge';
+    push_check($dir, \@config, $foreign, @w[1 .. $#w]) if $w[0] eq 'push';
     if ($w[0] eq 'config') {
       my @v = map { dequote($_) } @w;
       my ($i) = grep { $v[$_] =~ /^(?:pull|branch\..+)\.rebase$/i } 0 .. $#v;
@@ -253,6 +298,11 @@ decide('block', "env files are off limits; use .env.example or ask the user for 
   || $code =~ /(?<![\w.\/-])(?:[\w.\/-]*\/)?\.(?:e[\w.-]*)?[*?\[]/
   || $code =~ /${start}docker(?:\s+compose|-compose)\b$seg\sconfig(?=\s|$)/m;
 
+# A push the token parser did not see is not checked: block it
+my $push_mentions = () = $code =~ /${git}push$end/mg;
+decide('block', "cannot tell which branch git push would update; run it as a plain git push command.")
+  if $push_mentions > $pushes;
+
 # Launching or stopping applications
 decide('ask', "Starting or stopping an application needs the user's permission (CLAUDE.md, Hard operational limits).")
   if $code =~ /(?:^|[\s:])boot(?:Test)?Run(?=\s|$)/m
@@ -263,5 +313,10 @@ decide('ask', "Starting or stopping an application needs the user's permission (
   || $code =~ /${start}(?:npx\s+)?vite(?:\s+(?:dev|serve|preview)(?=\s|$)|(?=\s+-)|\s*(?=$|[;&|)]))/m
   || $code =~ /${start}docker\s+(?:volume|image|system|container|network)\s+(?:rm|prune)(?=\s|$)/m
   || $code =~ /gradlew\b$seg\s--stop(?=\s|$)/m;
+
+# Pushing a task branch and opening a PR: the user confirms each one
+decide('ask', "Pushing a branch needs the user's confirmation (CLAUDE.md, Commits).") if $pushes;
+decide('ask', "Opening a pull request needs the user's confirmation (CLAUDE.md, Commits).")
+  if $code =~ /${start}gh\s+pr\s+create$end/m;
 
 exit 0;
