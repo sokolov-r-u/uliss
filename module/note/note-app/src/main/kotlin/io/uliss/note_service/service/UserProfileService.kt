@@ -12,6 +12,7 @@ import io.uliss.note_service.repository.UserProfileNoteStore
 import io.uliss.note_service.repository.UserProfileRepository
 import io.uliss.note_service.util.ProfileNoteBatch
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
 import tools.jackson.databind.ObjectMapper
 import java.time.Clock
@@ -33,7 +34,9 @@ class UserProfileService(
     /** The user's profile, or null until the first refresh writes it. */
     @Transactional(readOnly = true)
     fun findProfile(userId: UUID): UserProfileView? =
-        profileRepository.findByUserId(userId)?.let { UserProfileView(it.content, checkNotNull(it.updatedAt)) }
+        profileRepository.findByUserId(userId)?.let { profile ->
+            profile.content?.let { UserProfileView(it, checkNotNull(profile.updatedAt)) }
+        }
 
     /** The next notes the profile has not read, as many as one model call takes; null when it has read them all. */
     @Transactional(readOnly = true)
@@ -72,6 +75,13 @@ class UserProfileService(
             profile.notesThroughId = batch.through.noteId
         }
         if (batch.remain) requestRefresh(userId)
+    }
+
+    /** Flags the profile for a full rebuild when it may hold text of [noteIds]; call before deleting them. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    fun markNotesDeleted(userId: UUID, noteIds: Collection<UUID>) {
+        if (noteIds.isEmpty()) return
+        noteStore.markDeleted(userId, noteIds, clock.instant())
     }
 
     /** Queues a refresh for every user whose profile has settled notes to read; one already waiting is reused. */

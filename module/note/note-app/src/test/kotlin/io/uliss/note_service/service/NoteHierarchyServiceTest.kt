@@ -36,6 +36,7 @@ class NoteHierarchyServiceTest {
         constellations.repository,
         memberships.store,
         indexRequests,
+        Mockito.mock(UserProfileService::class.java),
         Clock.fixed(now, ZoneOffset.UTC),
     )
 

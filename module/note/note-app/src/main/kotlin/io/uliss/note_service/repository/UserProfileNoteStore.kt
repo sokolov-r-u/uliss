@@ -46,6 +46,14 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
         )
     }
 
+    /**
+     * Stamps the profile with [deletedAt] when any of [noteIds] existed when the profile, or the draft of its running
+     * rebuild, last read a note: what it read of them may be in the text. Runs before the delete, in its transaction.
+     */
+    fun markDeleted(userId: UUID, noteIds: Collection<UUID>, deletedAt: Instant) {
+        jdbcTemplate.update(MARK_DELETED_SQL, Timestamp.from(deletedAt), userId, noteIds.toTypedArray(), userId)
+    }
+
     private companion object {
         val NIL_UUID = UUID(0, 0)
 
@@ -56,6 +64,23 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
             WHERE n.status = 'READY'
               AND n.updated_at < ?
               AND (p.user_id IS NULL OR (n.updated_at, n.id) > (p.notes_through_at, p.notes_through_id))
+        """
+
+        // created_at, not updated_at: a note read and then edited past the mark still left its old text in the profile
+        const val MARK_DELETED_SQL = """
+            UPDATE note.user_profile p
+            SET last_deletion_at = ?
+            WHERE p.user_id = ?
+              AND EXISTS (SELECT 1
+                          FROM note.notes n
+                          WHERE n.id = ANY (?)
+                            AND n.user_id = ?
+                            AND (n.created_at <= p.notes_through_at
+                              OR EXISTS (SELECT 1
+                                         FROM note.user_profile_rebuild r
+                                         WHERE r.user_id = p.user_id
+                                           AND r.status = 'RUNNING'
+                                           AND n.created_at <= r.through_at)))
         """
 
         const val FIND_NOTES_AFTER_SQL = """
