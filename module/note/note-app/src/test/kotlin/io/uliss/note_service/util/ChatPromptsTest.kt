@@ -37,6 +37,8 @@ class ChatPromptsTest {
             assertTrue(prompt.contains("Keep the specific works, artists, people, and places the user named"))
             assertTrue(prompt.contains("A secondary thought never repeats the main thought"))
             assertTrue("details that only support the main thought" !in prompt, prompt)
+            assertTrue(prompt.contains("This holds for the main thought too"), prompt)
+            assertTrue(prompt.contains("A reason the assistant gave stays out even when the user liked"), prompt)
         }
     }
 

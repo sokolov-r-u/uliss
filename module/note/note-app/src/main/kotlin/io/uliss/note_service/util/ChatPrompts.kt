@@ -128,6 +128,8 @@ object ChatPrompts {
         An assistant's explanation the user did not respond to is not the user's thought — leave it out, even if
         the thought is then left without reasoning. A sparse note is better than one filled with the assistant's
         views. Never add reasons, motives, or feelings the user did not state.
+        A reason the assistant gave stays out even when the user liked the thing it explained: "I love this song"
+        keeps only that the user loves it.
 
         When the user accepts an assistant's explanation and draws their own conclusion from it ("so it's not a
         flaw, it's just subtler than I thought"), the conclusion is the user's thought, not a passing reaction.
@@ -143,8 +145,11 @@ object ChatPrompts {
     private val THOUGHT_DETAIL_RULES: String = """
         Keep the specific works, artists, people, and places the user named with their own evaluation — including
         an assistant's suggestion the user rated ("Paper Sun really works for me") — inside the thought they
-        illustrate; one secondary thought may list several of them. An assistant's suggestion the user did not
-        rate still drops out. Never add descriptions of them the user did not give.
+        illustrate; one secondary thought may list several of them. This holds for the main thought too: the
+        works that show what the user likes or dislikes about its subject are named in its paragraphs, with the
+        user's evaluation ("I like The Doors and 'White Rabbit'; Grateful Dead's songs seemed dull"). An
+        assistant's suggestion the user did not rate still drops out. Never add descriptions of them the user did
+        not give.
 
         A secondary thought never repeats the main thought or another secondary thought, including what they
         already say about a work or person.

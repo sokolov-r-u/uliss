@@ -19,6 +19,8 @@ data class NoteAddendumDraft(
     @field:JsonPropertyDescription(
         "The main new thought: what is new about the existing note's subject, otherwise the most important new " +
                 "thought on another topic; one or more paragraphs, with the user's own reasoning if they gave any. " +
+                "Works, artists, people, or places the user named with their evaluation that illustrate it are " +
+                "named here. " +
                 "Do not restate the existing note and do not use headings."
     )
     @field:JsonProperty(required = true)

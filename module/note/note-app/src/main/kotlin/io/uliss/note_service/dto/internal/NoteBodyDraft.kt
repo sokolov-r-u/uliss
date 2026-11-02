@@ -12,7 +12,8 @@ import com.fasterxml.jackson.annotation.JsonPropertyDescription
 data class NoteBodyDraft(
     @field:JsonPropertyDescription(
         "The main thought: one or more paragraphs, as many as the thought needs, with the user's own reasoning if " +
-                "they gave any. The title is the user's and shown separately: its subject may be named freely in the " +
+                "they gave any. Works, artists, people, or places the user named with their evaluation that " +
+                "illustrate it are named here. The title is the user's and shown separately: its subject may be named freely in the " +
                 "text, but do not use headings."
     )
     @field:JsonProperty(required = true)

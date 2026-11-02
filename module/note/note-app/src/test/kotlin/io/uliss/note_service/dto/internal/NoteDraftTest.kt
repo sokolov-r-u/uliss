@@ -100,6 +100,7 @@ class NoteDraftTest {
         assertTrue(titleDescription.contains("no emoji"))
         assertTrue(mainDescription.contains("do not repeat it here"))
         assertTrue(mainDescription.contains("one or more paragraphs"))
+        assertTrue(mainDescription.contains("named with their evaluation"))
         assertTrue(secondaryDescription.contains("only inline formatting"))
         assertTrue(secondaryDescription.contains("No fixed limit"))
         assertTrue(secondaryDescription.contains("Not passing remarks"))

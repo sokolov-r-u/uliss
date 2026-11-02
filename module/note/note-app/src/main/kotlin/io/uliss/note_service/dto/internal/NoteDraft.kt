@@ -34,7 +34,8 @@ data class NoteDraft(
 }
 
 internal const val MAIN_THOUGHT_DESCRIPTION = "The main thought: one or more paragraphs, as many as the thought " +
-        "needs, with the user's own reasoning if they gave any. The title is displayed separately: do not repeat " +
+        "needs, with the user's own reasoning if they gave any. Works, artists, people, or places the user named " +
+        "with their evaluation that illustrate it are named here. The title is displayed separately: do not repeat " +
         "it here and do not use headings."
 
 internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth remembering on their own, each one or " +

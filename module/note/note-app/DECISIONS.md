@@ -606,3 +606,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   suggestion first. The only Worse/Better example is about books (not the music topic of the manual check), and its
   Better reply opens with the first suggestion, not a connective.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md`, block 3 and code review.
+
+## 2026-11-02 — Named works illustrate the main thought too
+
+- **Context:** refines "A user's note title sets the subject of the main thought" after the manual check: the
+  «Fishmans» note dropped The Doors, "White Rabbit" and Grateful Dead, which the user rated and which illustrate the
+  main thought, because the named-works rule spoke only of secondary thoughts; a bullet kept the assistant's reason
+  for liking a song the user only said they love.
+- **Decision:** `THOUGHT_DETAIL_RULES` and every `mainThought` description say that rated works illustrating the main
+  thought are named in its paragraphs. `USER_THOUGHT_RULES` keeps an assistant's reason out even when the user liked
+  the thing it explained.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
