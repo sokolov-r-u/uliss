@@ -43,6 +43,7 @@ class NoteAddendumDraftTest {
         assertTrue(secondaryDescription.contains("No fixed limit"))
         assertTrue(secondaryDescription.contains("Not passing remarks"))
         assertTrue(secondaryDescription.contains("never repeats the main thought"))
+        assertTrue(secondaryDescription.contains("One topic per item"))
         assertTrue(secondaryDescription.contains("not a question the user asked for information and got answered"))
     }
 }

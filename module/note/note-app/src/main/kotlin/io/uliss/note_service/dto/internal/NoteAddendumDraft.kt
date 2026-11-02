@@ -26,13 +26,14 @@ data class NoteAddendumDraft(
     @field:JsonProperty(required = true)
     val mainThought: String?,
     @field:JsonPropertyDescription(
-        "Other new thoughts worth remembering on their own, each one or two sentences: a distinct opinion, " +
-                "conclusion, preference, decision, or intention of the user. Works, artists, people, or places the " +
-                "user named with their evaluation go here, grouped by what the user thinks of them; one item may " +
-                "list several, and none repeats a work the main thought names. Not passing remarks, not a question " +
-                "the user asked for information and got answered, and an item never repeats the main thought or " +
-                "another item. No fixed limit — as many as the new " +
-                "messages really hold, usually a few; an empty list is fine. Each is shown as a list item, so use " +
+        "Other new thoughts worth remembering on their own: a distinct opinion, conclusion, preference, " +
+                "decision, or intention of the user. One topic per item: everything new the user thinks about one " +
+                "work, person, or topic goes into a single item of a few sentences, and works the user rated the " +
+                "same way share one item. Works, artists, people, or places the user named with their evaluation " +
+                "go here, and none repeats a work the main thought names. Not passing remarks, not a question the " +
+                "user asked for information and got answered, and an item never repeats the main thought or " +
+                "another item, even reworded. No fixed limit — as many topics as the new messages really hold; an " +
+                "empty list is fine. Each is shown as a list item, so use " +
                 "only inline formatting."
     )
     @field:JsonProperty(required = true)

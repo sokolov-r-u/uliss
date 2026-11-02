@@ -39,6 +39,8 @@ class ChatPromptsTest {
             assertTrue("details that only support the main thought" !in prompt, prompt)
             assertTrue(prompt.contains("wherever they came up in the chat"), prompt)
             assertTrue(prompt.contains("The main thought does not list them"), prompt)
+            assertTrue(prompt.contains("Each secondary thought covers one topic"), prompt)
+            assertTrue(prompt.contains("even reworded"), prompt)
             assertTrue(prompt.contains("A work named in the main thought gets no secondary thought of its own"))
             assertTrue(prompt.contains("A reason the assistant gave stays out even when the user liked"), prompt)
         }

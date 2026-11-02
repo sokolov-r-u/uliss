@@ -637,3 +637,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   with `medium`, a note from a long chat grew into a dozen long bullets.
 - **Decision:** `note.summary.verbosity` is `low` again; the prompt changes of that entry stay.
 - **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).
+
+## 2026-11-02 — One topic per secondary thought
+
+- **Context:** with `verbosity: low` a long chat still gave a dozen scattered bullets, and the Fishmans note split
+  rated works into one bullet each and repeated the main thought in rewording.
+- **Decision:** each secondary thought covers one topic: everything the user thinks about one work, person or topic
+  goes into one item of a few sentences (was "one or two sentences" each), works rated the same way share an item,
+  and no item repeats the main thought even reworded. Still no fixed limit on the number of items.
+- **Source:** task `docs/tasks/2026-11-01-note-title-focus.md` (manual check).

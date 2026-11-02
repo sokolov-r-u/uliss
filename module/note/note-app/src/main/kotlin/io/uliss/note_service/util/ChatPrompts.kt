@@ -152,8 +152,13 @@ object ChatPrompts {
         dull"). An assistant's suggestion the user did not rate still drops out. Never add descriptions of them
         the user did not give.
 
-        A secondary thought never repeats the main thought or another secondary thought, including what they
-        already say about a work or person. A work named in the main thought gets no secondary thought of its own.
+        Each secondary thought covers one topic: everything the user thinks about one work, person, or topic goes
+        into a single secondary thought, and works the user rated the same way share one. Many scattered bullets
+        read worse than a few grouped ones.
+
+        A secondary thought never repeats the main thought or another secondary thought, even reworded, including
+        what they already say about a work or person.
+        A work named in the main thought gets no secondary thought of its own.
     """.trimIndent()
 
     /** How the main thought is chosen; shared by the create and update prompts. */

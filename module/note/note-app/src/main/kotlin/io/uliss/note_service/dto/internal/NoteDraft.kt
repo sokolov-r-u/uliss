@@ -39,13 +39,14 @@ internal const val MAIN_THOUGHT_DESCRIPTION = "The main thought: one or more par
         "without. The title is displayed separately: do not repeat " +
         "it here and do not use headings."
 
-internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth remembering on their own, each one or " +
-        "two sentences: a distinct opinion, conclusion, preference, decision, or intention of the user. Works, " +
-        "artists, people, or places the user named with their evaluation go here, grouped by what the user thinks " +
-        "of them; one item may list several, and none repeats a work the main thought names. Not passing remarks, " +
-        "not a question the user asked for information and got answered, and an item never repeats the main " +
-        "thought or another item. No fixed limit — as many as the " +
-        "chat really holds, usually a few; an empty list is fine. Each is shown as a list item, so use only inline " +
+internal const val SECONDARY_THOUGHTS_DESCRIPTION = "Other thoughts worth remembering on their own: a distinct " +
+        "opinion, conclusion, preference, decision, or intention of the user. One topic per item: everything the " +
+        "user thinks about one work, person, or topic goes into a single item of a few sentences, and works the " +
+        "user rated the same way share one item; a new item only for a new topic. Works, artists, people, or " +
+        "places the user named with their evaluation go here, and none repeats a work the main thought names. Not " +
+        "passing remarks, not a question the user asked for information and got answered, and an item never " +
+        "repeats the main thought or another item, even reworded. No fixed limit — as many topics as the chat " +
+        "really holds; an empty list is fine. Each is shown as a list item, so use only inline " +
         "formatting. Put questions the user left open and intentions last."
 
 // Models may still emit Markdown list syntax; we render each thought as exactly one bullet.
