@@ -668,3 +668,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the chat prompt cache prefix changes once a day for a user whose profile changed. A deleted note
   stays in the profile until a rebuild (epic task 2). The profile lease covers two chat calls and no embedding.
 - **Source:** task `docs/tasks/2026-11-02-user-profile.md`, epic `docs/tasks/2026-11-02-user-profile-epic.md`.
+
+## 2026-11-02 — Profile prompt: neutral headings, fewer examples, no one-off intentions
+
+- **Context:** the first real profile (7,500 characters) opened with "Кто они" (a literal "Who they are"), guessed the
+  user's gender, listed some twenty artists in one bullet, and kept one-off plans such as an album to listen to.
+- **Decision:** the profile prompt names the sections Context, Interests and tastes, Views, Goals, Recurring themes
+  (translated), writes without a subject or pronoun for the user, names two or three telling examples per taste, and
+  keeps only lasting goals. The chat system prompt is unchanged.
+- **Source:** task `docs/tasks/2026-11-02-user-profile.md` (manual check).
