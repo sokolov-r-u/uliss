@@ -43,7 +43,7 @@ describe('SideNav', () => {
                 createdAt: new Date().toISOString()},
             {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'Reading list', content: 'Body',
                 createdAt: new Date().toISOString()},
-        ], nextCursor: null, total: 2})
+        ], nextCursor: null, total: 2, allTotal: 2})
         localStorage.clear()
     })
 
@@ -78,7 +78,7 @@ describe('SideNav', () => {
 
     it('says plainly that nothing is here yet on day one', async () => {
         vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
-        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 0})
+        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 0, allTotal: 0})
         renderNav('/chats/c1')
 
         expect(await screen.findByText('Nothing here yet')).toBeInTheDocument()
@@ -149,7 +149,7 @@ describe('SideNav', () => {
     it('counts all the user\'s notes in the footer, not only the loaded page', async () => {
         vi.mocked(listNotes).mockResolvedValue({items: [
             {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon plan', content: 'Body'},
-        ], nextCursor: 'cur-1', total: 57})
+        ], nextCursor: 'cur-1', total: 57, allTotal: 57})
         renderNav('/chats/c1')
 
         expect(await screen.findByText('57 notes')).toBeInTheDocument()

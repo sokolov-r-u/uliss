@@ -31,7 +31,7 @@ describe('NotesPage runtime states', () => {
         mockedListNotes.mockResolvedValue({items: [
             {id: 'new', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
             {id: 'old', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
-        ], nextCursor: null, total: 2})
+        ], nextCursor: null, total: 2, allTotal: 2})
         renderPage()
         const generating = await screen.findByRole('button', {name: 'Generating note…'})
         expect(screen.getByRole('button', {name: 'Summary failed'})).toBeInTheDocument()
@@ -40,7 +40,7 @@ describe('NotesPage runtime states', () => {
     })
 
     it('offers an explicit retry after a list failure', async () => {
-        mockedListNotes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({items: [], nextCursor: null, total: 0})
+        mockedListNotes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({items: [], nextCursor: null, total: 0, allTotal: 0})
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
         expect(await screen.findByText('Nothing written down yet')).toBeInTheDocument()
@@ -53,14 +53,14 @@ describe('NotesPage runtime states', () => {
             .mockResolvedValueOnce({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'},
                 {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
-            ], nextCursor: null, total: 2})
+            ], nextCursor: null, total: 2, allTotal: 2})
             .mockResolvedValueOnce({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
                 {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
-            ], nextCursor: null, total: 2})
+            ], nextCursor: null, total: 2, allTotal: 2})
             .mockResolvedValue({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
-            ], nextCursor: null, total: 1})
+            ], nextCursor: null, total: 1, allTotal: 1})
         vi.mocked(renameNote).mockResolvedValue(
             {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'})
         vi.mocked(deleteNote).mockResolvedValue(undefined)
@@ -82,7 +82,7 @@ describe('NotesPage runtime states', () => {
     })
 
     it('offers only Delete for a note that is still generating', async () => {
-        mockedListNotes.mockResolvedValue({items: [{id: 'w', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null}], nextCursor: null, total: 1})
+        mockedListNotes.mockResolvedValue({items: [{id: 'w', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null}], nextCursor: null, total: 1, allTotal: 1})
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Actions for Generating note…'}))
@@ -93,8 +93,8 @@ describe('NotesPage runtime states', () => {
 
     it('reloads when notes change elsewhere (e.g. the side panel)', async () => {
         mockedListNotes
-            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Old', content: 'x'}], nextCursor: null, total: 1})
-            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: 'x'}], nextCursor: null, total: 1})
+            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Old', content: 'x'}], nextCursor: null, total: 1, allTotal: 1})
+            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: 'x'}], nextCursor: null, total: 1, allTotal: 1})
         renderPage()
         await screen.findByRole('button', {name: 'Old'})
 
@@ -107,7 +107,7 @@ describe('NotesPage runtime states', () => {
         mockedListNotes.mockResolvedValue({items: [
             {id: 'a', source: 'MANUAL', status: 'READY', title: 'Edited', content: 'Body',
                 createdAt: '2026-01-05T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
-        ], nextCursor: 'cur-1', total: 42})
+        ], nextCursor: 'cur-1', total: 42, allTotal: 42})
         renderPage()
 
         await screen.findByRole('button', {name: /^Edited/})
@@ -120,7 +120,7 @@ describe('NotesPage runtime states', () => {
         mockedListNotes.mockResolvedValueOnce({items: [
             {id: 'a', source: 'MANUAL', status: 'READY', title: 'Gone', content: 'Body'},
             {id: 'b', source: 'MANUAL', status: 'READY', title: 'Kept', content: 'Body'},
-        ], nextCursor: 'cur-1', total: 42}).mockReturnValue(new Promise(() => undefined))
+        ], nextCursor: 'cur-1', total: 42, allTotal: 42}).mockReturnValue(new Promise(() => undefined))
         vi.mocked(deleteNote).mockResolvedValue(undefined)
         renderPage()
 

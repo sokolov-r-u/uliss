@@ -7,6 +7,8 @@ export interface KeysetListPage<T> {
     nextCursor: string | null
     /** The size of the whole list, when the server counts it. */
     total?: number
+    /** The size of the list without its filter, when the server counts it. */
+    allTotal?: number
 }
 
 export type MoreState = 'idle' | 'loading' | 'failed'
@@ -14,18 +16,19 @@ export type MoreState = 'idle' | 'loading' | 'failed'
 export type KeysetListState<T> =
     | { status: 'loading' }
     | { status: 'error'; error: unknown }
-    | { status: 'ready'; items: T[]; hasMore: boolean; more: MoreState; total?: number }
+    | { status: 'ready'; items: T[]; hasMore: boolean; more: MoreState; total?: number; allTotal?: number }
 
 type Loaded<T> = Extract<KeysetListState<T>, { status: 'ready' }>
 
 /**
  * Loads a keyset-paged list: the first page on mount and on every [revision] change, the next one on [loadMore].
+ * [revision] is any value whose change means "reload", e.g. a counter of change events joined with the list's filter.
  * A reload replaces the list with a fresh first page and keeps the old rows on screen meanwhile, asking for no next
  * page until it ends; a failed reload of a shown list keeps them and their cursor. Pages are joined without repeats: an item changed between two requests can come twice.
  */
 export function useKeysetList<T extends { id: string }>(
     load: (cursor: string | undefined, signal: AbortSignal) => Promise<KeysetListPage<T>>,
-    revision: number,
+    revision: number | string,
 ) {
     const [state, setState] = useState<KeysetListState<T>>({status: 'loading'})
     const cursorRef = useRef<string | null>(null)
@@ -51,7 +54,7 @@ export function useKeysetList<T extends { id: string }>(
                 reloadingRef.current = false
                 cursorRef.current = page.nextCursor
                 setState({status: 'ready', items: unique(page.items), hasMore: page.nextCursor !== null, more: 'idle',
-                    total: page.total})
+                    total: page.total, allTotal: page.allTotal})
             })
             .catch((error: unknown) => {
                 if (controller.signal.aborted || error instanceof AuthRequiredError) return
@@ -81,6 +84,7 @@ export function useKeysetList<T extends { id: string }>(
                     hasMore: page.nextCursor !== null,
                     more: 'idle',
                     total: page.total ?? current.total,
+                    allTotal: page.allTotal ?? current.allTotal,
                 })
             })
             .catch((error: unknown) => {

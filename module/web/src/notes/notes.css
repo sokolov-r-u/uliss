@@ -147,3 +147,40 @@
     color: var(--terracotta);
 }
 
+
+.notes-head-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+/* the constellation filter: chips under the header, wrapping on narrow screens */
+.notes-filter-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+    padding: 8px var(--gutter);
+    border-bottom: 1px solid var(--line);
+}
+
+.notes-filter-scrim {
+    position: absolute;
+    z-index: 4;
+    inset: 0;
+    padding: 0;
+    border: none;
+    background: transparent;
+    cursor: default;
+}
+
+.notes-filter-picker {
+    position: absolute;
+    z-index: 5;
+    top: 56px;
+    right: 14px;
+    width: min(340px, calc(100% - 28px));
+    max-height: calc(100% - 66px);
+    overflow-y: auto;
+    background: var(--bg-panel);
+}

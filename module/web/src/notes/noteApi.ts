@@ -224,17 +224,28 @@ export async function requestChatSummary(
     return summary
 }
 
-/** One page of the note list, last changed first, with the number of all the user's notes. */
+/** One page of the note list, last changed first, with the size of the list and the number of all the user's notes. */
 export interface NotePage {
     items: Note[]
     /** Null on the last page. */
     nextCursor: string | null
+    /** The listed notes: the filtered ones under a constellation filter. */
     total: number
+    /** All the user's notes, filter or not. */
+    allTotal: number
 }
 
-/** A page of the user's notes by last change, after [cursor] (from the newest without one). */
-export async function listNotes(cursor?: string, signal?: AbortSignal): Promise<NotePage> {
-    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+/**
+ * A page of the user's notes by last change, after [cursor] (from the newest without one). Non-empty
+ * [constellationIds] keep the notes of those constellations and their sub-constellations, with all their sub-notes.
+ */
+export async function listNotes(cursor?: string, signal?: AbortSignal,
+                                constellationIds: readonly string[] = []): Promise<NotePage> {
+    const params = new URLSearchParams()
+    if (cursor) params.set('cursor', cursor)
+    constellationIds.forEach((id) => params.append('constellationId', id))
+    const search = params.toString()
+    const query = search ? `?${search}` : ''
     const response = await fetchNotes(`/note/notes${query}`, {signal})
     await requireOk(response, 'note list fetch')
     const value = await responseJson(response)
@@ -246,7 +257,12 @@ export async function listNotes(cursor?: string, signal?: AbortSignal): Promise<
     if (typeof value.total !== 'number' || !Number.isInteger(value.total) || value.total < 0) {
         throw new NoteApiError('protocol', 'invalid total in note list response')
     }
-    return {items: value.items.map(parseNote), nextCursor, total: value.total}
+    // a server older than the filter sends no allTotal: its list is unfiltered, so total is all of them
+    const allTotal = value.allTotal ?? value.total
+    if (typeof allTotal !== 'number' || !Number.isInteger(allTotal) || allTotal < 0) {
+        throw new NoteApiError('protocol', 'invalid allTotal in note list response')
+    }
+    return {items: value.items.map(parseNote), nextCursor, total: value.total, allTotal}
 }
 
 /** Last change of a note: `updatedAt`, else `createdAt` — what the note list sorts and groups by. */

@@ -261,3 +261,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   server's `total`; the Chats header has no counter.
 - **Consequences:** after a change event the user is back at the first page; scrolling loads the rest again.
 - **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.
+
+## 2026-11-03 — The Notes page filters by constellations through the URL
+
+- **Context:** task 2 of the keyset lists epic; the user uses the filter as a mode and expects it after Back from a
+  note.
+- **Decision:** the filter lives only in the URL (`/notes?constellation=<id>&…`); a change replaces the history
+  entry, so Back leaves the list rather than stepping through old filters, and the side nav's Notes opens it
+  unfiltered. A funnel button opens the existing `ConstellationPicker` (constellations only, chosen ones excluded with
+  their subtrees); each pick adds a `ConstellationChip` under the header, × removes one, Clear removes all, and
+  picking an ancestor absorbs its chosen descendants. The page keeps only uuids, each once, at most 50 (the service's
+  limit; the button is disabled at 50) and drops ids the loaded tree does not have. The header counts "`total` of
+  `allTotal`"; an empty filtered list offers Clear filter. `useKeysetList` reloads when its revision (change events
+  joined with the filter) changes.
+- **Consequences:** no design-system change; choosing several constellations opens the picker once per constellation.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`.
