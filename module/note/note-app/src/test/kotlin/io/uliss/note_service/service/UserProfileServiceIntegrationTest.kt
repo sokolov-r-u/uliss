@@ -109,6 +109,13 @@ class UserProfileServiceIntegrationTest : NoteIntegrationTest() {
         assertEquals(0, pendingRefreshEvents(upToDate))
     }
 
+    @Test
+    fun `a profile row without text is no profile for the chat and the profile page`() {
+        profileRepository.saveAndFlush(UserProfileEntity(userId, null, hourAgo, UUID.randomUUID()))
+
+        assertNull(service.findProfile(userId))
+    }
+
     private fun pendingRefreshEvents(owner: UUID = userId): Int = jdbcTemplate.queryForObject(
         "SELECT count(*) FROM note.outbox_event WHERE status = 'PENDING' AND dedup_key = ?",
         Int::class.java,

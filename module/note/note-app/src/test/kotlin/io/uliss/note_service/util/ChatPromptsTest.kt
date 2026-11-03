@@ -23,6 +23,24 @@ class ChatPromptsTest {
     }
 
     @Test
+    fun `summary prompts carry the user profile as fenced background between the note place and related notes`() {
+        val withProfile = listOf(
+            ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList(), userProfile = "Loves jazz."),
+            ChatPrompts.noteUpdateUserPrompt("Trip", "Fly.", context(), NO_PLACE, emptyList(), userProfile = "Loves jazz."),
+        )
+        withProfile.forEach { prompt ->
+            val place = prompt.indexOf("NOTE PLACE")
+            val profile = prompt.indexOf("USER PROFILE")
+            assertTrue(place in 0 until profile && profile < prompt.indexOf("RELATED NOTES"), prompt)
+            assertTrue(prompt.contains("<user_profile>\nLoves jazz.\n</user_profile>"), prompt)
+        }
+        listOf(
+            ChatPrompts.noteSummaryUserPrompt(context(), NO_PLACE, emptyList()),
+            ChatPrompts.noteUpdateUserPrompt("Trip", "Fly.", context(), NO_PLACE, emptyList()),
+        ).forEach { prompt -> assertTrue("USER PROFILE" !in prompt && "<user_profile>" !in prompt, prompt) }
+    }
+
+    @Test
     fun `create and update prompts share the user-thought and writing rules`() {
         listOf(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT, ChatPrompts.NOTE_UPDATE_SYSTEM_PROMPT).forEach { prompt ->
             assertTrue(prompt.contains("Only the user's perspective matters."))

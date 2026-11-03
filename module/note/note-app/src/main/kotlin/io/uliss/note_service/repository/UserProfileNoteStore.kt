@@ -16,13 +16,17 @@ import java.util.UUID
 @Repository
 class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
 
-    /** Users with a settled READY note their profile has not read yet; a user with notes and no profile counts. */
+    /** Users with a settled READY note their profile has not read yet; notes and no profile (or no mark) count. */
     fun findUsersToRefresh(settledBefore: Instant): List<UUID> =
         jdbcTemplate.query(
             FIND_USERS_TO_REFRESH_SQL,
             { rs, _ -> rs.getObject(1, UUID::class.java) },
             Timestamp.from(settledBefore),
         )
+
+    /** Whether the user has a READY note, settled or not. */
+    fun existsReadyNote(userId: UUID): Boolean =
+        jdbcTemplate.queryForObject(EXISTS_READY_NOTE_SQL, Boolean::class.java, userId) == true
 
     /** Up to [limit] notes after [after] (from the first note when null). */
     fun findNotesAfter(userId: UUID, after: NotesMark?, settledBefore: Instant, limit: Int): List<ProfileNote> {
@@ -46,6 +50,14 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
         )
     }
 
+    /**
+     * Stamps the profile with [deletedAt] when any of [noteIds] existed when the profile, or the draft of its running
+     * rebuild, last read a note: what it read of them may be in the text. Runs before the delete, in its transaction.
+     */
+    fun markDeleted(userId: UUID, noteIds: Collection<UUID>, deletedAt: Instant) {
+        jdbcTemplate.update(MARK_DELETED_SQL, Timestamp.from(deletedAt), userId, noteIds.toTypedArray(), userId)
+    }
+
     private companion object {
         val NIL_UUID = UUID(0, 0)
 
@@ -55,7 +67,28 @@ class UserProfileNoteStore(private val jdbcTemplate: JdbcTemplate) {
                      LEFT JOIN note.user_profile p ON p.user_id = n.user_id
             WHERE n.status = 'READY'
               AND n.updated_at < ?
-              AND (p.user_id IS NULL OR (n.updated_at, n.id) > (p.notes_through_at, p.notes_through_id))
+              AND (p.notes_through_at IS NULL OR (n.updated_at, n.id) > (p.notes_through_at, p.notes_through_id))
+        """
+
+        // created_at, not updated_at: a note read and then edited past the mark still left its old text in the profile
+        const val MARK_DELETED_SQL = """
+            UPDATE note.user_profile p
+            SET last_deletion_at = ?
+            WHERE p.user_id = ?
+              AND EXISTS (SELECT 1
+                          FROM note.notes n
+                          WHERE n.id = ANY (?)
+                            AND n.user_id = ?
+                            AND (n.created_at <= p.notes_through_at
+                              OR EXISTS (SELECT 1
+                                         FROM note.user_profile_rebuild r
+                                         WHERE r.user_id = p.user_id
+                                           AND r.status = 'RUNNING'
+                                           AND n.created_at <= r.through_at)))
+        """
+
+        const val EXISTS_READY_NOTE_SQL = """
+            SELECT EXISTS (SELECT 1 FROM note.notes WHERE user_id = ? AND status = 'READY')
         """
 
         const val FIND_NOTES_AFTER_SQL = """

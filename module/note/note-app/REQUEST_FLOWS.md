@@ -526,6 +526,8 @@ leaked.
 | Complete summary     | Persist content as `READY`, publish index event                   | Later indexing handler                                       |
 | Delete chat          | Lock chat, reject a live turn, delete chat (FK cascades)          | —                                                            |
 | Rename note          | Update title, publish debounced index events                      | Indexing handler an hour after the last change               |
-| Delete note          | Delete note (FK cascades)                                         | —                                                            |
-| Nightly profile run  | Queue one deduplicated refresh event per user with unread notes   | Refresh handler                                              |
-| Refresh profile      | Save the profile and its mark, queue the next batch if any remain | Profile model calls (update, then compact when too long)     |
+| Delete note          | Stamp the profile if it read the note, delete note (FK cascades)  | Profile rebuild at the next due nightly run                  |
+| Nightly profile run  | Queue refreshes and due deletion rebuilds, requeue running ones   | Refresh handler                                              |
+| Refresh profile      | Save the profile or rebuild draft and its mark, queue the next    | Profile model calls (update, then compact when too long)     |
+| Request rebuild      | Lock the user's rebuilds, check limit, log the run, queue it      | Refresh handler, one batch per event                         |
+| Profile batch failed | Halve the batch and requeue in an hour, or skip its single note   | Next refresh event                                           |

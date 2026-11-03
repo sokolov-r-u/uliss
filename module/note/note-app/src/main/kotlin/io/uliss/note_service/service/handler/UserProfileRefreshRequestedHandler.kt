@@ -28,7 +28,8 @@ class UserProfileRefreshRequestedHandler(
 
     override fun handle(event: OutboxEventEntity) {
         val payload = objectMapper.readValue(event.payload, UserProfileRefreshRequestedPayload::class.java)
-        val batch = profileService.findBatch(payload.userId) ?: return
+        // no notes left: a running rebuild has read them all
+        val batch = profileService.findBatch(payload.userId) ?: return profileService.finishRebuild(payload.userId)
         val written = if (batch.profile == null) {
             write(UserProfilePrompts.INITIAL_SYSTEM_PROMPT, UserProfilePrompts.notesUserPrompt(batch.notes))
         } else {

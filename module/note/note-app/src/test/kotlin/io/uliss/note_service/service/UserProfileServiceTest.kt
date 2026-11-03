@@ -1,9 +1,11 @@
 package io.uliss.note_service.service
 
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.model.UserProfileEntity
 import io.uliss.note_service.model.projection.ProfileNote
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.UserProfileNoteStore
+import io.uliss.note_service.repository.UserProfileRebuildRepository
 import io.uliss.note_service.repository.UserProfileRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
@@ -34,6 +36,18 @@ class UserProfileServiceTest {
         assertEquals(2, findBatch(notes, batchMaxChars = 25, batchMaxNotes = 10).notes.size)
     }
 
+    @Test
+    fun `a halved batch still reads a long first note whole, as the full budget would`() {
+        val long = ProfileNote(UUID.randomUUID(), null, "x".repeat(5_000), now.minusSeconds(600))
+        Mockito.`when`(profileRepository.findByUserId(userId)).thenReturn(
+            UserProfileEntity(userId, "profile", null, null).apply { batchShrink = 3 }
+        )
+
+        val batch = findBatch(listOf(long), batchMaxChars = 8_000, batchMaxNotes = 10)
+
+        assertEquals(5_000, batch.notes.single().content.length)
+    }
+
     private fun findBatch(notes: List<ProfileNote>, batchMaxChars: Int, batchMaxNotes: Int) =
         service(UserProfileProperties(batchMaxChars = batchMaxChars, batchMaxNotes = batchMaxNotes)).let {
             Mockito.`when`(noteStore.findNotesAfter(anyValue(), anyValue(), anyValue(), Mockito.anyInt()))
@@ -42,7 +56,7 @@ class UserProfileServiceTest {
         }
 
     private fun service(properties: UserProfileProperties) = UserProfileService(
-        profileRepository, noteStore, outboxService, JsonMapper.builder().build(), properties,
+        profileRepository, Mockito.mock(UserProfileRebuildRepository::class.java), noteStore, outboxService, JsonMapper.builder().build(), properties,
         Clock.fixed(now, ZoneOffset.UTC),
     )
 }

@@ -46,6 +46,8 @@ interface OutboxEventRepository : CrudRepository<OutboxEventEntity, UUID> {
 
     fun existsByDedupKeyAndStatus(dedupKey: String, status: OutboxEventStatus): Boolean
 
+    fun existsByDedupKeyAndStatusIn(dedupKey: String, statuses: Collection<OutboxEventStatus>): Boolean
+
     /**
      * Inserts a PENDING event under [dedupKey], or moves the time of the PENDING event that already holds it. One
      * statement, so parallel transactions cannot add a second one; a PROCESSING event does not hold the key.

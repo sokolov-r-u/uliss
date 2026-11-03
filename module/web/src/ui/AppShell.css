@@ -630,6 +630,14 @@
     margin-top: 16px;
 }
 
+/* About you: the profile's actions above it */
+.settings-profile-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 12px 0 4px;
+}
+
 .settings-inert {
     opacity: 0.5;
     pointer-events: none;

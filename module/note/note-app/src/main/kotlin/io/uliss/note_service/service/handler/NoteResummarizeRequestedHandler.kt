@@ -11,6 +11,7 @@ import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
+import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.util.ChatPrompts
 import io.uliss.note_service.util.SummaryRetrievalQuery
 import org.springframework.ai.chat.client.ChatClient
@@ -30,6 +31,7 @@ class NoteResummarizeRequestedHandler(
     private val ragService: RagService,
     private val noteSummaryService: NoteSummaryService,
     private val noteHierarchyService: NoteHierarchyService,
+    private val userProfileService: UserProfileService,
     private val properties: NoteSummaryProperties,
 ) : OutboxHandler {
 
@@ -53,9 +55,10 @@ class NoteResummarizeRequestedHandler(
             minSimilarity = properties.retrievalMinSimilarity,
             excludeNoteId = payload.noteId,
         )
+        val profile = userProfileService.findProfile(payload.userId)?.content
         val draft: NoteBodyDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, note.title, note.icon))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, note.title, note.icon, profile))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)

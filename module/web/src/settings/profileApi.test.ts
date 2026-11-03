@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError} from '../notes/noteApi'
-import {getProfile} from './profileApi'
+import {getProfile, rebuildProfile} from './profileApi'
 
 vi.mock('../auth/apiClient', () => ({
     authFetch: vi.fn(),
@@ -15,21 +15,36 @@ function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), {status, headers: {'Content-Type': 'application/json'}})
 }
 
+const IDLE = {running: false, remaining: 2, availableAt: null}
+
 describe('getProfile', () => {
     beforeEach(() => {
         mockedFetch.mockReset()
     })
 
-    it('reads the profile and its date, and treats a missing or blank one as none yet', async () => {
-        mockedFetch.mockResolvedValueOnce(json({content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z'}))
-        await expect(getProfile()).resolves.toEqual({content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z'})
+    it('reads the profile, its date and rebuild state, and treats a missing or blank text as none yet', async () => {
+        mockedFetch.mockResolvedValueOnce(
+            json({content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z', rebuild: IDLE}),
+        )
+        await expect(getProfile()).resolves.toEqual(
+            {content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z', rebuild: IDLE},
+        )
         expect(mockedFetch.mock.calls[0][0]).toBe('/note/profile')
 
-        mockedFetch.mockResolvedValueOnce(json({content: null, updatedAt: null}))
-        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null})
+        const spent = {running: true, remaining: 0, availableAt: '2026-12-01T10:00:00Z'}
+        mockedFetch.mockResolvedValueOnce(json({content: null, updatedAt: null, rebuild: spent}))
+        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: spent})
 
-        mockedFetch.mockResolvedValueOnce(json({content: '  ', updatedAt: ''}))
-        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null})
+        mockedFetch.mockResolvedValueOnce(json({content: '  ', updatedAt: '', rebuild: IDLE}))
+        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: IDLE})
+    })
+
+    it('treats a body without a valid rebuild state as a protocol failure', async () => {
+        mockedFetch.mockResolvedValueOnce(json({content: 'Jazz.', updatedAt: null}))
+        await expect(getProfile()).rejects.toMatchObject({kind: 'protocol'})
+
+        mockedFetch.mockResolvedValueOnce(json({content: 'Jazz.', updatedAt: null, rebuild: {running: 'no', remaining: 2}}))
+        await expect(getProfile()).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('fails as a note-service error the screens already know how to word', async () => {
@@ -50,5 +65,32 @@ describe('getProfile', () => {
         mockedFetch.mockRejectedValueOnce(expired)
 
         await expect(getProfile()).rejects.toBe(expired)
+    })
+})
+
+describe('rebuildProfile', () => {
+    beforeEach(() => {
+        mockedFetch.mockReset()
+    })
+
+    it('posts the rebuild and returns the state the server reports', async () => {
+        mockedFetch.mockResolvedValueOnce(json({running: true, remaining: 1, availableAt: null}, 202))
+
+        await expect(rebuildProfile()).resolves.toEqual({running: true, remaining: 1, availableAt: null})
+        expect(mockedFetch.mock.calls[0][0]).toBe('/note/profile/rebuild')
+        expect(mockedFetch.mock.calls[0][1]).toMatchObject({method: 'POST'})
+    })
+
+    it('fails a refusal with its status and the service code, so the screen can word it', async () => {
+        mockedFetch.mockResolvedValueOnce(json({code: 'PROFILE_REBUILD_RUNNING'}, 409))
+        await expect(rebuildProfile()).rejects.toMatchObject({kind: 'http', status: 409, code: 'PROFILE_REBUILD_RUNNING'})
+
+        mockedFetch.mockResolvedValueOnce(
+            json({code: 'PROFILE_REBUILD_LIMIT', details: {availableAt: '2026-12-01T10:00:00Z'}}, 429),
+        )
+        await expect(rebuildProfile()).rejects.toMatchObject({kind: 'http', status: 429, code: 'PROFILE_REBUILD_LIMIT'})
+
+        mockedFetch.mockRejectedValueOnce(new TypeError('network down'))
+        await expect(rebuildProfile()).rejects.toMatchObject({kind: 'transport'})
     })
 })

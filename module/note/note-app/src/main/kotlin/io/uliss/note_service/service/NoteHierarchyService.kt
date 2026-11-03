@@ -33,6 +33,7 @@ class NoteHierarchyService(
     private val constellationRepository: ConstellationRepository,
     private val membershipStore: NoteConstellationStore,
     private val noteIndexRequestService: NoteIndexRequestService,
+    private val userProfileService: UserProfileService,
     private val clock: Clock = Clock.systemUTC(),
 ) {
 
@@ -114,21 +115,27 @@ class NoteHierarchyService(
         val hierarchy = lockAndLoadHierarchy(userId)
         getOwned(hierarchy, noteId)
         if (hierarchy.childrenOf(noteId).isEmpty()) {
-            hierarchyStore.deleteNotes(userId, listOf(noteId))
+            deleteNotes(userId, listOf(noteId))
             return
         }
         when (subNotes) {
             null -> throw NoteHasSubNotesException(noteId)
-            SubNoteFate.DELETE -> hierarchyStore.deleteNotes(userId, hierarchy.subtreeIds(noteId))
+            SubNoteFate.DELETE -> deleteNotes(userId, hierarchy.subtreeIds(noteId))
             SubNoteFate.KEEP -> {
                 val adoption = NoteRemoval.keepSubNotes(hierarchy, noteId, membershipStore.findByNote(userId, noteId))
                 hierarchyStore.setParent(userId, adoption.childIds, adoption.parentNoteId)
                 membershipStore.replace(userId, adoption.memberships)
-                hierarchyStore.deleteNotes(userId, listOf(noteId))
+                deleteNotes(userId, listOf(noteId))
                 // the kept sub-notes lose a parent from their chain, or take its place
                 noteIndexRequestService.requestLaterWithSubNotes(userId, adoption.childIds)
             }
         }
+    }
+
+    /** The profile is flagged first: the check reads the notes about to go. */
+    private fun deleteNotes(userId: UUID, noteIds: Collection<UUID>) {
+        userProfileService.markNotesDeleted(userId, noteIds)
+        hierarchyStore.deleteNotes(userId, noteIds)
     }
 
     private fun placeOf(userId: UUID, hierarchy: NoteHierarchy, noteId: UUID): NotePlace =

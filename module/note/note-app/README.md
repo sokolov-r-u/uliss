@@ -162,8 +162,9 @@ to the attempt. Search results are not persisted with the reply.
 Every chat reply also gets the user profile: one Markdown document about the user (who they are, tastes, views,
 projects, recurring themes) that the model compiles from their notes. `AssistantService` sends it as a system message
 ahead of the history, delimited as untrusted data; `ChatFacade` reads it through `UserProfileService`. Without a
-profile the request is unchanged. `GET /note/profile` returns the caller's `{content, updatedAt}`, both null until
-the first refresh; nobody edits the profile by hand.
+profile the request is unchanged. The summary prompts (create, update, resummarize) get it too, as background that
+never goes into the note. `GET /note/profile` returns the caller's `{content, updatedAt, rebuild}`; the texts are null
+until the first refresh (a profile row may exist without text). Nobody edits the profile by hand.
 
 The profile reads notes in `(updated_at, id)` order and keeps the last one it read (`note.user_profile`,
 `notes_through_at`/`notes_through_id`). `UserProfileRefreshScheduler` runs on `note.profile.refresh-cron` (03:00 UTC;
@@ -174,8 +175,26 @@ The handler reads one batch (up to `batch-max-notes` notes and `batch-max-chars`
 asks the model to build the profile (no profile yet) or to merge the batch into it, compacts the result when it is over
 `max-chars` (8,000) towards `compact-target-chars` (5,000), saves it with the new mark, and queues the next batch at
 once while notes remain. A batch read from an older profile version is dropped. A blank model answer fails the event,
-so the batch is read again. Renames and icon changes move `updated_at` too, so such a note is read again; deleted notes
-stay in the profile until a full rebuild (not built yet).
+so the batch is read again. Renames and icon changes move `updated_at` too, so such a note is read again.
+
+A batch that fails for good (all outbox attempts) is halved (`batch_shrink`) and tried again after
+`note.profile.shrink-retry-delay` (1 hour; `NOTE_PROFILE_SHRINK_RETRY_DELAY`); a lone note gets one such delayed try,
+and if it still fails it is skipped past the mark with an `error` log naming it, so one note the model cannot read
+never stops the profile. Halving narrows the batch but never cuts a long note shorter than the full budget would.
+
+**Full rebuild.** A rebuild reads every note from the first into a draft (`note.user_profile_rebuild`) with the same
+prompts; the live profile stays in use until the last batch, then the draft replaces it (an empty draft leaves no
+text). While one runs, refresh events continue it instead of updating the profile. `POST /note/profile/rebuild` starts
+one for the caller: `202` with the rebuild state, `409 PROFILE_REBUILD_RUNNING`, `409 PROFILE_NOTHING_TO_REBUILD` (no
+profile text and no `READY` note), or `429 PROFILE_REBUILD_LIMIT` with `details.availableAt` after
+`note.profile.rebuild-limit` (2) user rebuilds within `rebuild-window` (30 days). Deleting a note created no later than
+the mark of the profile (or of a running draft) stamps `last_deletion_at` in the same transaction; the nightly run
+starts a `DELETIONS` rebuild for a stamped profile whose last finished rebuild is older than
+`note.profile.deletion-rebuild-interval` (30 days; `NOTE_PROFILE_DELETION_REBUILD_INTERVAL`), and queues a running
+rebuild again in case its event was lost. The nightly run leaves alone a user whose refresh event already waits or
+runs (a halved batch keeps its delay; no second event reads the same batch); the last batch of the live profile
+queues a rebuild that started meanwhile, and a rebuild is finished only when its own draft has nothing left to read.
+A finished rebuild clears a stamp made before it started and the batch shrink.
 
 ## Note API and status delivery
 

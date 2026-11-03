@@ -677,3 +677,59 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (translated), writes without a subject or pronoun for the user, names two or three telling examples per taste, and
   keeps only lasting goals. The chat system prompt is unchanged.
 - **Source:** task `docs/tasks/2026-11-02-user-profile.md` (manual check).
+
+## 2026-11-03 — User profile rebuild in a draft, deletions flag, limit per user
+
+- **Context:** a deleted note stayed in the profile, and the user could not refresh it from all notes; decided in
+  the epic `docs/tasks/2026-11-02-user-profile-epic.md` (task 2).
+- **Decision:** a full rebuild reads every note into a draft row of `note.user_profile_rebuild` with the profile
+  prompts and the same refresh event; the live profile stays in use and is replaced when the last batch is read.
+  Deleting a note created no later than the profile's (or a running draft's) mark stamps `last_deletion_at` in the
+  delete transaction (`created_at`, so a note edited after the mark still counts); the nightly run starts a
+  `DELETIONS` rebuild when the last finished rebuild of any trigger is older than 30 days. `POST
+  /note/profile/rebuild` allows 2 user rebuilds per rolling 30 days, counted from the rebuild log; `DELETIONS` runs
+  do not count. A profile row may hold no text: it keeps the mark, the batch shrink, and the deletion stamp.
+- **Consequences:** a deleted note may stay in the profile up to about 30 days. Rebuilds of a user are serialized by
+  an advisory lock and a partial unique index on the running row.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md`.
+
+## 2026-11-03 — A failing profile batch is halved, then its single note skipped
+
+- **Context:** replaces the "nothing to undo" part of "User profile compiled nightly from notes": a batch the model
+  always failed on stopped the profile for good (TECH_DEBT).
+- **Decision:** when a refresh event fails for good, its batch budget (characters and notes) is halved and the next
+  event waits `note.profile.shrink-retry-delay` (1 hour), so a short provider outage does not cut a batch down to a
+  healthy note; a batch of one note that fails is skipped past the mark (the draft's while a rebuild runs) with an
+  `error` log naming the note. A saved batch resets the shrink.
+- **Consequences:** an outage of about eight hours or more can skip one healthy note.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md`.
+
+## 2026-11-03 — Summary prompts get the user profile as background
+
+- **Decision:** the create, update, and resummarize user prompts carry the profile in a fenced `USER PROFILE` block
+  after the note place; the system prompts say it only helps understand the user and nothing from it goes into the
+  note unless the chat says it.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md`.
+
+## 2026-11-03 — Profile prompt: positions, not reviews; themes not repeated
+
+- **Context:** refines "Profile prompt: neutral headings, fewer examples, no one-off intentions": the first rebuilt
+  profile turned Views into reviews of single works (seasons, characters, a sequel's ending), repeated Views under
+  Recurring themes, and named some ten artists across the music bullets.
+- **Decision:** Views states general positions once each; a judgment of one work keeps only the lasting preference it
+  shows, with the work as one example at most; at most three works, artists, or places per section; Recurring themes
+  holds only what the sections above do not state. The nightly run also leaves alone a user whose refresh event
+  already waits or runs, so a halved batch keeps its delay and no second event reads the same batch.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (manual check).
+
+## 2026-11-03 — A lone failing note gets one delayed try; halving never cuts a note
+
+- **Context:** refines "A failing profile batch is halved, then its single note skipped" after the code review: a
+  batch of one unread note was skipped at its first terminal failure, so a short outage could drop a healthy note,
+  and a halved character budget cut a long note whose rest was then never read.
+- **Decision:** a lone note is skipped only when it fails again after one delayed (`shrink-retry-delay`) try;
+  halving narrows how many notes a batch takes but cuts a long first note no shorter than the full budget does. A
+  finished rebuild resets the live profile's shrink. `finishRebuild` finishes a rebuild only when its own draft has
+  nothing left (a rebuild started after the caller found no batch is queued instead), and the last live batch queues
+  a rebuild that started while it was read.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (code review).
