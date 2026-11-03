@@ -154,11 +154,35 @@ class UserProfileRulesIntegrationTest : NoteIntegrationTest() {
     fun `bringing the profile in line failing for good is remembered for the rules it failed on`() {
         profile("## Interests\nFilms.")
         inputService.saveRules(userId, listOf("No films."))
+        clearRefreshEvents() // the failed refresh was the one these rules queued
 
         service.handleFailedBatch(userId)
 
         assertEquals(1, profileRepository.findByUserId(userId)!!.rulesFailedVersion)
         assertEquals(ProfileRulesState(applying = false, failed = true), service.getRulesState(userId))
+    }
+
+    @Test
+    fun `a failure is not told while newer rules wait in their own refresh, which has not been tried yet`() {
+        profile("## Interests\nFilms.")
+        inputService.saveRules(userId, listOf("No films."))
+        inputService.saveRules(userId, listOf("No films at all.")) // its refresh waits
+
+        service.handleFailedBatch(userId)
+
+        assertNull(profileRepository.findByUserId(userId)!!.rulesFailedVersion)
+    }
+
+    @Test
+    fun `a profile brought in line clears a failed apply`() {
+        profileRepository.saveAndFlush(
+            UserProfileEntity(userId, "## Interests\nFilms.", hourAgo, UUID.randomUUID()).apply { rulesFailedVersion = 1 },
+        )
+        inputService.saveRules(userId, listOf("No films."))
+
+        service.saveConformed(userId, service.findRulesWork(userId)!!, "## Interests\nMusic.")
+
+        assertNull(profileRepository.findByUserId(userId)!!.rulesFailedVersion)
     }
 
     @Test

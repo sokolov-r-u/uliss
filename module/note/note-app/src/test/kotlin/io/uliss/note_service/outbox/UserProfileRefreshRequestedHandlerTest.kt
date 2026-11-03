@@ -149,6 +149,32 @@ class UserProfileRefreshRequestedHandlerTest {
         Mockito.verify(profileService, Mockito.never()).finishRebuild(userId)
     }
 
+    @Test
+    fun `notes to read go into an update with the current rules, and nothing is brought in line beside it`() {
+        val input = UserProfileInput(null, listOf("No films."), rulesVersion = 2)
+        val batch = batch(profile = "old", note("Opera", "Tosca."), input = input)
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(batch)
+        stubModel("short")
+
+        handler.handle(event())
+
+        assertEquals(listOf(UserProfilePrompts.UPDATE_SYSTEM_PROMPT), prompts("system"))
+        Mockito.verify(profileService, Mockito.never()).findRulesWork(userId)
+        Mockito.verify(profileService).save(userId, batch, "short")
+    }
+
+    @Test
+    fun `a blank answer to bringing the profile in line fails the event and saves nothing`() {
+        val work = ProfileRulesWork("Films.", 4L, UserProfileInput(null, listOf("No films."), rulesVersion = 1))
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(null)
+        Mockito.`when`(profileService.findRulesWork(userId)).thenReturn(work)
+        stubModel(" ")
+
+        assertFailsWith<IllegalStateException> { handler.handle(event()) }
+
+        Mockito.verify(profileService, Mockito.never()).saveConformed(anyValue(), anyValue(), anyValue())
+    }
+
     private fun prompts(method: String): List<String> =
         Mockito.mockingDetails(requestSpec).invocations.filter { it.method.name == method }.map { it.arguments[0] as String }
 

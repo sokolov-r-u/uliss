@@ -41,6 +41,10 @@ class UserProfileInputApiIntegrationTest : NoteIntegrationTest() {
             jsonPath("$.about") { value("Designer in Lisbon.") }
             jsonPath("$.rules") { isEmpty() }
         }
+
+        mockMvc.put("/note/profile/about") { auth(); json("""{"about": "   "}""") }.andExpect {
+            jsonPath("$.about") { value(null) } // blank clears it
+        }
     }
 
     @Test
@@ -63,6 +67,7 @@ class UserProfileInputApiIntegrationTest : NoteIntegrationTest() {
         val refused = listOf(
             "/note/profile/rules" to """{"rules": [$tooMany]}""",
             "/note/profile/rules" to """{"rules": ["Fine.", "   "]}""",
+            "/note/profile/rules" to """{"rules": ["Fine.", null]}""",
             "/note/profile/rules" to """{"rules": ["${"a".repeat(301)}"]}""",
             "/note/profile/about" to """{"about": "${"a".repeat(2_001)}"}""",
         )

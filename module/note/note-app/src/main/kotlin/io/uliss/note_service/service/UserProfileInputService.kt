@@ -29,7 +29,8 @@ class UserProfileInputService(
 
     /**
      * Saves the user's rules trimmed, in their order. Changed rules get a new version and the profile is refreshed at
-     * once, so it follows them.
+     * once, so it follows them; also beside a running refresh, which may have checked the rules already (a parallel run
+     * only costs a model call: the version checks keep one result).
      */
     @Transactional
     fun saveRules(userId: UUID, rules: List<String>): UserProfileInput {
@@ -38,7 +39,7 @@ class UserProfileInputService(
         if (trimmed != input.rules) {
             input.rules = trimmed
             input.rulesVersion++
-            profileService.requestRefreshUnlessRunning(userId)
+            profileService.requestRefresh(userId)
         }
         return input.toInput()
     }
@@ -48,5 +49,5 @@ class UserProfileInputService(
         return inputRepository.findByUserId(userId) ?: inputRepository.save(UserProfileInputEntity(userId))
     }
 
-    private fun UserProfileInputEntity.toInput() = UserProfileInput(about, rules)
+    private fun UserProfileInputEntity.toInput() = UserProfileInput(about, rules, rulesVersion)
 }

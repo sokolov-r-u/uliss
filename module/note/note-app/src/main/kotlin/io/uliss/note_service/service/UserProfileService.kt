@@ -207,6 +207,8 @@ class UserProfileService(
     /** With no batch to blame, bringing the profile in line with the rules failed: retried at night, told meanwhile. */
     private fun markRulesFailed(userId: UUID) {
         findRulesWork(userId) ?: return
+        // rules saved during the last attempt wait in their own refresh, not tried yet
+        if (outboxService.isPending(refreshKey(userId))) return
         val profile = checkNotNull(profileRepository.findByUserId(userId))
         profile.rulesFailedVersion = rulesVersion(userId)
         log.warn("profile of user=$userId failed for good to follow its rules; retried at night", "handleFailedBatch")
@@ -356,14 +358,6 @@ class UserProfileService(
         log.info("profile rebuild of user=${rebuild.userId} (${rebuild.trigger}) finished", "finish")
         // rules saved while the last batch was read are not in the draft yet
         if (profile.content != null && rulesVersion(rebuild.userId) > profile.rulesVersion) requestRefresh(rebuild.userId)
-    }
-
-    /**
-     * Queues a refresh of the user's profile at once, unless one runs now: the dedup key does not hold a running event,
-     * so a second would run beside it. The running one queues the next itself when the rules moved on meanwhile.
-     */
-    fun requestRefreshUnlessRunning(userId: UUID) {
-        if (!outboxService.isProcessing(refreshKey(userId))) requestRefresh(userId)
     }
 
     /** Queues a refresh of the user's profile, due after [delay]; one already waiting is moved, not duplicated. */

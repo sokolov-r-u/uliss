@@ -49,7 +49,7 @@ class UserProfileInputServiceIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
-    fun `while a refresh runs, changed rules queue no second one beside it`() {
+    fun `changed rules queue a refresh even while one runs, which may have checked the rules already`() {
         profileService.requestRefresh(userId)
         jdbcTemplate.update(
             "UPDATE note.outbox_event SET status = 'PROCESSING' WHERE dedup_key = ?",
@@ -58,8 +58,7 @@ class UserProfileInputServiceIntegrationTest : NoteIntegrationTest() {
 
         service.saveRules(userId, listOf("No films."))
 
-        assertEquals(1, inputRepository.findByUserId(userId)!!.rulesVersion)
-        assertEquals(0, refreshEvents("PENDING"))
+        assertEquals(1, refreshEvents("PENDING"))
     }
 
     @Test
