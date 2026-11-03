@@ -788,3 +788,16 @@ A batch the provider refuses for its content, or answers with blank text every t
 moves on. Nothing tells the user. Options: treat a content refusal as non-retryable and skip the batch past the mark
 (its notes never reach the profile), or skip one note after N failed nights. A terminal-failure `error` log naming the
 user and the mark is part of finding these cases.
+
+## User profile: a rebuild started during a retried refresh inherits its attempts (`note-service`)
+
+**Status:** accepted for now (2026-11-03, `docs/tasks/2026-11-02-user-profile-rebuild.md`).
+
+`POST /note/profile/rebuild` moves the user's PENDING refresh event to now through `upsertPendingByDedupKey`, and the
+event keeps the attempts it spent on a live batch. If the rebuild's first batch then fails on the last attempt,
+`handleFailedBatch` halves the draft's batch (or, at a shrink above zero, skips its lone note) although that batch
+failed once. Rare and bounded: one extra halving with an hour's delay, at worst one note missing from the rebuilt
+profile until the next rebuild. Fix options: reset `attempts` when a PENDING event is moved to new work, or record in
+the payload which mode (update or a rebuild id) the attempts belong to and act only on a match. The terminal-failure
+log also prints the live profile's mark while a rebuild runs.
+

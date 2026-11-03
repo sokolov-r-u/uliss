@@ -89,7 +89,12 @@ class UserProfileFailingBatchIntegrationTest : NoteIntegrationTest() {
         val poison = note("POISON", base)
         stubModel()
 
-        runUntilRead()
+        failForGood()
+        assertEquals(1, profile().batchShrink, "a lone note gets one delayed try before it is skipped")
+        assertNull(profile().notesThrough)
+        assertTrue(nextAttemptAt().isAfter(Instant.now().plus(Duration.ofMinutes(50))))
+        failForGood()
+        assertTrue(nextAttemptAt().isBefore(Instant.now().plusSeconds(60)), "after a skip the next batch goes at once")
 
         val profile = profile()
         assertNull(profile.content)

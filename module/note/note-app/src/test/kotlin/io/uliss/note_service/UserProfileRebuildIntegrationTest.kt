@@ -70,6 +70,7 @@ class UserProfileRebuildIntegrationTest : NoteIntegrationTest() {
         note("Jazz", "Coltrane is my favorite.", twoHoursAgo)
         val opera = note("Opera", "Tosca moved me.", hourAgo)
         liveProfile("old profile", NotesMark(hourAgo, opera))
+        jdbcTemplate.update("UPDATE note.user_profile SET batch_shrink = 2 WHERE user_id = ?", userId)
         val rebuild = startRebuild()
         stubModel("draft one", "draft two")
 
@@ -82,6 +83,7 @@ class UserProfileRebuildIntegrationTest : NoteIntegrationTest() {
 
         assertEquals("draft two", profile().content)
         assertEquals(NotesMark(hourAgo, opera), profile().notesThrough)
+        assertEquals(0, profile().batchShrink, "the rebuild read every note: an old halving matches no batch")
         val done = rebuildRepository.findById(rebuild).get()
         assertEquals(ProfileRebuildStatus.DONE, done.status)
         assertNotNull(done.finishedAt)
@@ -119,6 +121,31 @@ class UserProfileRebuildIntegrationTest : NoteIntegrationTest() {
         assertNull(profile().content)
         assertEquals(ProfileRebuildStatus.DONE, rebuildRepository.findById(rebuild).get().status)
         assertTrue(userPrompts().isEmpty())
+    }
+
+    @Test
+    fun `a rebuild started after the batch was found empty is queued, not finished empty`() {
+        val opera = note("Opera", "Tosca moved me.", hourAgo)
+        liveProfile("old profile", NotesMark(hourAgo, opera))
+        val rebuild = startRebuild()
+
+        service.finishRebuild(userId)
+
+        assertEquals("old profile", profile().content)
+        assertEquals(ProfileRebuildStatus.RUNNING, rebuildRepository.findById(rebuild).get().status)
+        assertEquals(1, pendingRefreshEvents())
+    }
+
+    @Test
+    fun `the last batch of the live profile queues a rebuild that started while it was read`() {
+        note("Opera", "Tosca moved me.", hourAgo)
+        // the last live batch: nothing remains after it, so the save itself queues nothing for the profile
+        val batch = service.findBatch(userId)!!.copy(remain = false)
+        startRebuild()
+
+        service.save(userId, batch, "live profile")
+
+        assertEquals(1, pendingRefreshEvents())
     }
 
     @Test

@@ -100,6 +100,8 @@ note:
     batch-max-chars: 60000
     # a profile flagged by note deletions is rebuilt at most this often; shorten for a manual check
     deletion-rebuild-interval: ${NOTE_PROFILE_DELETION_REBUILD_INTERVAL:30d}
+    # a batch that failed for good is halved and tried again this much later
+    shrink-retry-delay: ${NOTE_PROFILE_SHRINK_RETRY_DELAY:1h}
     reasoning-effort: medium
     verbosity: medium
   speech:

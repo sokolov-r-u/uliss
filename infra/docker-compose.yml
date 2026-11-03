@@ -155,6 +155,7 @@ services:
       # user profile refresh, UTC; set "0 * * * * *" in infra/.env to refresh every minute
       NOTE_PROFILE_REFRESH_CRON: ${NOTE_PROFILE_REFRESH_CRON:-0 0 3 * * *}
       NOTE_PROFILE_DELETION_REBUILD_INTERVAL: ${NOTE_PROFILE_DELETION_REBUILD_INTERVAL:-30d}
+      NOTE_PROFILE_SHRINK_RETRY_DELAY: ${NOTE_PROFILE_SHRINK_RETRY_DELAY:-1h}
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/note-%d{yyyy-MM-dd}.%i.log
     ports:

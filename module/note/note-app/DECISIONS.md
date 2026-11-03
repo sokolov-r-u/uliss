@@ -721,3 +721,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   holds only what the sections above do not state. The nightly run also leaves alone a user whose refresh event
   already waits or runs, so a halved batch keeps its delay and no second event reads the same batch.
 - **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (manual check).
+
+## 2026-11-03 — A lone failing note gets one delayed try; halving never cuts a note
+
+- **Context:** refines "A failing profile batch is halved, then its single note skipped" after the code review: a
+  batch of one unread note was skipped at its first terminal failure, so a short outage could drop a healthy note,
+  and a halved character budget cut a long note whose rest was then never read.
+- **Decision:** a lone note is skipped only when it fails again after one delayed (`shrink-retry-delay`) try;
+  halving narrows how many notes a batch takes but cuts a long first note no shorter than the full budget does. A
+  finished rebuild resets the live profile's shrink. `finishRebuild` finishes a rebuild only when its own draft has
+  nothing left (a rebuild started after the caller found no batch is queued instead), and the last live batch queues
+  a rebuild that started while it was read.
+- **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (code review).

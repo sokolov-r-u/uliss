@@ -86,19 +86,31 @@ class UserProfileService(
             profile.notesThroughId = batch.through.noteId
             profile.batchShrink = 0
         }
-        if (batch.remain) requestRefresh(userId)
-    }
-
-    /** Ends the user's running rebuild when it found no more notes to read; nothing to do without one. */
-    @Transactional
-    fun finishRebuild(userId: UUID) {
-        rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING)?.let(::finish)
+        // a rebuild started while this batch was read may have been left without an event
+        if (batch.remain || rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING) != null) {
+            requestRefresh(userId)
+        }
     }
 
     /**
-     * The next batch failed every attempt. A batch of several notes is halved and tried again after
-     * `shrink-retry-delay`, so a short provider outage does not cut it down to a healthy note; a single note that
-     * fails is skipped: the mark (of the rebuild draft while one runs) moves past it, and the next batch goes at once.
+     * Ends the user's running rebuild once it has no more notes to read; nothing to do without one. A rebuild started
+     * after the caller found no batch still has notes ahead: it is queued instead of finished empty.
+     */
+    @Transactional
+    fun finishRebuild(userId: UUID) {
+        val rebuild = rebuildRepository.findByUserIdAndStatus(userId, ProfileRebuildStatus.RUNNING) ?: return
+        if (findBatchAfter(userId, rebuild.through, rebuild.batchShrink) == null) {
+            finish(rebuild)
+        } else {
+            requestRefresh(userId)
+        }
+    }
+
+    /**
+     * The next batch failed every attempt. A batch of several notes, or a lone note on its first failure, is halved
+     * and tried again after `shrink-retry-delay`, so a short provider outage does not cut it down to a healthy note; a
+     * single note that fails again is skipped: the mark (of the rebuild draft while one runs) moves past it, and the
+     * next batch goes at once.
      */
     @Transactional
     fun handleFailedBatch(userId: UUID) {
@@ -109,7 +121,9 @@ class UserProfileService(
         } else {
             null
         }
-        if (batch.notes.size > 1) {
+        val shrink = rebuild?.batchShrink ?: profile?.batchShrink ?: 0
+        // a lone note gets one delayed try too: its first failure may be an outage, not the note
+        if (batch.notes.size > 1 || shrink == 0) {
             rebuild?.let { it.batchShrink++ }
             profile?.let { it.batchShrink++ }
             log.warn(
@@ -220,7 +234,13 @@ class UserProfileService(
         val settledBefore = clock.instant().minus(properties.settleDelay)
         val maxNotes = (properties.batchMaxNotes shr shrink).coerceAtLeast(1)
         val notes = noteStore.findNotesAfter(userId, mark, settledBefore, maxNotes)
-        val batch = ProfileNoteBatch.take(notes, (properties.batchMaxChars shr shrink).coerceAtLeast(1))
+        val budget = (properties.batchMaxChars shr shrink).coerceAtLeast(1)
+        // halving narrows the batch, never cuts a note further than the full budget would: the cut part is never read
+        val batch = if (notes.isNotEmpty() && ProfileNoteBatch.size(notes.first()) > budget) {
+            ProfileNoteBatch.take(notes, properties.batchMaxChars).take(1)
+        } else {
+            ProfileNoteBatch.take(notes, budget)
+        }
         val last = batch.lastOrNull() ?: return null
         return ProfileBatch(
             profile = null,
@@ -254,6 +274,7 @@ class UserProfileService(
         profile.content = rebuild.content
         profile.notesThroughAt = rebuild.throughAt
         profile.notesThroughId = rebuild.throughId
+        profile.batchShrink = 0
         if (profile.lastDeletionAt?.isAfter(checkNotNull(rebuild.createdAt)) == false) profile.lastDeletionAt = null
         rebuild.status = ProfileRebuildStatus.DONE
         rebuild.finishedAt = clock.instant()

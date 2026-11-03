@@ -178,8 +178,9 @@ once while notes remain. A batch read from an older profile version is dropped. 
 so the batch is read again. Renames and icon changes move `updated_at` too, so such a note is read again.
 
 A batch that fails for good (all outbox attempts) is halved (`batch_shrink`) and tried again after
-`note.profile.shrink-retry-delay` (1 hour); a single note that still fails is skipped past the mark with an `error`
-log naming it, so one note the model cannot read never stops the profile.
+`note.profile.shrink-retry-delay` (1 hour; `NOTE_PROFILE_SHRINK_RETRY_DELAY`); a lone note gets one such delayed try,
+and if it still fails it is skipped past the mark with an `error` log naming it, so one note the model cannot read
+never stops the profile. Halving narrows the batch but never cuts a long note shorter than the full budget would.
 
 **Full rebuild.** A rebuild reads every note from the first into a draft (`note.user_profile_rebuild`) with the same
 prompts; the live profile stays in use until the last batch, then the draft replaces it (an empty draft leaves no
@@ -190,7 +191,10 @@ profile text and no `READY` note), or `429 PROFILE_REBUILD_LIMIT` with `details.
 the mark of the profile (or of a running draft) stamps `last_deletion_at` in the same transaction; the nightly run
 starts a `DELETIONS` rebuild for a stamped profile whose last finished rebuild is older than
 `note.profile.deletion-rebuild-interval` (30 days; `NOTE_PROFILE_DELETION_REBUILD_INTERVAL`), and queues a running
-rebuild again in case its event was lost. A finished rebuild clears a stamp made before it started.
+rebuild again in case its event was lost. The nightly run leaves alone a user whose refresh event already waits or
+runs (a halved batch keeps its delay; no second event reads the same batch); the last batch of the live profile
+queues a rebuild that started meanwhile, and a rebuild is finished only when its own draft has nothing left to read.
+A finished rebuild clears a stamp made before it started and the batch shrink.
 
 ## Note API and status delivery
 

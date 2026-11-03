@@ -90,6 +90,16 @@ class UserProfileRefreshRequestedHandlerTest {
         Mockito.verify(profileService, Mockito.never()).save(anyValue(), anyValue(), anyValue())
     }
 
+    @Test
+    fun `with no batch left the event calls no model and lets a running rebuild finish`() {
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(null)
+
+        handler.handle(event())
+
+        Mockito.verify(profileService).finishRebuild(userId)
+        Mockito.verifyNoInteractions(chatClient)
+    }
+
     private fun prompts(method: String): List<String> =
         Mockito.mockingDetails(requestSpec).invocations.filter { it.method.name == method }.map { it.arguments[0] as String }
 

@@ -134,6 +134,15 @@ class UserProfileDeletionIntegrationTest : NoteIntegrationTest() {
         assertNull(profileRepository.findByUserId(other)!!.lastDeletionAt)
     }
 
+    @Test
+    fun `deleting a note of a user without a profile row creates no profile`() {
+        val note = note("Read", createdAt = dayAgo)
+
+        hierarchyService.delete(userId, note, null)
+
+        assertNull(profileRepository.findByUserId(userId))
+    }
+
     private fun lastDeletionAt(): Instant? = profileRepository.findByUserId(userId)!!.lastDeletionAt
 
     private fun profile(markAt: Instant) {
