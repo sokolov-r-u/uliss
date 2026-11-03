@@ -157,7 +157,8 @@ export function ListRow({
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap'
             }}>{icon === undefined ? title : <NoteTitle title={title} icon={icon} slot/>}</span>
-            <span style={{
+            {/* an absent column takes no width and no gap: a bare row gives the whole line to its title */}
+            {meta != null && meta !== false && <span data-list-row-meta="" style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 4,
@@ -165,8 +166,8 @@ export function ListRow({
                 fontFamily: 'var(--font-text)',
                 fontSize: 10.5,
                 flex: '0 0 auto'
-            }}>{meta}</span>
-            <span style={{
+            }}>{meta}</span>}
+            {date != null && <span data-list-row-date="" style={{
                 fontFamily: 'var(--font-text)',
                 fontSize: 10.5,
                 letterSpacing: '0.5px',
@@ -174,7 +175,7 @@ export function ListRow({
                 width: 44,
                 textAlign: 'right',
                 flex: '0 0 44px'
-            }}>{date}</span>
+            }}>{date}</span>}
         </>
     )
     return (
