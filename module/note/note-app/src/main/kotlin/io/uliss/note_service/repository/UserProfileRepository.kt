@@ -13,6 +13,15 @@ import java.util.UUID
 interface UserProfileRepository : JpaRepository<UserProfileEntity, UUID> {
     fun findByUserId(userId: UUID): UserProfileEntity?
 
+    /** Profiles whose text was written under older rules than the user's current ones. */
+    @Query(
+        """
+        SELECT p.userId FROM UserProfileEntity p, UserProfileInputEntity i
+        WHERE i.userId = p.userId AND p.content IS NOT NULL AND p.rulesVersion < i.rulesVersion
+        """
+    )
+    fun findUserIdsBehindRules(): List<UUID>
+
     /** Profiles flagged by a deletion, with no rebuild running and none finished after [finishedAfter]. */
     @Query(
         """

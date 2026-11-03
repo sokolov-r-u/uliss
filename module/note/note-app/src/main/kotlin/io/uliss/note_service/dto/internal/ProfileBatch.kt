@@ -16,4 +16,5 @@ data class ProfileBatch(
     val through: NotesMark,
     val remain: Boolean,
     val rebuildId: UUID? = null,
+    val input: UserProfileInput = UserProfileInput(null, emptyList()),
 )
