@@ -9,22 +9,69 @@ export interface ProfileRebuild {
     availableAt: string | null
 }
 
-/** What the model knows about the user; both texts are null until the first nightly refresh writes it. */
+/**
+ * What the model knows about the user: the profile (both texts null until the first nightly refresh writes it), the
+ * user's own description and rules, and whether the profile is being brought in line with the rules or that failed.
+ */
 export interface UserProfile {
     content: string | null
     updatedAt: string | null
     rebuild: ProfileRebuild
+    about: string | null
+    rules: string[]
+    applyingRules: boolean
+    rulesFailed: boolean
 }
+
+/** Most the description may hold, and how many rules of what length; the service refuses more with 400. */
+export const ABOUT_MAX_CHARS = 2000
+export const RULES_MAX_COUNT = 20
+export const RULE_MAX_CHARS = 300
 
 /** The caller's profile and rebuild state; fails with a `NoteApiError` like the other note-service calls. */
 export async function getProfile(signal?: AbortSignal): Promise<UserProfile> {
     const response = await call('/note/profile', {signal})
     if (!response.ok) throw new NoteApiError('http', `profile failed (${response.status})`, response.status)
-    const body: unknown = await response.json().catch(() => null)
+    return parseProfile(await response.json().catch(() => null))
+}
+
+/** Saves the user's description of themselves, trimmed; blank clears it. The profile is not rewritten for it. */
+export async function saveAbout(about: string): Promise<UserProfile> {
+    const text = about.trim()
+    return put('/note/profile/about', {about: text === '' ? null : text})
+}
+
+/** Saves the user's rules for the profile, trimmed, in order; changed rules are applied to the profile at once. */
+export async function saveRules(rules: string[]): Promise<UserProfile> {
+    return put('/note/profile/rules', {rules: rules.map((rule) => rule.trim())})
+}
+
+async function put(path: string, body: unknown): Promise<UserProfile> {
+    const response = await call(path, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(body),
+    })
+    if (!response.ok) {
+        throw new NoteApiError('http', `saving failed (${response.status})`, response.status, undefined,
+            await errorCode(response))
+    }
+    return parseProfile(await response.json().catch(() => null))
+}
+
+function parseProfile(body: unknown): UserProfile {
     const rebuild = isRecord(body) ? parseRebuild(body.rebuild) : null
     if (!isRecord(body) || rebuild === null) throw new NoteApiError('protocol', 'invalid profile response')
     const text = (value: unknown) => (typeof value === 'string' && value.trim() !== '' ? value : null)
-    return {content: text(body.content), updatedAt: text(body.updatedAt), rebuild}
+    return {
+        content: text(body.content),
+        updatedAt: text(body.updatedAt),
+        rebuild,
+        about: text(body.about),
+        rules: Array.isArray(body.rules) ? body.rules.filter((rule): rule is string => typeof rule === 'string') : [],
+        applyingRules: body.applyingRules === true,
+        rulesFailed: body.rulesFailed === true,
+    }
 }
 
 /**
