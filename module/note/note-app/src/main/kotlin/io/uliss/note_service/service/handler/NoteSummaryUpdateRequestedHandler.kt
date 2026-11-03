@@ -65,7 +65,7 @@ class NoteSummaryUpdateRequestedHandler(
             .user(
                 ChatPrompts.noteUpdateUserPrompt(
                     note.title, note.content.orEmpty(), context, place, relatedChunks, note.icon,
-                    userProfileService.findProfile(payload.userId)?.content,
+                    userProfileService.findBackground(payload.userId),
                 )
             )
             .options(

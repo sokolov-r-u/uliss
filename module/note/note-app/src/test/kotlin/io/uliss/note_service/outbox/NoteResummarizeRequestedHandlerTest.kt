@@ -6,7 +6,7 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
-import io.uliss.note_service.dto.internal.UserProfileView
+import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -114,11 +114,12 @@ class NoteResummarizeRequestedHandlerTest {
     }
 
     @Test
-    fun `the user profile reaches the prompt as background`() {
+    fun `the user's description and profile reach the prompt as background`() {
         val payload = payload()
         Mockito.`when`(noteService.findReadyNote(payload.userId, payload.noteId))
             .thenReturn(NoteEntity(payload.userId, "Fly to Rome.", NoteSource.CHAT_SUMMARY, NoteStatus.READY, "Trip"))
-        Mockito.`when`(profileService.findProfile(payload.userId)).thenReturn(UserProfileView("Loves jazz.", Instant.EPOCH))
+        Mockito.`when`(profileService.findBackground(payload.userId))
+            .thenReturn(UserBackground("Loves jazz.", "Designer."))
         stubContext(payload, "Rather by train")
         stubModel(NoteBodyDraft("Go by night train.", emptyList()))
 
@@ -127,6 +128,7 @@ class NoteResummarizeRequestedHandlerTest {
         val userPrompt = Mockito.mockingDetails(requestSpec).invocations.single { it.method.name == "user" }
             .arguments[0] as String
         assertTrue(userPrompt.contains("<user_profile>\nLoves jazz.\n</user_profile>"))
+        assertTrue(userPrompt.contains("<about_user>\nDesigner.\n</about_user>"))
     }
 
     private fun stubContext(payload: NoteResummarizeRequestedPayload, content: String) {

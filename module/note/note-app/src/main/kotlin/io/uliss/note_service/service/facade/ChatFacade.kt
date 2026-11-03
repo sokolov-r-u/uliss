@@ -3,6 +3,7 @@ package io.uliss.note_service.service.facade
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
+import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
@@ -78,7 +79,7 @@ class ChatFacade(
             chatService.getOwnedChat(userId, chatId)
         }
         return assistantService.streamReply(
-            userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userProfile(userId),
+            userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userBackground(userId),
         )
     }
 
@@ -87,13 +88,13 @@ class ChatFacade(
     fun retryReply(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): AssistantReplyStream {
         chatService.getOwnedChat(userId, chatId)
         return assistantService.retryReply(
-            userId, chatId, turnId, messageId, noteSearch(userId, chatId), userProfile(userId),
+            userId, chatId, turnId, messageId, noteSearch(userId, chatId), userBackground(userId),
         ) { replyId ->
             noteSummaryService.releaseReplyForRetry(chatId, replyId)
         }
     }
 
-    private fun userProfile(userId: UUID): String? = userProfileService.findProfile(userId)?.content
+    private fun userBackground(userId: UUID): UserBackground? = userProfileService.findBackground(userId)
 
     /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->

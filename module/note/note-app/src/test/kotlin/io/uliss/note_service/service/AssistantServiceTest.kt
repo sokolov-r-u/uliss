@@ -8,6 +8,7 @@ import io.uliss.note_service.captureValue
 import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
+import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.exception.ChatReplyNotRetryableException
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
@@ -384,7 +385,7 @@ class AssistantServiceTest {
     }
 
     @Test
-    fun `the user profile goes to the model as data in a system message ahead of the history`() {
+    fun `the user profile and description go to the model as data in a system message ahead of the history`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
@@ -392,14 +393,16 @@ class AssistantServiceTest {
         Mockito.`when`(chatTurnService.finishGenerationAttempt(userId, chatId, turnId, 1, "ok", ChatTurnStatus.COMPLETE))
             .thenReturn(true)
 
-        val reply = assistantService.streamReply(userId, chatId, turnId, "hi", noSearch, userProfile = "Loves jazz.")
+        val background = UserBackground("Loves jazz.", "Designer in Lisbon.")
+        val reply = assistantService.streamReply(userId, chatId, turnId, "hi", noSearch, userBackground = background)
         StepVerifier.create(reply.events).expectNextCount(2).verifyComplete()
 
         val captor = captorFor<List<Message>>(List::class.java)
         Mockito.verify(requestSpec).messages(captor.captureValue())
         val profile = captor.value[0] as SystemMessage
-        assertEquals(ChatPrompts.userProfileMessage("Loves jazz."), profile.text)
+        assertEquals(ChatPrompts.userBackgroundMessage(background), profile.text)
         assertTrue(profile.text.orEmpty().contains("Loves jazz."), "the profile itself reaches the model")
+        assertTrue(profile.text.orEmpty().contains("Designer in Lisbon."), "the user's own description reaches it too")
         assertEquals("hi", (captor.value[1] as UserMessage).text)
     }
 

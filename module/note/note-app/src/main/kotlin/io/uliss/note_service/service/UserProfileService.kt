@@ -8,6 +8,7 @@ import io.uliss.note_service.dto.internal.ProfileRulesWork
 import io.uliss.note_service.exception.ProfileNothingToRebuildException
 import io.uliss.note_service.exception.ProfileRebuildLimitException
 import io.uliss.note_service.exception.ProfileRebuildRunningException
+import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.dto.internal.UserProfileInput
 import io.uliss.note_service.dto.internal.UserProfileView
 import io.uliss.note_service.model.ProfileRebuildStatus
@@ -52,6 +53,14 @@ class UserProfileService(
         profileRepository.findByUserId(userId)?.let { profile ->
             profile.content?.let { UserProfileView(it, checkNotNull(profile.updatedAt)) }
         }
+
+    /** What the model may know about the user before a reply or a summary; null while there is nothing. */
+    @Transactional(readOnly = true)
+    fun findBackground(userId: UUID): UserBackground? {
+        val profile = profileRepository.findByUserId(userId)?.content
+        val about = inputRepository.findByUserId(userId)?.about
+        return if (profile == null && about == null) null else UserBackground(profile, about)
+    }
 
     /**
      * The next notes the profile has not read, as many as one model call takes; null when it has read them all. While

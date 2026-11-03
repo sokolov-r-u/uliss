@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.note_service.NoteIntegrationTest
 import io.uliss.note_service.dto.internal.ProfileRulesState
+import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.dto.internal.UserProfileInput
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.ProfileRebuildTrigger
@@ -173,6 +174,19 @@ class UserProfileRulesIntegrationTest : NoteIntegrationTest() {
 
         assertEquals(1, pendingRefreshEvents())
         assertEquals(0, pendingRefreshEvents(withoutText))
+    }
+
+    @Test
+    fun `the background holds the profile text and the user's description, and is null while both are missing`() {
+        assertNull(service.findBackground(userId))
+        profile(null)
+        assertNull(service.findBackground(userId)) // a row without text is no profile
+
+        inputService.saveAbout(userId, "Designer.")
+        assertEquals(UserBackground(null, "Designer."), service.findBackground(userId))
+
+        profileRepository.findByUserId(userId)!!.let { it.content = "Loves jazz."; profileRepository.saveAndFlush(it) }
+        assertEquals(UserBackground("Loves jazz.", "Designer."), service.findBackground(userId))
     }
 
     private fun profile(content: String?): UserProfileEntity =
