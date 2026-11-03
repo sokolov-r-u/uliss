@@ -3,6 +3,7 @@ package io.uliss.note_service.service
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ProfileBatch
 import io.uliss.note_service.dto.internal.ProfileRebuildState
+import io.uliss.note_service.dto.internal.ProfileRulesState
 import io.uliss.note_service.exception.ProfileNothingToRebuildException
 import io.uliss.note_service.exception.ProfileRebuildLimitException
 import io.uliss.note_service.exception.ProfileRebuildRunningException
@@ -15,6 +16,7 @@ import io.uliss.note_service.model.payload.UserProfileRefreshRequestedPayload
 import io.uliss.note_service.model.projection.NotesMark
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
+import io.uliss.note_service.repository.UserProfileInputRepository
 import io.uliss.note_service.repository.UserProfileNoteStore
 import io.uliss.note_service.repository.UserProfileRebuildRepository
 import io.uliss.note_service.repository.UserProfileRepository
@@ -33,6 +35,7 @@ import java.util.UUID
 class UserProfileService(
     private val profileRepository: UserProfileRepository,
     private val rebuildRepository: UserProfileRebuildRepository,
+    private val inputRepository: UserProfileInputRepository,
     private val noteStore: UserProfileNoteStore,
     private val outboxService: OutboxService,
     private val objectMapper: ObjectMapper,
@@ -146,6 +149,16 @@ class UserProfileService(
         }
         log.error("profile of user=$userId skips note id=${skipped.noteId}: the model fails on it", "handleFailedBatch")
         requestRefresh(userId)
+    }
+
+    /** Whether the profile text is behind the user's rules, and whether applying the current ones failed for good. */
+    @Transactional(readOnly = true)
+    fun getRulesState(userId: UUID): ProfileRulesState {
+        val profile = profileRepository.findByUserId(userId)
+        val rulesVersion = inputRepository.findByUserId(userId)?.rulesVersion ?: 0
+        if (profile?.content == null || profile.rulesVersion >= rulesVersion) return ProfileRulesState(false, false)
+        val failed = profile.rulesFailedVersion == rulesVersion
+        return ProfileRulesState(applying = !failed, failed = failed)
     }
 
     /** Whether a rebuild of the user's profile runs, and how many the user may still start. */
@@ -280,6 +293,14 @@ class UserProfileService(
         rebuild.finishedAt = clock.instant()
         rebuild.content = null
         log.info("profile rebuild of user=${rebuild.userId} (${rebuild.trigger}) finished", "finish")
+    }
+
+    /**
+     * Queues a refresh of the user's profile at once, unless one runs now: the dedup key does not hold a running event,
+     * so a second would run beside it. The running one queues the next itself when the rules moved on meanwhile.
+     */
+    fun requestRefreshUnlessRunning(userId: UUID) {
+        if (!outboxService.isProcessing(refreshKey(userId))) requestRefresh(userId)
     }
 
     /** Queues a refresh of the user's profile, due after [delay]; one already waiting is moved, not duplicated. */
