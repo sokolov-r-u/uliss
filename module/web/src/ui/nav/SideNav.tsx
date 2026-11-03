@@ -11,6 +11,7 @@ import {useKeysetList} from '../list/useKeysetList'
 import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
 import {noteCountLabel} from '../format'
+import {usePinnedChats, usePinnedNotes} from '../pins/pinned'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -54,6 +55,10 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     // a failed load is told apart from an empty account: "Nothing here yet" would be a lie
     const chatsFailed = chatList.state.status === 'error'
     const notesFailed = noteList.state.status === 'error'
+    const pinnedChatsState = usePinnedChats()
+    const pinnedNotesState = usePinnedNotes()
+    const pinnedChats: Chat[] = pinnedChatsState.status === 'ready' ? pinnedChatsState.items : []
+    const pinnedNotes: Note[] = pinnedNotesState.status === 'ready' ? pinnedNotesState.items : []
 
     const retryLists = () => {
         setChatsRevision((value) => value + 1)
@@ -65,11 +70,20 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
         navigate(to)
     }
 
-    const empty = chats.length === 0 && notes.length === 0
+    const empty = chats.length === 0 && notes.length === 0 && pinnedChats.length === 0 && pinnedNotes.length === 0
     const noteViews = toNoteViewModels(notes, noteChangedAt)
-    const chatGroups = groupByRecency(chats, chatActivity)
-    const noteGroups = groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})),
-        ({view}) => view.listedAt)
+    // pinned rows come first, under their own label, and never again in the recency groups
+    const chatGroups = [
+        ...(pinnedChats.length > 0 ? [{label: 'Pinned', items: pinnedChats}] : []),
+        ...groupByRecency(chats, chatActivity),
+    ]
+    const pinnedNoteViews = toNoteViewModels(pinnedNotes, noteChangedAt)
+    const noteGroups = [
+        ...(pinnedNotes.length > 0
+            ? [{label: 'Pinned', items: pinnedNotes.map((note, index) => ({note, view: pinnedNoteViews[index]}))}]
+            : []),
+        ...groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})), ({view}) => view.listedAt),
+    ]
 
     return (
         <>

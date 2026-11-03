@@ -69,7 +69,7 @@ describe('ItemActions', () => {
         await openMenu('Idea')
 
         const items = within(screen.getByRole('menu')).getAllByRole('menuitem').map((item) => item.textContent)
-        expect(items).toEqual(['Rename', 'Summarize again', 'Delete'])
+        expect(items).toEqual(['Pin', 'Rename', 'Summarize again', 'Delete'])
         await userEvent.click(screen.getByRole('menuitem', {name: 'Summarize again'}))
 
         expect(onSelect).toHaveBeenCalledOnce()
@@ -266,7 +266,7 @@ describe('ItemActions', () => {
 
         await openMenu('Idea')
 
-        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^RenameDelete$/)
+        expect(screen.getByRole('menu', {name: 'Actions for Idea'})).toHaveTextContent(/^PinRenameDelete$/)
     })
 
     it('offers only Delete for a note that is not ready', async () => {

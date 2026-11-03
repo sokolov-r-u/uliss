@@ -9,6 +9,7 @@ import {ScreenHeader} from '../ui/ScreenHeader'
 import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
 import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from './noteApi'
+import {usePinnedNotes} from '../ui/pins/pinned'
 import './notes.css'
 import {formatShortDate} from '../ui/format'
 
@@ -24,12 +25,14 @@ export interface NotesViewProps {
     total?: number
     /** Rendered after the rows, e.g. the next-page loader. */
     footer?: ReactNode
+    /** The pinned notes, shown above the months under their own label; [notes] leaves them out. */
+    pinned?: NoteViewModel[]
 }
 
-export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer}: NotesViewProps) {
-    const unread = notes.filter((note) => note.unread).length
+export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, pinned = []}: NotesViewProps) {
+    const unread = [...pinned, ...notes].filter((note) => note.unread).length
 
-    if (notes.length === 0) {
+    if (notes.length === 0 && pinned.length === 0) {
         return <div className="product-view"><ScreenHeader kicker="Notes" count={0}/>
             <div className="product-body"><div className="product-empty">
                 <EmptyState title="Nothing written down yet"
@@ -49,11 +52,14 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
 
     return (
         <div className="product-view">
-            <ScreenHeader kicker="Notes" count={total ?? notes.length}
+            <ScreenHeader kicker="Notes" count={total ?? pinned.length + notes.length}
                           right={unread > 0 ? <Kicker size={9} spacing="2px"
                                                       color="var(--text-faint)">{unread} new</Kicker> : undefined}/>
             <div className="product-body"><div className="product-list">
-                {groupByMonth(notes, (note) => note.listedAt).map((group, groupIndex) => <div
+                {[
+                    ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
+                    ...groupByMonth(notes, (note) => note.listedAt),
+                ].map((group, groupIndex) => <div
                     key={`${group.label}-${groupIndex}`} className="list-group">
                     {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
                                                                         color="var(--text-faint)">{group.label}</Kicker></div>}
@@ -120,6 +126,7 @@ export function NotesPage() {
     const navigate = useNavigate()
     const [revision, setRevision] = useState(0)
     const {state, loadMore, update} = useKeysetList(listNotes, revision)
+    const pinned = usePinnedNotes()
 
     useEffect(() => subscribeToNotesChanges(() => setRevision((value) => value + 1)), [])
 
@@ -135,6 +142,7 @@ export function NotesPage() {
         </div>
     }
     return <NotesView notes={toNoteViewModels(state.items, noteChangedAt)} total={state.total}
+                      pinned={pinned.status === 'ready' ? toNoteViewModels(pinned.items, noteChangedAt) : []}
                       onOpen={(note) => navigate(`/notes/${note.id}`)}
                       onStartChat={() => navigate('/chats')}
                       footer={<ListMore hasMore={state.hasMore} state={state.more} onMore={loadMore}/>}

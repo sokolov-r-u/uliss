@@ -35,6 +35,9 @@ vi.mock('./chatApi', () => ({
     getChat: vi.fn(),
     renameChat: vi.fn(),
     deleteChat: vi.fn(),
+    listPinnedChats: vi.fn(() => Promise.resolve([])),
+    pinChat: vi.fn(),
+    unpinChat: vi.fn(),
     notifyChatListChanged: vi.fn(),
     subscribeToChatListChanges: vi.fn(() => () => undefined),
     ChatApiError: class ChatApiError extends Error {
@@ -77,6 +80,9 @@ vi.mock('../notes/noteApi', () => ({
     requestChatSummary: vi.fn(),
     notifyNotesChanged: vi.fn(),
     listChatNotes: vi.fn(() => Promise.resolve([])),
+    listPinnedNotes: vi.fn(() => Promise.resolve([])),
+    pinNote: vi.fn(),
+    unpinNote: vi.fn(),
     subscribeToNotesChanges: vi.fn(() => () => undefined),
     NoteApiError: class NoteApiError extends Error {
         constructor(

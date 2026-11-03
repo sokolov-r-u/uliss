@@ -8,7 +8,8 @@ import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
 import {groupByMonth} from '../ui/nav/recency'
 import {ScreenHeader} from '../ui/ScreenHeader'
-import {chatActivity, listChats, subscribeToChatListChanges} from './chatApi'
+import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from './chatApi'
+import {usePinnedChats} from '../ui/pins/pinned'
 import './chat.css'
 import {formatShortDate} from '../ui/format'
 
@@ -19,6 +20,8 @@ export function ChatListPage() {
     const {state, loadMore} = useKeysetList(listChats, revision)
 
     useEffect(() => subscribeToChatListChanges(() => setRevision((value) => value + 1)), [])
+    const pinnedState = usePinnedChats()
+    const pinned: Chat[] = pinnedState.status === 'ready' ? pinnedState.items : []
 
     function onNewChat() {
         navigate('/chats/new')
@@ -39,7 +42,7 @@ export function ChatListPage() {
                 {state.status === 'loading' && <p className="chat-state">Loading…</p>}
                 {state.status === 'error' && <p className="chat-state chat-state-error">{describeError(state.error)}</p>}
 
-                {state.status === 'ready' && state.items.length === 0 && <div className="product-empty">
+                {state.status === 'ready' && state.items.length === 0 && pinned.length === 0 && <div className="product-empty">
                     <EmptyState
                         title="No chats yet"
                         body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
@@ -48,9 +51,13 @@ export function ChatListPage() {
                     />
                 </div>}
 
-                {state.status === 'ready' && state.items.length > 0 && (
+                {state.status === 'ready' && (state.items.length > 0 || pinned.length > 0) && (
                     <div className="product-list">
-                        {groupByMonth(state.items, chatActivity).map((group, groupIndex) => <div
+                        {[
+                            // pinned chats come first under their own label; the pages leave them out
+                            ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
+                            ...groupByMonth(state.items, chatActivity),
+                        ].map((group, groupIndex) => <div
                             key={`${group.label}-${groupIndex}`} className="list-group">
                             {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
                                                                                 color="var(--text-faint)">{group.label}</Kicker></div>}

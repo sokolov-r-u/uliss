@@ -16,6 +16,8 @@ export type Chat = {
     noteCount: number
     createdAt?: string
     updatedAt?: string
+    /** When the user pinned it; absent for an unpinned chat. */
+    pinnedAt?: string
 }
 
 export type ChatMessage = {
@@ -152,6 +154,7 @@ function parseChat(value: unknown): Chat {
         noteCount: value.noteCount,
         createdAt: optionalText(value.createdAt, 'createdAt'),
         updatedAt: optionalText(value.updatedAt, 'updatedAt'),
+        ...(value.pinnedAt == null ? {} : {pinnedAt: text(value.pinnedAt, 'pinnedAt')}),
     }
 }
 
@@ -216,6 +219,25 @@ export async function renameChat(chatId: string, title: string): Promise<Chat> {
     })
     await requireOk(res, 'chat rename')
     return parseChat(await readJson(res))
+}
+
+/** The user's pinned chats, last pinned first; never more than [PIN_LIMIT]. */
+export async function listPinnedChats(signal?: AbortSignal): Promise<Chat[]> {
+    const res = await send('/note/chats/pinned', {signal})
+    await requireOk(res, 'pinned chats fetch')
+    return parseList(await readJson(res), parseChat)
+}
+
+/** Pins the chat; a full pinned list fails with 409. Pinning a pinned chat keeps its place. */
+export async function pinChat(chatId: string): Promise<Chat> {
+    const res = await send(`/note/chats/${segment(chatId)}/pin`, {method: 'PUT'})
+    await requireOk(res, 'chat pin')
+    return parseChat(await readJson(res))
+}
+
+export async function unpinChat(chatId: string): Promise<void> {
+    const res = await send(`/note/chats/${segment(chatId)}/pin`, {method: 'DELETE'})
+    await requireOk(res, 'chat unpin')
 }
 
 export async function deleteChat(chatId: string): Promise<void> {
