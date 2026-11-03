@@ -272,7 +272,8 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   their subtrees); each pick adds a `ConstellationChip` under the header, × removes one, Clear removes all, and
   picking an ancestor absorbs its chosen descendants. The page keeps only uuids, each once, at most 50 (the service's
   limit; the button is disabled at 50) and drops ids the loaded tree does not have. The header counts "`total` of
-  `allTotal`"; an empty filtered list offers Clear filter. `useKeysetList` reloads when its revision (change events
-  joined with the filter) changes.
+  `allTotal`"; an empty filtered list offers Clear filter. `useKeysetList` takes the filter as the list's key and
+  reloads when it or the change-event revision changes; a failed reload for a new key shows the error with Retry
+  instead of the previous filter's rows.
 - **Consequences:** no design-system change; choosing several constellations opens the picker once per constellation.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`.

@@ -163,10 +163,11 @@ export function NotesPage() {
     const [revision, setRevision] = useState(0)
     const [tree, setTree] = useState<ConstellationTree | null>(null)
     const [pickerOpen, setPickerOpen] = useState(false)
-    // the hook reads the latest loader, so a filter change only has to change the revision
+    // the hook reads the latest loader; the filter is the list's key, so a failed reload never shows another list
     const {state, loadMore, update} = useKeysetList(
         (cursor: string | undefined, signal: AbortSignal) => listNotes(cursor, signal, filter),
-        `${revision}:${filterKey}`,
+        revision,
+        filterKey,
     )
 
     useEffect(() => subscribeToNotesChanges(() => setRevision((value) => value + 1)), [])
