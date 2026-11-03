@@ -14,6 +14,7 @@ import org.springframework.test.web.servlet.patch
 import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
 import java.sql.Timestamp
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -48,8 +49,8 @@ class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
 
     @Test
     fun `an edited note comes first, created order no longer matters`() {
-        val edited = note(Instant.parse("2026-11-03T08:00:00Z"))
-        val other = note(Instant.parse("2026-11-03T09:00:00Z"))
+        val edited = note(hoursAgo(2))
+        val other = note(hoursAgo(1))
 
         mockMvc.patch("/note/notes/$edited") {
             auth()
@@ -76,8 +77,8 @@ class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
 
     @Test
     fun `saving new content and icon lifts the note`() {
-        val edited = note(Instant.parse("2026-11-03T08:00:00Z"))
-        val other = note(Instant.parse("2026-11-03T09:00:00Z"))
+        val edited = note(hoursAgo(2))
+        val other = note(hoursAgo(1))
         val version = noteRepository.findById(edited).orElseThrow().version
 
         mockMvc.put("/note/notes/$edited") {
@@ -143,6 +144,9 @@ class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
     private fun org.springframework.test.web.servlet.MockHttpServletRequestDsl.auth() {
         with(jwt().jwt { it.claim("userId", userId.toString()) })
     }
+
+    /** An edit stamps the wall clock, so the notes it must overtake are dated relative to it. */
+    private fun hoursAgo(hours: Long): Instant = Instant.now().minus(Duration.ofHours(hours))
 
     private fun note(updatedAt: Instant): UUID {
         val id = noteRepository.save(NoteEntity(userId, "body")).id
