@@ -154,6 +154,35 @@ class NoteControllerTest {
     }
 
     @Test
+    fun `getNotes passes repeated constellation ids once each and returns the count of all notes`() {
+        val userId = UUID.randomUUID()
+        val music = UUID.randomUUID()
+        val films = UUID.randomUUID()
+        Mockito.`when`(noteService.getNotes(userId, null, 30, setOf(music, films)))
+            .thenReturn(NoteListPage(KeysetPage(emptyList(), null), total = 2, allTotal = 9))
+
+        mockMvc.get("/note/notes?constellationId=$music&constellationId=$films&constellationId=$music") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.total") { value(2) }
+            jsonPath("$.allTotal") { value(9) }
+        }
+    }
+
+    @Test
+    fun `getNotes rejects more than 50 constellations and an id that is not a uuid`() {
+        val userId = UUID.randomUUID()
+        val tooMany = (1..51).joinToString("&") { "constellationId=${UUID.randomUUID()}" }
+        listOf("/note/notes?$tooMany", "/note/notes?constellationId=music").forEach { url ->
+            mockMvc.get(url) {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+            }.andExpect { status { isBadRequest() } }
+        }
+        Mockito.verifyNoInteractions(noteService)
+    }
+
+    @Test
     fun `getNotes rejects a broken cursor and a limit out of range`() {
         val userId = UUID.randomUUID()
         listOf("/note/notes?cursor=broken", "/note/notes?limit=0", "/note/notes?limit=101").forEach { url ->

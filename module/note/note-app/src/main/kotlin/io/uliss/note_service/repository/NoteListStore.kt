@@ -23,7 +23,7 @@ class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
         userId: UUID,
         after: ListCursor?,
         limit: Int,
-        constellationIds: Collection<UUID> = emptyList(),
+        constellationIds: Set<UUID> = emptySet(),
     ): List<ListCursor> {
         val query = Query(userId, constellationIds)
         if (after != null) {
@@ -44,14 +44,14 @@ class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
     }
 
     /** The size of the list [findPage] reads with the same filter. */
-    fun count(userId: UUID, constellationIds: Collection<UUID> = emptyList()): Int {
+    fun count(userId: UUID, constellationIds: Set<UUID> = emptySet()): Int {
         val query = Query(userId, constellationIds)
         val sql = "${query.with} SELECT count(*) FROM note.notes WHERE ${query.where()}"
         return jdbcTemplate.queryForObject(sql, query.params, Int::class.java) ?: 0
     }
 
     /** The owner and filter part of a list query, shared by the page and its count. */
-    private class Query(userId: UUID, constellationIds: Collection<UUID>) {
+    private class Query(userId: UUID, constellationIds: Set<UUID>) {
         val params = MapSqlParameterSource("userId", userId)
         val conditions = mutableListOf("user_id = :userId")
         val with = if (constellationIds.isEmpty()) "" else IN_CONSTELLATIONS_CTE

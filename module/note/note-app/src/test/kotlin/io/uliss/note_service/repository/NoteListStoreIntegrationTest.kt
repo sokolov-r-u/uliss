@@ -83,7 +83,7 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         placed(note(userId, at.minusSeconds(2)), films)
         note(userId, at.minusSeconds(3))
 
-        val page = store.findPage(userId, null, 10, listOf(music))
+        val page = store.findPage(userId, null, 10, setOf(music))
 
         assertEquals(listOf(inMusic, inGlam), page.map { it.id })
     }
@@ -97,7 +97,7 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         val song = subNote(note(userId, at.minusSeconds(2)), album)
         subNote(note(userId, at.minusSeconds(3)), note(userId, at.minusSeconds(4)))
 
-        val page = store.findPage(userId, null, 10, listOf(music))
+        val page = store.findPage(userId, null, 10, setOf(music))
 
         assertEquals(listOf(bowie, album, song), page.map { it.id })
     }
@@ -115,10 +115,10 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         val inFilms = placed(note(userId, at.minusSeconds(2)), films)
         placed(note(stranger, at), foreign)
 
-        val page = store.findPage(userId, null, 10, listOf(music, rock, films, foreign, UUID.randomUUID(), music))
+        val page = store.findPage(userId, null, 10, setOf(music, rock, films, foreign, UUID.randomUUID(), music))
 
         assertEquals(listOf(inBoth, inMusic, inFilms), page.map { it.id })
-        assertEquals(emptyList(), store.findPage(userId, null, 10, listOf(foreign)))
+        assertEquals(emptyList(), store.findPage(userId, null, 10, setOf(foreign)))
     }
 
     @Test
@@ -127,9 +127,9 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         val music = constellation(userId, null)
         val all = (1..5).map { placed(note(userId, tie), music) } + note(userId, tie)
 
-        val first = store.findPage(userId, null, 2, listOf(music))
-        val second = store.findPage(userId, first.last(), 2, listOf(music))
-        val third = store.findPage(userId, second.last(), 2, listOf(music))
+        val first = store.findPage(userId, null, 2, setOf(music))
+        val second = store.findPage(userId, first.last(), 2, setOf(music))
+        val third = store.findPage(userId, second.last(), 2, setOf(music))
 
         val ids = (first + second + third).map { it.id }
         assertEquals(all.take(5).sortedByDescending { it.toString() }, ids)
@@ -145,7 +145,7 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         placed(note(userId, at), rock)
         note(userId, at)
 
-        assertEquals(3, store.count(userId, listOf(music, rock)))
+        assertEquals(3, store.count(userId, setOf(music, rock)))
         assertEquals(4, store.count(userId))
     }
 

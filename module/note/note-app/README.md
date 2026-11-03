@@ -214,9 +214,13 @@ A finished rebuild clears a stamp made before it started and the batch shrink.
 
 ## Note API and status delivery
 
-- `GET /note/notes` returns a keyset page `{items, nextCursor, total}` of the authenticated user's notes by last change
-  (`updated_at DESC, id DESC`); `total` counts all their notes. A move under another note or a constellation change
-  does not touch `updated_at`.
+- `GET /note/notes` returns a keyset page `{items, nextCursor, total, allTotal}` of the authenticated user's notes by
+  last change (`updated_at DESC, id DESC`); `total` counts the listed notes, `allTotal` all their notes. A move under
+  another note or a constellation change does not touch `updated_at`.
+- Repeated `constellationId=<uuid>` (up to 50, else `400`) filters the list to the notes of those constellations and
+  of all their sub-constellations, plus every sub-note of those notes, each note once (one recursive query in
+  `NoteListStore`). An id that is missing or another user's adds nothing; without the parameter the list is unfiltered
+  and `allTotal` equals `total`.
 - Both list endpoints take `cursor` (the opaque `nextCursor` of the previous page) and `limit` (default 30, 1..100); a
   broken cursor or a limit out of range is `400`.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.

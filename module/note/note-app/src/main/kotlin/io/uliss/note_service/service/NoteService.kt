@@ -38,13 +38,20 @@ class NoteService(
 
     /**
      * A page of the user's notes by last change, starting strictly after [cursor] (from the newest when null), with the
-     * number of all their notes. A note deleted between the reads is left out of the page.
+     * size of the list and the number of all their notes. Non-empty [constellationIds] keep the notes of those
+     * constellations' subtrees with their sub-notes. A note deleted between the reads is left out of the page.
      */
-    fun getNotes(userId: UUID, cursor: ListCursor?, limit: Int): NoteListPage {
-        val positions = KeysetPage.of(noteListStore.findPage(userId, cursor, limit + 1), limit) { it }
+    fun getNotes(
+        userId: UUID,
+        cursor: ListCursor?,
+        limit: Int,
+        constellationIds: Set<UUID> = emptySet(),
+    ): NoteListPage {
+        val positions = KeysetPage.of(noteListStore.findPage(userId, cursor, limit + 1, constellationIds), limit) { it }
         val ids = positions.items.map { it.id }
         val page = KeysetPage(toResponses(userId) { orderedById(ids) }, positions.nextCursor)
-        return NoteListPage(page, noteListStore.count(userId))
+        if (constellationIds.isEmpty()) return NoteListPage(page, noteListStore.count(userId))
+        return NoteListPage(page, noteListStore.count(userId, constellationIds), noteListStore.count(userId))
     }
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse {
