@@ -380,12 +380,13 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isOk() }
-            jsonPath("$[0].id") { value(newer.id.toString()) }
-            jsonPath("$[0].status") { value("GENERATING") }
-            jsonPath("$[0].content") { value(Matchers.nullValue()) }
-            jsonPath("$[1].id") { value(older.id.toString()) }
-            jsonPath("$[1].content") { value("older") }
-            jsonPath("$[2]") { doesNotExist() }
+            jsonPath("$.items[0].id") { value(newer.id.toString()) }
+            jsonPath("$.items[0].status") { value("GENERATING") }
+            jsonPath("$.items[0].content") { value(Matchers.nullValue()) }
+            jsonPath("$.items[1].id") { value(older.id.toString()) }
+            jsonPath("$.items[1].content") { value("older") }
+            jsonPath("$.items[2]") { doesNotExist() }
+            jsonPath("$.total") { value(2) }
         }
     }
 

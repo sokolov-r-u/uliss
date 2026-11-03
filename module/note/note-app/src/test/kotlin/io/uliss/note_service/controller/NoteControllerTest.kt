@@ -1,5 +1,8 @@
 package io.uliss.note_service.controller
 
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
+import io.uliss.note_service.dto.internal.NoteListPage
 import io.uliss.note_service.dto.internal.NotePlace
 import io.uliss.note_service.dto.internal.NoteSearchHit
 import io.uliss.note_service.exception.NoteHasSubNotesException
@@ -103,8 +106,8 @@ class NoteControllerTest {
         val userId = UUID.randomUUID()
         val noteId = UUID.randomUUID()
         val createdAt = Instant.parse("2026-09-10T10:15:30Z")
-        Mockito.`when`(noteService.getNotes(userId)).thenReturn(
-            listOf(
+        Mockito.`when`(noteService.getNotes(userId, null, 30)).thenReturn(
+            NoteListPage(KeysetPage(listOf(
                 NoteResponse(
                     id = noteId,
                     source = NoteSource.CHAT_SUMMARY,
@@ -116,20 +119,49 @@ class NoteControllerTest {
                     updating = false,
                     version = 0,
                 )
-            )
+            ), null), total = 1)
         )
 
         mockMvc.get("/note/notes") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isOk() }
-            jsonPath("$[0].id") { value(noteId.toString()) }
-            jsonPath("$[0].chatId") { doesNotExist() }
-            jsonPath("$[0].source") { value("CHAT_SUMMARY") }
-            jsonPath("$[0].status") { value("GENERATING") }
-            jsonPath("$[0].content") { value(Matchers.nullValue()) }
-            jsonPath("$[0].createdAt") { value("2026-09-10T10:15:30Z") }
+            jsonPath("$.items[0].id") { value(noteId.toString()) }
+            jsonPath("$.items[0].chatId") { doesNotExist() }
+            jsonPath("$.items[0].source") { value("CHAT_SUMMARY") }
+            jsonPath("$.items[0].status") { value("GENERATING") }
+            jsonPath("$.items[0].content") { value(Matchers.nullValue()) }
+            jsonPath("$.items[0].createdAt") { value("2026-09-10T10:15:30Z") }
+            jsonPath("$.nextCursor") { value(Matchers.nullValue()) }
+            jsonPath("$.total") { value(1) }
         }
+    }
+
+    @Test
+    fun `getNotes passes the decoded cursor and limit and encodes the next cursor`() {
+        val userId = UUID.randomUUID()
+        val cursor = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        val next = ListCursor(Instant.parse("2026-11-03T09:00:00Z"), UUID.randomUUID())
+        Mockito.`when`(noteService.getNotes(userId, cursor, 5)).thenReturn(NoteListPage(KeysetPage(emptyList(), next), 9))
+
+        mockMvc.get("/note/notes?cursor=${cursor.encode()}&limit=5") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.nextCursor") { value(next.encode()) }
+            jsonPath("$.total") { value(9) }
+        }
+    }
+
+    @Test
+    fun `getNotes rejects a broken cursor and a limit out of range`() {
+        val userId = UUID.randomUUID()
+        listOf("/note/notes?cursor=broken", "/note/notes?limit=0", "/note/notes?limit=101").forEach { url ->
+            mockMvc.get(url) {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+            }.andExpect { status { isBadRequest() } }
+        }
+        Mockito.verifyNoInteractions(noteService)
     }
 
     @Test

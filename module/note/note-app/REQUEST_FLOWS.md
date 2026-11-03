@@ -76,7 +76,7 @@ application services or outbox handlers.
 | Request                                           | Synchronous call path                                                               | Result                                             |
 |---------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------|
 | `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService + AssistantService -> ChatTurnService` | Creates the chat and reserves its first turn       |
-| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Lists the user's chats with note counts            |
+| `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Keyset page of the user's chats by last activity, with note counts |
 | `GET /note/chats/{chatId}`                        | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Returns one owned chat with its note count         |
 | `PATCH /note/chats/{chatId}`                      | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Renames the chat                                   |
 | `DELETE /note/chats/{chatId}`                     | `ChatController -> ChatFacade -> ChatTurnService + ChatService`                     | Deletes the chat; linked notes survive             |
@@ -86,7 +86,7 @@ application services or outbox handlers.
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
 | `POST /note/chats/{chatId}/turns/{turnId}/retry`  | `ChatController -> ChatFacade -> NoteSummaryService + AssistantService -> ChatTurnService` | Regenerates a failed latest reply, then SSE  |
 | `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or updates the current note asynchronously, or replays |
-| `GET /note/notes`                                 | `NoteController -> NoteService`                                                     | Lists the user's notes                             |
+| `GET /note/notes`                                 | `NoteController -> NoteService -> NoteListStore`                                    | Keyset page of the user's notes by last change, with their total |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/chats`                  | `NoteController -> NoteFacade -> NoteService + ChatService`                         | Lists the chats the note was written from          |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
