@@ -761,3 +761,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   refresh waits: one queued by newer rules has not been tried yet.
 - **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`, code review.
 
+
+## 2026-11-03 — Chat and note lists are keyset pages by last change
+
+- **Context:** `GET /chats` and `GET /notes` returned every row; notes were ordered by creation, so an edited note
+  stayed where it was created.
+- **Decision:** both lists order by `updated_at DESC, id DESC` and return `{items, nextCursor}` pages (default 30,
+  1..100, else `400`). The cursor is an opaque URL-safe string (`ListCursor`: microseconds since epoch and id, the
+  precision Postgres keeps, so a cursor built from a read row compares exactly); the next page is `(updated_at, id) <
+  cursor`, and `limit + 1` rows tell whether one exists. A broken cursor or a time Postgres cannot bind is `400`.
+- **Consequences:** an item changed while the user scrolls moves above the loaded pages and shows after the list is
+  reloaded from the first page; pages after the cursor never repeat or skip unchanged items. Other lists (constellation,
+  unplaced, sub-notes, chat ↔ note links) still return every row.
+- **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.

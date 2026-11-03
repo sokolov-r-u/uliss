@@ -2,9 +2,11 @@ package io.uliss.note_service.controller
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.SendMessageRequest
 import io.uliss.note_service.dto.request.SummarizeRequest
+import io.uliss.note_service.dto.response.ChatPageResponse
 import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
@@ -19,6 +21,7 @@ import io.uliss.note_service.service.output.AssistantReplyStream
 import io.uliss.security.utils.getUserId
 import jakarta.validation.Valid
 import io.uliss.note_service.util.IDEMPOTENCY_KEY_HEADER
+import io.uliss.note_service.util.ListPageLimit
 import io.uliss.note_service.util.parseIdempotencyKey
 import io.uliss.note_service.util.withHeartbeat
 import org.springframework.beans.factory.annotation.Value
@@ -51,8 +54,14 @@ class ChatController(
 ) {
 
     @GetMapping
-    fun getChats(@AuthenticationPrincipal jwt: Jwt): List<ChatResponse> =
-        chatFacade.getChats(jwt.getUserId()).map { it.toResponse() }
+    fun getChats(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam(required = false) cursor: String?,
+        @RequestParam(defaultValue = "${ListPageLimit.DEFAULT}") limit: Int,
+    ): ChatPageResponse {
+        ListPageLimit.check(limit)
+        return chatFacade.getChats(jwt.getUserId(), cursor?.let(ListCursor::decode), limit).toResponse()
+    }
 
     @GetMapping("/{chatId}")
     fun getChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID): ChatResponse =

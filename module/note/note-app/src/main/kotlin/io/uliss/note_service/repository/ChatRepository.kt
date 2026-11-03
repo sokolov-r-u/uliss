@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import java.time.Instant
 import java.util.UUID
 
 @Repository
@@ -41,7 +42,38 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
     ): ChatEntity?
 
     fun findByIdAndUserId(id: UUID, userId: UUID): ChatEntity?
-    fun findByUserIdOrderByUpdatedAtDescIdDesc(userId: UUID): List<ChatEntity>
+    /** The user's chats by last activity, newest first. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT *
+            FROM note.chat
+            WHERE user_id = :userId
+            ORDER BY updated_at DESC, id DESC
+            LIMIT :limit
+        """,
+    )
+    fun findPage(@Param("userId") userId: UUID, @Param("limit") limit: Int): List<ChatEntity>
+
+    /** The user's chats strictly after the keyset position `(updatedAt, id)` in [findPage] order. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT *
+            FROM note.chat
+            WHERE user_id = :userId
+              AND (updated_at, id) < (:updatedAt, :id)
+            ORDER BY updated_at DESC, id DESC
+            LIMIT :limit
+        """,
+    )
+    fun findPageAfter(
+        @Param("userId") userId: UUID,
+        @Param("updatedAt") updatedAt: Instant,
+        @Param("id") id: UUID,
+        @Param("limit") limit: Int,
+    ): List<ChatEntity>
+
     fun findByUserIdAndIdInOrderByUpdatedAtDescIdDesc(userId: UUID, ids: Collection<UUID>): List<ChatEntity>
 
     /** Marks new chat activity, which lifts the chat in chat lists; the version is left alone for concurrent JPA writes. */

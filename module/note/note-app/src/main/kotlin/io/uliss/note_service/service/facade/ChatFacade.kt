@@ -2,6 +2,8 @@ package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
 import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.dto.response.NoteResponse
@@ -35,10 +37,10 @@ class ChatFacade(
     private val userProfileService: UserProfileService,
 ) {
 
-    fun getChats(userId: UUID): List<ChatWithNoteCount> {
-        val chats = chatService.getChats(userId)
-        val counts = noteService.getNoteCounts(chats.map { it.id })
-        return chats.map { ChatWithNoteCount(it, counts[it.id] ?: 0) }
+    fun getChats(userId: UUID, cursor: ListCursor?, limit: Int): KeysetPage<ChatWithNoteCount> {
+        val page = chatService.getChats(userId, cursor, limit)
+        val counts = noteService.getNoteCounts(page.items.map { it.id })
+        return page.map { ChatWithNoteCount(it, counts[it.id] ?: 0) }
     }
 
     fun getChat(userId: UUID, chatId: UUID): ChatWithNoteCount =

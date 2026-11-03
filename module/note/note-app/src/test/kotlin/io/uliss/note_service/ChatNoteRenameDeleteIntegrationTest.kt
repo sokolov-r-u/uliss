@@ -70,7 +70,7 @@ class ChatNoteRenameDeleteIntegrationTest : NoteIntegrationTest() {
         mockMvc.get("/note/chats") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
-            jsonPath("$[0].noteCount") { value(1) }
+            jsonPath("$.items[0].noteCount") { value(1) }
         }
 
         mockMvc.delete("/note/chats/${chat.id}") {

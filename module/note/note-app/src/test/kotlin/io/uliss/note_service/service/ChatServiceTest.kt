@@ -3,6 +3,7 @@ package io.uliss.note_service.service
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -12,9 +13,11 @@ import io.uliss.note_service.repository.ChatRepository
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.data.domain.PageRequest
+import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNull
 import kotlin.test.assertSame
 
 class ChatServiceTest {
@@ -287,4 +290,31 @@ class ChatServiceTest {
 
     private fun message(chatId: UUID, content: String) =
         ChatMessageEntity(chatId, ChatMessageRole.USER, content, ChatMessageStatus.COMPLETE)
+    @Test
+    fun `getChats reads one chat past the page and points the next cursor at the page's last chat`() {
+        val userId = UUID.randomUUID()
+        val chats = (1..3).map { chat(userId, Instant.parse("2026-11-03T10:00:00Z").minusSeconds(it.toLong())) }
+        Mockito.`when`(chatRepository.findPage(userId, 3)).thenReturn(chats)
+
+        val page = chatService.getChats(userId, cursor = null, limit = 2)
+
+        assertEquals(chats.take(2), page.items)
+        assertEquals(ListCursor(chats[1].updatedAt!!, chats[1].id), page.nextCursor)
+    }
+
+    @Test
+    fun `getChats continues after the cursor and has no next cursor on the last page`() {
+        val userId = UUID.randomUUID()
+        val cursor = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        val chats = listOf(chat(userId, Instant.parse("2026-11-03T09:00:00Z")))
+        Mockito.`when`(chatRepository.findPageAfter(userId, cursor.updatedAt, cursor.id, 3)).thenReturn(chats)
+
+        val page = chatService.getChats(userId, cursor, limit = 2)
+
+        assertEquals(chats, page.items)
+        assertNull(page.nextCursor)
+    }
+
+    private fun chat(userId: UUID, updatedAt: Instant) =
+        ChatEntity(userId, "Chat").apply { this.updatedAt = updatedAt }
 }
