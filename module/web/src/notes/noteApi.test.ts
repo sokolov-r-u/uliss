@@ -11,6 +11,7 @@ import {
     resummarizeNote,
     streamNoteStatus,
     updateNote,
+    noteChangedAt,
 } from './noteApi'
 
 vi.mock('../auth/apiClient', () => ({
@@ -191,7 +192,7 @@ describe('noteApi', () => {
     })
 
     it('rejects malformed note payloads', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([{id: 'note-1', source: 'CHAT_SUMMARY', status: 'UNKNOWN'}]))
+        mockedFetch.mockResolvedValue(jsonResponse({items: [{id: 'note-1', source: 'CHAT_SUMMARY', status: 'UNKNOWN'}], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
@@ -212,36 +213,36 @@ describe('noteApi', () => {
     })
 
     it('parses an optional note icon and rejects one that is not text', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'sax', source: 'MANUAL', status: 'READY', title: 'Giant Steps', icon: '🎷', content: 'Body'},
             {id: 'plain', source: 'MANUAL', status: 'READY', title: 'Blue Train', icon: null, content: 'Body'},
-        ]))
-        expect((await listNotes()).map((note) => note.icon)).toEqual(['🎷', undefined])
+        ], nextCursor: null, total: 0}))
+        expect((await listNotes()).items.map((note) => note.icon)).toEqual(['🎷', undefined])
 
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'bad', source: 'MANUAL', status: 'READY', title: 'T', icon: 7, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('parses an optional note title', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'titled', source: 'CHAT_SUMMARY', status: 'READY', title: 'Ownership columns', content: 'Body'},
             {id: 'legacy', source: 'CHAT_SUMMARY', status: 'READY', title: null, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
 
-        const notes = await listNotes()
+        const notes = (await listNotes()).items
 
         expect(notes.map((note) => note.title)).toEqual(['Ownership columns', undefined])
     })
 
     it('parses a running update and treats its absence as none', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'updating', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: true},
             {id: 'settled', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
 
-        const notes = await listNotes()
+        const notes = (await listNotes()).items
 
         expect(notes.map((note) => note.updating)).toEqual([true, false])
     })
@@ -254,9 +255,9 @@ describe('noteApi', () => {
     })
 
     it('rejects a non-string note title', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 42, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
@@ -402,5 +403,39 @@ describe('noteApi', () => {
 
         mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: '7'}))
         await expect(getNote('n1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reads a note page with its cursor and total, asking for the page after an encoded cursor', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            items: [{id: 'n-1', source: 'MANUAL', status: 'READY', title: 'One', content: 'Body'}],
+            nextCursor: 'next+1',
+            total: 31,
+        }))
+
+        const page = await listNotes('cur/1')
+
+        expect(page).toMatchObject({items: [{id: 'n-1'}], nextCursor: 'next+1', total: 31})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes?cursor=cur%2F1', {signal: undefined})
+    })
+
+    it('rejects a note page without a list, with a broken cursor or without a whole total', async () => {
+        for (const body of [
+            [],
+            {items: [], nextCursor: 7, total: 0},
+            {items: [], nextCursor: '', total: 0},
+            {items: [], nextCursor: null},
+            {items: [], nextCursor: null, total: 1.5},
+            {items: [], nextCursor: null, total: -1},
+        ]) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse(body))
+            await expect(listNotes(), JSON.stringify(body)).rejects.toMatchObject({kind: 'protocol'})
+        }
+    })
+
+    it('dates a note by its last change, falling back to its creation', () => {
+        expect(noteChangedAt({id: 'a', source: 'MANUAL', status: 'READY', content: null,
+            createdAt: '2026-06-01T00:00:00Z', updatedAt: '2026-06-20T00:00:00Z'})).toBe('2026-06-20T00:00:00Z')
+        expect(noteChangedAt({id: 'b', source: 'MANUAL', status: 'READY', content: null,
+            createdAt: '2026-06-01T00:00:00Z'})).toBe('2026-06-01T00:00:00Z')
     })
 })

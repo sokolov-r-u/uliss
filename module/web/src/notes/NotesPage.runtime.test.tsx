@@ -28,10 +28,10 @@ describe('NotesPage runtime states', () => {
     })
 
     it('renders and opens persisted notes in backend order', async () => {
-        mockedListNotes.mockResolvedValue([
+        mockedListNotes.mockResolvedValue({items: [
             {id: 'new', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
             {id: 'old', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
-        ])
+        ], nextCursor: null, total: 2})
         renderPage()
         const generating = await screen.findByRole('button', {name: 'Generating note…'})
         expect(screen.getByRole('button', {name: 'Summary failed'})).toBeInTheDocument()
@@ -40,7 +40,7 @@ describe('NotesPage runtime states', () => {
     })
 
     it('offers an explicit retry after a list failure', async () => {
-        mockedListNotes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce([])
+        mockedListNotes.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({items: [], nextCursor: null, total: 0})
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
         expect(await screen.findByText('Nothing written down yet')).toBeInTheDocument()
@@ -50,17 +50,17 @@ describe('NotesPage runtime states', () => {
     it('renames a ready note in place and removes a deleted one', async () => {
         // The list re-reads the server after each change; the mock answers with the server state at that point.
         mockedListNotes
-            .mockResolvedValueOnce([
+            .mockResolvedValueOnce({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Idea', content: 'Body'},
                 {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
-            ])
-            .mockResolvedValueOnce([
+            ], nextCursor: null, total: 2})
+            .mockResolvedValueOnce({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
                 {id: 'b', source: 'CHAT_SUMMARY', status: 'READY', title: 'Other', content: 'Body'},
-            ])
-            .mockResolvedValue([
+            ], nextCursor: null, total: 2})
+            .mockResolvedValue({items: [
                 {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'},
-            ])
+            ], nextCursor: null, total: 1})
         vi.mocked(renameNote).mockResolvedValue(
             {id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Better idea', content: 'Body'})
         vi.mocked(deleteNote).mockResolvedValue(undefined)
@@ -82,7 +82,7 @@ describe('NotesPage runtime states', () => {
     })
 
     it('offers only Delete for a note that is still generating', async () => {
-        mockedListNotes.mockResolvedValue([{id: 'w', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null}])
+        mockedListNotes.mockResolvedValue({items: [{id: 'w', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null}], nextCursor: null, total: 1})
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Actions for Generating note…'}))
@@ -93,8 +93,8 @@ describe('NotesPage runtime states', () => {
 
     it('reloads when notes change elsewhere (e.g. the side panel)', async () => {
         mockedListNotes
-            .mockResolvedValueOnce([{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Old', content: 'x'}])
-            .mockResolvedValueOnce([{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: 'x'}])
+            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'Old', content: 'x'}], nextCursor: null, total: 1})
+            .mockResolvedValueOnce({items: [{id: 'a', source: 'CHAT_SUMMARY', status: 'READY', title: 'New', content: 'x'}], nextCursor: null, total: 1})
         renderPage()
         await screen.findByRole('button', {name: 'Old'})
 
@@ -102,5 +102,32 @@ describe('NotesPage runtime states', () => {
 
         expect(await screen.findByRole('button', {name: 'New'})).toBeInTheDocument()
     })
-})
 
+    it('counts all the user\'s notes and dates rows by their last change', async () => {
+        mockedListNotes.mockResolvedValue({items: [
+            {id: 'a', source: 'MANUAL', status: 'READY', title: 'Edited', content: 'Body',
+                createdAt: '2026-01-05T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
+        ], nextCursor: 'cur-1', total: 42})
+        renderPage()
+
+        await screen.findByRole('button', {name: /^Edited/})
+        expect(screen.getByText('42')).toBeInTheDocument()
+        const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
+        expect(screen.getByText(june)).toBeInTheDocument()
+    })
+
+    it('counts a note deleted here out of the total', async () => {
+        mockedListNotes.mockResolvedValueOnce({items: [
+            {id: 'a', source: 'MANUAL', status: 'READY', title: 'Gone', content: 'Body'},
+            {id: 'b', source: 'MANUAL', status: 'READY', title: 'Kept', content: 'Body'},
+        ], nextCursor: 'cur-1', total: 42}).mockReturnValue(new Promise(() => undefined))
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Gone'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        await waitFor(() => expect(screen.getByText('41')).toBeInTheDocument())
+    })
+})

@@ -2,6 +2,9 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
+import io.uliss.note_service.dto.internal.NoteListPage
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.exception.NoteNotReadyException
@@ -11,6 +14,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
+import io.uliss.note_service.repository.NoteListStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.NoteContentNormalizer
@@ -29,10 +33,19 @@ class NoteService(
     private val summaryRequestStore: SummaryRequestStore,
     private val noteIndexRequestService: NoteIndexRequestService,
     private val constellationRepository: ConstellationRepository,
+    private val noteListStore: NoteListStore,
 ) {
 
-    fun getNotes(userId: UUID): List<NoteResponse> =
-        toResponses(userId) { noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId) }
+    /**
+     * A page of the user's notes by last change, starting strictly after [cursor] (from the newest when null), with the
+     * number of all their notes. A note deleted between the reads is left out of the page.
+     */
+    fun getNotes(userId: UUID, cursor: ListCursor?, limit: Int): NoteListPage {
+        val positions = KeysetPage.of(noteListStore.findPage(userId, cursor, limit + 1), limit) { it }
+        val ids = positions.items.map { it.id }
+        val page = KeysetPage(toResponses(userId) { orderedById(ids) }, positions.nextCursor)
+        return NoteListPage(page, noteListStore.count(userId))
+    }
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse {
         val pending = summaryRequestStore.hasPendingForNote(noteId)
@@ -140,6 +153,12 @@ class NoteService(
     fun getSubNotes(userId: UUID, noteId: UUID): List<NoteResponse> {
         noteRepository.getOwnedNote(userId, noteId)
         return toResponses(userId) { noteRepository.findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId, noteId) }
+    }
+
+    /** The notes of [ids] in that order; an id with no note left is skipped. */
+    private fun orderedById(ids: List<UUID>): List<NoteEntity> {
+        val notes = noteRepository.findAllById(ids).associateBy { it.id }
+        return ids.mapNotNull { notes[it] }
     }
 
     /** Pending requests are read before the notes, as in [isUpdating]. */

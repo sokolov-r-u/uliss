@@ -41,8 +41,9 @@ streamed replies, turn cancellation, and summary requests under `/note/chats`. S
 chat ID and authenticated user
 ID, so missing and foreign chats are indistinguishable.
 
-`GET /note/chats` and `GET /note/chats/{chatId}` return `ChatResponse` with `noteCount`, the number of linked notes (one
-grouped count query per list). `PATCH /note/chats/{chatId}` with `{"title"}` renames the chat: the title is
+`GET /note/chats` returns a keyset page `{items, nextCursor}` of `ChatResponse` by last activity (`updated_at DESC,
+id DESC`); `GET /note/chats/{chatId}` returns one `ChatResponse`. Both carry `noteCount`, the number of linked notes
+(one grouped count query per page). `PATCH /note/chats/{chatId}` with `{"title"}` renames the chat: the title is
 trimmed, inner whitespace runs collapse to one space, and 1–50 code points are required, otherwise `400` (no
 truncation). `DELETE /note/chats/{chatId}` returns `204`, or `409` while a turn is generating under a live lease; an
 expired lease does not block. Deletion cascades to turns, messages, summary requests, and note links; linked notes are
@@ -213,7 +214,11 @@ A finished rebuild clears a stamp made before it started and the batch shrink.
 
 ## Note API and status delivery
 
-- `GET /note/notes` returns the authenticated user's notes newest first.
+- `GET /note/notes` returns a keyset page `{items, nextCursor, total}` of the authenticated user's notes by last change
+  (`updated_at DESC, id DESC`); `total` counts all their notes. A move under another note or a constellation change
+  does not touch `updated_at`.
+- Both list endpoints take `cursor` (the opaque `nextCursor` of the previous page) and `limit` (default 30, 1..100); a
+  broken cursor or a limit out of range is `400`.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.
 - `GET /note/notes/{noteId}/status/stream` immediately emits `event: status`, emits only persisted
   status changes, and closes on `READY` or `FAILED`; a `READY` note with a running summary update (`updating: true`)

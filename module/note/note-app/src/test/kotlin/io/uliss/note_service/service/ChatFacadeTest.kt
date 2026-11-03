@@ -7,6 +7,8 @@ import io.uliss.note_service.eqValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.SummaryNoteConflictException
@@ -323,18 +325,22 @@ class ChatFacadeTest {
     }
 
     @Test
-    fun `getChats attaches note counts and defaults missing counts to zero`() {
+    fun `getChats attaches note counts to the page, defaults missing counts to zero and keeps the cursor`() {
         val userId = UUID.randomUUID()
         val withNotes = ChatEntity(userId, "With notes")
         val withoutNotes = ChatEntity(userId, "Without notes")
-        Mockito.`when`(chatService.getChats(userId)).thenReturn(listOf(withNotes, withoutNotes))
+        val cursor = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        val next = ListCursor(Instant.parse("2026-11-03T09:00:00Z"), withoutNotes.id)
+        Mockito.`when`(chatService.getChats(userId, cursor, 2))
+            .thenReturn(KeysetPage(listOf(withNotes, withoutNotes), next))
         Mockito.`when`(noteService.getNoteCounts(listOf(withNotes.id, withoutNotes.id)))
             .thenReturn(mapOf(withNotes.id to 2))
 
-        val result = chatFacade.getChats(userId)
+        val result = chatFacade.getChats(userId, cursor, 2)
 
-        assertEquals(listOf(withNotes, withoutNotes), result.map { it.chat })
-        assertEquals(listOf(2, 0), result.map { it.noteCount })
+        assertEquals(listOf(withNotes, withoutNotes), result.items.map { it.chat })
+        assertEquals(listOf(2, 0), result.items.map { it.noteCount })
+        assertEquals(next, result.nextCursor)
     }
 
     @Test

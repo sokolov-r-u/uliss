@@ -19,7 +19,6 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
             "from NoteEntity n where n.id = :id and n.userId = :userId"
     )
     fun findStatusByIdAndUserId(@Param("id") id: UUID, @Param("userId") userId: UUID): NoteStatusRow?
-    fun findByUserIdOrderByCreatedAtDescIdDesc(userId: UUID): List<NoteEntity>
 
     /**
      * The user's notes that belong to the constellation itself (not to its sub-constellations) with all their

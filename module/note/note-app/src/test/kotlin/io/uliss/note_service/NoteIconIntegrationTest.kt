@@ -152,7 +152,7 @@ class NoteIconIntegrationTest : NoteIntegrationTest() {
         }.andExpect { status { isOk() } }
 
         mockMvc.get("/note/notes") { auth() }.andExpect {
-            jsonPath("$[?(@.id == '${parent.id}')].icon") { value("📚") }
+            jsonPath("$.items[?(@.id == '${parent.id}')].icon") { value("📚") }
         }
         mockMvc.get("/note/notes/${parent.id}/sub-notes") { auth() }.andExpect {
             jsonPath("$[0].id") { value(child.id.toString()) }

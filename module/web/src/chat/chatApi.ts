@@ -61,24 +61,25 @@ export function notifyChatListChanged() {
     chatListListeners.forEach((listener) => listener())
 }
 
-export async function listChats(): Promise<Chat[]> {
-    const res = await send('/note/chats')
+/** One page of the chat list, newest activity first; `nextCursor` is null on the last page. */
+export type ChatPage = {
+    items: Chat[]
+    nextCursor: string | null
+}
+
+/** A page of the user's chats by last activity, after [cursor] (from the newest without one). */
+export async function listChats(cursor?: string, signal?: AbortSignal): Promise<ChatPage> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+    const res = await send(`/note/chats${query}`, {signal})
     await requireOk(res, 'chat list fetch')
-    return sortByActivity(parseList(await readJson(res), parseChat))
+    const value = await readJson(res)
+    if (!isRecord(value)) throw protocol('chat page')
+    return {items: parseList(value.items, parseChat), nextCursor: optionalCursor(value.nextCursor)}
 }
 
 /** Last activity of a chat: `updatedAt`, else `createdAt` — what chat lists sort and group by. */
 export function chatActivity(chat: Chat): string | undefined {
     return chat.updatedAt ?? chat.createdAt
-}
-
-// The server orders by creation; lists show and group by last activity, newest first.
-function sortByActivity(chats: Chat[]): Chat[] {
-    const time = (chat: Chat) => {
-        const value = Date.parse(chatActivity(chat) ?? '')
-        return Number.isNaN(value) ? 0 : value
-    }
-    return [...chats].sort((a, b) => time(b) - time(a))
 }
 
 /**
@@ -134,6 +135,12 @@ function optionalText(value: unknown, field: string): string | undefined {
 function parseList<T>(value: unknown, parse: (item: unknown) => T): T[] {
     if (!Array.isArray(value)) throw protocol('list')
     return value.map(parse)
+}
+
+function optionalCursor(value: unknown): string | null {
+    if (value === null || value === undefined) return null
+    if (typeof value !== 'string' || value === '') throw protocol('nextCursor')
+    return value
 }
 
 function parseChat(value: unknown): Chat {

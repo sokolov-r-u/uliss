@@ -9,6 +9,8 @@ import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatEntity
@@ -87,18 +89,46 @@ class ChatControllerTest {
     }
 
     @Test
-    fun `getChats returns the user's chats`() {
+    fun `getChats returns the first page with the default size and the next cursor`() {
         val userId = UUID.randomUUID()
-        Mockito.`when`(chatFacade.getChats(userId))
-            .thenReturn(listOf(ChatWithNoteCount(ChatEntity(userId, "Trip planning"), 2)))
+        val next = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        Mockito.`when`(chatFacade.getChats(userId, null, 30))
+            .thenReturn(KeysetPage(listOf(ChatWithNoteCount(ChatEntity(userId, "Trip planning"), 2)), next))
 
         mockMvc.get("/note/chats") {
             with(jwt().jwt { it.claim("userId", userId.toString()) })
         }.andExpect {
             status { isOk() }
-            jsonPath("$[0].title") { value("Trip planning") }
-            jsonPath("$[0].noteCount") { value(2) }
+            jsonPath("$.items[0].title") { value("Trip planning") }
+            jsonPath("$.items[0].noteCount") { value(2) }
+            jsonPath("$.nextCursor") { value(next.encode()) }
         }
+    }
+
+    @Test
+    fun `getChats passes the decoded cursor and limit, and the last page has a null cursor`() {
+        val userId = UUID.randomUUID()
+        val cursor = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        Mockito.`when`(chatFacade.getChats(userId, cursor, 5)).thenReturn(KeysetPage(emptyList(), null))
+
+        mockMvc.get("/note/chats?cursor=${cursor.encode()}&limit=5") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.items") { isEmpty() }
+            jsonPath("$.nextCursor") { value(Matchers.nullValue()) }
+        }
+    }
+
+    @Test
+    fun `getChats rejects a broken cursor and a limit out of range`() {
+        val userId = UUID.randomUUID()
+        listOf("/note/chats?cursor=broken", "/note/chats?limit=0", "/note/chats?limit=101").forEach { url ->
+            mockMvc.get(url) {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+            }.andExpect { status { isBadRequest() } }
+        }
+        Mockito.verifyNoInteractions(chatFacade)
     }
 
     @Test

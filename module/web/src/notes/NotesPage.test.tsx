@@ -62,9 +62,9 @@ describe('notes list presentation', () => {
     it('lists titles without ordinals, counts the notes and groups them by month', () => {
         const notes = [
             {id: 'a', ordinal: 142, title: 'The empty room', excerpt: '', date: 'Jun 22', linkCount: 0,
-                createdAt: '2026-06-22T09:00:00Z'},
+                listedAt: '2026-06-22T09:00:00Z'},
             {id: 'b', ordinal: 141, title: 'A grammar for mornings', excerpt: '', date: 'May 21', linkCount: 0,
-                createdAt: '2026-05-21T09:00:00Z'},
+                listedAt: '2026-05-21T09:00:00Z'},
         ]
         render(<MemoryRouter><NotesView notes={notes}/></MemoryRouter>)
 

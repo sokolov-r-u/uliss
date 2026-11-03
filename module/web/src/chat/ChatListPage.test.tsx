@@ -17,7 +17,7 @@ describe('ChatListPage', () => {
     })
 
     it('shows each chat note count and its actions button', async () => {
-        vi.mocked(listChats).mockResolvedValue([{id: 'c1', title: 'Trip', noteCount: 2}])
+        vi.mocked(listChats).mockResolvedValue({items: [{id: 'c1', title: 'Trip', noteCount: 2}], nextCursor: null})
         render(<MemoryRouter><ChatListPage/></MemoryRouter>)
 
         const actions = await screen.findByRole('button', {name: 'Actions for Trip'})
@@ -28,7 +28,7 @@ describe('ChatListPage', () => {
     it('reloads without a loading flash after a chat is deleted', async () => {
         let finishReload: (chats: Awaited<ReturnType<typeof listChats>>) => void = () => undefined
         vi.mocked(listChats)
-            .mockResolvedValueOnce([{id: 'c1', title: 'Trip', noteCount: 0}, {id: 'c2', title: 'Books', noteCount: 0}])
+            .mockResolvedValueOnce({items: [{id: 'c1', title: 'Trip', noteCount: 0}, {id: 'c2', title: 'Books', noteCount: 0}], nextCursor: null})
             .mockImplementationOnce(() => new Promise((resolve) => {
                 finishReload = resolve
             }))
@@ -42,13 +42,13 @@ describe('ChatListPage', () => {
         expect(screen.queryByText('Loading…')).not.toBeInTheDocument()
         expect(screen.getByRole('button', {name: 'Actions for Books'})).toBeInTheDocument()
 
-        act(() => finishReload([{id: 'c2', title: 'Books', noteCount: 0}]))
+        act(() => finishReload({items: [{id: 'c2', title: 'Books', noteCount: 0}], nextCursor: null}))
         await waitFor(() => expect(screen.queryByRole('button', {name: 'Actions for Trip'})).not.toBeInTheDocument())
     })
 
     it('keeps the loaded rows when a background refresh fails', async () => {
         vi.mocked(listChats)
-            .mockResolvedValueOnce([{id: 'c1', title: 'Trip', noteCount: 0}, {id: 'c2', title: 'Books', noteCount: 0}])
+            .mockResolvedValueOnce({items: [{id: 'c1', title: 'Trip', noteCount: 0}, {id: 'c2', title: 'Books', noteCount: 0}], nextCursor: null})
             .mockRejectedValueOnce(new Error('connection lost'))
         render(<MemoryRouter><ChatListPage/></MemoryRouter>)
 
@@ -63,9 +63,9 @@ describe('ChatListPage', () => {
     })
 
     it('groups chats under month headings', async () => {
-        vi.mocked(listChats).mockResolvedValue([
+        vi.mocked(listChats).mockResolvedValue({items: [
             {id: 'c1', title: 'Trip', noteCount: 0, createdAt: '2026-06-22T09:00:00Z'},
-        ])
+        ], nextCursor: null})
         render(<MemoryRouter><ChatListPage/></MemoryRouter>)
 
         const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})

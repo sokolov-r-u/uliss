@@ -281,6 +281,21 @@ function rewriteStream(body: string): Response {
     return new Response(stream, {status: 200, headers: {'Content-Type': 'text/event-stream'}})
 }
 
+/**
+ * A list page as the service gives it. Every fixture fits one page unless `pageSize` asks for smaller ones (the
+ * cursor is the next index); `more=fail-once` fails the first next-page request of a list that [canFail].
+ */
+async function listPage<T>(items: T[], cursor: string | null, canFail = false): Promise<Response> {
+    const size = Number(params.get('pageSize')) || items.length || 1
+    const start = cursor === null ? 0 : Number(cursor)
+    if (canFail && cursor !== null && params.get('more') === 'fail-once' && !sessionStorage.getItem('visual.more.failed')) {
+        sessionStorage.setItem('visual.more.failed', 'yes')
+        return json({}, 503)
+    }
+    const end = start + size
+    return json({items: items.slice(start, end), nextCursor: end < items.length ? String(end) : null})
+}
+
 export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
     const url = new URL(path, location.origin)
     const method = init?.method ?? 'GET'
@@ -300,8 +315,11 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         found.content = 'Written again from the whole chat.'
         return json(withParent(found), 202)
     }
-    if (url.pathname === '/note/chats') return json(chats)
-    if (url.pathname === '/note/notes') return json(notes)
+    if (url.pathname === '/note/chats') return listPage(chats, url.searchParams.get('cursor'))
+    if (url.pathname === '/note/notes') {
+        const page = await listPage(notes, url.searchParams.get('cursor'), true)
+        return page.ok ? json({...await page.json(), total: notes.length}) : page
+    }
     // A change of a note's place fails once or waits while asked to, so the place dialog's states can be checked
     if (method !== 'GET' && /^\/note\/notes\/[^/]+\/(constellations|parent)/.test(url.pathname)) {
         if (sessionStorage.getItem('visual.place') === 'fail-once') {

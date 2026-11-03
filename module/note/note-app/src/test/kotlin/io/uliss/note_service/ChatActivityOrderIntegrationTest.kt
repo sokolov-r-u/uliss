@@ -34,7 +34,7 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
         setActivity(older, Instant.now().minus(Duration.ofHours(1)))
         setActivity(newer, Instant.now().minus(Duration.ofHours(2)))
 
-        assertEquals(listOf(older, newer), chatFacade.getChats(userId).map { it.chat.id })
+        assertEquals(listOf(older, newer), chatFacade.getChats(userId, null, 30).items.map { it.chat.id })
     }
 
     @Test
@@ -46,7 +46,7 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
 
         chatFacade.streamReply(userId, target, UUID.randomUUID(), "Follow-up")
 
-        assertEquals(listOf(target, other), chatFacade.getChats(userId).map { it.chat.id })
+        assertEquals(listOf(target, other), chatFacade.getChats(userId, null, 30).items.map { it.chat.id })
     }
 
     @Test
@@ -72,7 +72,7 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
 
         chatFacade.renameChat(userId, target, "Renamed")
 
-        assertEquals(listOf(target, other), chatFacade.getChats(userId).map { it.chat.id })
+        assertEquals(listOf(target, other), chatFacade.getChats(userId, null, 30).items.map { it.chat.id })
     }
 
     @Test
@@ -84,7 +84,7 @@ class ChatActivityOrderIntegrationTest : NoteIntegrationTest() {
 
         chatFacade.requestSummary(userId, target, UUID.randomUUID(), SummaryMode.CREATE, null)
 
-        assertEquals(listOf(target, other), chatFacade.getChats(userId).map { it.chat.id })
+        assertEquals(listOf(target, other), chatFacade.getChats(userId, null, 30).items.map { it.chat.id })
     }
 
     @Test

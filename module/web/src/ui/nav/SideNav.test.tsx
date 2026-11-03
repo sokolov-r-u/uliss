@@ -33,17 +33,17 @@ async function deleteFromSidebar(title: string) {
 
 describe('SideNav', () => {
     beforeEach(() => {
-        vi.mocked(listChats).mockReset().mockResolvedValue([
+        vi.mocked(listChats).mockReset().mockResolvedValue({items: [
             {id: 'c1', title: 'Trip', noteCount: 0},
             {id: 'c2', title: 'Books', noteCount: 1},
-        ])
+        ], nextCursor: null})
         vi.mocked(deleteChat).mockReset().mockResolvedValue(undefined)
-        vi.mocked(listNotes).mockReset().mockResolvedValue([
+        vi.mocked(listNotes).mockReset().mockResolvedValue({items: [
             {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon plan', content: 'Body',
                 createdAt: new Date().toISOString()},
             {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'Reading list', content: 'Body',
                 createdAt: new Date().toISOString()},
-        ])
+        ], nextCursor: null, total: 2})
         localStorage.clear()
     })
 
@@ -77,8 +77,8 @@ describe('SideNav', () => {
     })
 
     it('says plainly that nothing is here yet on day one', async () => {
-        vi.mocked(listChats).mockResolvedValue([])
-        vi.mocked(listNotes).mockResolvedValue([])
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 0})
         renderNav('/chats/c1')
 
         expect(await screen.findByText('Nothing here yet')).toBeInTheDocument()
@@ -87,7 +87,7 @@ describe('SideNav', () => {
     })
 
     it('tells a failed load apart from an empty account and loads again on Retry', async () => {
-        vi.mocked(listChats).mockRejectedValueOnce(new Error('offline')).mockResolvedValue([])
+        vi.mocked(listChats).mockRejectedValueOnce(new Error('offline')).mockResolvedValue({items: [], nextCursor: null})
         vi.mocked(listNotes).mockRejectedValueOnce(new Error('offline'))
         renderNav('/chats/c1')
 
@@ -145,5 +145,13 @@ describe('SideNav', () => {
         await waitFor(() => expect(listNotes).toHaveBeenCalledTimes(2))
         expect(listChats).toHaveBeenCalledTimes(2)
     })
-})
 
+    it('counts all the user\'s notes in the footer, not only the loaded page', async () => {
+        vi.mocked(listNotes).mockResolvedValue({items: [
+            {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon plan', content: 'Body'},
+        ], nextCursor: 'cur-1', total: 57})
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('57 notes')).toBeInTheDocument()
+    })
+})

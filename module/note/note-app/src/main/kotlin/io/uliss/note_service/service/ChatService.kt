@@ -4,6 +4,8 @@ import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.KeysetPage
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.repository.ChatMessageRepository
@@ -34,8 +36,15 @@ class ChatService(
             ?: error("initial chat could not be loaded after insert")
     }
 
-    fun getChats(userId: UUID): List<ChatEntity> =
-        chatRepository.findByUserIdOrderByUpdatedAtDescIdDesc(userId)
+    /** A page of the user's chats by last activity, starting strictly after [cursor] (from the top when null). */
+    fun getChats(userId: UUID, cursor: ListCursor?, limit: Int): KeysetPage<ChatEntity> {
+        val rows = if (cursor == null) {
+            chatRepository.findPage(userId, limit + 1)
+        } else {
+            chatRepository.findPageAfter(userId, cursor.updatedAt, cursor.id, limit + 1)
+        }
+        return KeysetPage.of(rows, limit) { ListCursor(checkNotNull(it.updatedAt), it.id) }
+    }
 
     /** The user's chats among [chatIds], by last activity; ids of missing or foreign chats are skipped. */
     fun getChatsByIds(userId: UUID, chatIds: Collection<UUID>): List<ChatEntity> {

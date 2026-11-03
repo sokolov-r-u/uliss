@@ -761,3 +761,26 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   refresh waits: one queued by newer rules has not been tried yet.
 - **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`, code review.
 
+
+## 2026-11-03 — Chat and note lists are keyset pages by last change
+
+- **Context:** `GET /chats` and `GET /notes` returned every row; notes were ordered by creation, so an edited note
+  stayed where it was created.
+- **Decision:** both lists order by `updated_at DESC, id DESC` and return `{items, nextCursor}` pages (default 30,
+  1..100, else `400`). The cursor is an opaque URL-safe string (`ListCursor`: microseconds since epoch and id, the
+  precision Postgres keeps, so a cursor built from a read row compares exactly); the next page is `(updated_at, id) <
+  cursor`, and `limit + 1` rows tell whether one exists. A broken cursor or a time Postgres cannot bind is `400`.
+- **Consequences:** an item changed while the user scrolls moves above the loaded pages and shows after the list is
+  reloaded from the first page; pages after the cursor never repeat or skip unchanged items. Other lists (constellation,
+  unplaced, sub-notes, chat ↔ note links) still return every row.
+- **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.
+
+## 2026-11-03 — The note list is read as keyset positions, then loaded by id
+
+- **Decision:** `NoteListStore` (`NamedParameterJdbcTemplate`) assembles the list's `WHERE` per call and returns the
+  page's `(updated_at, id)` positions; `NoteService` loads those notes through JPA and keeps their order, skipping one
+  deleted in between. Every page carries `total`, a `COUNT(*)` of the user's notes, for the list's counter.
+- **Consequences:** a list filter (next: constellations, recursive) is one more SQL condition, with no JPA entity
+  mapping in the store; Spring Data `Specification` was rejected for lacking recursive CTEs. A note changed between the
+  two reads keeps its old position in that page.
+- **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`, epic `docs/tasks/2026-11-03-keyset-lists-epic.md`.

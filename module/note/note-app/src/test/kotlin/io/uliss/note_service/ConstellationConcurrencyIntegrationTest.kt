@@ -119,7 +119,7 @@ class ConstellationConcurrencyIntegrationTest : NoteIntegrationTest() {
                     },
                     onFailure = { error ->
                         assertTrue(error is ConstellationNotFoundException, "unexpected $error")
-                        assertTrue(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId).isEmpty())
+                        assertTrue(noteRepository.findAll().filter { it.userId == userId }.isEmpty())
                     },
                 )
             }
@@ -145,7 +145,7 @@ class ConstellationConcurrencyIntegrationTest : NoteIntegrationTest() {
 
                 assertEquals(1, results.count { it.isSuccess }, "results $results")
                 assertTrue(results.single { it.isFailure }.exceptionOrNull() is NoteMoveCycleException)
-                val notes = noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId)
+                val notes = noteRepository.findAll().filter { it.userId == userId }
                 assertEquals(1, notes.count { it.parentNoteId == null })
             }
         }
@@ -188,7 +188,7 @@ class ConstellationConcurrencyIntegrationTest : NoteIntegrationTest() {
                     },
                     onFailure = { error ->
                         assertTrue(error is ParentNoteNotFoundException, "unexpected $error")
-                        assertTrue(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId).isEmpty())
+                        assertTrue(noteRepository.findAll().filter { it.userId == userId }.isEmpty())
                     },
                 )
             }

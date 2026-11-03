@@ -5,6 +5,7 @@ import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.eqValue
+import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
@@ -19,6 +20,7 @@ import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
+import io.uliss.note_service.repository.NoteListStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequest
 import io.uliss.note_service.repository.SummaryRequestStore
@@ -35,6 +37,7 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class NoteServiceTest {
@@ -44,6 +47,7 @@ class NoteServiceTest {
     private val summaryRequestStore = Mockito.mock(SummaryRequestStore::class.java)
     private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
+    private val noteListStore = Mockito.mock(NoteListStore::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val noteService = NoteService(
@@ -52,6 +56,7 @@ class NoteServiceTest {
         summaryRequestStore,
         indexRequests,
         constellationRepository,
+        noteListStore,
     )
 
     @Test
@@ -86,17 +91,41 @@ class NoteServiceTest {
     }
 
     @Test
-    fun `getNotes returns only repository-owned notes in repository order`() {
+    fun `getNotes keeps the store's page order, points the next cursor at the page's last note and counts all notes`() {
         val userId = UUID.randomUUID()
-        val linkedNote = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
-        val manualNote = NoteEntity(userId, "manual", NoteSource.MANUAL, NoteStatus.READY)
-        Mockito.`when`(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
-            .thenReturn(listOf(linkedNote, manualNote))
+        val notes = (1..3).map { NoteEntity(userId, "note $it", NoteSource.MANUAL, NoteStatus.READY) }
+        val positions = notes.mapIndexed { index, note ->
+            ListCursor(Instant.parse("2026-11-03T10:00:00Z").minusSeconds(index.toLong()), note.id)
+        }
+        Mockito.`when`(noteListStore.findPage(userId, null, 3)).thenReturn(positions)
+        Mockito.`when`(noteRepository.findAllById(listOf(notes[0].id, notes[1].id))).thenReturn(listOf(notes[1], notes[0]))
+        Mockito.`when`(noteListStore.count(userId)).thenReturn(7)
 
-        val notes = noteService.getNotes(userId)
+        val page = noteService.getNotes(userId, cursor = null, limit = 2)
 
-        assertEquals(listOf(linkedNote.id, manualNote.id), notes.map { it.id })
+        assertEquals(listOf(notes[0].id, notes[1].id), page.notes.items.map { it.id })
+        assertEquals(positions[1], page.notes.nextCursor)
+        assertEquals(7, page.total)
         Mockito.verifyNoInteractions(chatNoteRepository)
+    }
+
+    @Test
+    fun `getNotes continues after the cursor, skips a note deleted between the reads and ends without a cursor`() {
+        val userId = UUID.randomUUID()
+        val kept = NoteEntity(userId, "kept", NoteSource.MANUAL, NoteStatus.READY)
+        val deletedId = UUID.randomUUID()
+        val cursor = ListCursor(Instant.parse("2026-11-03T10:00:00Z"), UUID.randomUUID())
+        val positions = listOf(
+            ListCursor(Instant.parse("2026-11-03T09:00:00Z"), kept.id),
+            ListCursor(Instant.parse("2026-11-03T08:00:00Z"), deletedId),
+        )
+        Mockito.`when`(noteListStore.findPage(userId, cursor, 3)).thenReturn(positions)
+        Mockito.`when`(noteRepository.findAllById(listOf(kept.id, deletedId))).thenReturn(listOf(kept))
+
+        val page = noteService.getNotes(userId, cursor, limit = 2)
+
+        assertEquals(listOf(kept.id), page.notes.items.map { it.id })
+        assertNull(page.notes.nextCursor)
     }
 
     @Test
@@ -142,11 +171,13 @@ class NoteServiceTest {
         val updating = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         val settled = NoteEntity(userId, "summary", NoteSource.CHAT_SUMMARY, NoteStatus.READY)
         val generating = NoteEntity(userId, null, NoteSource.CHAT_SUMMARY, NoteStatus.GENERATING)
-        Mockito.`when`(noteRepository.findByUserIdOrderByCreatedAtDescIdDesc(userId))
-            .thenReturn(listOf(updating, settled, generating))
+        val ids = listOf(updating.id, settled.id, generating.id)
+        Mockito.`when`(noteListStore.findPage(userId, null, 31))
+            .thenReturn(ids.map { ListCursor(Instant.parse("2026-11-03T10:00:00Z"), it) })
+        Mockito.`when`(noteRepository.findAllById(ids)).thenReturn(listOf(updating, settled, generating))
         Mockito.`when`(summaryRequestStore.findPendingNoteIds(userId)).thenReturn(setOf(updating.id, generating.id))
 
-        val notes = noteService.getNotes(userId)
+        val notes = noteService.getNotes(userId, null, 30).notes.items
 
         assertEquals(listOf(true, false, false), notes.map { it.updating })
     }

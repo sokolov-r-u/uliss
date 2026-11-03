@@ -1,0 +1,11 @@
+.list-more {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    min-height: 40px;
+    padding: 8px 0;
+    font-family: var(--font-text);
+    font-size: 12px;
+    color: var(--text-muted);
+}
