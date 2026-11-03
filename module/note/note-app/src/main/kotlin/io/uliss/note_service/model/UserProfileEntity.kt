@@ -32,8 +32,17 @@ class UserProfileEntity(
     @Column(name = "batch_shrink")
     var batchShrink: Int = 0
 
+    /** The version of the user's rules the text was written under. */
+    @Column(name = "rules_version")
+    var rulesVersion: Int = 0
+
+    /** The version of the user's rules that applying failed on for good; retried at night. */
+    @Column(name = "rules_failed_version")
+    var rulesFailedVersion: Int? = null
+
     val notesThrough: NotesMark? get() = notesThroughAt?.let { at -> notesThroughId?.let { NotesMark(at, it) } }
 
     override fun toString(): String = "UserProfileEntity(id=$id, userId=$userId, notesThroughAt=$notesThroughAt" +
-        ", notesThroughId=$notesThroughId, lastDeletionAt=$lastDeletionAt, batchShrink=$batchShrink" + auditFields()
+        ", notesThroughId=$notesThroughId, lastDeletionAt=$lastDeletionAt, batchShrink=$batchShrink" +
+        ", rulesVersion=$rulesVersion, rulesFailedVersion=$rulesFailedVersion" + auditFields()
 }

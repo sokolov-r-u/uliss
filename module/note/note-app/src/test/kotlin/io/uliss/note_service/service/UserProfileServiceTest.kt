@@ -5,6 +5,7 @@ import io.uliss.note_service.model.UserProfileEntity
 import io.uliss.note_service.model.projection.ProfileNote
 import io.uliss.note_service.outbox.OutboxService
 import io.uliss.note_service.repository.UserProfileNoteStore
+import io.uliss.note_service.repository.UserProfileInputRepository
 import io.uliss.note_service.repository.UserProfileRebuildRepository
 import io.uliss.note_service.repository.UserProfileRepository
 import org.junit.jupiter.api.Test
@@ -56,7 +57,8 @@ class UserProfileServiceTest {
         }
 
     private fun service(properties: UserProfileProperties) = UserProfileService(
-        profileRepository, Mockito.mock(UserProfileRebuildRepository::class.java), noteStore, outboxService, JsonMapper.builder().build(), properties,
-        Clock.fixed(now, ZoneOffset.UTC),
+        profileRepository, Mockito.mock(UserProfileRebuildRepository::class.java),
+        Mockito.mock(UserProfileInputRepository::class.java), noteStore, outboxService, JsonMapper.builder().build(),
+        properties, Clock.fixed(now, ZoneOffset.UTC),
     )
 }

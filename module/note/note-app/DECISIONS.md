@@ -733,3 +733,31 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   nothing left (a rebuild started after the caller found no batch is queued instead), and the last live batch queues
   a rebuild that started while it was read.
 - **Source:** task `docs/tasks/2026-11-02-user-profile-rebuild.md` (code review).
+
+## 2026-11-03 — About me and profile rules; changed rules applied at once
+
+- **Context:** the user could shape the profile only through notes; decided in the epic
+  `docs/tasks/2026-11-02-user-profile-epic.md` (task 3).
+- **Decision:** the user's description and rules live in `note.user_profile_input` (not columns of
+  `note.user_profile`, so saving them never conflicts with the generator's `@Version`; not user-service, so a chat
+  turn needs no gRPC call). The description goes to the chat, the summaries and the profile prompts as is and never
+  rewrites the profile; the rules go only to the profile prompts and win over its default writing rules. Rules carry
+  a version; the profile and a rebuild draft store the version they were written under. A save of changed rules queues
+  a refresh at once under the profile's dedup key unless one is processing; a refresh with no notes to read brings a
+  text behind the rules in line with them (conform prompt over the current text, no notes reread), every save checks
+  whether the rules moved on meanwhile and queues another. Applying that fails for good is stored as
+  `rules_failed_version` and shown to the user; the nightly run retries every profile behind its rules.
+- **Consequences:** bringing in line cannot restore what earlier generalization dropped; the Rebuild button rereads
+  the notes for that. Saving rules moves a waiting refresh with a halved batch's delay to now.
+- **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`.
+
+## 2026-11-03 — Changed rules queue a refresh even beside a running one
+
+- **Context:** replaces "a refresh at once under the profile's dedup key unless one is processing" in "About me and
+  profile rules; changed rules applied at once": the code review found that a running refresh which had already checked
+  the rules left newer rules unapplied until the nightly run.
+- **Decision:** saving changed rules always queues a refresh. A parallel run costs one model call; the version checks
+  keep one result, and the losing save checks the rules again. A failure for good is shown to the user only when no
+  refresh waits: one queued by newer rules has not been tried yet.
+- **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`, code review.
+

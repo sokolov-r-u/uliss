@@ -531,3 +531,4 @@ leaked.
 | Refresh profile      | Save the profile or rebuild draft and its mark, queue the next    | Profile model calls (update, then compact when too long)     |
 | Request rebuild      | Lock the user's rebuilds, check limit, log the run, queue it      | Refresh handler, one batch per event                         |
 | Profile batch failed | Halve the batch and requeue in an hour, or skip its single note   | Next refresh event                                           |
+| Save profile rules   | Lock the user's input, save rules and a new version, queue refresh | Refresh handler brings the profile in line with the rules    |

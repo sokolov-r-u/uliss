@@ -1,7 +1,7 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError} from '../notes/noteApi'
-import {getProfile, rebuildProfile} from './profileApi'
+import {getProfile, rebuildProfile, saveAbout, saveRules} from './profileApi'
 
 vi.mock('../auth/apiClient', () => ({
     authFetch: vi.fn(),
@@ -16,6 +16,7 @@ function json(body: unknown, status = 200): Response {
 }
 
 const IDLE = {running: false, remaining: 2, availableAt: null}
+const NO_INPUT = {about: null, rules: [], applyingRules: false, rulesFailed: false}
 
 describe('getProfile', () => {
     beforeEach(() => {
@@ -27,16 +28,27 @@ describe('getProfile', () => {
             json({content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z', rebuild: IDLE}),
         )
         await expect(getProfile()).resolves.toEqual(
-            {content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z', rebuild: IDLE},
+            {content: '## Interests\nJazz.', updatedAt: '2026-11-02T03:00:00Z', rebuild: IDLE, ...NO_INPUT},
         )
         expect(mockedFetch.mock.calls[0][0]).toBe('/note/profile')
 
         const spent = {running: true, remaining: 0, availableAt: '2026-12-01T10:00:00Z'}
         mockedFetch.mockResolvedValueOnce(json({content: null, updatedAt: null, rebuild: spent}))
-        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: spent})
+        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: spent, ...NO_INPUT})
 
         mockedFetch.mockResolvedValueOnce(json({content: '  ', updatedAt: '', rebuild: IDLE}))
-        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: IDLE})
+        await expect(getProfile()).resolves.toEqual({content: null, updatedAt: null, rebuild: IDLE, ...NO_INPUT})
+    })
+
+    it('reads the user\'s description, rules and whether they are being applied or failed', async () => {
+        mockedFetch.mockResolvedValueOnce(json({
+            content: 'Jazz.', updatedAt: null, rebuild: IDLE,
+            about: 'Designer.', rules: ['No films.', 3, 'Short.'], applyingRules: true, rulesFailed: false,
+        }))
+
+        await expect(getProfile()).resolves.toMatchObject(
+            {about: 'Designer.', rules: ['No films.', 'Short.'], applyingRules: true, rulesFailed: false},
+        )
     })
 
     it('treats a body without a valid rebuild state as a protocol failure', async () => {
@@ -92,5 +104,42 @@ describe('rebuildProfile', () => {
 
         mockedFetch.mockRejectedValueOnce(new TypeError('network down'))
         await expect(rebuildProfile()).rejects.toMatchObject({kind: 'transport'})
+    })
+})
+
+describe('saveAbout and saveRules', () => {
+    beforeEach(() => {
+        mockedFetch.mockReset()
+    })
+
+    it('put the trimmed text, a blank one as none, and return the profile the server answers with', async () => {
+        const saved = {content: null, updatedAt: null, rebuild: IDLE, ...NO_INPUT, about: 'Designer.'}
+        mockedFetch.mockImplementation(() => Promise.resolve(json(saved)))
+
+        await expect(saveAbout('  Designer.  ')).resolves.toEqual(saved)
+        expect(mockedFetch.mock.calls[0][0]).toBe('/note/profile/about')
+        expect(mockedFetch.mock.calls[0][1]).toMatchObject({method: 'PUT', body: JSON.stringify({about: 'Designer.'})})
+
+        await saveAbout('   ')
+        expect(mockedFetch.mock.calls[1][1]).toMatchObject({body: JSON.stringify({about: null})})
+    })
+
+    it('put the whole list of rules trimmed, in order', async () => {
+        mockedFetch.mockResolvedValueOnce(json({content: null, updatedAt: null, rebuild: IDLE, ...NO_INPUT}))
+
+        await saveRules([' No films. ', 'Short.'])
+
+        expect(mockedFetch.mock.calls[0][0]).toBe('/note/profile/rules')
+        expect(mockedFetch.mock.calls[0][1]).toMatchObject(
+            {method: 'PUT', body: JSON.stringify({rules: ['No films.', 'Short.']})},
+        )
+    })
+
+    it('fail a refused save with its status', async () => {
+        mockedFetch.mockResolvedValueOnce(json({code: 'VALIDATION_ERROR'}, 400))
+        await expect(saveRules(['x'])).rejects.toMatchObject({kind: 'http', status: 400})
+
+        mockedFetch.mockRejectedValueOnce(new TypeError('network down'))
+        await expect(saveAbout('x')).rejects.toMatchObject({kind: 'transport'})
     })
 })

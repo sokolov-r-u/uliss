@@ -3,6 +3,8 @@ package io.uliss.note_service.outbox
 import io.uliss.database.outbox.OutboxEventStatus
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ProfileBatch
+import io.uliss.note_service.dto.internal.ProfileRulesWork
+import io.uliss.note_service.dto.internal.UserProfileInput
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.UserProfileRefreshRequestedPayload
 import io.uliss.note_service.model.projection.NotesMark
@@ -81,6 +83,33 @@ class UserProfileRefreshRequestedHandlerTest {
     }
 
     @Test
+    fun `every prompt carries the user's own description and their numbered rules`() {
+        val input = UserProfileInput("Designer in Lisbon.", listOf("No films.", "Short sections."), rulesVersion = 2)
+        val batch = batch(profile = "old", note("Opera", "Tosca."), input = input)
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(batch)
+        stubModel("x".repeat(101), "short")
+
+        handler.handle(event())
+
+        prompts("user").forEach { prompt ->
+            assertTrue(prompt.contains("ABOUT THE USER"), prompt)
+            assertTrue(prompt.contains("Designer in Lisbon."), prompt)
+            assertTrue(prompt.contains("1. No films.\n2. Short sections."), prompt)
+        }
+    }
+
+    @Test
+    fun `without a description or rules the prompts have no such sections`() {
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(batch(profile = "old", note("Opera", "Tosca.")))
+        stubModel("short")
+
+        handler.handle(event())
+
+        val prompt = prompts("user").single()
+        assertTrue("ABOUT THE USER" !in prompt && "RULES" !in prompt, prompt)
+    }
+
+    @Test
     fun `a blank answer fails the event and saves nothing, so the batch is read again on retry`() {
         Mockito.`when`(profileService.findBatch(userId)).thenReturn(batch(profile = "old", note("Opera", "Tosca.")))
         stubModel("  \n")
@@ -100,6 +129,52 @@ class UserProfileRefreshRequestedHandlerTest {
         Mockito.verifyNoInteractions(chatClient)
     }
 
+    @Test
+    fun `with no notes to read, a profile behind the rules is brought in line with them, compacted when too long`() {
+        val input = UserProfileInput(null, listOf("No films."), rulesVersion = 1)
+        val work = ProfileRulesWork("## Interests\nFilms and jazz.", 4L, input)
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(null)
+        Mockito.`when`(profileService.findRulesWork(userId)).thenReturn(work)
+        stubModel("x".repeat(101), "## Interests\nJazz.")
+
+        handler.handle(event())
+
+        assertEquals(
+            listOf(UserProfilePrompts.CONFORM_SYSTEM_PROMPT, UserProfilePrompts.COMPACT_SYSTEM_PROMPT),
+            prompts("system"),
+        )
+        val conform = prompts("user").first()
+        assertTrue(conform.contains("Films and jazz.") && conform.contains("1. No films."), conform)
+        Mockito.verify(profileService).saveConformed(userId, work, "## Interests\nJazz.")
+        Mockito.verify(profileService, Mockito.never()).finishRebuild(userId)
+    }
+
+    @Test
+    fun `notes to read go into an update with the current rules, and nothing is brought in line beside it`() {
+        val input = UserProfileInput(null, listOf("No films."), rulesVersion = 2)
+        val batch = batch(profile = "old", note("Opera", "Tosca."), input = input)
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(batch)
+        stubModel("short")
+
+        handler.handle(event())
+
+        assertEquals(listOf(UserProfilePrompts.UPDATE_SYSTEM_PROMPT), prompts("system"))
+        Mockito.verify(profileService, Mockito.never()).findRulesWork(userId)
+        Mockito.verify(profileService).save(userId, batch, "short")
+    }
+
+    @Test
+    fun `a blank answer to bringing the profile in line fails the event and saves nothing`() {
+        val work = ProfileRulesWork("Films.", 4L, UserProfileInput(null, listOf("No films."), rulesVersion = 1))
+        Mockito.`when`(profileService.findBatch(userId)).thenReturn(null)
+        Mockito.`when`(profileService.findRulesWork(userId)).thenReturn(work)
+        stubModel(" ")
+
+        assertFailsWith<IllegalStateException> { handler.handle(event()) }
+
+        Mockito.verify(profileService, Mockito.never()).saveConformed(anyValue(), anyValue(), anyValue())
+    }
+
     private fun prompts(method: String): List<String> =
         Mockito.mockingDetails(requestSpec).invocations.filter { it.method.name == method }.map { it.arguments[0] as String }
 
@@ -115,12 +190,18 @@ class UserProfileRefreshRequestedHandlerTest {
     private fun note(title: String, content: String) =
         ProfileNote(UUID.randomUUID(), title, content, Instant.parse("2026-11-01T10:00:00Z"))
 
-    private fun batch(profile: String?, vararg notes: ProfileNote, remain: Boolean = false) = ProfileBatch(
+    private fun batch(
+        profile: String?,
+        vararg notes: ProfileNote,
+        remain: Boolean = false,
+        input: UserProfileInput = UserProfileInput(null, emptyList()),
+    ) = ProfileBatch(
         profile = profile,
         profileVersion = profile?.let { 3L },
         notes = notes.toList(),
         through = NotesMark(notes.last().updatedAt, notes.last().id),
         remain = remain,
+        input = input,
     )
 
     private fun event() = OutboxEventEntity(

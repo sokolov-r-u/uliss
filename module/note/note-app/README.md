@@ -163,8 +163,23 @@ Every chat reply also gets the user profile: one Markdown document about the use
 projects, recurring themes) that the model compiles from their notes. `AssistantService` sends it as a system message
 ahead of the history, delimited as untrusted data; `ChatFacade` reads it through `UserProfileService`. Without a
 profile the request is unchanged. The summary prompts (create, update, resummarize) get it too, as background that
-never goes into the note. `GET /note/profile` returns the caller's `{content, updatedAt, rebuild}`; the texts are null
-until the first refresh (a profile row may exist without text). Nobody edits the profile by hand.
+never goes into the note. `GET /note/profile` returns the caller's `{content, updatedAt, rebuild, about, rules,
+applyingRules, rulesFailed}`; the texts are null until the first refresh (a profile row may exist without text). Nobody
+edits the profile by hand.
+
+**About me and rules.** The user writes about themselves and sets rules for the profile (`note.user_profile_input`):
+`PUT /note/profile/about {about}` (up to 2,000 characters, trimmed, blank clears it) and `PUT /note/profile/rules
+{rules}` (the whole list, up to 20 rules of 1–300 characters, trimmed); both answer with the `GET` body and `400` over
+the limits. The description goes to the chat (an `<about_user>` block in the profile's system message, also without a
+profile), to the summary prompts as background, and to every profile prompt as reliable facts the profile neither
+contradicts nor repeats; saving it does not rewrite the profile. The rules go only to the profile prompts, numbered,
+over the default writing rules. Changed rules get a new `rules_version` and queue a refresh at once, also beside a
+running one, which may have checked the rules already (the version checks keep one result). The profile and a rebuild draft keep the version they were written
+under; with no notes left to read, a profile text behind the rules is brought in line with them in one call (the
+conform prompt; compact when too long), keeping its mark. A rebuild applies the current rules to its next batches and
+the profile is brought in line after it if they moved on. Bringing in line that fails for good is remembered
+(`rules_failed_version`, `rulesFailed` in the API) and retried by the nightly run, which queues every profile text
+behind the rules.
 
 The profile reads notes in `(updated_at, id)` order and keeps the last one it read (`note.user_profile`,
 `notes_through_at`/`notes_through_id`). `UserProfileRefreshScheduler` runs on `note.profile.refresh-cron` (03:00 UTC;

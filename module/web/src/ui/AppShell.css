@@ -638,6 +638,50 @@
     margin: 12px 0 4px;
 }
 
+/* About you: the three sections under the intro */
+.settings-about-sections {
+    margin-top: 18px;
+    border-bottom: 1px solid var(--line);
+}
+
+/* About you: the user's description and rules read like the profile text */
+.settings-about-text {
+    margin: 0;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.settings-rules-list {
+    margin: 0;
+    padding-left: 1.4em;
+    overflow-wrap: anywhere;
+}
+
+.settings-rules-list li + li {
+    margin-top: 6px;
+}
+
+/* About you: each rule being edited, with its Remove under the field */
+.settings-rules-edit {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.settings-rules-edit li {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.settings-rules-edit li > div {
+    align-self: stretch;
+}
+
 .settings-inert {
     opacity: 0.5;
     pointer-events: none;

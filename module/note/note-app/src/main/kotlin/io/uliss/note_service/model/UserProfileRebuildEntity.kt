@@ -35,9 +35,13 @@ class UserProfileRebuildEntity(
     var finishedAt: Instant? = null,
 ) : AuditEntity() {
 
+    /** The version of the user's rules the draft was last written under. */
+    @Column(name = "rules_version")
+    var rulesVersion: Int = 0
+
     val through: NotesMark? get() = throughAt?.let { at -> throughId?.let { NotesMark(at, it) } }
 
     override fun toString(): String = "UserProfileRebuildEntity(id=$id, userId=$userId, trigger=$trigger" +
         ", status=$status, throughAt=$throughAt, throughId=$throughId, batchShrink=$batchShrink" +
-        ", finishedAt=$finishedAt" + auditFields()
+        ", finishedAt=$finishedAt, rulesVersion=$rulesVersion" + auditFields()
 }

@@ -55,10 +55,10 @@ class NoteResummarizeRequestedHandler(
             minSimilarity = properties.retrievalMinSimilarity,
             excludeNoteId = payload.noteId,
         )
-        val profile = userProfileService.findProfile(payload.userId)?.content
+        val background = userProfileService.findBackground(payload.userId)
         val draft: NoteBodyDraft? = chatClient.prompt()
             .system(ChatPrompts.NOTE_SUMMARY_SYSTEM_PROMPT)
-            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, note.title, note.icon, profile))
+            .user(ChatPrompts.noteSummaryUserPrompt(context, place, relatedChunks, note.title, note.icon, background))
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)
