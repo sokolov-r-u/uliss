@@ -174,7 +174,12 @@ class NoteControllerTest {
     fun `getNotes rejects more than 50 constellations and an id that is not a uuid`() {
         val userId = UUID.randomUUID()
         val tooMany = (1..51).joinToString("&") { "constellationId=${UUID.randomUUID()}" }
-        listOf("/note/notes?$tooMany", "/note/notes?constellationId=music").forEach { url ->
+        listOf(
+            "/note/notes?$tooMany",
+            "/note/notes?constellationId=music",
+            "/note/notes?constellationId=&constellationId=",
+            "/note/notes?constellationId=&constellationId=${UUID.randomUUID()}",
+        ).forEach { url ->
             mockMvc.get(url) {
                 with(jwt().jwt { it.claim("userId", userId.toString()) })
             }.andExpect { status { isBadRequest() } }

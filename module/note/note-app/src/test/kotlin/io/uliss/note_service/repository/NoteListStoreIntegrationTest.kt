@@ -119,6 +119,7 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
 
         assertEquals(listOf(inBoth, inMusic, inFilms), page.map { it.id })
         assertEquals(emptyList(), store.findPage(userId, null, 10, setOf(foreign)))
+        assertEquals(0, store.count(userId, setOf(foreign, UUID.randomUUID())))
     }
 
     @Test

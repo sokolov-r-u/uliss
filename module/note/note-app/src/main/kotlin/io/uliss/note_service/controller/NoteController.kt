@@ -3,7 +3,7 @@ package io.uliss.note_service.controller
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.response.NotePageResponse
 import io.uliss.note_service.util.ListPageLimit
-import io.uliss.note_service.util.NoteListFilterLimit
+import io.uliss.note_service.util.NoteListFilter
 import io.uliss.note_service.dto.internal.NoteAiEditEvent
 import io.uliss.note_service.dto.request.AddNoteConstellationRequest
 import io.uliss.note_service.dto.request.AiEditNoteRequest
@@ -71,11 +71,10 @@ class NoteController(
         @AuthenticationPrincipal jwt: Jwt,
         @RequestParam(required = false) cursor: String?,
         @RequestParam(defaultValue = "${ListPageLimit.DEFAULT}") limit: Int,
-        @RequestParam(name = "constellationId", required = false) constellationIds: List<UUID>?,
+        @RequestParam(name = "constellationId", required = false) constellationIds: List<UUID?>?,
     ): NotePageResponse {
         ListPageLimit.check(limit)
-        val filter = constellationIds.orEmpty().toSet()
-        NoteListFilterLimit.check(filter)
+        val filter = NoteListFilter.of(constellationIds)
         return noteService.getNotes(jwt.getUserId(), cursor?.let(ListCursor::decode), limit, filter).toResponse()
     }
 
