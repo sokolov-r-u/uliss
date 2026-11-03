@@ -97,13 +97,19 @@ describe('chatApi', () => {
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats/c1', {method: 'DELETE'})
     })
 
-    it('orders chats by last activity (updatedAt, else createdAt), newest first', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
-            {id: 'a', title: 'A', noteCount: 0, createdAt: '2026-06-20T09:00:00Z'},
-            {id: 'b', title: 'B', noteCount: 0, createdAt: '2026-05-30T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
-            {id: 'c', title: 'C', noteCount: 0, createdAt: '2026-05-10T09:00:00Z'},
-        ]))
+    it('keeps the server order of a chat page and asks for the page after a cursor', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            items: [
+                {id: 'a', title: 'A', noteCount: 0, createdAt: '2026-06-20T09:00:00Z'},
+                {id: 'b', title: 'B', noteCount: 0, createdAt: '2026-05-30T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
+            ],
+            nextCursor: 'next+page',
+        }))
 
-        expect((await listChats()).map((chat) => chat.id)).toEqual(['b', 'a', 'c'])
+        const page = await listChats('cur/1')
+
+        expect(page.items.map((chat) => chat.id)).toEqual(['a', 'b'])
+        expect(page.nextCursor).toBe('next+page')
+        expect(mockedFetch).toHaveBeenCalledWith('/note/chats?cursor=cur%2F1', expect.anything())
     })
 })

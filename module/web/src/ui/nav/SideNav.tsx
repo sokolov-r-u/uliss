@@ -3,9 +3,11 @@ import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
 import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, Wordmark} from '@uliss/design-system'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
-import {listNotes, type Note, subscribeToNotesChanges} from '../../notes/noteApi'
+import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
 import {ItemActions} from '../actions/ItemActions'
+import {ListMore} from '../list/ListMore'
+import {useKeysetList} from '../list/useKeysetList'
 import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
 import {noteCountLabel} from '../format'
@@ -34,8 +36,6 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 }) {
     const navigate = useNavigate()
     const location = useLocation()
-    const [chats, setChats] = useState<Chat[]>([])
-    const [notes, setNotes] = useState<Note[]>([])
     const [chatsRevision, setChatsRevision] = useState(0)
     const [notesRevision, setNotesRevision] = useState(0)
     const [tab, setTab] = useState<ListTab>('chats')
@@ -46,38 +46,14 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     useEffect(() => subscribeToChatListChanges(() => setChatsRevision((value) => value + 1)), [])
     useEffect(() => subscribeToNotesChanges(() => setNotesRevision((value) => value + 1)), [])
 
-    // a failed load is told apart from an empty account: "Nothing here yet" would be a lie
-    const [chatsFailed, setChatsFailed] = useState(false)
-    const [notesFailed, setNotesFailed] = useState(false)
-
     // Each list refetches only on its own event: a chat turn does not reload the notes.
-    useEffect(() => {
-        let active = true
-        listChats().then((items) => {
-            if (!active) return
-            setChats(items)
-            setChatsFailed(false)
-        }).catch(() => {
-            if (active) setChatsFailed(true)
-        })
-        return () => {
-            active = false
-        }
-    }, [chatsRevision])
-
-    useEffect(() => {
-        let active = true
-        listNotes().then((items) => {
-            if (!active) return
-            setNotes(items)
-            setNotesFailed(false)
-        }).catch(() => {
-            if (active) setNotesFailed(true)
-        })
-        return () => {
-            active = false
-        }
-    }, [notesRevision])
+    const chatList = useKeysetList(listChats, chatsRevision)
+    const noteList = useKeysetList(listNotes, notesRevision)
+    const chats: Chat[] = chatList.state.status === 'ready' ? chatList.state.items : []
+    const notes: Note[] = noteList.state.status === 'ready' ? noteList.state.items : []
+    // a failed load is told apart from an empty account: "Nothing here yet" would be a lie
+    const chatsFailed = chatList.state.status === 'error'
+    const notesFailed = noteList.state.status === 'error'
 
     const retryLists = () => {
         setChatsRevision((value) => value + 1)
@@ -90,10 +66,10 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     }
 
     const empty = chats.length === 0 && notes.length === 0
-    const noteViews = toNoteViewModels(notes)
+    const noteViews = toNoteViewModels(notes, noteChangedAt)
     const chatGroups = groupByRecency(chats, chatActivity)
     const noteGroups = groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})),
-        ({note}) => note.createdAt)
+        ({view}) => view.listedAt)
 
     return (
         <>
@@ -188,10 +164,16 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                             <ItemActions key={note.id}
                                                          target={{kind: 'note', id: note.id, title: view.title, icon: view.icon,
                                                              renamable: note.status === 'READY'}}
-                                                         onRenamed={(title) => setNotes((current) =>
-                                                             current.map((item) => item.id === note.id ? {...item, title} : item))}
+                                                         onRenamed={(title) => noteList.update((current) => ({
+                                                             ...current,
+                                                             items: current.items.map((item) => item.id === note.id ? {...item, title} : item),
+                                                         }))}
                                                          onDeleted={() => {
-                                                             setNotes((current) => current.filter((item) => item.id !== note.id))
+                                                             noteList.update((current) => ({
+                                                                 ...current,
+                                                                 items: current.items.filter((item) => item.id !== note.id),
+                                                                 total: current.total === undefined ? undefined : Math.max(0, current.total - 1),
+                                                             }))
                                                              if (location.pathname === `/notes/${note.id}`) {
                                                                  navigate('/notes', {replace: true})
                                                              }
@@ -204,6 +186,12 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                         ))}
                                     </div>
                                 ))}
+                                {tab === 'chats' && chatList.state.status === 'ready' &&
+                                    <ListMore hasMore={chatList.state.hasMore} state={chatList.state.more}
+                                              onMore={chatList.loadMore}/>}
+                                {tab === 'notes' && noteList.state.status === 'ready' &&
+                                    <ListMore hasMore={noteList.state.hasMore} state={noteList.state.more}
+                                              onMore={noteList.loadMore}/>}
                                 <Link to={tab === 'chats' ? '/chats' : '/notes'} onClick={onClose}
                                       className="side-nav-all">View all →</Link>
                             </div>
@@ -213,7 +201,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 
                 <div className="side-nav-foot">
                     <span className="side-nav-avatar"><StarMark size={15} glow={false}/></span>
-                    <span className="side-nav-count">{noteCountLabel(notes.length)}</span>
+                    <span className="side-nav-count">{noteCountLabel(noteList.state.status === 'ready' ? noteList.state.total ?? notes.length : 0)}</span>
                     <IconButton s={26} title="Settings" onClick={go('/settings')}><Icon name="gear"
                                                                                         size={15}/></IconButton>
                 </div>

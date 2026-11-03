@@ -300,8 +300,9 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         found.content = 'Written again from the whole chat.'
         return json(withParent(found), 202)
     }
-    if (url.pathname === '/note/chats') return json(chats)
-    if (url.pathname === '/note/notes') return json(notes)
+    // one page holds every fixture: the lists' loaders are not part of the screenshots
+    if (url.pathname === '/note/chats') return json({items: chats, nextCursor: null})
+    if (url.pathname === '/note/notes') return json({items: notes, nextCursor: null, total: notes.length})
     // A change of a note's place fails once or waits while asked to, so the place dialog's states can be checked
     if (method !== 'GET' && /^\/note\/notes\/[^/]+\/(constellations|parent)/.test(url.pathname)) {
         if (sessionStorage.getItem('visual.place') === 'fail-once') {

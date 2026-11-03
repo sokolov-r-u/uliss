@@ -191,7 +191,7 @@ describe('noteApi', () => {
     })
 
     it('rejects malformed note payloads', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([{id: 'note-1', source: 'CHAT_SUMMARY', status: 'UNKNOWN'}]))
+        mockedFetch.mockResolvedValue(jsonResponse({items: [{id: 'note-1', source: 'CHAT_SUMMARY', status: 'UNKNOWN'}], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
@@ -212,36 +212,36 @@ describe('noteApi', () => {
     })
 
     it('parses an optional note icon and rejects one that is not text', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'sax', source: 'MANUAL', status: 'READY', title: 'Giant Steps', icon: '🎷', content: 'Body'},
             {id: 'plain', source: 'MANUAL', status: 'READY', title: 'Blue Train', icon: null, content: 'Body'},
-        ]))
-        expect((await listNotes()).map((note) => note.icon)).toEqual(['🎷', undefined])
+        ], nextCursor: null, total: 0}))
+        expect((await listNotes()).items.map((note) => note.icon)).toEqual(['🎷', undefined])
 
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'bad', source: 'MANUAL', status: 'READY', title: 'T', icon: 7, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 
     it('parses an optional note title', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'titled', source: 'CHAT_SUMMARY', status: 'READY', title: 'Ownership columns', content: 'Body'},
             {id: 'legacy', source: 'CHAT_SUMMARY', status: 'READY', title: null, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
 
-        const notes = await listNotes()
+        const notes = (await listNotes()).items
 
         expect(notes.map((note) => note.title)).toEqual(['Ownership columns', undefined])
     })
 
     it('parses a running update and treats its absence as none', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'updating', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body', updating: true},
             {id: 'settled', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
 
-        const notes = await listNotes()
+        const notes = (await listNotes()).items
 
         expect(notes.map((note) => note.updating)).toEqual([true, false])
     })
@@ -254,9 +254,9 @@ describe('noteApi', () => {
     })
 
     it('rejects a non-string note title', async () => {
-        mockedFetch.mockResolvedValue(jsonResponse([
+        mockedFetch.mockResolvedValue(jsonResponse({items: [
             {id: 'note-1', source: 'CHAT_SUMMARY', status: 'READY', title: 42, content: 'Body'},
-        ]))
+        ], nextCursor: null, total: 0}))
         await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
     })
 

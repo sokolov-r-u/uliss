@@ -224,12 +224,34 @@ export async function requestChatSummary(
     return summary
 }
 
-export async function listNotes(signal?: AbortSignal): Promise<Note[]> {
-    const response = await fetchNotes('/note/notes', {signal})
+/** One page of the note list, last changed first, with the number of all the user's notes. */
+export interface NotePage {
+    items: Note[]
+    /** Null on the last page. */
+    nextCursor: string | null
+    total: number
+}
+
+/** A page of the user's notes by last change, after [cursor] (from the newest without one). */
+export async function listNotes(cursor?: string, signal?: AbortSignal): Promise<NotePage> {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : ''
+    const response = await fetchNotes(`/note/notes${query}`, {signal})
     await requireOk(response, 'note list fetch')
     const value = await responseJson(response)
-    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid note list response')
-    return value.map(parseNote)
+    if (!isRecord(value) || !Array.isArray(value.items)) throw new NoteApiError('protocol', 'invalid note list response')
+    const nextCursor = value.nextCursor ?? null
+    if (nextCursor !== null && (typeof nextCursor !== 'string' || nextCursor === '')) {
+        throw new NoteApiError('protocol', 'invalid nextCursor in note list response')
+    }
+    if (typeof value.total !== 'number' || !Number.isInteger(value.total) || value.total < 0) {
+        throw new NoteApiError('protocol', 'invalid total in note list response')
+    }
+    return {items: value.items.map(parseNote), nextCursor, total: value.total}
+}
+
+/** Last change of a note: `updatedAt`, else `createdAt` — what the note list sorts and groups by. */
+export function noteChangedAt(note: Note): string | undefined {
+    return note.updatedAt ?? note.createdAt
 }
 
 /** The notes written from a chat, newest first. */
