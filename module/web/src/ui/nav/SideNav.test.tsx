@@ -145,5 +145,13 @@ describe('SideNav', () => {
         await waitFor(() => expect(listNotes).toHaveBeenCalledTimes(2))
         expect(listChats).toHaveBeenCalledTimes(2)
     })
-})
 
+    it('counts all the user\'s notes in the footer, not only the loaded page', async () => {
+        vi.mocked(listNotes).mockResolvedValue({items: [
+            {id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', title: 'Lisbon plan', content: 'Body'},
+        ], nextCursor: 'cur-1', total: 57})
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('57 notes')).toBeInTheDocument()
+    })
+})

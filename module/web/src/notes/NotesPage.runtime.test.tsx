@@ -102,5 +102,32 @@ describe('NotesPage runtime states', () => {
 
         expect(await screen.findByRole('button', {name: 'New'})).toBeInTheDocument()
     })
-})
 
+    it('counts all the user\'s notes and dates rows by their last change', async () => {
+        mockedListNotes.mockResolvedValue({items: [
+            {id: 'a', source: 'MANUAL', status: 'READY', title: 'Edited', content: 'Body',
+                createdAt: '2026-01-05T09:00:00Z', updatedAt: '2026-06-22T09:00:00Z'},
+        ], nextCursor: 'cur-1', total: 42})
+        renderPage()
+
+        await screen.findByRole('button', {name: /^Edited/})
+        expect(screen.getByText('42')).toBeInTheDocument()
+        const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
+        expect(screen.getByText(june)).toBeInTheDocument()
+    })
+
+    it('counts a note deleted here out of the total', async () => {
+        mockedListNotes.mockResolvedValueOnce({items: [
+            {id: 'a', source: 'MANUAL', status: 'READY', title: 'Gone', content: 'Body'},
+            {id: 'b', source: 'MANUAL', status: 'READY', title: 'Kept', content: 'Body'},
+        ], nextCursor: 'cur-1', total: 42}).mockReturnValue(new Promise(() => undefined))
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        renderPage()
+
+        await userEvent.click(await screen.findByRole('button', {name: 'Actions for Gone'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        await waitFor(() => expect(screen.getByText('41')).toBeInTheDocument())
+    })
+})

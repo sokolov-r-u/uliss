@@ -112,4 +112,11 @@ describe('chatApi', () => {
         expect(page.nextCursor).toBe('next+page')
         expect(mockedFetch).toHaveBeenCalledWith('/note/chats?cursor=cur%2F1', expect.anything())
     })
+
+    it('rejects a chat page without a list or with a broken cursor', async () => {
+        for (const body of [[], {items: [], nextCursor: 7}, {items: [], nextCursor: ''}, {items: {}, nextCursor: null}]) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse(body))
+            await expect(listChats(), JSON.stringify(body)).rejects.toMatchObject({kind: 'protocol'})
+        }
+    })
 })

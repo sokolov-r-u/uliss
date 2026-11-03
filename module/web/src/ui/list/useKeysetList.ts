@@ -37,7 +37,9 @@ export function useKeysetList<T extends { id: string }>(
 
     useEffect(() => {
         const generation = ++generationRef.current
+        // the reloaded list may ask for its next page at once, so the old request must not hold the slot
         moreRef.current?.abort()
+        moreRef.current = null
         const controller = new AbortController()
         setState((current) => current.status === 'error' ? {status: 'loading'} : current)
         loadRef.current(undefined, controller.signal)

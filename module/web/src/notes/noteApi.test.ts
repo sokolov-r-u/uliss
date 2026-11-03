@@ -11,6 +11,7 @@ import {
     resummarizeNote,
     streamNoteStatus,
     updateNote,
+    noteChangedAt,
 } from './noteApi'
 
 vi.mock('../auth/apiClient', () => ({
@@ -402,5 +403,39 @@ describe('noteApi', () => {
 
         mockedFetch.mockResolvedValue(jsonResponse({id: 'n1', source: 'CHAT_SUMMARY', status: 'READY', content: 'c', version: '7'}))
         await expect(getNote('n1')).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('reads a note page with its cursor and total, asking for the page after an encoded cursor', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            items: [{id: 'n-1', source: 'MANUAL', status: 'READY', title: 'One', content: 'Body'}],
+            nextCursor: 'next+1',
+            total: 31,
+        }))
+
+        const page = await listNotes('cur/1')
+
+        expect(page).toMatchObject({items: [{id: 'n-1'}], nextCursor: 'next+1', total: 31})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes?cursor=cur%2F1', {signal: undefined})
+    })
+
+    it('rejects a note page without a list, with a broken cursor or without a whole total', async () => {
+        for (const body of [
+            [],
+            {items: [], nextCursor: 7, total: 0},
+            {items: [], nextCursor: '', total: 0},
+            {items: [], nextCursor: null},
+            {items: [], nextCursor: null, total: 1.5},
+            {items: [], nextCursor: null, total: -1},
+        ]) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse(body))
+            await expect(listNotes(), JSON.stringify(body)).rejects.toMatchObject({kind: 'protocol'})
+        }
+    })
+
+    it('dates a note by its last change, falling back to its creation', () => {
+        expect(noteChangedAt({id: 'a', source: 'MANUAL', status: 'READY', content: null,
+            createdAt: '2026-06-01T00:00:00Z', updatedAt: '2026-06-20T00:00:00Z'})).toBe('2026-06-20T00:00:00Z')
+        expect(noteChangedAt({id: 'b', source: 'MANUAL', status: 'READY', content: null,
+            createdAt: '2026-06-01T00:00:00Z'})).toBe('2026-06-01T00:00:00Z')
     })
 })
