@@ -155,12 +155,13 @@ class NoteService(
         return toResponses(userId) { noteRepository.findByUserIdAndParentNoteIdOrderByCreatedAtDescIdDesc(userId, noteId) }
     }
 
-    /** Pending requests are read before the notes, as in [isUpdating]. */
+    /** The notes of [ids] in that order; an id with no note left is skipped. */
     private fun orderedById(ids: List<UUID>): List<NoteEntity> {
         val notes = noteRepository.findAllById(ids).associateBy { it.id }
         return ids.mapNotNull { notes[it] }
     }
 
+    /** Pending requests are read before the notes, as in [isUpdating]. */
     private fun toResponses(userId: UUID, load: () -> List<NoteEntity>): List<NoteResponse> {
         val pendingNoteIds = summaryRequestStore.findPendingNoteIds(userId)
         return load().map { it.toResponse(it.status == NoteStatus.READY && it.id in pendingNoteIds) }

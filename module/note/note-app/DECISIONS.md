@@ -774,3 +774,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reloaded from the first page; pages after the cursor never repeat or skip unchanged items. Other lists (constellation,
   unplaced, sub-notes, chat ↔ note links) still return every row.
 - **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.
+
+## 2026-11-03 — The note list is read as keyset positions, then loaded by id
+
+- **Decision:** `NoteListStore` (`NamedParameterJdbcTemplate`) assembles the list's `WHERE` per call and returns the
+  page's `(updated_at, id)` positions; `NoteService` loads those notes through JPA and keeps their order, skipping one
+  deleted in between. Every page carries `total`, a `COUNT(*)` of the user's notes, for the list's counter.
+- **Consequences:** a list filter (next: constellations, recursive) is one more SQL condition, with no JPA entity
+  mapping in the store; Spring Data `Specification` was rejected for lacking recursive CTEs. A note changed between the
+  two reads keeps its old position in that page.
+- **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`, epic `docs/tasks/2026-11-03-keyset-lists-epic.md`.

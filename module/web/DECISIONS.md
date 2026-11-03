@@ -250,3 +250,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the SPA reads `sub` from its own unverified access token only to decide whether to keep local
   drafts; a missing or unreadable `sub` wipes them.
 - **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, blocks 3–4 and the code review.
+
+## 2026-11-03 — Chat and note lists load page by page through one hook
+
+- **Decision:** `useKeysetList` loads the first page on mount and on every list-change event, and the next one when
+  `ListMore` (an `IntersectionObserver` at the list's end) comes into view; a failed page shows Retry. A change event
+  replaces the list with a fresh first page, keeping the old rows on screen and asking for no next page until it ends;
+  a failed reload keeps the rows and their cursor. Pages are joined without repeated ids. Rename and delete made here
+  change the loaded rows in place. Notes are ordered, grouped and dated by `updatedAt`; the notes counter shows the
+  server's `total`; the Chats header has no counter.
+- **Consequences:** after a change event the user is back at the first page; scrolling loads the rest again.
+- **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.

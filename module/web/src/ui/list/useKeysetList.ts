@@ -20,8 +20,8 @@ type Loaded<T> = Extract<KeysetListState<T>, { status: 'ready' }>
 
 /**
  * Loads a keyset-paged list: the first page on mount and on every [revision] change, the next one on [loadMore].
- * A reload replaces the list with a fresh first page and keeps the old rows on screen meanwhile; a failed reload of a
- * shown list keeps them too. Pages are joined without repeats: an item changed between two requests can come twice.
+ * A reload replaces the list with a fresh first page and keeps the old rows on screen meanwhile, asking for no next
+ * page until it ends; a failed reload of a shown list keeps them and their cursor. Pages are joined without repeats: an item changed between two requests can come twice.
  */
 export function useKeysetList<T extends { id: string }>(
     load: (cursor: string | undefined, signal: AbortSignal) => Promise<KeysetListPage<T>>,
@@ -32,33 +32,41 @@ export function useKeysetList<T extends { id: string }>(
     // a page requested before the latest reload belongs to an outdated list
     const generationRef = useRef(0)
     const moreRef = useRef<AbortController | null>(null)
+    const reloadingRef = useRef(false)
     const loadRef = useRef(load)
     loadRef.current = load
 
     useEffect(() => {
         const generation = ++generationRef.current
-        // the reloaded list may ask for its next page at once, so the old request must not hold the slot
+        // no next page while the list reloads: the cursor belongs to the list about to be replaced
+        reloadingRef.current = true
         moreRef.current?.abort()
         moreRef.current = null
         const controller = new AbortController()
-        setState((current) => current.status === 'error' ? {status: 'loading'} : current)
+        setState((current) => current.status === 'error' ? {status: 'loading'}
+            : current.status === 'ready' ? {...current, more: 'loading'} : current)
         loadRef.current(undefined, controller.signal)
             .then((page) => {
                 if (generation !== generationRef.current) return
+                reloadingRef.current = false
                 cursorRef.current = page.nextCursor
                 setState({status: 'ready', items: unique(page.items), hasMore: page.nextCursor !== null, more: 'idle',
                     total: page.total})
             })
             .catch((error: unknown) => {
                 if (controller.signal.aborted || error instanceof AuthRequiredError) return
-                setState((current) => current.status === 'ready' ? current : {status: 'error', error})
+                // the shown list stays, and so does its cursor
+                reloadingRef.current = false
+                setState((current) => current.status === 'ready' ? {...current, more: 'idle'} : {status: 'error', error})
             })
         return () => controller.abort()
     }, [revision])
 
+    useEffect(() => () => moreRef.current?.abort(), [])
+
     const loadMore = useCallback(() => {
         const cursor = cursorRef.current
-        if (cursor === null || moreRef.current) return
+        if (cursor === null || moreRef.current || reloadingRef.current) return
         const generation = generationRef.current
         const controller = new AbortController()
         moreRef.current = controller

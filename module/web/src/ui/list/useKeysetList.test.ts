@@ -135,4 +135,60 @@ describe('useKeysetList', () => {
         expect(ready(result.current.state).items).toEqual([{id: 'b'}])
         expect(ready(result.current.state).total).toBe(1)
     })
+
+    it('asks for no next page while the list reloads, so a page of the old list never joins the new one', async () => {
+        const reload = deferred<KeysetListPage<Item>>()
+        const load = vi.fn()
+            .mockResolvedValueOnce(page(['a'], 'old-cursor'))
+            .mockReturnValueOnce(reload.promise)
+            .mockResolvedValueOnce(page(['c'], null))
+        const {result, rerender} = renderHook(({revision}) => useKeysetList<Item>(load, revision),
+            {initialProps: {revision: 0}})
+        await waitFor(() => expect(result.current.state.status).toBe('ready'))
+
+        rerender({revision: 1})
+        act(() => result.current.loadMore())
+
+        expect(load).toHaveBeenCalledTimes(2)
+        expect(ready(result.current.state).more).toBe('loading')
+        await act(async () => reload.resolve(page(['b'], 'new-cursor')))
+        expect(ready(result.current.state).more).toBe('idle')
+        act(() => result.current.loadMore())
+        expect(load).toHaveBeenLastCalledWith('new-cursor', expect.any(AbortSignal))
+    })
+
+    it('lets the shown list go on loading after a reload that cut its next page and then failed', async () => {
+        const next = deferred<KeysetListPage<Item>>()
+        const load = vi.fn()
+            .mockResolvedValueOnce(page(['a'], 'cur-1'))
+            .mockReturnValueOnce(next.promise)
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce(page(['b'], null))
+        const {result, rerender} = renderHook(({revision}) => useKeysetList<Item>(load, revision),
+            {initialProps: {revision: 0}})
+        await waitFor(() => expect(result.current.state.status).toBe('ready'))
+        act(() => result.current.loadMore())
+
+        rerender({revision: 1})
+        await waitFor(() => expect(ready(result.current.state).more).toBe('idle'))
+
+        act(() => result.current.loadMore())
+        expect(load).toHaveBeenLastCalledWith('cur-1', expect.any(AbortSignal))
+        await waitFor(() => expect(ready(result.current.state).items.map((item) => item.id)).toEqual(['a', 'b']))
+    })
+
+    it('cancels a next page that is still loading when the list goes away', async () => {
+        const signals: AbortSignal[] = []
+        const load = vi.fn((cursor: string | undefined, signal: AbortSignal) => {
+            signals.push(signal)
+            return cursor ? new Promise<KeysetListPage<Item>>(() => undefined) : Promise.resolve(page(['a'], 'cur-1'))
+        })
+        const {result, unmount} = renderHook(() => useKeysetList<Item>(load, 0))
+        await waitFor(() => expect(result.current.state.status).toBe('ready'))
+        act(() => result.current.loadMore())
+
+        unmount()
+
+        expect(signals[1].aborted).toBe(true)
+    })
 })

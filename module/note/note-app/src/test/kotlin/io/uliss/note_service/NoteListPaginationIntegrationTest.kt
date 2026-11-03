@@ -11,11 +11,13 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.patch
+import org.springframework.test.web.servlet.post
 import org.springframework.test.web.servlet.put
 import java.sql.Timestamp
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
 
@@ -70,6 +72,53 @@ class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
         }.andExpect { status { isOk() } }
 
         assertEquals(listOf(parent, moved), walk(limit = 10).single().ids)
+    }
+
+    @Test
+    fun `saving new content and icon lifts the note`() {
+        val edited = note(Instant.parse("2026-11-03T08:00:00Z"))
+        val other = note(Instant.parse("2026-11-03T09:00:00Z"))
+        val version = noteRepository.findById(edited).orElseThrow().version
+
+        mockMvc.put("/note/notes/$edited") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"title":"Edited","content":"new body","icon":"🎷","version":$version}"""
+        }.andExpect { status { isOk() } }
+
+        assertEquals(listOf(edited, other), walk(limit = 10).single().ids)
+    }
+
+    @Test
+    fun `adding a note to a constellation keeps its place`() {
+        val other = note(Instant.parse("2026-11-03T09:00:00Z"))
+        val placed = note(Instant.parse("2026-11-03T08:00:00Z"))
+        val constellationId = mockMvc.post("/note/constellations") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"name":"Music"}"""
+        }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
+            .let { UUID.fromString(JsonPath.read(it, "$.id")) }
+
+        mockMvc.post("/note/notes/$placed/constellations") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"constellationId":"$constellationId"}"""
+        }.andExpect { status { is2xxSuccessful() } }
+
+        assertEquals(listOf(other, placed), walk(limit = 10).single().ids)
+    }
+
+    @Test
+    fun `a broken cursor, a time Postgres cannot bind and a limit out of range are bad requests`() {
+        val farFuture = java.util.Base64.getUrlEncoder().withoutPadding()
+            .encodeToString("${Long.MAX_VALUE}|${UUID.randomUUID()}".toByteArray())
+        for (query in listOf("cursor=broken", "cursor=$farFuture", "limit=0", "limit=101")) {
+            for (list in listOf("notes", "chats")) {
+                val status = mockMvc.get("/note/$list?$query") { auth() }.andReturn().response.status
+                assertTrue(status == 400, "$list?$query answered $status")
+            }
+        }
     }
 
     private data class Page(val ids: List<UUID>, val total: Int)

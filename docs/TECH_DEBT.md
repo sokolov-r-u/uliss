@@ -524,11 +524,12 @@ settling → …) that is testable without rendering.
 
 ## Paginate chat and note lists (`note-service`, `web`)
 
-**Status:** not implemented (review item №28).
+**Status:** keyset pagination done (2026-11-03, `docs/tasks/2026-11-03-keyset-lists.md`); the list DTO without
+`content` is open (review item №28).
 
-`GET /note/chats` and `GET /note/notes` return every row, and list items carry the full note `content`. Add keyset
-pagination and a lightweight list DTO; the side navigation and list pages load more on demand. API contract change.
-`GET /note/chats` is ordered by `updated_at DESC, id DESC` and already indexed for it.
+`GET /note/chats` and `GET /note/notes` return keyset pages (`updated_at DESC, id DESC`, 30 by default) that the side
+navigation and list pages load on scroll. Note list items still carry the full note `content`: add a lightweight list
+DTO. API contract change.
 
 Agreed order of the loading optimisations (2026-10-21 review discussion):
 
