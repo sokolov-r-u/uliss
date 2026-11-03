@@ -288,4 +288,27 @@ describe('AboutYouSettings', () => {
         })
         expect(mockedProfile).toHaveBeenCalledTimes(1)
     })
+
+    it('holds Save for an over-long rule and keeps the rules typed when saving them fails', async () => {
+        mockedProfile.mockResolvedValue(profile({rules: ['No films.']}))
+        mockedSaveRules.mockRejectedValue(new NoteApiError('http', 'saving failed (503)', 503))
+        renderScreen()
+
+        await screen.findByRole('button', {name: /^About me/})
+        await userEvent.click(header('Profile rules'))
+        const rules = section('Profile rules')
+        await userEvent.click(within(rules).getByRole('button', {name: 'Edit'}))
+        expect(within(rules).getByRole('button', {name: 'Save'})).toBeDisabled() // nothing changed yet
+        const rule = within(rules).getByRole('textbox', {name: 'Rule 1'})
+        await userEvent.click(rule)
+        await userEvent.paste('x'.repeat(300))
+        expect(within(rules).getByRole('button', {name: 'Save'})).toBeDisabled()
+
+        await userEvent.clear(rule)
+        await userEvent.type(rule, 'No series.')
+        await userEvent.click(within(rules).getByRole('button', {name: 'Save'}))
+
+        expect(await within(rules).findByRole('alert')).toHaveTextContent('Something went wrong')
+        expect(within(rules).getByRole('textbox', {name: 'Rule 1'})).toHaveValue('No series.')
+    })
 })

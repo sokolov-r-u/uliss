@@ -47,12 +47,19 @@ export function TextArea({
             {`${length}/${limit}`}
         </span>
     )
-    // grows with the text: reset, then take the content height (never below `rows` lines)
+    // grows with the text: reset, then take the content height (never below `rows` lines); again when the width
+    // changes the wrapping. A hidden field measures nothing and keeps its height.
     useLayoutEffect(() => {
         const element = ref.current
         if (!element) return
-        element.style.height = 'auto'
-        element.style.height = `${element.scrollHeight + 2}px`
+        const fit = () => {
+            if (element.offsetParent === null) return
+            element.style.height = 'auto'
+            element.style.height = `${element.scrollHeight + 2}px`
+        }
+        fit()
+        window.addEventListener('resize', fit)
+        return () => window.removeEventListener('resize', fit)
     }, [value])
     return (
         <div>

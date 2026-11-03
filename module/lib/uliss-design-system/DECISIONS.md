@@ -157,3 +157,10 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   border (our panel is the frame), and the dropdown is 380px wide. Refines "One emoji panel for the dropdown and the
   cover".
 - **Source:** task `docs/tasks/2026-10-22-note-icon-emoji.md`, manual check 5.
+
+## 2026-11-03 — Disclosure keeps its body mounted; TextArea grows with its text
+
+- **Decision:** `Disclosure` hides a closed body with `hidden` instead of unmounting it, so a form inside keeps unsaved
+  input while the section is folded (About you edits rely on it). `TextArea` sizes itself to its content from `rows`
+  lines and measures again on window resize; a hidden field is not measured.
+- **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`.
