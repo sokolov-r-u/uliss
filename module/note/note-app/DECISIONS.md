@@ -784,3 +784,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   mapping in the store; Spring Data `Specification` was rejected for lacking recursive CTEs. A note changed between the
   two reads keeps its old position in that page.
 - **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`, epic `docs/tasks/2026-11-03-keyset-lists-epic.md`.
+
+## 2026-11-03 — Pinned chats and notes live in a `pinned_at` column, outside the keyset pages
+
+- **Context:** the user pins up to 15 chats and 15 notes to show them in a PINNED group above the lists; an old pinned
+  item would otherwise sit on a later page.
+- **Decision:** `note.chat` and `note.notes` get a nullable `pinned_at` (V23). `GET /chats/pinned` and
+  `GET /notes/pinned` return the pinned items, last pinned first; the keyset pages filter `pinned_at IS NULL`, while the
+  note `total` still counts every note. `PUT /{id}/pin` and `DELETE /{id}/pin` are idempotent; pinning past
+  `PinLimit.MAX` (15 per user and kind) is `409 PIN_LIMIT_REACHED`. The limit is checked inside the pinning `UPDATE`
+  under a per-user advisory lock (`pins:<kind>:<userId>`). The column is written only by native updates that leave
+  `updated_at` and `version` alone and is mapped `insertable = false, updatable = false`.
+- **Consequences:** pinning neither reorders the lists nor conflicts with an open note edit, and a JPA save of an item
+  loaded before the pin cannot undo it. Deleting an item drops its pin. Manual ordering of pins would need another
+  column. Chosen over a polymorphic `pins` table, which has no foreign key to clean up deletes.
+- **Source:** task `docs/tasks/2026-11-03-pin-chats-notes.md`.

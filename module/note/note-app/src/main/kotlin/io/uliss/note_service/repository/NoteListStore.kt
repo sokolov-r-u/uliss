@@ -14,10 +14,11 @@ import java.util.UUID
 @Repository
 class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
 
-    /** Up to [limit] positions of the user's notes strictly after [after] (from the newest when null). */
+    /** Up to [limit] positions of the user's unpinned notes strictly after [after] (from the newest when null). */
     fun findPage(userId: UUID, after: ListCursor?, limit: Int): List<ListCursor> {
         val params = MapSqlParameterSource("userId", userId).addValue("limit", limit)
-        val conditions = mutableListOf("user_id = :userId")
+        // pinned notes come in their own list (`NoteRepository.findPinned`)
+        val conditions = mutableListOf("user_id = :userId", "pinned_at IS NULL")
         if (after != null) {
             conditions += "(updated_at, id) < (:afterAt, :afterId)"
             params.addValue("afterAt", Timestamp.from(after.updatedAt)).addValue("afterId", after.id)

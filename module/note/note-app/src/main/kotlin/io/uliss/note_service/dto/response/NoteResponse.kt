@@ -22,6 +22,8 @@ data class NoteResponse(
     val parentNoteId: UUID? = null,
     /** The user's emoji shown before the title. */
     val icon: String? = null,
+    /** When the user pinned it; null for an unpinned note. */
+    val pinnedAt: Instant? = null,
 )
 
 data class NoteStatusResponse(
@@ -43,5 +45,6 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     version = version,
     parentNoteId = parentNoteId,
     icon = icon,
+    pinnedAt = pinnedAt,
 )
 
