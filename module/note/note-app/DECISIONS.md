@@ -751,3 +751,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the notes for that. Saving rules moves a waiting refresh with a halved batch's delay to now.
 - **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`.
 
+## 2026-11-03 — Changed rules queue a refresh even beside a running one
+
+- **Context:** replaces "a refresh at once under the profile's dedup key unless one is processing" in "About me and
+  profile rules; changed rules applied at once": the code review found that a running refresh which had already checked
+  the rules left newer rules unapplied until the nightly run.
+- **Decision:** saving changed rules always queues a refresh. A parallel run costs one model call; the version checks
+  keep one result, and the losing save checks the rules again. A failure for good is shown to the user only when no
+  refresh waits: one queued by newer rules has not been tried yet.
+- **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`, code review.
+

@@ -173,8 +173,8 @@ edits the profile by hand.
 the limits. The description goes to the chat (an `<about_user>` block in the profile's system message, also without a
 profile), to the summary prompts as background, and to every profile prompt as reliable facts the profile neither
 contradicts nor repeats; saving it does not rewrite the profile. The rules go only to the profile prompts, numbered,
-over the default writing rules. Changed rules get a new `rules_version` and queue a refresh at once (not beside a
-running one: that one queues the next itself). The profile and a rebuild draft keep the version they were written
+over the default writing rules. Changed rules get a new `rules_version` and queue a refresh at once, also beside a
+running one, which may have checked the rules already (the version checks keep one result). The profile and a rebuild draft keep the version they were written
 under; with no notes left to read, a profile text behind the rules is brought in line with them in one call (the
 conform prompt; compact when too long), keeping its mark. A rebuild applies the current rules to its next batches and
 the profile is brought in line after it if they moved on. Bringing in line that fails for good is remembered
