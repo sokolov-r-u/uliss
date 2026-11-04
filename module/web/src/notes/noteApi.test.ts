@@ -5,6 +5,7 @@ import {
     getNote,
     listChatNotes,
     listNotes,
+    listPinnedNotes,
     listSubNotes,
     renameNote,
     requestChatSummary,
@@ -416,6 +417,35 @@ describe('noteApi', () => {
 
         expect(page).toMatchObject({items: [{id: 'n-1'}], nextCursor: 'next+1', total: 31})
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes?cursor=cur%2F1', {signal: undefined})
+    })
+
+    it('asks for the filtered page with each constellation and reads the count of all notes', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({items: [], nextCursor: null, total: 2, allTotal: 40}))
+
+        const page = await listNotes('cur/1', undefined, ['c-1', 'c-2'])
+
+        expect(page).toMatchObject({total: 2, allTotal: 40})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes?cursor=cur%2F1&constellationId=c-1&constellationId=c-2',
+            {signal: undefined})
+    })
+
+    it('takes total as allTotal from a server older than the filter, and rejects an allTotal that is not a count', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({items: [], nextCursor: null, total: 3}))
+        await expect(listNotes()).resolves.toMatchObject({total: 3, allTotal: 3})
+
+        mockedFetch.mockResolvedValue(jsonResponse({items: [], nextCursor: null, total: 3, allTotal: -1}))
+        await expect(listNotes()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
+    it('asks for the pinned notes of a filter, and for all of them without one', async () => {
+        mockedFetch.mockImplementation(() => Promise.resolve(jsonResponse([])))
+
+        await listPinnedNotes(undefined, ['c-1', 'c-2'])
+        await listPinnedNotes()
+
+        expect(mockedFetch).toHaveBeenNthCalledWith(1, '/note/notes/pinned?constellationId=c-1&constellationId=c-2',
+            {signal: undefined})
+        expect(mockedFetch).toHaveBeenNthCalledWith(2, '/note/notes/pinned', {signal: undefined})
     })
 
     it('rejects a note page without a list, with a broken cursor or without a whole total', async () => {

@@ -77,7 +77,7 @@ export function createConstellationStore(empty: boolean, subtreeOf: (noteId: str
             if (taken(body.parentId, name)) return refusal(409, 'CONSTELLATION_NAME_TAKEN')
             const uses = (tone: number) => rows.filter((row) => row.parentId === null && row.hue === tone).length
             const row: StoredConstellation = {
-                id: `k-new-${++sequence}`,
+                id: `00000000-0000-4000-8000-${String(++sequence).padStart(12, '0')}`,
                 parentId: parent?.id ?? null,
                 name,
                 hue: parent ? null : PALETTE.reduce((best, tone) => (uses(tone) < uses(best) ? tone : best)),
@@ -162,6 +162,9 @@ export function createConstellationStore(empty: boolean, subtreeOf: (noteId: str
             store(noteId, withMain((places.get(noteId) ?? []).filter((place) => place.id !== id))),
 
         notesIn: (id: string) => notesOf(id),
+
+        /** The notes of the constellation's whole branch, sub-notes included: what the list filter keeps. */
+        notesInBranch: (id: string) => [...notesUnder(id)],
 
         isPlaced: (noteId: string) => places.has(noteId),
 

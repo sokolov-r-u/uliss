@@ -50,12 +50,23 @@ export interface StoredConstellation {
     lightness: 'DEEP' | 'BASE' | 'LIGHT' | 'PALE' | null
 }
 
+/** Constellation ids: uuids, as the service gives them (the Notes filter keeps nothing else). */
+export const K = {
+    music: '00000000-0000-4000-8000-00000000c001',
+    jazz: '00000000-0000-4000-8000-00000000c002',
+    miles: '00000000-0000-4000-8000-00000000c003',
+    ambient: '00000000-0000-4000-8000-00000000c004',
+    films: '00000000-0000-4000-8000-00000000c005',
+    noir: '00000000-0000-4000-8000-00000000c006',
+    fear: '00000000-0000-4000-8000-00000000c007',
+}
+
 export const CONSTELLATIONS: StoredConstellation[] = [
-    {id: 'k-music', parentId: null, name: 'Music', hue: 264, lightness: null},
-    {id: 'k-jazz', parentId: 'k-music', name: 'Jazz', hue: null, lightness: 'LIGHT'},
-    {id: 'k-miles', parentId: 'k-jazz', name: 'Miles', hue: null, lightness: 'PALE'},
-    {id: 'k-ambient', parentId: 'k-music', name: 'Ambient', hue: null, lightness: 'LIGHT'},
-    {id: 'k-films', parentId: null, name: 'Films', hue: 22, lightness: null},
-    {id: 'k-noir', parentId: 'k-films', name: 'Noir', hue: null, lightness: 'DEEP'},
-    {id: 'k-fear', parentId: null, name: 'Fear', hue: 152, lightness: null},
+    {id: K.music, parentId: null, name: 'Music', hue: 264, lightness: null},
+    {id: K.jazz, parentId: K.music, name: 'Jazz', hue: null, lightness: 'LIGHT'},
+    {id: K.miles, parentId: K.jazz, name: 'Miles', hue: null, lightness: 'PALE'},
+    {id: K.ambient, parentId: K.music, name: 'Ambient', hue: null, lightness: 'LIGHT'},
+    {id: K.films, parentId: null, name: 'Films', hue: 22, lightness: null},
+    {id: K.noir, parentId: K.films, name: 'Noir', hue: null, lightness: 'DEEP'},
+    {id: K.fear, parentId: null, name: 'Fear', hue: 152, lightness: null},
 ]

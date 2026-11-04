@@ -14,7 +14,7 @@
  * Chats and notes can be pinned (nothing is pinned at first): the pages leave pinned items out, as in the service;
  * `?pins=refuse` answers every pin with the limit refusal, as when another tab filled the list.
  */
-import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
+import {CHAT_MESSAGES, CHATS, K, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
 
 export class AuthRequiredError extends Error {
@@ -33,10 +33,13 @@ const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? 
 const PIN_LIMIT = 15
 const pins = {chats: [] as string[], notes: [] as string[]}
 
-function pinResponse(path: string, method: string, chats: typeof CHATS, notes: typeof NOTES): Response | null {
+function pinResponse(path: string, method: string, chats: typeof CHATS, notes: typeof NOTES,
+                     search: URLSearchParams): Response | null {
     if (path === '/note/chats/pinned') return json(pins.chats.flatMap((id) => chats.filter((item) => item.id === id)))
     if (path === '/note/notes/pinned') {
-        return json(pins.notes.flatMap((id) => notes.filter((item) => item.id === id)).map(withParent))
+        const kept = filteredIds(search)
+        return json(pins.notes.filter((id) => !kept || kept.has(id))
+            .flatMap((id) => notes.filter((item) => item.id === id)).map(withParent))
     }
     const pin = path.match(/^\/note\/(chats|notes)\/([^/]+)\/pin$/)
     if (!pin) return null
@@ -76,6 +79,17 @@ const ref = (noteId: string) => {
 }
 
 const constellations = createConstellationStore(empty, subtreeOf)
+// `?places=on` places n1 in Jazz (under Music) and n2 in Films, for the Notes constellation filter
+if (params.get('places') === 'on' && !empty) {
+    constellations.addPlace('n1', K.jazz)
+    constellations.addPlace('n2', K.films)
+}
+
+/** The ids the list filter keeps for the request's `constellationId`s, as the service reads them; null without one. */
+function filteredIds(search: URLSearchParams): Set<string> | null {
+    const ids = search.getAll('constellationId')
+    return ids.length === 0 ? null : new Set(ids.flatMap((id) => constellations.notesInBranch(id)))
+}
 
 /** The place answer: parent notes from the top one down, and the top note's places. */
 function placeOf(noteId: string) {
@@ -343,14 +357,16 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         found.content = 'Written again from the whole chat.'
         return json(withParent(found), 202)
     }
-    const pinned = pinResponse(url.pathname, method, chats, notes)
+    const pinned = pinResponse(url.pathname, method, chats, notes, url.searchParams)
     if (pinned) return pinned
     if (url.pathname === '/note/chats') {
         return listPage(chats.filter((item) => !pins.chats.includes(item.id)), url.searchParams.get('cursor'))
     }
     if (url.pathname === '/note/notes') {
-        const page = await listPage(notes.filter((item) => !pins.notes.includes(item.id)), url.searchParams.get('cursor'), true)
-        return page.ok ? json({...await page.json(), total: notes.length}) : page
+        const kept = filteredIds(url.searchParams)
+        const listed = kept ? notes.filter((item) => kept.has(item.id)) : notes
+        const page = await listPage(listed.filter((item) => !pins.notes.includes(item.id)), url.searchParams.get('cursor'), true)
+        return page.ok ? json({...await page.json(), total: listed.length, allTotal: notes.length}) : page
     }
     // A change of a note's place fails once or waits while asked to, so the place dialog's states can be checked
     if (method !== 'GET' && /^\/note\/notes\/[^/]+\/(constellations|parent)/.test(url.pathname)) {
