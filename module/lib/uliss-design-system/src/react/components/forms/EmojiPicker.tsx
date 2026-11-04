@@ -1,6 +1,8 @@
 import {type CSSProperties, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {Button} from '../actions/Button'
 import {seedFavoriteEmoji} from './emojiFavorites'
+import {useLocale, useMessages} from '../../i18n/LocaleContext'
+import {emojiPickerMessages} from './EmojiPicker.messages'
 
 // The full Unicode emoji set with search, favorites and skin tones: a wrapper over
 // `emoji-picker-element`, loaded on first open, themed with our tokens. The box keeps
@@ -113,6 +115,8 @@ const FAVORITE_BUTTON: CSSProperties = {
 }
 
 export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiPickerProps) {
+    const t = useMessages(emojiPickerMessages)
+    const locale = useLocale()
     const hostRef = useRef<HTMLDivElement>(null)
     const storeRef = useRef<{ incrementFavoriteEmojiCount(unicode: string): Promise<void> } | null>(null)
     const [favorites, setFavorites] = useState<Favorite[]>([])
@@ -126,9 +130,10 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
         let cancelled = false
         let picker: HTMLElement | null = null
         void (async () => {
-            const [{default: Database}, {default: Picker}] = await Promise.all([
+            const [{default: Database}, {default: Picker}, i18n] = await Promise.all([
                 import('emoji-picker-element/database.js'),
                 import('emoji-picker-element/picker.js'),
+                locale === 'ru' ? import('emoji-picker-element/i18n/ru_RU.js').then((module) => module.default) : null,
             ])
             const store = new Database({dataSource, locale: 'en'})
             // a browser that blocks storage still gets a picker, only without favorites
@@ -146,7 +151,8 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             storeRef.current = store
             setFavorites((stored as StoredEmoji[]).map(toFavorite).filter((item): item is Favorite => item != null))
             setTone(preferred)
-            picker = new Picker({dataSource, locale: 'en'})
+            // the emoji data and its search stay English; only the library's own labels follow the interface
+            picker = new Picker({dataSource, locale: 'en', ...(i18n ? {i18n} : {})})
             picker.classList.add('dark')
             Object.entries(THEME).forEach(([name, value]) => picker?.style.setProperty(name, value))
             const style = document.createElement('style')
@@ -173,7 +179,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             picker?.remove()
             storeRef.current = null
         }
-    }, [dataSource])
+    }, [dataSource, locale])
 
     const pickFavorite = (favorite: Favorite, shown: string) => {
         // the library never saw this click, so both counts of a user pick are ours
@@ -191,7 +197,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
             height: fill ? '100%' : EMOJI_PICKER_HEIGHT - (onRemove ? 0 : REMOVE_HEIGHT),
             minHeight: 0,
         }}>
-            <div role="group" aria-label="Favorites" style={{
+            <div role="group" aria-label={t.favorites} style={{
                 flex: `0 0 ${FAVORITES_HEIGHT}px`,
                 display: 'grid',
                 gridTemplateColumns: `repeat(${COLUMNS}, ${CELL}px)`,
@@ -223,7 +229,7 @@ export function EmojiPicker({dataSource, onPick, onRemove, fill = false}: EmojiP
                 justifyContent: 'flex-end',
                 alignItems: 'flex-end',
             }}>
-                <Button variant="quiet" onClick={onRemove}>Remove the icon</Button>
+                <Button variant="quiet" onClick={onRemove}>{t.remove}</Button>
             </div>}
         </div>
     )

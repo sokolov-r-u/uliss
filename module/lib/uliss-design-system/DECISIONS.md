@@ -164,3 +164,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   input while the section is folded (About you edits rely on it). `TextArea` sizes itself to its content from `rows`
   lines and measures again on window resize; a hidden field is not measured.
 - **Source:** task `docs/tasks/2026-11-03-user-profile-rules.md`.
+
+## 2026-11-04 — The design system owns the en/ru i18n core and its own strings
+
+- **Context:** Russian localization of the SPA, the design system and the auth pages in one PR; about 60 strings live
+  inside design-system components.
+- **Decision:** the i18n core lives in `src/react/i18n` and is exported for the SPA: typed dictionaries (English is
+  the source of keys; a translation missing a key or changing a parameter list fails `typecheck`), `plural` over
+  `Intl.PluralRules`, browser-language resolution, the `uliss_lang` cookie and `LocaleProvider` / `useMessages`. No
+  i18n library. Each component keeps its strings in an adjacent `<Component>.messages.ts`; the language comes from
+  context, not props, so component APIs do not change, and no provider means English. Props that carried English
+  defaults (`Dialog.confirm`, `Notice.primary`, `Select.placeholder`, …) default to the translated text instead.
+  Under `lang="ru"` the sign-in surface's headings use the text face (Cinzel has no Cyrillic).
+- **Consequences:** the public surface grew (exports, translated defaults), so the next `/design-sync` should carry it.
+  The emoji picker's data and search stay English (`docs/TECH_DEBT.md`).
+- **Source:** task `docs/tasks/2026-11-04-russian-localization.md`, block 1.

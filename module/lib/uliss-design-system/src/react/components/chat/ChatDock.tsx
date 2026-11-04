@@ -3,6 +3,8 @@ import {useLayoutEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {formatClock} from './formatClock'
+import {useMessages} from '../../i18n/LocaleContext'
+import {chatDockMessages} from './ChatDock.messages'
 
 const TEXTAREA_MIN_HEIGHT = 34
 const TEXTAREA_MAX_HEIGHT = 144
@@ -46,7 +48,7 @@ const tile = {background: 'var(--bg-muted)'}
 
 /** Native text composer with explicit send, dictation and unavailable-voice states. */
 export function ChatDock({
-                             placeholder = 'Write a thought…',
+                             placeholder: placeholderProp,
                              value,
                              onChange,
                              onSubmit,
@@ -59,6 +61,8 @@ export function ChatDock({
                              children,
                              className,
                          }: ChatDockProps) {
+    const t = useMessages(chatDockMessages)
+    const placeholder = placeholderProp ?? t.placeholder
     const inputRef = useRef<HTMLTextAreaElement>(null)
     const voiceState = voice?.state ?? 'idle'
     const recording = voiceState === 'recording'
@@ -113,7 +117,7 @@ export function ChatDock({
                         <span className="u-pending" aria-hidden style={{color: 'var(--accent-2)', display: 'flex'}}>
                             <Icon name="mic" size={18} fill/>
                         </span>
-                        <span>Recording</span>
+                        <span>{t.recording}</span>
                         <span style={{marginLeft: 'auto', fontVariantNumeric: 'tabular-nums', color: 'var(--text-muted)'}}>
                             {formatClock(voice?.elapsedSeconds ?? 0)}
                             {voice?.maxSeconds !== undefined && ` / ${formatClock(voice.maxSeconds)}`}
@@ -129,7 +133,7 @@ export function ChatDock({
                         onKeyDown={handleKeyDown}
                         placeholder={placeholder}
                         disabled={fieldLocked}
-                        aria-label="Message"
+                        aria-label={t.message}
                         style={{
                             flex: 1,
                             minWidth: 0,
@@ -155,23 +159,23 @@ export function ChatDock({
                 )}
                 {recording ? (
                     <>
-                        <IconButton s={34} title="Stop recording" disabled={disabled} onClick={voice?.onStop} style={tile}>
+                        <IconButton s={34} title={t.stopRecording} disabled={disabled} onClick={voice?.onStop} style={tile}>
                             <Icon name="stop" size={18}/>
                         </IconButton>
-                        <IconButton s={34} title="Send recording" disabled={disabled || generationActive} onClick={voice?.onSend} style={tile}>
+                        <IconButton s={34} title={t.sendRecording} disabled={disabled || generationActive} onClick={voice?.onSend} style={tile}>
                             <Icon name="arrowUp" size={18}/>
                         </IconButton>
                     </>
                 ) : (
                     <>
                         {voiceState === 'failed' && (
-                            <IconButton s={34} title="Retry transcription" disabled={disabled || generationActive}
+                            <IconButton s={34} title={t.retryTranscription} disabled={disabled || generationActive}
                                         onClick={voice?.onRetry} style={tile} color="var(--accent-2)">
                                 <Icon name="retry" size={18}/>
                             </IconButton>
                         )}
                         <IconButton s={34}
-                                    title={transcribing ? 'Transcribing…' : voiceDisabled ? 'Voice input unavailable' : 'Voice input'}
+                                    title={transcribing ? t.transcribing : voiceDisabled ? t.voiceUnavailable : t.voiceInput}
                                     aria-busy={transcribing || undefined}
                                     disabled={micLocked} onClick={voice ? voice.onStart : onMic} style={tile}>
                             <span className={transcribing ? 'u-pending' : undefined} style={{display: 'flex'}}>
@@ -179,11 +183,11 @@ export function ChatDock({
                             </span>
                         </IconButton>
                         {generationActive ? (
-                            <IconButton s={34} title="Stop generation" type="button" onClick={onStop} style={tile}>
+                            <IconButton s={34} title={t.stopGeneration} type="button" onClick={onStop} style={tile}>
                                 <Icon name="stop" size={18}/>
                             </IconButton>
                         ) : (
-                            <IconButton s={34} title="Send" type="submit" disabled={fieldLocked || value.trim() === ''}
+                            <IconButton s={34} title={t.send} type="submit" disabled={fieldLocked || value.trim() === ''}
                                         style={tile}>
                                 <Icon name="arrowUp" size={18}/>
                             </IconButton>

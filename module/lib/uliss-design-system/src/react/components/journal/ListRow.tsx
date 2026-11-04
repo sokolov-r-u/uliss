@@ -2,6 +2,8 @@ import {type CSSProperties, type MouseEvent, type PointerEvent, type ReactNode, 
 import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
 import {NoteTitle, noteTitleText} from './NoteTitle'
+import {useMessages} from '../../i18n/LocaleContext'
+import {listRowMessages} from './ListRow.messages'
 
 // One line per note or chat: unread dot · serif title · meta · date · menu.
 // No cards, no thumbnails, no two-line previews, no relative time — the list is
@@ -59,6 +61,7 @@ export function ListRow({
                             size = 'compact',
                             first = false,
                         }: ListRowProps) {
+    const t = useMessages(listRowMessages)
     // a dots button without a menu would be a focusable control that does nothing
     const showDots = dots ?? onMenu != null
     const pressRef = useRef<{ timer: number; x: number; y: number } | null>(null)
@@ -222,8 +225,8 @@ export function ListRow({
             {showDots && (
                 <button
                     type="button"
-                    aria-label={menuLabel ?? `Actions for ${noteTitleText(title, icon)}`}
-                    title={menuLabel ?? 'Rename · Delete'}
+                    aria-label={menuLabel ?? t.actionsFor(noteTitleText(title, icon))}
+                    title={menuLabel ?? t.menuHint}
                     onClick={(event) => onMenu?.(event.currentTarget)}
                     onPointerDown={(event) => event.stopPropagation()}
                     style={{

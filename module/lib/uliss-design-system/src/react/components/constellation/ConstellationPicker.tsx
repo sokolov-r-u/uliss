@@ -4,6 +4,8 @@ import {IconButton} from '../actions/IconButton'
 import {Button} from '../actions/Button'
 import {TagDot} from './TagDot'
 import {NoteTitle, noteTitleText} from '../journal/NoteTitle'
+import {useMessages} from '../../i18n/LocaleContext'
+import {constellationPickerMessages} from './ConstellationPicker.messages'
 
 // The one place-picker of the constellation tree. It opens on the roots only;
 // a click selects a branch and unfolds it. The list shows five rows and
@@ -137,7 +139,7 @@ const byTitle = (a: ConstellationPickerNoteItem, b: ConstellationPickerNoteItem)
  * constellations). Excluded ids drop with everything below them; a cycle in bad data stops instead of hanging.
  */
 function buildTree(items: ConstellationPickerItem[], notes: ConstellationPickerNoteItem[],
-                   excluded: ReadonlySet<string>): TreeNode[] {
+                   excluded: ReadonlySet<string>, unplacedName: string): TreeNode[] {
     const constellations = new Map(items.map((item) => [item.id, item]))
     const childConstellations = new Map<string | null, ConstellationPickerItem[]>()
     for (const item of items) {
@@ -188,7 +190,7 @@ function buildTree(items: ConstellationPickerItem[], notes: ConstellationPickerN
     if (items.length === 0) {
         unplaced.forEach((note) => visitNote(note, [], undefined, []))
     } else if (unplaced.some((note) => !excluded.has(note.id))) {
-        nodes.push({key: UNPLACED, kind: 'unplaced', id: UNPLACED, name: 'Without constellation', depth: 0, ancestors: []})
+        nodes.push({key: UNPLACED, kind: 'unplaced', id: UNPLACED, name: unplacedName, depth: 0, ancestors: []})
         unplaced.forEach((note) => visitNote(note, [UNPLACED], undefined, []))
     }
     return nodes
@@ -219,10 +221,12 @@ export function ConstellationPicker({
                                         lead,
                                         onCreate,
                                         busy = false,
-                                        label = 'Search the tree',
+                                        label: labelProp,
                                         notes,
                                         fill = false,
                                     }: ConstellationPickerProps) {
+    const t = useMessages(constellationPickerMessages)
+    const label = labelProp ?? t.searchTree
     const [query, setQuery] = useState('')
     const [selectedKey, setSelectedKey] = useState<string | null>(null)
     /** The selection from before the search; it comes back while nothing matches. */
@@ -240,8 +244,8 @@ export function ConstellationPicker({
     const byId = new Map(items.map((item) => [item.id, item]))
     const excludeKey = [...exclude ?? []].join('\n')
     const noteItems = notes?.items
-    const tree = useMemo(() => buildTree(items, noteItems ?? [], new Set(excludeKey ? excludeKey.split('\n') : [])),
-        [items, noteItems, excludeKey])
+    const tree = useMemo(() => buildTree(items, noteItems ?? [], new Set(excludeKey ? excludeKey.split('\n') : []),
+        t.unplaced), [items, noteItems, excludeKey, t.unplaced])
     const byKey = new Map(tree.map((node) => [node.key, node]))
     const hasChildren = new Set(tree.map((node) => node.ancestors[node.ancestors.length - 1]).filter((key): key is string => key != null))
     const selected = selectedKey ? byKey.get(selectedKey) ?? null : null
@@ -349,8 +353,8 @@ export function ConstellationPicker({
              style={{display: 'flex', alignItems: 'center', gap: 6, padding: `4px 6px 4px ${11 + depth * STEP}px`,
                  borderTop: '1px solid var(--line)'}}>
             <input value={draft} autoFocus maxLength={80} disabled={creating}
-                   aria-label={parentId ? `New constellation in ${byId.get(parentId)?.name}` : 'New constellation'}
-                   placeholder={parentId ? `New in ${byId.get(parentId)?.name}` : 'New constellation'}
+                   aria-label={parentId ? t.newConstellationIn(byId.get(parentId)?.name ?? '') : t.newConstellation}
+                   placeholder={parentId ? t.newIn(byId.get(parentId)?.name ?? '') : t.newConstellation}
                    onChange={(event) => setDraft(event.target.value)}
                    onKeyDown={(event) => {
                        if (event.key === 'Enter') {
@@ -365,11 +369,11 @@ export function ConstellationPicker({
                    style={{...FIELD, minHeight: 36, padding: '0 6px', border: '1px solid var(--line-strong)'}}/>
             {nameTaken(normalize(draft), parentId) &&
                 <span role="status" style={{fontFamily: 'var(--font-text)', fontSize: 11, color: 'var(--text-faint)'}}>
-                    Taken here
+                    {t.taken}
                 </span>}
             <Button size="sm" variant="quiet" disabled={creating || busy || !normalize(draft)
                 || nameTaken(normalize(draft), parentId)}
-                    onClick={() => void create(normalize(draft), parentId)}>{creating ? 'Creating…' : 'Create'}</Button>
+                    onClick={() => void create(normalize(draft), parentId)}>{creating ? t.creating : t.create}</Button>
         </div>
     )
 
@@ -405,7 +409,7 @@ export function ConstellationPicker({
             }}>
                 <span style={{flex: '0 0 32px', display: 'flex', justifyContent: 'center'}}>
                     {hasChildren.has(node.key) &&
-                        <IconButton s={32} title={`${isOpen ? 'Collapse' : 'Expand'} ${node.name}`}
+                        <IconButton s={32} title={isOpen ? t.collapse(node.name) : t.expand(node.name)}
                                     aria-expanded={isOpen} onClick={() => toggle(node.key)}>
                             <Icon name="chevron" size={10} rotate={isOpen ? 0 : -90}/>
                         </IconButton>}
@@ -458,18 +462,18 @@ export function ConstellationPicker({
     function createRowFor(branch: TreeNode): ReactNode {
         return creatingIn === branch.id
             ? nameField(branch.id, branch.depth + 1)
-            : quietRow(`add-${branch.id}`, branch.depth + 1, `+ New in ${branch.name}`,
+            : quietRow(`add-${branch.id}`, branch.depth + 1, t.addNewIn(branch.name),
                 () => startCreating(branch.id), busy)
     }
 
     if (canCreateTyped) {
-        rows.push(quietRow('create', 0, createParent ? `Create “${typed}” in ${byId.get(createParent)?.name}`
-            : `Create “${typed}”`, () => void create(typed, createParent), creating || busy))
+        rows.push(quietRow('create', 0, createParent ? t.createTypedIn(typed, byId.get(createParent)?.name ?? '')
+            : t.createTyped(typed), () => void create(typed, createParent), creating || busy))
     }
     if (!needle && onCreate) {
         rows.push(creatingIn === null
             ? nameField(null, 0)
-            : quietRow('new-root', 0, '+ New constellation', () => startCreating(null), busy))
+            : quietRow('new-root', 0, t.addNewConstellation, () => startCreating(null), busy))
     }
 
     return (
@@ -511,16 +515,16 @@ export function ConstellationPicker({
                         {`${current + 1} / ${matches.length}`}
                     </span>
                     {/* the arrows keep the focus in the search field */}
-                    <IconButton s={32} title="Previous match" disabled={matches.length === 0}
+                    <IconButton s={32} title={t.previousMatch} disabled={matches.length === 0}
                                 onMouseDown={(event) => event.preventDefault()} onClick={() => step(-1)}>
                         <Icon name="chevron" size={10} rotate={180}/>
                     </IconButton>
-                    <IconButton s={32} title="Next match" disabled={matches.length === 0}
+                    <IconButton s={32} title={t.nextMatch} disabled={matches.length === 0}
                                 onMouseDown={(event) => event.preventDefault()} onClick={() => step(1)}>
                         <Icon name="chevron" size={10}/>
                     </IconButton>
                 </>}
-                {onClose && <IconButton s={44} title="Close picker" onClick={onClose}><Icon name="close" size={13}/></IconButton>}
+                {onClose && <IconButton s={44} title={t.close} onClick={onClose}><Icon name="close" size={13}/></IconButton>}
             </div>
             <div role="list" style={fill ? {flex: 1, minHeight: 0, overflowY: 'auto'}
                 : {maxHeight: LIST_HEIGHT, overflowY: 'auto'}}>
@@ -531,7 +535,7 @@ export function ConstellationPicker({
                     fontSize: 12,
                     color: 'var(--text-faint)',
                     borderBottom: '1px solid var(--line)',
-                }}>{notes ? 'Nothing matches.' : 'Nothing in the tree matches.'}</p>}
+                }}>{notes ? t.nothingMatches : t.nothingInTree}</p>}
                 {rows}
             </div>
             <div style={{display: 'flex', padding: 8, borderTop: '1px solid var(--line)'}}>
@@ -542,7 +546,7 @@ export function ConstellationPicker({
                         }}>
                     {selected?.kind === 'constellation' ? action(selected.name)
                         : selected?.kind === 'note' && notes ? notes.action(noteTitleText(selected.name, selected.icon))
-                            : !notes ? 'Select a constellation' : items.length === 0 ? 'Select a note' : 'Select a place'}
+                            : !notes ? t.selectConstellation : items.length === 0 ? t.selectNote : t.selectPlace}
                 </Button>
             </div>
         </div>

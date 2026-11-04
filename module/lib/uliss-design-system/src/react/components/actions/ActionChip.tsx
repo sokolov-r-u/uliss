@@ -1,5 +1,7 @@
 import type {ButtonHTMLAttributes} from 'react'
 import {Icon, type IconName} from '../icons/Icon'
+import {useMessages} from '../../i18n/LocaleContext'
+import {actionChipMessages} from './ActionChip.messages'
 
 // The small bordered action that sits inside content rather than chrome —
 // "Update", "Summarize". 26px tall, accent border, glyph first.
@@ -9,12 +11,14 @@ export interface ActionChipProps extends Omit<ButtonHTMLAttributes<HTMLButtonEle
 }
 
 export function ActionChip({
-                               label = 'Summarize',
+                               label: labelProp,
                                icon = 'summary',
                                type = 'button',
                                disabled = false,
                                ...buttonProps
                            }: ActionChipProps) {
+    const t = useMessages(actionChipMessages)
+    const label = labelProp ?? t.summarize
     return (
         <button
             {...buttonProps}

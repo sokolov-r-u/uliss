@@ -1,6 +1,8 @@
 import {type KeyboardEvent, useEffect, useId, useRef, useState} from 'react'
 import {Icon} from '../icons/Icon'
 import {LabelRow} from '../layout/LabelRow'
+import {useMessages} from '../../i18n/LocaleContext'
+import {selectMessages} from './Select.messages'
 
 export interface SelectOption<T extends string = string> {
     value: T
@@ -24,7 +26,7 @@ export interface SelectProps<T extends string = string> {
 export function Select<T extends string = string>({
                                                       label,
                                                       value,
-                                                      placeholder = 'Select…',
+                                                      placeholder: placeholderProp,
                                                       options,
                                                       onChange,
                                                       open,
@@ -33,6 +35,8 @@ export function Select<T extends string = string>({
                                                       name,
                                                       'aria-label': ariaLabel,
                                                   }: SelectProps<T>) {
+    const t = useMessages(selectMessages)
+    const placeholder = placeholderProp ?? t.placeholder
     const generatedId = useId()
     const listboxId = `${generatedId}-listbox`
     const containerRef = useRef<HTMLDivElement>(null)

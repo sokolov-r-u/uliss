@@ -41,7 +41,7 @@ branches down to them and steps through them.
 - It is an inline block with a hard edge; the host decides where it sits. Escape in the search field calls `onClose`;
   Escape in a name field only cancels that field.
 - Every row is a native button; the selected row is `aria-pressed`; the search field is labelled by `label` (default
-  "Search the tree"). The search field has no focus ring of its own: its bottom edge and icon brighten instead.
+  "Search the tree", in the active `LocaleProvider` language). The search field has no focus ring of its own: its bottom edge and icon brighten instead.
 - `notes` makes notes targets too, where a note can hold the one being placed (Summarize, "Move under a note").
   `notes.items` is every such note, flat: `parentId` is its parent note, `constellationIds` its constellations. A note
   sits in each of its constellations after their sub-constellations, its sub-notes under it, and notes with no

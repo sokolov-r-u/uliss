@@ -11,6 +11,8 @@ import {
     type ConstellationLightness,
     constellationColor,
 } from './constellationColor'
+import {useMessages} from '../../i18n/LocaleContext'
+import {constellationColorEditorMessages} from './ConstellationColorEditor.messages'
 
 // Colour of one branch. A root owns its hue: the 13-tone palette first, a hue
 // slider for the fussy. A sub-constellation has no hue of its own — it inherits
@@ -43,6 +45,7 @@ const CAPTION = {
 } as const
 
 export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
+    const t = useMessages(constellationColorEditorMessages)
     const [hue, setHue] = useState(props.hue)
     const initialLightness: ConstellationLightness = props.mode === 'lightness' ? props.lightness : 'BASE'
     const [lightness, setLightness] = useState<ConstellationLightness>(initialLightness)
@@ -69,17 +72,17 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
             background: 'var(--bg-surface)',
         }}>
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
-                <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Colour</Kicker>
-                <IconButton s={30} title="Close colour" onClick={props.onClose}><Icon name="close" size={13}/></IconButton>
+                <Kicker size={9} spacing="2.5px" color="var(--text-faint)">{t.colour}</Kicker>
+                <IconButton s={30} title={t.close} onClick={props.onClose}><Icon name="close" size={13}/></IconButton>
             </div>
             {props.mode === 'hue' ? <>
-                <div role="radiogroup" aria-label="Palette"
+                <div role="radiogroup" aria-label={t.palette}
                      style={{display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 7}}>
                     {CONSTELLATION_PALETTE.map((tone, index) => (
                         // one tab stop (the chosen tone, or the first when the slider set another hue); arrows move
                         <button key={tone} type="button" role="radio" aria-checked={hue === tone}
                                 tabIndex={index === Math.max(paletteIndex, 0) ? 0 : -1}
-                                aria-label={`Hue ${tone}`} title={`Hue ${tone}`} onClick={() => setHue(tone)}
+                                aria-label={t.hue(tone)} title={t.hue(tone)} onClick={() => setHue(tone)}
                                 onKeyDown={(event) => {
                                     const next = arrowFocus(event, event.currentTarget.parentElement, index, CONSTELLATION_PALETTE.length, 7)
                                     if (next !== null) setHue(CONSTELLATION_PALETTE[next])
@@ -96,8 +99,8 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
                     ))}
                 </div>
                 <label style={{display: 'flex', flexDirection: 'column', gap: 8}}>
-                    <span style={{...CAPTION, fontSize: 9, letterSpacing: '2px', color: 'var(--text-faint)'}}>Or shift the hue</span>
-                    <input type="range" min={0} max={359} value={hue} aria-label="Hue"
+                    <span style={{...CAPTION, fontSize: 9, letterSpacing: '2px', color: 'var(--text-faint)'}}>{t.shiftHue}</span>
+                    <input type="range" min={0} max={359} value={hue} aria-label={t.hueSlider}
                            onChange={(event) => setHue(Number(event.target.value))}
                            style={{width: '100%', accentColor: color}}/>
                 </label>
@@ -108,7 +111,7 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
                         Inherits from <span style={{color: 'var(--cream-dim)'}}>{props.rootName}</span>
                     </span>
                 </div>
-                <div role="radiogroup" aria-label="Lightness" style={{display: 'flex', gap: 7}}>
+                <div role="radiogroup" aria-label={t.lightness} style={{display: 'flex', gap: 7}}>
                     {CONSTELLATION_LIGHTNESS_STEPS.map((step, index) => {
                         const on = step.id === lightness
                         return (
@@ -139,7 +142,7 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
                                     outline: on ? '1px solid var(--cream)' : '1px solid transparent',
                                     outlineOffset: 2,
                                 }}/>
-                                <span style={{...CAPTION, color: on ? 'var(--cream)' : 'var(--text-faint)'}}>{step.label}</span>
+                                <span style={{...CAPTION, color: on ? 'var(--cream)' : 'var(--text-faint)'}}>{t[step.id]}</span>
                             </button>
                         )
                     })}
@@ -163,7 +166,7 @@ export function ConstellationColorEditor(props: ConstellationColorEditorProps) {
                     textOverflow: 'ellipsis',
                 }}><TagDot color={color}/>{props.name}</span>
                 <Button size="lg" style={{marginLeft: 'auto'}} disabled={!changed || props.busy} aria-busy={props.busy || undefined}
-                        onClick={save}>{props.busy ? 'Saving…' : 'Save'}</Button>
+                        onClick={save}>{props.busy ? t.saving : t.save}</Button>
             </div>
         </div>
     )

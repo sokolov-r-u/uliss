@@ -79,3 +79,8 @@
     --cta-weight: var(--w-emphasis);
     --cta-shadow: none;
 }
+
+/* Cinzel has no Cyrillic: Russian headings on the sign-in surface take the text face; the wordmark stays Cinzel. */
+[data-surface='login']:lang(ru) {
+    --heading-font: var(--font-text);
+}
