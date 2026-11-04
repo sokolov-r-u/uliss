@@ -4,12 +4,13 @@ import {MemoryRouter, Route, Routes, useLocation} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {listConstellations} from '../constellations/constellationApi'
 import type {Constellation} from '../constellations/constellationApi'
-import {listNotes, listPinnedNotes, type Note} from './noteApi'
+import {deleteNote, listNotes, listPinnedNotes, type Note, pinNote} from './noteApi'
 import {NotesPage} from './NotesPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
-    return {...actual, listNotes: vi.fn(), listPinnedNotes: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([]))}
+    return {...actual, listNotes: vi.fn(), listPinnedNotes: vi.fn(), deleteNote: vi.fn(), pinNote: vi.fn(),
+        listSubNotes: vi.fn(() => Promise.resolve([]))}
 })
 vi.mock('../constellations/constellationApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../constellations/constellationApi')>()
@@ -119,5 +120,65 @@ describe('NotesPage constellation filter', () => {
         expect(screen.getByText('Pinned')).toBeInTheDocument()
         expect(screen.queryByRole('button', {name: /^Pinned film/})).not.toBeInTheDocument()
         expect(vi.mocked(listPinnedNotes)).toHaveBeenCalledWith(expect.any(AbortSignal), [MUSIC])
+    })
+
+    it('counts a note deleted here out of both the filtered list and all notes', async () => {
+        vi.mocked(deleteNote).mockResolvedValue(undefined)
+        // the reload that follows the delete never answers, so the counts are the page's own
+        vi.mocked(listNotes).mockReset()
+            .mockResolvedValueOnce({items: [note('a', 'Bowie')], nextCursor: null, total: 1, allTotal: 2})
+            .mockReturnValue(new Promise(() => undefined))
+        renderPage(`?constellation=${MUSIC}`)
+        expect(await screen.findByText('1 of 2')).toBeInTheDocument()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Actions for Bowie'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Delete'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Delete'}))
+
+        expect(await screen.findByText('0 of 1')).toBeInTheDocument()
+    })
+
+    it('turns the filter button off at the service limit of 50 constellations', async () => {
+        const many = Array.from({length: 50}, (_, n) => id(100 + n))
+        vi.mocked(listConstellations).mockResolvedValue(many.map((cid, n) => constellation(cid, null, `C${n}`)))
+        renderPage(`?${many.map((cid) => `constellation=${cid}`).join('&')}`)
+
+        const button = await screen.findByRole('button', {name: 'Up to 50 constellations'})
+        expect(button).toBeDisabled()
+    })
+
+    it('has no filter button for a user without constellations', async () => {
+        vi.mocked(listConstellations).mockResolvedValue([])
+        renderPage()
+
+        await screen.findByRole('button', {name: /^Bowie/})
+        await waitFor(() => expect(listConstellations).toHaveBeenCalled())
+        expect(screen.queryByRole('button', {name: 'Filter by constellation'})).not.toBeInTheDocument()
+    })
+
+    it('keeps the filter, with unnamed chips, when the tree does not load', async () => {
+        vi.mocked(listConstellations).mockRejectedValue(new Error('offline'))
+        renderPage(`?constellation=${MUSIC}`)
+
+        await screen.findByText('1 of 2')
+        expect(screen.getByRole('button', {name: 'Remove Constellation'})).toBeInTheDocument()
+        expect(location).toBe(`?constellation=${MUSIC}`)
+        expect(lastFilter()).toEqual([MUSIC])
+        expect(screen.queryByRole('button', {name: 'Filter by constellation'})).not.toBeInTheDocument()
+    })
+
+    it('moves a row pinned under a filter into the Pinned group at once', async () => {
+        vi.mocked(pinNote).mockResolvedValue(note('a', 'Bowie'))
+        // after the pin, the filtered pinned list never answers again: the group shows the pin on its own
+        vi.mocked(listPinnedNotes).mockResolvedValueOnce([]).mockResolvedValueOnce([])
+            .mockReturnValue(new Promise(() => undefined))
+        renderPage(`?constellation=${MUSIC}`)
+        await screen.findByText('1 of 2')
+
+        await userEvent.click(screen.getByRole('button', {name: 'Actions for Bowie'}))
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Pin'}))
+
+        expect(await screen.findByText('Pinned')).toBeInTheDocument()
+        expect(screen.getAllByRole('button', {name: /^Bowie/})).toHaveLength(1)
     })
 })

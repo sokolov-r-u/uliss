@@ -182,9 +182,12 @@ class NoteControllerTest {
             status { isOk() }
             jsonPath("$.length()") { value(0) }
         }
-        mockMvc.get("/note/notes/pinned?constellationId=music") {
-            with(jwt().jwt { it.claim("userId", userId.toString()) })
-        }.andExpect { status { isBadRequest() } }
+        val tooMany = (1..51).joinToString("&") { "constellationId=${UUID.randomUUID()}" }
+        listOf("constellationId=music", tooMany, "constellationId=&constellationId=").forEach { query ->
+            mockMvc.get("/note/notes/pinned?$query") {
+                with(jwt().jwt { it.claim("userId", userId.toString()) })
+            }.andExpect { status { isBadRequest() } }
+        }
         Mockito.verify(noteService).getPinnedNotes(userId, setOf(music))
     }
 

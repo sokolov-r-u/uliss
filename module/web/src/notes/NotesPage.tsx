@@ -248,11 +248,17 @@ export function NotesPage() {
         onClear: filter.length > 0 ? () => setFilter([]) : undefined,
     }
 
-    const pinnedNotes = pinned.status === 'ready' ? pinned.items : []
+    const sharedPinned = allPinned.status === 'ready' ? allPinned.items : []
+    // a row pinned here belongs to the filter: it joins the filtered Pinned group at once, before the refetch confirms it
+    const justPinned = filter.length > 0 && state.status === 'ready' && pinned.status === 'ready'
+        ? sharedPinned.filter((note) => state.items.some((row) => row.id === note.id)
+            && !pinned.items.some((shown) => shown.id === note.id))
+        : []
+    const pinnedNotes = pinned.status === 'ready' ? [...justPinned, ...pinned.items] : []
     // a pinned note lives only in the Pinned group, also while a page fetched before the pin is still shown; pages
     // leave out every pinned note, filtered or not
     const items = state.status === 'ready'
-        ? withoutPinned(state.items, allPinned.status === 'ready' ? allPinned.items : []) : []
+        ? withoutPinned(state.items, sharedPinned) : []
     // "Nothing written down yet" waits for the pinned list: every note may be pinned
     if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
         return <div className="product-view"><ScreenHeader kicker="Notes"/>{filterSlots.bar}
@@ -268,7 +274,12 @@ export function NotesPage() {
     }
     return <NotesView notes={toNoteViewModels(items, noteChangedAt)} total={state.total}
                       pinned={toNoteViewModels(pinnedNotes, noteChangedAt)}
-                      notice={pinned.status === 'error' ? <PinnedFailed onRetry={filter.length > 0 ? retryPinned : pinnedNotesStore.refresh}/> : undefined}
+                      notice={pinned.status === 'error' || allPinned.status === 'error'
+                          ? <PinnedFailed onRetry={() => {
+                              pinnedNotesStore.refresh()
+                              if (filter.length > 0) retryPinned()
+                          }}/>
+                          : undefined}
                       onOpen={(note) => navigate(`/notes/${note.id}`)}
                       onStartChat={() => navigate('/chats')}
                       filter={filterSlots}

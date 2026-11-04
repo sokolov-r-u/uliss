@@ -287,3 +287,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   shared pinned list changes; it never shows the pinned notes of another filter, and Retry refetches it. Rows still
   leave out every pinned note (the shared list), as the pages do.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main).
+
+## 2026-11-04 — A note pinned under a filter joins its Pinned group at once
+
+- **Context:** refines "The Pinned group of the Notes page follows the constellation filter" after the code review: a
+  row pinned under a filter left the rows at once but reached the Pinned group only with the refetch, and every
+  filtered page asked for its pinned notes twice on mount.
+- **Decision:** a shared-list pin of a row shown on the page joins the filtered Pinned group until the refetch lands
+  (a shown row is in the filter); the filtered fetch waits for the shared list to load; a failed shared list shows
+  the notice under a filter too, and its Retry refetches both lists.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (code review).

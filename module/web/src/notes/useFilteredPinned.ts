@@ -19,7 +19,8 @@ export function useFilteredPinned(filter: readonly string[], revision: number, a
     filterRef.current = filter
 
     useEffect(() => {
-        if (filterKey === '') return
+        // the fetch waits for the shared list: its arrival would otherwise ask for the same pinned notes again
+        if (filterKey === '' || allKey === 'loading') return
         const controller = new AbortController()
         listPinnedNotes(controller.signal, filterRef.current)
             .then((items) => setLoaded({key: filterKey, state: {status: 'ready', items}}))
