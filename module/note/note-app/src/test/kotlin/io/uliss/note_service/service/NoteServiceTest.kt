@@ -112,6 +112,51 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `getNotes with constellations reads and counts the filtered list and also counts all notes`() {
+        val userId = UUID.randomUUID()
+        val filter = setOf(UUID.randomUUID(), UUID.randomUUID())
+        val note = NoteEntity(userId, "in music", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(noteListStore.findPage(userId, null, 3, filter))
+            .thenReturn(listOf(ListCursor(Instant.parse("2026-11-03T10:00:00Z"), note.id)))
+        Mockito.`when`(noteRepository.findAllById(listOf(note.id))).thenReturn(listOf(note))
+        Mockito.`when`(noteListStore.count(userId, filter)).thenReturn(1)
+        Mockito.`when`(noteListStore.count(userId)).thenReturn(7)
+
+        val page = noteService.getNotes(userId, cursor = null, limit = 2, constellationIds = filter)
+
+        assertEquals(listOf(note.id), page.notes.items.map { it.id })
+        assertEquals(1, page.total)
+        assertEquals(7, page.allTotal)
+    }
+
+    @Test
+    fun `getPinnedNotes with constellations keeps the store's filtered order`() {
+        val userId = UUID.randomUUID()
+        val filter = setOf(UUID.randomUUID())
+        val first = NoteEntity(userId, "pinned last", NoteSource.MANUAL, NoteStatus.READY)
+        val second = NoteEntity(userId, "pinned first", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(noteListStore.findPinned(userId, filter, PinLimit.MAX)).thenReturn(listOf(first.id, second.id))
+        Mockito.`when`(noteRepository.findAllById(listOf(first.id, second.id))).thenReturn(listOf(second, first))
+
+        val pinned = noteService.getPinnedNotes(userId, filter)
+
+        assertEquals(listOf(first.id, second.id), pinned.map { it.id })
+    }
+
+    @Test
+    fun `getNotes without constellations counts the notes once, all of them are the list`() {
+        val userId = UUID.randomUUID()
+        Mockito.`when`(noteListStore.findPage(userId, null, 3)).thenReturn(emptyList())
+        Mockito.`when`(noteListStore.count(userId)).thenReturn(7)
+
+        val page = noteService.getNotes(userId, cursor = null, limit = 2)
+
+        assertEquals(7, page.total)
+        assertEquals(7, page.allTotal)
+        assertEquals(1, Mockito.mockingDetails(noteListStore).invocations.count { it.method.name == "count" })
+    }
+
+    @Test
     fun `getNotes continues after the cursor, skips a note deleted between the reads and ends without a cursor`() {
         val userId = UUID.randomUUID()
         val kept = NoteEntity(userId, "kept", NoteSource.MANUAL, NoteStatus.READY)

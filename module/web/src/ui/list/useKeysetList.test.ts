@@ -43,6 +43,29 @@ describe('useKeysetList', () => {
         expect(load).toHaveBeenCalledTimes(2)
     })
 
+    it('shows the error when a reload for another list key fails, and keeps the rows when the same list fails', async () => {
+        const load = vi.fn()
+            .mockResolvedValueOnce(page(['a'], 'cur-1', 1))
+            .mockRejectedValueOnce(new Error('offline'))
+            .mockResolvedValueOnce(page(['b'], 'cur-2', 1))
+            .mockRejectedValueOnce(new Error('offline'))
+        const {result, rerender} = renderHook(({revision, key}) => useKeysetList<Item>(load, revision, key),
+            {initialProps: {revision: 0, key: 'music'}})
+        await waitFor(() => expect(result.current.state.status).toBe('ready'))
+
+        rerender({revision: 0, key: 'films'})
+        await waitFor(() => expect(result.current.state.status).toBe('error'))
+        act(() => result.current.loadMore())
+        expect(load).toHaveBeenCalledTimes(2)
+
+        rerender({revision: 1, key: 'films'})
+        await waitFor(() => expect(result.current.state.status).toBe('ready'))
+        rerender({revision: 2, key: 'films'})
+        await waitFor(() => expect(load).toHaveBeenCalledTimes(4))
+        await waitFor(() => expect(ready(result.current.state).more).toBe('idle'))
+        expect(ready(result.current.state).items.map((item) => item.id)).toEqual(['b'])
+    })
+
     it('asks for one next page at a time', async () => {
         const next = deferred<KeysetListPage<Item>>()
         const load = vi.fn().mockResolvedValueOnce(page(['a'], 'cur-1')).mockReturnValueOnce(next.promise)

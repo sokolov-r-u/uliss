@@ -40,18 +40,31 @@ class NoteService(
 
     /**
      * A page of the user's notes by last change, starting strictly after [cursor] (from the newest when null), with the
-     * number of all their notes. A note deleted between the reads is left out of the page.
+     * size of the list and the number of all their notes. Non-empty [constellationIds] keep the notes of those
+     * constellations' subtrees with their sub-notes. A note deleted between the reads is left out of the page.
      */
-    fun getNotes(userId: UUID, cursor: ListCursor?, limit: Int): NoteListPage {
-        val positions = KeysetPage.of(noteListStore.findPage(userId, cursor, limit + 1), limit) { it }
+    fun getNotes(
+        userId: UUID,
+        cursor: ListCursor?,
+        limit: Int,
+        constellationIds: Set<UUID> = emptySet(),
+    ): NoteListPage {
+        val positions = KeysetPage.of(noteListStore.findPage(userId, cursor, limit + 1, constellationIds), limit) { it }
         val ids = positions.items.map { it.id }
         val page = KeysetPage(toResponses(userId) { orderedById(ids) }, positions.nextCursor)
-        return NoteListPage(page, noteListStore.count(userId))
+        if (constellationIds.isEmpty()) return NoteListPage(page, noteListStore.count(userId))
+        return NoteListPage(page, noteListStore.count(userId, constellationIds), noteListStore.count(userId))
     }
 
-    /** The user's pinned notes, last pinned first; the pages of [getNotes] leave them out. */
-    fun getPinnedNotes(userId: UUID): List<NoteResponse> =
-        toResponses(userId) { noteRepository.findPinned(userId, PinLimit.MAX) }
+    /**
+     * The user's pinned notes, last pinned first; the pages of [getNotes] leave them out. Non-empty [constellationIds]
+     * keep the pinned notes of the same filter as [getNotes].
+     */
+    fun getPinnedNotes(userId: UUID, constellationIds: Set<UUID> = emptySet()): List<NoteResponse> {
+        if (constellationIds.isEmpty()) return toResponses(userId) { noteRepository.findPinned(userId, PinLimit.MAX) }
+        val ids = noteListStore.findPinned(userId, constellationIds, PinLimit.MAX)
+        return toResponses(userId) { orderedById(ids) }
+    }
 
     /**
      * Pins the owned note on top of the pinned list; a pinned note keeps its place. Any status may be pinned. Fails with

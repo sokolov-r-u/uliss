@@ -261,3 +261,39 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   server's `total`; the Chats header has no counter.
 - **Consequences:** after a change event the user is back at the first page; scrolling loads the rest again.
 - **Source:** task `docs/tasks/2026-11-03-keyset-lists.md`.
+
+## 2026-11-03 — The Notes page filters by constellations through the URL
+
+- **Context:** task 2 of the keyset lists epic; the user uses the filter as a mode and expects it after Back from a
+  note.
+- **Decision:** the filter lives only in the URL (`/notes?constellation=<id>&…`); a change replaces the history
+  entry, so Back leaves the list rather than stepping through old filters, and the side nav's Notes opens it
+  unfiltered. A funnel button opens the existing `ConstellationPicker` (constellations only, chosen ones excluded with
+  their subtrees); each pick adds a `ConstellationChip` under the header, × removes one, Clear removes all, and
+  picking an ancestor absorbs its chosen descendants. The page keeps only uuids, each once, at most 50 (the service's
+  limit; the button is disabled at 50) and drops ids the loaded tree does not have. The header counts "`total` of
+  `allTotal`"; an empty filtered list offers Clear filter. `useKeysetList` takes the filter as the list's key and
+  reloads when it or the change-event revision changes; a failed reload for a new key shows the error with Retry
+  instead of the previous filter's rows.
+- **Consequences:** no design-system change; choosing several constellations opens the picker once per constellation.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`.
+
+## 2026-11-04 — The Pinned group of the Notes page follows the constellation filter
+
+- **Context:** after merging pinned notes, a filtered list showed every pinned note above it; the user chose to
+  filter the Pinned group too.
+- **Decision:** without a filter the page reads the shared pinned store as before. With one, `useFilteredPinned`
+  fetches `GET /notes/pinned` with the same `constellationId`s and refetches when the filter, a change event or the
+  shared pinned list changes; it never shows the pinned notes of another filter, and Retry refetches it. Rows still
+  leave out every pinned note (the shared list), as the pages do.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main).
+
+## 2026-11-04 — A note pinned under a filter joins its Pinned group at once
+
+- **Context:** refines "The Pinned group of the Notes page follows the constellation filter" after the code review: a
+  row pinned under a filter left the rows at once but reached the Pinned group only with the refetch, and every
+  filtered page asked for its pinned notes twice on mount.
+- **Decision:** a shared-list pin of a row shown on the page joins the filtered Pinned group until the refetch lands
+  (a shown row is in the filter); the filtered fetch waits for the shared list to load; a failed shared list shows
+  the notice under a filter too, and its Retry refetches both lists.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (code review).

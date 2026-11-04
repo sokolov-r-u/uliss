@@ -1,4 +1,5 @@
 import {expect, type Page, test} from '@playwright/test'
+import {K} from '../fixtures'
 import {openRoute} from './routes'
 
 const sky = (page: Page) => page.getByRole('group', {name: 'Sky map'})
@@ -65,15 +66,15 @@ test('the keyboard reaches the sky with one Tab, moves by direction, names the s
     await page.keyboard.press('Tab')
     expect(await focusedId()).toBe(entry)
 
-    await page.locator('[data-node-id="k-music"]').focus()
+    await page.locator(`[data-node-id="${K.music}"]`).focus()
     await page.keyboard.press('ArrowLeft')
-    await expect(page.locator('[data-node-id="k-jazz"]')).toBeFocused()
+    await expect(page.locator(`[data-node-id="${K.jazz}"]`)).toBeFocused()
     await page.keyboard.press('ArrowUp')
-    await expect(page.locator('[data-node-id="k-noir"]')).toBeFocused()
-    await expect(page.locator('[data-node-id="k-noir"] .sky-focus-ring')).toHaveCSS('stroke-dasharray', '3px, 3px')
+    await expect(page.locator(`[data-node-id="${K.noir}"]`)).toBeFocused()
+    await expect(page.locator(`[data-node-id="${K.noir}"] .sky-focus-ring`)).toHaveCSS('stroke-dasharray', '3px, 3px')
 
     // a rim star's name is faint until the keyboard reaches it
-    await page.locator('[data-node-id="k-films"]').focus()
+    await page.locator(`[data-node-id="${K.films}"]`).focus()
     const rimName = page.locator('[data-node-id="n3"] text')
     await expect(rimName).not.toHaveAttribute('opacity', '1')
     await page.keyboard.press('ArrowRight')

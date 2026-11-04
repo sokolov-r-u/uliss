@@ -71,6 +71,140 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         assertEquals(3, store.count(userId))
     }
 
+    @Test
+    fun `a constellation filter keeps the notes of the constellation and of its whole subtree`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val rock = constellation(userId, music)
+        val glam = constellation(userId, rock)
+        val films = constellation(userId, null)
+        val inMusic = placed(note(userId, at), music)
+        val inGlam = placed(note(userId, at.minusSeconds(1)), glam)
+        placed(note(userId, at.minusSeconds(2)), films)
+        note(userId, at.minusSeconds(3))
+
+        val page = store.findPage(userId, null, 10, setOf(music))
+
+        assertEquals(listOf(inMusic, inGlam), page.map { it.id })
+    }
+
+    @Test
+    fun `a constellation filter keeps every sub-note of the notes placed there, at any depth`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val bowie = placed(note(userId, at), music)
+        val album = subNote(note(userId, at.minusSeconds(1)), bowie)
+        val song = subNote(note(userId, at.minusSeconds(2)), album)
+        subNote(note(userId, at.minusSeconds(3)), note(userId, at.minusSeconds(4)))
+
+        val page = store.findPage(userId, null, 10, setOf(music))
+
+        assertEquals(listOf(bowie, album, song), page.map { it.id })
+    }
+
+    @Test
+    fun `several constellations are a union with each note once, unknown and foreign ones add nothing`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val rock = constellation(userId, music)
+        val films = constellation(userId, null)
+        val stranger = UUID.randomUUID()
+        val foreign = constellation(stranger, null)
+        val inBoth = placed(placed(note(userId, at), films), rock, main = false)
+        val inMusic = placed(note(userId, at.minusSeconds(1)), music)
+        val inFilms = placed(note(userId, at.minusSeconds(2)), films)
+        placed(note(stranger, at), foreign)
+
+        val page = store.findPage(userId, null, 10, setOf(music, rock, films, foreign, UUID.randomUUID(), music))
+
+        assertEquals(listOf(inBoth, inMusic, inFilms), page.map { it.id })
+        assertEquals(emptyList(), store.findPage(userId, null, 10, setOf(foreign)))
+        assertEquals(0, store.count(userId, setOf(foreign, UUID.randomUUID())))
+    }
+
+    @Test
+    fun `a filtered list pages by keyset without repeats or gaps`() {
+        val tie = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val all = (1..5).map { placed(note(userId, tie), music) } + note(userId, tie)
+
+        val first = store.findPage(userId, null, 2, setOf(music))
+        val second = store.findPage(userId, first.last(), 2, setOf(music))
+        val third = store.findPage(userId, second.last(), 2, setOf(music))
+
+        val ids = (first + second + third).map { it.id }
+        assertEquals(all.take(5).sortedByDescending { it.toString() }, ids)
+    }
+
+    @Test
+    fun `count with a filter counts the filtered list, each note once`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val rock = constellation(userId, music)
+        val placedTwice = placed(placed(note(userId, at), music), rock, main = false)
+        subNote(note(userId, at), placedTwice)
+        placed(note(userId, at), rock)
+        note(userId, at)
+
+        assertEquals(3, store.count(userId, setOf(music, rock)))
+        assertEquals(4, store.count(userId))
+    }
+
+    @Test
+    fun `pinned notes of a filter are its pinned notes with sub-notes, last pinned first, and stay out of its pages`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val rock = constellation(userId, music)
+        val films = constellation(userId, null)
+        val bowie = pin(placed(note(userId, at), rock), at.minusSeconds(30))
+        val album = pin(subNote(note(userId, at), bowie), at.minusSeconds(10))
+        pin(placed(note(userId, at), films), at)
+        val unpinned = placed(note(userId, at), music)
+
+        assertEquals(listOf(album, bowie), store.findPinned(userId, setOf(music), 15))
+        assertEquals(listOf(album), store.findPinned(userId, setOf(music), 1))
+        assertEquals(listOf(unpinned), store.findPage(userId, null, 10, setOf(music)).map { it.id })
+    }
+
+    private fun pin(noteId: UUID, pinnedAt: Instant): UUID {
+        jdbcTemplate.update("UPDATE note.notes SET pinned_at = ? WHERE id = ?", Timestamp.from(pinnedAt), noteId)
+        return noteId
+    }
+
+    private fun subNote(noteId: UUID, parentNoteId: UUID): UUID {
+        jdbcTemplate.update("UPDATE note.notes SET parent_note_id = ? WHERE id = ?", parentNoteId, noteId)
+        return noteId
+    }
+
+    private fun constellation(owner: UUID, parent: UUID?): UUID {
+        val id = UUID.randomUUID()
+        jdbcTemplate.update(
+            """
+                INSERT INTO note.constellations
+                    (id, user_id, parent_id, name, hue, lightness, created_at, updated_at, created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, now(), now(), 'test', 'test')
+            """,
+            id,
+            owner,
+            parent,
+            id.toString().take(8),
+            if (parent == null) 10 else null,
+            if (parent == null) null else "BASE",
+        )
+        return id
+    }
+
+    private fun placed(noteId: UUID, constellationId: UUID, main: Boolean = true): UUID {
+        jdbcTemplate.update(
+            """
+                INSERT INTO note.note_constellation (note_id, constellation_id, user_id, is_main, added_at)
+                SELECT id, ?, user_id, ?, now() FROM note.notes WHERE id = ?
+            """,
+            constellationId, main, noteId,
+        )
+        return noteId
+    }
+
     private fun note(owner: UUID, updatedAt: Instant): UUID {
         val id = noteRepository.save(NoteEntity(owner, "body")).id
         jdbcTemplate.update("UPDATE note.notes SET updated_at = ? WHERE id = ?", Timestamp.from(updatedAt), id)

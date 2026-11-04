@@ -7,6 +7,8 @@ export interface KeysetListPage<T> {
     nextCursor: string | null
     /** The size of the whole list, when the server counts it. */
     total?: number
+    /** The size of the list without its filter, when the server counts it. */
+    allTotal?: number
 }
 
 export type MoreState = 'idle' | 'loading' | 'failed'
@@ -14,18 +16,21 @@ export type MoreState = 'idle' | 'loading' | 'failed'
 export type KeysetListState<T> =
     | { status: 'loading' }
     | { status: 'error'; error: unknown }
-    | { status: 'ready'; items: T[]; hasMore: boolean; more: MoreState; total?: number }
+    | { status: 'ready'; items: T[]; hasMore: boolean; more: MoreState; total?: number; allTotal?: number }
 
 type Loaded<T> = Extract<KeysetListState<T>, { status: 'ready' }>
 
 /**
- * Loads a keyset-paged list: the first page on mount and on every [revision] change, the next one on [loadMore].
- * A reload replaces the list with a fresh first page and keeps the old rows on screen meanwhile, asking for no next
- * page until it ends; a failed reload of a shown list keeps them and their cursor. Pages are joined without repeats: an item changed between two requests can come twice.
+ * Loads a keyset-paged list: the first page on mount and on every [revision] or [listKey] change, the next one on
+ * [loadMore]. A reload replaces the list with a fresh first page and keeps the old rows on screen meanwhile, asking for
+ * no next page until it ends; a failed reload of the same list keeps them and their cursor. [listKey] names which list
+ * is shown (e.g. its filter): when a reload for another key fails, the old rows belong to a different list, so the
+ * error shows instead. Pages are joined without repeats: an item changed between two requests can come twice.
  */
 export function useKeysetList<T extends { id: string }>(
     load: (cursor: string | undefined, signal: AbortSignal) => Promise<KeysetListPage<T>>,
     revision: number,
+    listKey = '',
 ) {
     const [state, setState] = useState<KeysetListState<T>>({status: 'loading'})
     const cursorRef = useRef<string | null>(null)
@@ -35,6 +40,8 @@ export function useKeysetList<T extends { id: string }>(
     const reloadingRef = useRef(false)
     const loadRef = useRef(load)
     loadRef.current = load
+    // the key of the rows in the state
+    const shownKeyRef = useRef<string | null>(null)
 
     useEffect(() => {
         const generation = ++generationRef.current
@@ -50,17 +57,24 @@ export function useKeysetList<T extends { id: string }>(
                 if (generation !== generationRef.current) return
                 reloadingRef.current = false
                 cursorRef.current = page.nextCursor
+                shownKeyRef.current = listKey
                 setState({status: 'ready', items: unique(page.items), hasMore: page.nextCursor !== null, more: 'idle',
-                    total: page.total})
+                    total: page.total, allTotal: page.allTotal})
             })
             .catch((error: unknown) => {
                 if (controller.signal.aborted || error instanceof AuthRequiredError) return
-                // the shown list stays, and so does its cursor
                 reloadingRef.current = false
+                if (shownKeyRef.current !== listKey) {
+                    cursorRef.current = null
+                    shownKeyRef.current = null
+                    setState({status: 'error', error})
+                    return
+                }
+                // the shown list stays, and so does its cursor
                 setState((current) => current.status === 'ready' ? {...current, more: 'idle'} : {status: 'error', error})
             })
         return () => controller.abort()
-    }, [revision])
+    }, [revision, listKey])
 
     useEffect(() => () => moreRef.current?.abort(), [])
 
@@ -81,6 +95,7 @@ export function useKeysetList<T extends { id: string }>(
                     hasMore: page.nextCursor !== null,
                     more: 'idle',
                     total: page.total ?? current.total,
+                    allTotal: page.allTotal ?? current.allTotal,
                 })
             })
             .catch((error: unknown) => {

@@ -799,3 +799,26 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   loaded before the pin cannot undo it. Deleting an item drops its pin. Manual ordering of pins would need another
   column. Chosen over a polymorphic `pins` table, which has no foreign key to clean up deletes.
 - **Source:** task `docs/tasks/2026-11-03-pin-chats-notes.md`.
+
+## 2026-11-03 — The note list filters by constellation subtrees
+
+- **Context:** task 2 of the keyset lists epic; the Notes page needs a filter by one or several constellations.
+- **Decision:** `GET /notes` takes repeated `constellationId` (at most 50, else `400`). The filtered list is the union
+  of the given constellations with all their sub-constellations, the notes placed in any of them (main or not), and
+  every sub-note of those notes, each once, in the same keyset order and cursor. One recursive CTE in `NoteListStore`
+  serves the page and its count; every step is filtered by the owner, so a missing or foreign id adds nothing (no
+  `404`: a filter kept in the browser's URL must not break the list after a constellation is deleted). The page
+  carries `total` (the filtered list) and `allTotal` (all the user's notes, counted once more only with a filter).
+- **Consequences:** no new indexes: the CTE walks `constellations (parent_id)`, `note_constellation (user_id,
+  constellation_id)` and `notes (parent_note_id)`, and pages over `notes (user_id, updated_at, id)`. The page and
+  its count each walk the subtree once.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`, epic `docs/tasks/2026-11-03-keyset-lists-epic.md`.
+
+## 2026-11-04 — The constellation filter applies to the pinned notes too
+
+- **Context:** after merging pinned notes into the filter branch, the Notes page showed every pinned note above a
+  filtered list, while the filter's own pinned notes were in no list.
+- **Decision:** `GET /notes/pinned` takes the same `constellationId` filter as `GET /notes`; `NoteListStore.findPinned`
+  reads it with the same CTE, last pinned first. Pages stay without pinned notes, filtered or not, and `total` keeps
+  counting them, so "`total` of `allTotal`" counts the Pinned group with the rows.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main, user's choice).

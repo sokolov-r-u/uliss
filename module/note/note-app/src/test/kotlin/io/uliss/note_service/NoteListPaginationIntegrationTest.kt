@@ -122,19 +122,62 @@ class NoteListPaginationIntegrationTest : NoteIntegrationTest() {
         }
     }
 
-    private data class Page(val ids: List<UUID>, val total: Int)
+    @Test
+    fun `a constellation filter pages through its subtree with sub-notes and counts both lists`() {
+        val music = constellation("Music", null)
+        val rock = constellation("Rock", music)
+        val films = constellation("Films", null)
+        val bowie = place(note(Instant.parse("2026-11-03T10:00:00Z")), rock)
+        val album = note(Instant.parse("2026-11-03T09:00:00Z"))
+        mockMvc.put("/note/notes/$album/parent") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"parentNoteId":"$bowie"}"""
+        }.andExpect { status { isOk() } }
+        val jazz = place(note(Instant.parse("2026-11-03T08:00:00Z")), music)
+        val film = place(note(Instant.parse("2026-11-03T07:00:00Z")), films)
+        note(Instant.parse("2026-11-03T06:00:00Z"))
 
-    /** Follows `nextCursor` until it runs out. */
-    private fun walk(limit: Int): List<Page> {
+        val musicPages = walk(limit = 2, filter = "&constellationId=$music")
+        val both = walk(limit = 10, filter = "&constellationId=$music&constellationId=$films").single()
+
+        assertEquals(listOf(bowie, album, jazz), musicPages.flatMap { it.ids })
+        assertEquals(listOf(3 to 5, 3 to 5), musicPages.map { it.total to it.allTotal })
+        assertEquals(listOf(bowie, album, jazz, film), both.ids)
+        assertEquals(4 to 5, both.total to both.allTotal)
+    }
+
+    private fun constellation(name: String, parentId: UUID?): UUID =
+        mockMvc.post("/note/constellations") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"name":"$name"${parentId?.let { ""","parentId":"$it"""" } ?: ""}}"""
+        }.andExpect { status { isCreated() } }.andReturn().response.contentAsString
+            .let { UUID.fromString(JsonPath.read(it, "$.id")) }
+
+    private fun place(noteId: UUID, constellationId: UUID): UUID {
+        mockMvc.post("/note/notes/$noteId/constellations") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"constellationId":"$constellationId"}"""
+        }.andExpect { status { is2xxSuccessful() } }
+        return noteId
+    }
+
+    private data class Page(val ids: List<UUID>, val total: Int, val allTotal: Int)
+
+    /** Follows `nextCursor` until it runs out; [filter] is appended to every request's query. */
+    private fun walk(limit: Int, filter: String = ""): List<Page> {
         val pages = mutableListOf<Page>()
         var cursor: String? = null
         do {
-            val body = mockMvc.get("/note/notes?limit=$limit" + (cursor?.let { "&cursor=$it" } ?: "")) {
+            val body = mockMvc.get("/note/notes?limit=$limit$filter" + (cursor?.let { "&cursor=$it" } ?: "")) {
                 auth()
             }.andExpect { status { isOk() } }.andReturn().response.contentAsString
             pages += Page(
                 JsonPath.read<List<String>>(body, "$.items[*].id").map(UUID::fromString),
                 JsonPath.read(body, "$.total"),
+                JsonPath.read(body, "$.allTotal"),
             )
             cursor = JsonPath.read<String?>(body, "$.nextCursor")
         } while (cursor != null)

@@ -3,6 +3,7 @@ package io.uliss.note_service.controller
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.response.NotePageResponse
 import io.uliss.note_service.util.ListPageLimit
+import io.uliss.note_service.util.NoteListFilter
 import io.uliss.note_service.dto.internal.NoteAiEditEvent
 import io.uliss.note_service.dto.request.AddNoteConstellationRequest
 import io.uliss.note_service.dto.request.AiEditNoteRequest
@@ -70,15 +71,22 @@ class NoteController(
         @AuthenticationPrincipal jwt: Jwt,
         @RequestParam(required = false) cursor: String?,
         @RequestParam(defaultValue = "${ListPageLimit.DEFAULT}") limit: Int,
+        @RequestParam(name = "constellationId", required = false) constellationIds: List<UUID?>?,
     ): NotePageResponse {
         ListPageLimit.check(limit)
-        return noteService.getNotes(jwt.getUserId(), cursor?.let(ListCursor::decode), limit).toResponse()
+        val filter = NoteListFilter.of(constellationIds)
+        return noteService.getNotes(jwt.getUserId(), cursor?.let(ListCursor::decode), limit, filter).toResponse()
     }
 
-    /** The pinned notes, last pinned first; the pages of [getNotes] leave them out. */
+    /**
+     * The pinned notes, last pinned first, under the same constellation filter as [getNotes], whose pages leave them
+     * out.
+     */
     @GetMapping("/pinned")
-    fun getPinnedNotes(@AuthenticationPrincipal jwt: Jwt): List<NoteResponse> =
-        noteService.getPinnedNotes(jwt.getUserId())
+    fun getPinnedNotes(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam(name = "constellationId", required = false) constellationIds: List<UUID?>?,
+    ): List<NoteResponse> = noteService.getPinnedNotes(jwt.getUserId(), NoteListFilter.of(constellationIds))
 
     @PutMapping("/{noteId}/pin")
     fun pinNote(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): NoteResponse =
