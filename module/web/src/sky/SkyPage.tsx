@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
-import {Button, ConstellationPicker, EmptyState, Icon, IconButton, Kicker} from '@uliss/design-system'
+import {Button, ConstellationPicker, EmptyState, Icon, IconButton, Kicker, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {getSky, type Sky} from '../constellations/constellationApi'
 import {pickerItems, pickerNotes} from '../constellations/constellationTree'
@@ -14,6 +14,8 @@ import {SkyStarPanel} from './SkyStarPanel'
 import {skyMemory} from './skyMemory'
 import {useSkySettings} from './useSkySettings'
 import './sky.css'
+import {commonMessages} from '../i18n/common.messages'
+import {skyMessages} from './sky.messages'
 
 type Load = { status: 'loading' } | { status: 'error' } | { status: 'ready'; sky: Sky }
 
@@ -26,6 +28,8 @@ const SEEDS = [{left: '34%', top: '33%', r: 4, on: true}, {left: '63%', top: '24
  */
 export function SkyPage() {
     const navigate = useNavigate()
+    const t = useMessages(skyMessages)
+    const common = useMessages(commonMessages)
     const [load, setLoad] = useState<Load>({status: 'loading'})
     const [settings, patchSettings, replaceSettings] = useSkySettings()
     const physics = useMemo(() => skyPhysics(settings), [settings])
@@ -119,22 +123,22 @@ export function SkyPage() {
     const branch = filter && graph ? graph.tree.byId.get(filter) : undefined
     const inFilter = graph && filter ? graph.nodes.filter((n) => n.kind === 'star' && inBranch(graph, n, filter)).length : 0
 
-    const header = <ScreenHeader kicker="Sky" count={graph?.starCount}
+    const header = <ScreenHeader kicker={common.sky} count={graph?.starCount}
                                  right={graph ? <span className="sky-head-actions">
                                      {branch && <button type="button" className="sky-filter-chip"
-                                                        title="Show every constellation"
+                                                        title={t.showEvery}
                                                         onClick={() => setFilter(null)}>
-                                         {inFilter} of {graph.starCount} · {branch.name}<span aria-hidden> ×</span>
+                                         {t.filterCount(inFilter, graph.starCount, branch.name)}<span aria-hidden> ×</span>
                                      </button>}
                                      {graph.tree.flat.length > 0 && <button type="button"
                                                                             className={filterOpen || filter ? 'sky-head-button on' : 'sky-head-button'}
-                                                                            title="Filter by constellation"
+                                                                            title={t.filterBy}
                                                                             aria-expanded={filterOpen}
                                                                             onClick={() => setFilterOpen((open) => !open)}>
                                          <Icon name="filter" size={15}/>
                                      </button>}
                                      <button type="button" className={settingsOpen ? 'sky-head-button on' : 'sky-head-button'}
-                                             title="Sky settings" aria-expanded={settingsOpen}
+                                             title={t.settings} aria-expanded={settingsOpen}
                                              onClick={() => {
                                                  setStarId(null)
                                                  setSettingsOpen((open) => !open)
@@ -149,11 +153,11 @@ export function SkyPage() {
 
     if (load.status === 'error') return <div className="product-view sky-view">{header}
         <div className="sky-stage sky-state" role="alert">
-            <p>Could not load the sky.</p>
+            <p>{t.couldNotLoad}</p>
             <Button size="sm" variant="quiet" onClick={() => {
                 setLoad({status: 'loading'})
                 void reload()
-            }}>Retry</Button>
+            }}>{common.retry}</Button>
         </div>
     </div>
 
@@ -165,32 +169,31 @@ export function SkyPage() {
                 {SEEDS.map((seed, index) => <span key={index} className={seed.on ? 'sky-seed on' : 'sky-seed'} style={{
                     left: seed.left, top: seed.top, width: seed.r * 2, height: seed.r * 2,
                 }}/>)}
-                <EmptyState title="Two stars are not a sky yet"
-                            body="Every note you keep becomes a star here. Start a chat, then press Summarize — or grow a few constellations first."/>
+                <EmptyState title={t.empty} body={t.emptyBody}/>
             </div>
         </div>
     </div>
 
     const inFocus = shownView === 'focus'
     const footer = <>
-        <div className="sky-modes" role="group" aria-label="Sky mode">
+        <div className="sky-modes" role="group" aria-label={t.mode}>
             {(['skeleton', 'full'] as const).map((id) => <button key={id} type="button" aria-pressed={shownView === id}
                                                                  className={shownView === id ? 'sky-mode on' : 'sky-mode'}
                                                                  disabled={graph.starCount === 0 && id === 'full'}
                                                                  onClick={() => pickView(id)}>
-                {id === 'skeleton' ? 'Skeleton' : 'Full'}</button>)}
+                {id === 'skeleton' ? t.skeleton : t.full}</button>)}
         </div>
-        {inFocus && <div className="sky-depth" role="group" aria-label="Depth">
-            <span>Depth</span>
+        {inFocus && <div className="sky-depth" role="group" aria-label={t.depth}>
+            <span>{t.depth}</span>
             {[1, 2, 3].map((d) => <button key={d} type="button" aria-pressed={d === depth}
                                           className={d === depth ? 'on' : undefined}
                                           onClick={() => setDepth(d)}>{d}</button>)}
         </div>}
         <button type="button" className={inFocus ? 'sky-mode sky-focus on' : 'sky-mode sky-focus'}
                 disabled={!inFocus && !lastFocus}
-                title={inFocus ? 'Back to the whole sky' : 'Back to the last focus'}
+                title={inFocus ? t.backToWhole : t.backToFocus}
                 onClick={() => inFocus ? setView('skeleton') : lastFocus && focus(lastFocus)}>
-            {inFocus ? 'Exit focus' : 'Focus'}</button>
+            {inFocus ? t.exitFocus : t.focus}</button>
     </>
 
     return <div className="product-view sky-view">
@@ -200,16 +203,15 @@ export function SkyPage() {
                        settings={settings} physics={physics} selectedId={starId}
                        onPickStar={pickStar} onFocus={focus} onExitFocus={() => setView('skeleton')}
                        onSettings={patchSettings} panelOpen={starId != null || settingsOpen} footer={footer}/>
-            {graph.starCount === 0 && <p className="sky-note">
-                Notes you keep appear as stars in their constellations. Start a chat and press Summarize.</p>}
+            {graph.starCount === 0 && <p className="sky-note">{t.noStars}</p>}
             {filterOpen && <>
                 <button type="button" className="sky-menu-scrim" tabIndex={-1} aria-hidden="true"
                         onClick={() => setFilterOpen(false)}/>
                 <div className="sky-filter" data-sky-ui="">
-                    <ConstellationPicker items={filterItems} label="Find a constellation or a note"
-                                         action={(name) => `Show ${name}`}
+                    <ConstellationPicker items={filterItems} label={t.find}
+                                         action={t.show}
                                          lead={filter ? {
-                                             label: 'All constellations', onSelect: () => {
+                                             label: t.allConstellations, onSelect: () => {
                                                  setFilter(null)
                                                  setFilterOpen(false)
                                              },
@@ -219,16 +221,16 @@ export function SkyPage() {
                                              setFilterOpen(false)
                                          }}
                                          onClose={() => setFilterOpen(false)}
-                                         notes={{items: notes, action: (title) => `Show ${title}`, onPick: showNote}}/>
+                                         notes={{items: notes, action: t.show, onPick: showNote}}/>
                 </div>
             </>}
-            {settingsOpen && <aside className="sky-panel" data-sky-ui="" aria-label="Sky settings"
+            {settingsOpen && <aside className="sky-panel" data-sky-ui="" aria-label={t.settings}
                                     onKeyDown={(event) => {
                                         if (event.key === 'Escape') setSettingsOpen(false)
                                     }}>
                 <header className="sky-panel-head">
-                    <Kicker size={9} spacing="3px" color="var(--accent)">Sky</Kicker>
-                    <IconButton s={44} title="Close" onClick={() => setSettingsOpen(false)}>
+                    <Kicker size={9} spacing="3px" color="var(--accent)">{common.sky}</Kicker>
+                    <IconButton s={44} title={t.close} onClick={() => setSettingsOpen(false)}>
                         <Icon name="close" size={15}/></IconButton>
                 </header>
                 <div className="sky-panel-body">

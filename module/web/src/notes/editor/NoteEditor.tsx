@@ -154,10 +154,10 @@ export function NoteEditor({
         <div className="note-editor-text markdown-content" hidden={original || previewing}>
             <EditorContent editor={editor}/>
         </div>
-        {previewing && <section className="note-editor-preview" aria-label="Text from Uliss" aria-busy="true">
+        {previewing && <section className="note-editor-preview" aria-label={t.fromUliss} aria-busy="true">
             <MarkdownContent content={preview} pending highlightDateHeadings={highlightDateHeadings}/>
         </section>}
-        {original && <section className="note-editor-original" aria-label="Original note">
+        {original && <section className="note-editor-original" aria-label={t.originalNote}>
             <MarkdownContent content={content} highlightDateHeadings={highlightDateHeadings}/>
         </section>}
     </div>

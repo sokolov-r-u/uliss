@@ -1,47 +1,48 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
-import {Kicker, StepControl} from '@uliss/design-system'
+import {Kicker, StepControl, useMessages} from '@uliss/design-system'
 import type {SkySettings} from './skySettings'
+import {type SkyStepWord, skySettingsMessages} from './skySettings.messages'
 import './sky.css'
 
-type Steps<K extends keyof SkySettings> = { id: SkySettings[K] & string; label: string }[]
+type Steps<K extends keyof SkySettings> = { id: SkySettings[K] & string; label: SkyStepWord }[]
 
-const LABELS: Steps<'labels'> = [{id: 'always', label: 'Always'}, {id: 'auto', label: 'Auto'}, {id: 'off', label: 'Off'}]
+const LABELS: Steps<'labels'> = [{id: 'always', label: 'always'}, {id: 'auto', label: 'auto'}, {id: 'off', label: 'off'}]
 const LABEL_SIZE: Steps<'labelSize'> = [
-    {id: 'small', label: 'Small'}, {id: 'regular', label: 'Regular'}, {id: 'large', label: 'Large'},
-    {id: 'largest', label: 'Largest'},
+    {id: 'small', label: 'small'}, {id: 'regular', label: 'regular'}, {id: 'large', label: 'large'},
+    {id: 'largest', label: 'largest'},
 ]
 const NEAR_REACH: Steps<'nearReach'> = [
-    {id: 'close', label: 'Close'}, {id: 'medium', label: 'Medium'}, {id: 'wide', label: 'Wide'},
-    {id: 'vast', label: 'Vast'},
+    {id: 'close', label: 'close'}, {id: 'medium', label: 'medium'}, {id: 'wide', label: 'wide'},
+    {id: 'vast', label: 'vast'},
 ]
 const MARK_SIZE: Steps<'starSize'> = [
-    {id: 'fine', label: 'Fine'}, {id: 'regular', label: 'Regular'}, {id: 'bold', label: 'Bold'},
-    {id: 'beacon', label: 'Beacon'},
+    {id: 'fine', label: 'fine'}, {id: 'regular', label: 'regular'}, {id: 'bold', label: 'bold'},
+    {id: 'beacon', label: 'beacon'},
 ]
-const COLOUR: Steps<'colour'> = [{id: 'constellation', label: 'By constellation'}, {id: 'mono', label: 'Monochrome'}]
-const CENTER: Steps<'centerMark'> = [{id: 'ship', label: 'Ship'}, {id: 'star', label: 'Star'}]
+const COLOUR: Steps<'colour'> = [{id: 'constellation', label: 'constellation'}, {id: 'mono', label: 'mono'}]
+const CENTER: Steps<'centerMark'> = [{id: 'ship', label: 'ship'}, {id: 'star', label: 'star'}]
 const LINK_DIST: Steps<'linkDist'> = [
-    {id: 'close', label: 'Close'}, {id: 'comfortable', label: 'Comfortable'}, {id: 'roomy', label: 'Roomy'},
-    {id: 'spacious', label: 'Spacious'},
+    {id: 'close', label: 'close'}, {id: 'comfortable', label: 'comfortable'}, {id: 'roomy', label: 'roomy'},
+    {id: 'spacious', label: 'spacious'},
 ]
 const TENSION: Steps<'tension'> = [
-    {id: 'slack', label: 'Slack'}, {id: 'balanced', label: 'Balanced'}, {id: 'taut', label: 'Taut'},
-    {id: 'rigid', label: 'Rigid'},
+    {id: 'slack', label: 'slack'}, {id: 'balanced', label: 'balanced'}, {id: 'taut', label: 'taut'},
+    {id: 'rigid', label: 'rigid'},
 ]
 const SECONDARY: Steps<'secondary'> = [
-    {id: 'faint', label: 'Faint'}, {id: 'gentle', label: 'Gentle'}, {id: 'firm', label: 'Firm'},
-    {id: 'strong', label: 'Strong'},
+    {id: 'faint', label: 'faint'}, {id: 'gentle', label: 'gentle'}, {id: 'firm', label: 'firm'},
+    {id: 'strong', label: 'strong'},
 ]
-const SECONDARY_STYLE: Steps<'secondaryStyle'> = [{id: 'dashed', label: 'Dashed'}, {id: 'solid', label: 'Solid'}]
+const SECONDARY_STYLE: Steps<'secondaryStyle'> = [{id: 'dashed', label: 'dashed'}, {id: 'solid', label: 'solid'}]
 const SPREAD: Steps<'spread'> = [
-    {id: 'tight', label: 'Tight'}, {id: 'balanced', label: 'Balanced'}, {id: 'open', label: 'Open'},
-    {id: 'vast', label: 'Vast'},
+    {id: 'tight', label: 'tight'}, {id: 'balanced', label: 'balanced'}, {id: 'open', label: 'open'},
+    {id: 'vast', label: 'vast'},
 ]
 const PULL: Steps<'pull'> = [
-    {id: 'loose', label: 'Loose'}, {id: 'gentle', label: 'Gentle'}, {id: 'firm', label: 'Firm'},
-    {id: 'tight', label: 'Tight'},
+    {id: 'loose', label: 'loose'}, {id: 'gentle', label: 'gentle'}, {id: 'firm', label: 'firm'},
+    {id: 'tight', label: 'tight'},
 ]
-const MOTION: Steps<'motion'> = [{id: 'calm', label: 'Calm'}, {id: 'natural', label: 'Natural'}, {id: 'lively', label: 'Lively'}]
+const MOTION: Steps<'motion'> = [{id: 'calm', label: 'calm'}, {id: 'natural', label: 'natural'}, {id: 'lively', label: 'lively'}]
 
 type SectionId = 'labels' | 'stars' | 'center' | 'connections' | 'room' | 'movement'
 
@@ -54,6 +55,8 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
     onSettings: (patch: Partial<SkySettings>) => void
     onReset: () => void
 }) {
+    const t = useMessages(skySettingsMessages)
+    const wordOf = (word: SkyStepWord | undefined) => word && t[word]
     const [closed, setClosed] = useState<ReadonlySet<SectionId>>(new Set())
     const [flash, setFlash] = useState(false)
     const flashTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
@@ -77,8 +80,9 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
     }
 
     const steps = <K extends keyof SkySettings>(key: K, label: string, options: Steps<K>, hint?: string) =>
-        <Row label={label} hint={hint} value={options.find((o) => o.id === settings[key])?.label}>
-            <StepControl label={label} value={settings[key] as string} steps={options}
+        <Row label={label} hint={hint} value={wordOf(options.find((o) => o.id === settings[key])?.label)}>
+            <StepControl label={label} value={settings[key] as string}
+                         steps={options.map((option) => ({id: option.id, label: t[option.label]}))}
                          onPick={(id) => onSettings({[key]: id} as Partial<SkySettings>)}/>
         </Row>
 
@@ -90,54 +94,48 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
         </button>
 
     return <div className="sky-settings">
-        {section('labels', 'Labels', <>
-            {steps('labels', 'Show note names', LABELS, 'Auto keeps names hidden until there is room — zoom in and they appear.')}
-            {settings.labels === 'auto' && <Row label="How many names"
-                                                hint="Left keeps the sky clean, right fits in as many names as it can.">
-                <input type="range" className="sky-settings-range" aria-label="How many names" min={0} max={100}
+        {section('labels', t.labels, <>
+            {steps('labels', t.showNames, LABELS, t.showNamesHint)}
+            {settings.labels === 'auto' && <Row label={t.howMany} hint={t.howManyHint}>
+                <input type="range" className="sky-settings-range" aria-label={t.howMany} min={0} max={100}
                        step={5} value={settings.labelDensity}
                        onChange={(event) => onSettings({labelDensity: Number(event.target.value)})}/>
-                <span className="sky-settings-ends"><span>Fewer</span><span>More</span></span>
+                <span className="sky-settings-ends"><span>{t.fewer}</span><span>{t.more}</span></span>
             </Row>}
-            {steps('labelSize', 'Text size', LABEL_SIZE)}
+            {steps('labelSize', t.textSize, LABEL_SIZE)}
             <NearNamesRows settings={settings} onSettings={onSettings}/>
-            {settings.nearCount > 0 && steps('nearReach', 'Reach', NEAR_REACH, 'How far from the pointer those names reach.')}
+            {settings.nearCount > 0 && steps('nearReach', t.reach, NEAR_REACH, t.reachHint)}
         </>)}
-        {section('stars', 'Stars', <>
-            {steps('starSize', 'Star size', MARK_SIZE)}
-            {steps('constellationSize', 'Constellation size', MARK_SIZE,
-                'How large the constellation rings read against the stars they hold.')}
-            {steps('colour', 'Colour', COLOUR,
-                'By constellation tints each star with its constellation. Monochrome is the plain night sky.')}
-            {toggle('mixColours', 'Mix colours', 'A star in several constellations shows all of their colours.')}
-            {toggle('glow', 'Glow', 'Soft halo around each star.')}
+        {section('stars', t.stars, <>
+            {steps('starSize', t.starSize, MARK_SIZE)}
+            {steps('constellationSize', t.constellationSize, MARK_SIZE, t.constellationSizeHint)}
+            {steps('colour', t.colour, COLOUR, t.colourHint)}
+            {toggle('mixColours', t.mixColours, t.mixColoursHint)}
+            {toggle('glow', t.glow, t.glowHint)}
         </>)}
-        {section('center', 'Center', steps('centerMark', 'Starting point', CENTER,
-            'The point every note radiates from — a ship by default, charting the way.'))}
-        {section('connections', 'Connections', <>
-            {steps('linkDist', 'Distance between notes', LINK_DIST)}
-            {steps('tension', 'Line tension', TENSION, 'How firmly a note is held by the ones it links to.')}
-            {steps('secondary', 'Pull of secondary links', SECONDARY,
-                'How strongly a note is drawn to the other constellations it belongs to, beside its own.')}
-            {steps('secondaryStyle', 'Secondary links', SECONDARY_STYLE,
-                'How the lines to a note’s other constellations are drawn.')}
-            {toggle('midStars', 'Midpoint sparks', 'A faint point where two notes meet.')}
+        {section('center', t.center, steps('centerMark', t.startingPoint, CENTER, t.startingPointHint))}
+        {section('connections', t.connections, <>
+            {steps('linkDist', t.linkDist, LINK_DIST)}
+            {steps('tension', t.tension, TENSION, t.tensionHint)}
+            {steps('secondary', t.secondary, SECONDARY, t.secondaryHint)}
+            {steps('secondaryStyle', t.secondaryStyle, SECONDARY_STYLE, t.secondaryStyleHint)}
+            {toggle('midStars', t.midStars, t.midStarsHint)}
         </>)}
-        {section('room', 'Room', <>
-            {steps('spread', 'Breathing room', SPREAD, 'How strongly stars push each other apart.')}
-            {steps('pull', 'Pull to centre', PULL, 'Higher gathers everything around the centre; lower lets it drift out.')}
+        {section('room', t.room, <>
+            {steps('spread', t.spread, SPREAD, t.spreadHint)}
+            {steps('pull', t.pull, PULL, t.pullHint)}
         </>)}
-        {section('movement', 'Movement', steps('motion', 'Feel', MOTION, 'How the sky reacts when you disturb it.'))}
+        {section('movement', t.movement, steps('motion', t.feel, MOTION, t.feelHint))}
         <div className="sky-settings-reset">
             <button type="button" className="sky-settings-reset-button" onClick={() => {
                 onReset()
                 setFlash(true)
                 clearTimeout(flashTimer.current)
                 flashTimer.current = setTimeout(() => setFlash(false), 1800)
-            }}>Reset to defaults
+            }}>{t.reset}
             </button>
             <p className={flash ? 'sky-settings-status on' : 'sky-settings-status'} role="status">
-                {flash ? 'Defaults restored' : 'Applies to your sky as you go · remembered on this device'}</p>
+                {flash ? t.restored : t.appliesNote}</p>
         </div>
     </div>
 }
@@ -147,11 +145,12 @@ export function NearNamesRows({settings, onSettings}: {
     settings: SkySettings
     onSettings: (patch: Partial<SkySettings>) => void
 }) {
-    return <Row label="Names near the pointer" value={settings.nearCount === 0 ? 'Off' : String(settings.nearCount)}
-                hint="The stars closest to the mouse show their names.">
-        <input type="range" className="sky-settings-range" aria-label="Names near the pointer" min={0} max={10} step={1}
+    const t = useMessages(skySettingsMessages)
+    return <Row label={t.nearNames} value={settings.nearCount === 0 ? t.off : String(settings.nearCount)}
+                hint={t.nearNamesHint}>
+        <input type="range" className="sky-settings-range" aria-label={t.nearNames} min={0} max={10} step={1}
                value={settings.nearCount} onChange={(event) => onSettings({nearCount: Number(event.target.value)})}/>
-        <span className="sky-settings-ends"><span>Off</span><span>10</span></span>
+        <span className="sky-settings-ends"><span>{t.off}</span><span>10</span></span>
     </Row>
 }
 

@@ -4,6 +4,8 @@ import {type ArrowKey, labelLines, nearestStars, nextInDirection, segmentDistanc
 import type {SkyPhysics, SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
+import {skyMessages} from './sky.messages'
+import {useMessages} from '@uliss/design-system'
 
 /**
  * The live sky: one SVG over the measured frame, drawn in screen space from the layout's world positions, so marks and
@@ -63,6 +65,7 @@ const BACKDROP = (() => {
 
 export function SkyCanvas(props: SkyCanvasProps) {
     const {graph, sub, view, filter, settings, physics, selectedId, onPickStar, onFocus} = props
+    const t = useMessages(skyMessages)
     const frameRef = useRef<HTMLDivElement>(null)
     const [box, setBox] = useState<Box | null>(null)
     const boxRef = useRef<Box>({w: 360, h: 680})
@@ -438,7 +441,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
             if (!(e.target as Element).closest('[data-sky-ui]')) reset()
         }}>
             <svg className="sky-svg" viewBox={`0 0 ${w} ${h}`} width="100%" height="100%" role="group"
-                 aria-label="Sky map">
+                 aria-label={t.map}>
                 <defs>
                     <radialGradient id="sky-core" cx="50%" cy="50%" r="62%">
                         <stop offset="0%" stopColor="var(--sky-glow-a)"/>
@@ -495,7 +498,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                   setFocusedId(n.id)
                               } : undefined}
                               onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
-                              aria-label={pickable ? isConstellation ? `Focus on ${node.label}` : node.label : undefined}
+                              aria-label={pickable ? isConstellation ? t.focusOn(node.label) : node.label : undefined}
                               onClick={pickable ? () => activate(node) : undefined}
                               onKeyDown={pickable ? (event) => {
                                   if (moveRoving(event, n.id)) return
@@ -548,22 +551,22 @@ export function SkyCanvas(props: SkyCanvasProps) {
 
             <div className="sky-controls" data-sky-ui="">
                 <button type="button" className={namesOpen ? 'sky-control small on' : 'sky-control small'}
-                        title="Names" aria-expanded={namesOpen} onClick={() => setNamesOpen((open) => !open)}>Aa
+                        title={t.names} aria-expanded={namesOpen} onClick={() => setNamesOpen((open) => !open)}>Aa
                 </button>
                 <button type="button" className="sky-control small"
-                        title={reveal == null ? 'Replay how the sky grew' : 'Stop the replay'}
-                        onClick={() => setReveal((value) => value == null ? 0 : null)}>{reveal == null ? 'run' : 'stop'}</button>
-                <button type="button" className="sky-control" title="Zoom in" onClick={() => zoomCentre(1.45)}>+</button>
-                <button type="button" className="sky-control" title="Zoom out"
+                        title={reveal == null ? t.replay : t.stopReplay}
+                        onClick={() => setReveal((value) => value == null ? 0 : null)}>{reveal == null ? t.run : t.stop}</button>
+                <button type="button" className="sky-control" title={t.zoomIn} onClick={() => zoomCentre(1.45)}>+</button>
+                <button type="button" className="sky-control" title={t.zoomOut}
                         onClick={() => zoomCentre(1 / 1.45)}>−
                 </button>
-                <button type="button" className="sky-control small" title="Show the whole sky" onClick={reset}>fit</button>
+                <button type="button" className="sky-control small" title={t.fitAll} onClick={reset}>{t.fit}</button>
                 <span className="sky-zoom">{zoom.toFixed(1)}×</span>
             </div>
             {namesOpen && <SkyNamesMenu settings={settings} onSettings={props.onSettings}
                                         onClose={() => setNamesOpen(false)}/>}
             <div className="sky-footer" data-sky-ui="">{props.footer}</div>
-            {hint && !namesOpen && <div className="sky-hint"><span>scroll to zoom · drag to pan</span></div>}
+            {hint && !namesOpen && <div className="sky-hint"><span>{t.hint}</span></div>}
         </div>
     )
 }
@@ -582,17 +585,18 @@ function StarSectors({x, y, r, colors}: { x: number; y: number; r: number; color
 
 /** YOU, the centre of every view; in Focus it is the way out. */
 function YouMark({x, y, mark, onExit}: { x: number; y: number; mark: SkySettings['centerMark']; onExit?: () => void }) {
+    const t = useMessages(skyMessages)
     const k = 1
     return <g className={onExit ? 'sky-you exit' : 'sky-you'}
               role={onExit ? 'button' : undefined} tabIndex={onExit ? 0 : undefined}
-              aria-label={onExit ? 'Exit focus' : undefined} aria-hidden={onExit ? undefined : true}
+              aria-label={onExit ? t.exitFocus : undefined} aria-hidden={onExit ? undefined : true}
               onClick={onExit} onKeyDown={onExit ? (event) => {
         if (event.key === 'Enter' || event.key === ' ') {
             event.preventDefault()
             onExit()
         }
     } : undefined}>
-        {onExit && <title>Exit focus</title>}
+        {onExit && <title>{t.exitFocus}</title>}
         <circle cx={x} cy={y} r={30 * k} fill="color-mix(in srgb, var(--accent-2) 10%, transparent)"/>
         <circle cx={x} cy={y} r={17 * k} fill="none" stroke="var(--accent-2)" strokeWidth={0.8} opacity={0.55}/>
         {mark === 'star'

@@ -1,4 +1,5 @@
-import {noteTitleText} from '@uliss/design-system'
+import {type Locale, noteTitleText} from '@uliss/design-system'
+import {placeMovesMessages} from './notePlaceMoves.messages'
 import type {NoteRef} from './constellationApi'
 import type {ConstellationNode} from './constellationTree'
 
@@ -33,17 +34,19 @@ export function placePath(node: ConstellationNode): string {
 }
 
 /** The parent notes a sub-note leaves, top first: `“Miles Davis” / “Kind of Blue”`. */
-function chain(notes: NoteRef[]): string {
-    return notes.map(quotedNote).join(' / ')
+function chain(notes: NoteRef[], locale: Locale): string {
+    return notes.map((note) => quotedNote(note, locale)).join(' / ')
 }
 
 /** A note's name in a sentence, quoted. */
-export function quotedNote(note: NoteRef): string {
-    return `“${noteTitleText(note.title || 'Untitled note', note.icon)}”`
+export function quotedNote(note: NoteRef, locale: Locale = 'en'): string {
+    const t = placeMovesMessages[locale]
+    return t.quote(noteTitleText(note.title || t.untitledNote, note.icon))
 }
 
-function list(paths: string[]): string {
-    return paths.length < 2 ? paths.join('') : `${paths.slice(0, -1).join(', ')} and ${paths[paths.length - 1]}`
+function list(paths: string[], locale: Locale): string {
+    return paths.length < 2 ? paths.join('')
+        : `${paths.slice(0, -1).join(', ')}${placeMovesMessages[locale].and}${paths[paths.length - 1]}`
 }
 
 function onOneLine(a: ConstellationNode, b: ConstellationNode): boolean {
@@ -59,49 +62,53 @@ export function segmentsOf(node: ConstellationNode): ConstellationNode[] {
  * A top note joins [target], and its places on the same line give way: a move up or down a line, or one more place
  * (null, nothing to confirm) when no place shares the line.
  */
-export function topMoveTo(places: PlacedNode[], target: ConstellationNode): PlaceConfirmation | null {
+export function topMoveTo(places: PlacedNode[], target: ConstellationNode, locale: Locale = 'en'): PlaceConfirmation | null {
+    const t = placeMovesMessages[locale]
     const lost = places.filter((place) => onOneLine(place.node, target))
     if (lost.length === 0) return null
     const kept = places.filter((place) => !lost.includes(place))
-    const stays = kept.length > 0 ? ` It stays in ${list(kept.map((place) => placePath(place.node)))}.` : ''
+    const stays = kept.length > 0 ? t.staysIn(list(kept.map((place) => placePath(place.node)), locale)) : ''
     return {
-        title: `Move to ${placePath(target)}?`,
-        body: `It leaves ${list(lost.map((place) => placePath(place.node)))}.${stays}`,
-        confirm: 'Move',
-        busy: 'Moving…',
+        title: t.moveTo(placePath(target)),
+        body: `${t.leaves(list(lost.map((place) => placePath(place.node)), locale))}${stays}`,
+        confirm: t.move,
+        busy: t.moving,
         change: {kind: 'add', constellationId: target.id},
     }
 }
 
 /** The cross on segment [index] of a top note's [place]: up to the segment before it, or off the root. */
-export function topCross(places: PlacedNode[], place: PlacedNode, index: number): PlaceConfirmation {
+export function topCross(places: PlacedNode[], place: PlacedNode, index: number, locale: Locale = 'en'): PlaceConfirmation {
+    const t = placeMovesMessages[locale]
     const segments = segmentsOf(place.node)
     if (index > 0) {
         // The place lies on the target's line, so the move always confirms.
-        return topMoveTo(places, segments[index - 1]) as PlaceConfirmation
+        return topMoveTo(places, segments[index - 1], locale) as PlaceConfirmation
     }
     const kept = places.filter((item) => item !== place)
-    const heir = place.main && kept.length > 0 ? ` ${placePath(kept[0].node)} becomes the main place.` : ''
+    const heir = place.main && kept.length > 0 ? t.becomesMain(placePath(kept[0].node)) : ''
     return {
-        title: `Remove from ${placePath(place.node)}?`,
+        title: t.removeFrom(placePath(place.node)),
         body: kept.length === 0
-            ? 'The note will have no place left.'
-            : `It stays in ${list(kept.map((item) => placePath(item.node)))}.${heir}`,
-        confirm: 'Remove',
-        busy: 'Removing…',
+            ? t.noPlaceLeft
+            : `${t.staysInOnly(list(kept.map((item) => placePath(item.node)), locale))}${heir}`,
+        confirm: t.remove,
+        busy: t.removing,
         change: {kind: 'remove', constellationId: place.node.id},
     }
 }
 
 /** A top note goes under [parent] and leaves its constellations. */
-export function topUnder(places: PlacedNode[], parent: NoteRef): PlaceConfirmation {
-    const leaves = places.length > 0 ? `It leaves ${list(places.map((place) => placePath(place.node)))} and lives`
-        : 'It will live'
+export function topUnder(places: PlacedNode[], parent: NoteRef, locale: Locale = 'en'): PlaceConfirmation {
+    const t = placeMovesMessages[locale]
+    const note = quotedNote(parent, locale)
     return {
-        title: `Move under ${quotedNote(parent)}?`,
-        body: `${leaves} where ${quotedNote(parent)} lives.`,
-        confirm: 'Move',
-        busy: 'Moving…',
+        title: t.moveUnder(note),
+        body: places.length > 0
+            ? t.leavesAndLivesWhere(list(places.map((place) => placePath(place.node)), locale), note)
+            : t.willLiveWhere(note),
+        confirm: t.move,
+        busy: t.moving,
         change: {kind: 'under', parentNoteId: parent.id},
     }
 }
@@ -110,17 +117,19 @@ export function topUnder(places: PlacedNode[], parent: NoteRef): PlaceConfirmati
  * A sub-note leaves its parent for [target] or no place; [topPlaces] are its top note's places, which it no longer
  * shares.
  */
-export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: ConstellationNode | null): PlaceConfirmation {
+export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: ConstellationNode | null,
+                       locale: Locale = 'en'): PlaceConfirmation {
+    const t = placeMovesMessages[locale]
     const parent = ancestors[ancestors.length - 1]
     // Leaving the parent leaves every note above it too.
     const lost = topPlaces.filter((place) => place.node.id !== target?.id).map((place) => placePath(place.node))
-    const goes = target ? ` and goes to ${placePath(target)} only.` : ' and will have no place.'
-    const noLonger = lost.length > 0 ? ` It will no longer be in ${list(lost)}.` : ''
+    const goes = target ? t.goesTo(placePath(target)) : t.noPlace
+    const noLonger = lost.length > 0 ? t.noLongerIn(list(lost, locale)) : ''
     return {
-        title: target ? `Move to ${placePath(target)}?` : `Move out of ${quotedNote(parent)}?`,
-        body: `It leaves ${chain(ancestors)}${goes}${noLonger}`,
-        confirm: 'Move',
-        busy: 'Moving…',
+        title: target ? t.moveTo(placePath(target)) : t.moveOutOf(quotedNote(parent, locale)),
+        body: t.leavesChain(chain(ancestors, locale), `${goes}${noLonger}`),
+        confirm: t.move,
+        busy: t.moving,
         change: {kind: 'out', moveTo: target?.id ?? null},
     }
 }
@@ -130,20 +139,22 @@ export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: Co
  * parent note moves it under the note before it; on the top note, into the main constellation (or no place); on a
  * constellation, into the one before it (or no place).
  */
-export function subCross(ancestors: NoteRef[], topPlaces: PlacedNode[], index: number): PlaceConfirmation {
+export function subCross(ancestors: NoteRef[], topPlaces: PlacedNode[], index: number,
+                         locale: Locale = 'en'): PlaceConfirmation {
+    const t = placeMovesMessages[locale]
     const main = topPlaces.find((place) => place.main)?.node ?? null
     const constellations = main ? segmentsOf(main) : []
     if (index < constellations.length) {
-        return subOut(ancestors, topPlaces, index > 0 ? constellations[index - 1] : null)
+        return subOut(ancestors, topPlaces, index > 0 ? constellations[index - 1] : null, locale)
     }
     const at = index - constellations.length
-    if (at === 0) return subOut(ancestors, topPlaces, main)
+    if (at === 0) return subOut(ancestors, topPlaces, main, locale)
     const target = ancestors[at - 1]
     return {
-        title: `Move under ${quotedNote(target)}?`,
-        body: `It leaves ${chain(ancestors.slice(at))} and lives where ${quotedNote(target)} lives.`,
-        confirm: 'Move',
-        busy: 'Moving…',
+        title: t.moveUnder(quotedNote(target, locale)),
+        body: t.leavesNotesAndLivesWhere(chain(ancestors.slice(at), locale), quotedNote(target, locale)),
+        confirm: t.move,
+        busy: t.moving,
         change: {kind: 'under', parentNoteId: target.id},
     }
 }

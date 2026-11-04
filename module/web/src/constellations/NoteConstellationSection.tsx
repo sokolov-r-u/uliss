@@ -1,14 +1,6 @@
 import {Fragment, useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {Link} from 'react-router-dom'
-import {
-    Button,
-    ConstellationPicker,
-    constellationColor,
-    Dialog,
-    Icon,
-    noteTitleText,
-    TagDot,
-} from '@uliss/design-system'
+import {Button, constellationColor, ConstellationPicker, Dialog, Icon, type Locale, noteTitleText, TagDot, useLocale, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {
     addNoteConstellation,
@@ -41,27 +33,34 @@ import {
 import {notifyNotesChanged} from '../notes/noteApi'
 import {useSkyNotes} from './useSkyNotes'
 import './note-constellation.css'
+import {commonMessages} from '../i18n/common.messages'
+import {placementMessages} from './placement.messages'
 
-/** The longest failure message: the dialog reserves its height, so an error never resizes it. */
-const LONGEST_FAILURE = 'This note or constellation no longer exists. Reload the page.'
 
 type LoadState =
     | { status: 'loading' }
     | { status: 'error' }
     | { status: 'ready'; items: Constellation[]; tree: ConstellationTree; place: NotePlace }
 
+/** The longest failure message: the dialog reserves its height, so an error never resizes it. */
+function longestFailure(t: typeof placementMessages.en): string {
+    return [t.inherited, t.cycle, t.parentGone, t.gone, t.unavailable, t.saveFailed]
+        .reduce((longest, text) => text.length > longest.length ? text : longest)
+}
+
 /** The user's message for a failed change of the note's places. */
-export function placementFailureMessage(error: unknown, name?: string): string {
+export function placementFailureMessage(error: unknown, name?: string, locale: Locale = 'en'): string {
+    const t = placementMessages[locale]
     if (error instanceof ConstellationApiError) {
-        if (error.code === 'CONSTELLATION_NAME_TAKEN') return `“${name}” is already taken. Pick it from the list.`
-        if (error.code === 'NOTE_PLACE_INHERITED') return 'This note lives where its parent note lives.'
-        if (error.code === 'NOTE_MOVE_CYCLE') return 'A note cannot go under itself or its own sub-notes.'
-        if (error.code === 'PARENT_NOTE_NOT_FOUND') return 'That note no longer exists. Pick another one.'
-        if (error.status === 404) return 'This note or constellation no longer exists. Reload the page.'
-        if (error.status === 400 && name !== undefined) return 'Use a name of 1 to 40 characters.'
-        if (error.kind === 'transport') return 'The note service is unavailable. Try again.'
+        if (error.code === 'CONSTELLATION_NAME_TAKEN') return t.nameTaken(name ?? '')
+        if (error.code === 'NOTE_PLACE_INHERITED') return t.inherited
+        if (error.code === 'NOTE_MOVE_CYCLE') return t.cycle
+        if (error.code === 'PARENT_NOTE_NOT_FOUND') return t.parentGone
+        if (error.status === 404) return t.gone
+        if (error.status === 400 && name !== undefined) return t.nameRule
+        if (error.kind === 'transport') return t.unavailable
     }
-    return 'Could not save the change. Try again.'
+    return t.saveFailed
 }
 
 /**
@@ -79,6 +78,9 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
     noteIcon?: string
     onChanged?: () => void
 }) {
+    const locale = useLocale()
+    const t = useMessages(placementMessages)
+    const common = useMessages(commonMessages)
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
     const [picking, setPicking] = useState(false)
     const [confirmation, setConfirmation] = useState<PlaceConfirmation | null>(null)
@@ -132,7 +134,7 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
             setPicking(false)
             setConfirmation(null)
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) (inDialog ? setDialogError : setError)(placementFailureMessage(e))
+            if (!(e instanceof AuthRequiredError)) (inDialog ? setDialogError : setError)(placementFailureMessage(e, undefined, locale))
         } finally {
             pendingRef.current = false
             setPending(false)
@@ -176,7 +178,7 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
             onChanged?.()
             return created.id
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name))
+            if (!(e instanceof AuthRequiredError)) setError(placementFailureMessage(e, name, locale))
             throw e
         }
     }
@@ -186,14 +188,14 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
     // A sub-note's picker offers constellations only.
     const skyNotes = useSkyNotes(picking && load.status === 'ready' && !isSubNote)
 
-    if (load.status === 'loading') return <p className="context-text">Loading…</p>
+    if (load.status === 'loading') return <p className="context-text">{common.loading}</p>
     if (load.status === 'error') {
         return <div className="note-places-state">
-            <p className="context-text">Could not load the constellations.</p>
+            <p className="context-text">{t.couldNotLoad}</p>
             <Button size="sm" variant="quiet" onClick={() => {
                 setLoad({status: 'loading'})
                 void reload()
-            }}>Retry</Button>
+            }}>{common.retry}</Button>
         </div>
     }
 
@@ -208,43 +210,43 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
         const target = tree.byId.get(id)
         if (!target) return
         if (isSubNote) {
-            ask(subOut(place.ancestors, placed, target))
+            ask(subOut(place.ancestors, placed, target, locale))
             return
         }
         // A pick that changes nothing says so instead of closing the picker as if it worked.
         if (placed.some((item) => item.node.id === id)) {
-            setError(`The note is already in ${placePath(target)}.`)
+            setError(t.alreadyIn(placePath(target)))
             return
         }
-        ask(topMoveTo(placed, target), () => apply({kind: 'add', constellationId: id}))
+        ask(topMoveTo(placed, target, locale), () => apply({kind: 'add', constellationId: id}))
     }
 
     function pickNote(id: string) {
         if (skyNotes?.status !== 'ready') return
         const note = skyNotes.items.find((item) => item.id === id)
-        if (note) ask(topUnder(placed, {id, title: note.title, icon: note.icon ?? undefined}))
+        if (note) ask(topUnder(placed, {id, title: note.title, icon: note.icon ?? undefined}, locale))
     }
 
     const picker = picking && <div className="note-places-picker">
         {isSubNote
-            ? <ConstellationPicker items={items} label="Move this note to…" action={(name) => `Move to ${name}`}
+            ? <ConstellationPicker items={items} label={t.moveThisTo} action={t.moveTo}
                                    busy={pending} onPick={pickConstellation} onCreate={createIn}
                                    onClose={() => setPicking(false)}/>
             : skyNotes?.status === 'ready'
-                ? <ConstellationPicker items={items} label="Add this note to…" action={(name) => `Add to ${name}`}
+                ? <ConstellationPicker items={items} label={t.addThisTo} action={t.addTo}
                                        busy={pending} exclude={[noteId]} onPick={pickConstellation} onCreate={createIn}
                                        onClose={() => setPicking(false)}
                                        notes={{
                                            items: skyNotes.items,
-                                           action: (title) => `Move under ${title}`,
+                                           action: t.moveUnder,
                                            onPick: pickNote,
                                        }}/>
                 : skyNotes?.status === 'error'
                     ? <div className="note-places-state">
-                        <p className="context-text">Could not load the notes.</p>
-                        <Button size="sm" variant="quiet" onClick={skyNotes.retry}>Retry</Button>
+                        <p className="context-text">{t.couldNotLoadNotes}</p>
+                        <Button size="sm" variant="quiet" onClick={skyNotes.retry}>{common.retry}</Button>
                     </div>
-                    : <p className="context-text">Loading the notes…</p>}
+                    : <p className="context-text">{t.loadingNotes}</p>}
     </div>
 
     const main = placed.find((item) => item.main)?.node ?? null
@@ -253,24 +255,24 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
             {isSubNote
                 ? <SubNotePath main={main} ancestors={place.ancestors} disabled={pending}
                                title={noteTitle ? noteTitleText(noteTitle, noteIcon) : undefined}
-                               onCross={(index) => ask(subCross(place.ancestors, placed, index))}/>
+                               onCross={(index) => ask(subCross(place.ancestors, placed, index, locale))}/>
                 : placed.length > 0
                     ? placed.map((item) => (
                         <PlacePath key={item.node.id} place={item} marked={placed.length > 1} disabled={pending}
                                    onMain={() => void run(() => setMainNoteConstellation(noteId, item.node.id, false))}
-                                   onCross={(index) => ask(topCross(placed, item, index))}/>
+                                   onCross={(index) => ask(topCross(placed, item, index, locale))}/>
                     ))
-                    : <p className="context-text">Not in a constellation yet.</p>}
+                    : <p className="context-text">{t.notPlaced}</p>}
             <button type="button" className="note-places-add" disabled={pending} aria-expanded={picking}
                     onClick={() => {
                         setError(null)
                         setPicking((open) => !open)
-                    }}>Add to…
+                    }}>{t.addToAction}
             </button>
             {picker}
             {error && <p className="note-places-error" role="alert">{error}</p>}
             {confirmation && <Dialog title={confirmation.title} width={340} busy={pending}
-                                     confirm={pending ? confirmation.busy : confirmation.confirm} cancel="Cancel"
+                                     confirm={pending ? confirmation.busy : confirmation.confirm} cancel={t.cancel}
                                      confirmDisabled={pending}
                                      onConfirm={() => apply(confirmation.change, true)}
                                      onCancel={() => {
@@ -280,7 +282,7 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
                 <div className="note-places-confirm">
                     <span aria-hidden={dialogError ? true : undefined}
                           style={dialogError ? {visibility: 'hidden'} : undefined}>{confirmation.body}</span>
-                    <span aria-hidden="true" style={{visibility: 'hidden'}}>{LONGEST_FAILURE}</span>
+                    <span aria-hidden="true" style={{visibility: 'hidden'}}>{longestFailure(t)}</span>
                     {dialogError && <span className="note-places-confirm-error" role="alert">{dialogError}</span>}
                 </div>
             </Dialog>}
@@ -290,7 +292,8 @@ export function NoteConstellationSection({noteId, noteTitle, noteIcon, onChanged
 
 /** A cross on one segment of a path: it moves the note to the segment before it. */
 function Cross({name, disabled, onClick}: { name: string; disabled: boolean; onClick: () => void }) {
-    return <button type="button" className="note-places-cross" title={`Out of ${name}`} aria-label={`Out of ${name}`}
+    const t = useMessages(placementMessages)
+    return <button type="button" className="note-places-cross" title={t.outOf(name)} aria-label={t.outOf(name)}
                    disabled={disabled} onClick={onClick}>
         <Icon name="close" size={8}/>
     </button>
@@ -307,13 +310,14 @@ function PlacePath({place, marked, disabled, onMain, onCross}: {
     onMain: () => void
     onCross: (index: number) => void
 }) {
+    const t = useMessages(placementMessages)
     const segments = segmentsOf(place.node)
     const choosable = marked && !place.main
     return (
         <div className="note-places-path" role="group" aria-label={placePath(place.node)}>
             {choosable
-                ? <button type="button" className="note-places-dot" title="Make this place main"
-                          aria-label={`Make ${placePath(place.node)} main`} disabled={disabled} onClick={onMain}>
+                ? <button type="button" className="note-places-dot" title={t.makeMainHint}
+                          aria-label={t.makeMain(placePath(place.node))} disabled={disabled} onClick={onMain}>
                     <TagDot color={constellationColor(place.node.hue, place.node.lightness)} size={8}/>
                 </button>
                 : <TagDot color={constellationColor(place.node.hue, place.node.lightness)} size={8}/>}
@@ -333,7 +337,7 @@ function PlacePath({place, marked, disabled, onMain, onCross}: {
                     </span>
                 </Fragment>
             ))}
-            {marked && place.main && <span className="note-places-mark">Main</span>}
+            {marked && place.main && <span className="note-places-mark">{t.main}</span>}
         </div>
     )
 }
@@ -349,9 +353,12 @@ function SubNotePath({main, ancestors, title, disabled, onCross}: {
     disabled: boolean
     onCross: (index: number) => void
 }) {
+    const t = useMessages(placementMessages)
+    const common = useMessages(commonMessages)
+    const locale = useLocale()
     const constellations = main ? segmentsOf(main) : []
     return (
-        <div className="note-places-path" role="group" aria-label="Place">
+        <div className="note-places-path" role="group" aria-label={t.place}>
             {main && <TagDot color={constellationColor(main.hue, main.lightness)} size={8}/>}
             {constellations.map((node, index) => (
                 <Fragment key={node.id}>
@@ -367,14 +374,14 @@ function SubNotePath({main, ancestors, title, disabled, onCross}: {
                     {(main || index > 0) && <span className="note-places-sep" aria-hidden="true">/</span>}
                     <span className="note-places-segment">
                         <Link to={`/notes/${ancestor.id}`} className="note-places-name note-places-note">
-                            {noteTitleText(ancestor.title || 'Untitled note', ancestor.icon)}</Link>
-                        <Cross name={quotedNote(ancestor)} disabled={disabled}
+                            {noteTitleText(ancestor.title || common.untitledNote, ancestor.icon)}</Link>
+                        <Cross name={quotedNote(ancestor, locale)} disabled={disabled}
                                onClick={() => onCross(constellations.length + index)}/>
                     </span>
                 </Fragment>
             ))}
             <span className="note-places-sep" aria-hidden="true">/</span>
-            <span className="note-places-name note-places-leaf">{title || 'This note'}</span>
+            <span className="note-places-name note-places-leaf">{title || t.thisNote}</span>
         </div>
     )
 }

@@ -34,6 +34,8 @@ const en = {
     discard: 'Discard',
     keepEditing: 'Keep editing',
     noteText: 'Note text',
+    fromUliss: 'Text from Uliss',
+    originalNote: 'Original note',
 }
 
 export const noteEditMessages: Dictionaries<typeof en> = {
@@ -68,5 +70,7 @@ export const noteEditMessages: Dictionaries<typeof en> = {
         discard: 'Отменить правки',
         keepEditing: 'Продолжить',
         noteText: 'Текст заметки',
+        fromUliss: 'Текст от Uliss',
+        originalNote: 'Исходная заметка',
     },
 }

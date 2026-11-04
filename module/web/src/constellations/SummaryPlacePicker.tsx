@@ -1,6 +1,8 @@
-import {Button, ConstellationPicker} from '@uliss/design-system'
+import {Button, ConstellationPicker, useMessages} from '@uliss/design-system'
 import type {SummaryPlace, SummaryPlaces} from './useSummaryPlaces'
 import './summary-place.css'
+import {commonMessages} from '../i18n/common.messages'
+import {constellationsMessages} from './constellations.messages'
 
 /**
  * The "Choose a place" step of the Summarize dialog: the shared tree picker with every constellation and note, filling
@@ -20,22 +22,24 @@ export function SummaryPlacePicker({places, busy, error, onPick}: {
 }
 
 function Tree({places, busy, onPick}: { places: SummaryPlaces; busy: boolean; onPick: (place: SummaryPlace) => void }) {
+    const t = useMessages(constellationsMessages)
+    const common = useMessages(commonMessages)
     if (places.load.status === 'ready') {
-        return <ConstellationPicker fill items={places.items} label="Find a place…" action={(name) => `Put in ${name}`}
+        return <ConstellationPicker fill items={places.items} label={t.findPlace} action={t.putIn}
                                     busy={busy} onCreate={places.createIn}
                                     onPick={(id) => onPick({constellationId: id})}
                                     notes={{
                                         items: places.notes,
-                                        action: (title) => `Put under ${title}`,
+                                        action: t.putUnder,
                                         onPick: (id) => onPick({parentNoteId: id}),
                                     }}/>
     }
     return <div className="summary-place-state">
         {places.load.status === 'loading'
-            ? <p className="context-text">Loading the constellations…</p>
+            ? <p className="context-text">{t.loadingConstellations}</p>
             : <>
-                <p className="context-text">Could not load the constellations.</p>
-                <Button size="sm" variant="quiet" onClick={places.reload}>Retry</Button>
+                <p className="context-text">{t.couldNotLoadConstellations}</p>
+                <Button size="sm" variant="quiet" onClick={places.reload}>{common.retry}</Button>
             </>}
     </div>
 }
