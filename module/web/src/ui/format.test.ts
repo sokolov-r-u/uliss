@@ -1,5 +1,5 @@
 import {describe, expect, it} from 'vitest'
-import {formatFullDate, formatMonth, formatShortDate, noteCountLabel} from './format'
+import {formatFullDate, formatMonth, formatShortDate} from './format'
 
 const iso = '2026-06-22T09:00:00Z'
 describe('format', () => {
@@ -18,11 +18,5 @@ describe('format', () => {
             expect(formatFullDate(bad, 'ru')).toBe('')
             expect(formatMonth(bad, 'en')).toBe('')
         }
-    })
-
-    it('words a note count', () => {
-        expect(noteCountLabel(0)).toBe('No notes yet')
-        expect(noteCountLabel(1)).toBe('1 note')
-        expect(noteCountLabel(3)).toBe('3 notes')
     })
 })

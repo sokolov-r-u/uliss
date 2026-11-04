@@ -1,5 +1,5 @@
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
-import {Button, ConstellationChip, constellationColor, ConstellationPicker, EmptyState, Icon, IconButton, Kicker, ListRow, type Locale, noteTitleText, useLocale} from '@uliss/design-system'
+import {Button, ConstellationChip, constellationColor, ConstellationPicker, EmptyState, Icon, IconButton, Kicker, ListRow, type Locale, noteTitleText, useLocale, useMessages} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate, useSearchParams} from 'react-router-dom'
 import {listConstellations} from '../constellations/constellationApi'
@@ -17,6 +17,8 @@ import {PinnedFailed} from '../ui/pins/PinnedFailed'
 import {useFilteredPinned} from './useFilteredPinned'
 import './notes.css'
 import {formatShortDate} from '../ui/format'
+import {commonMessages} from '../i18n/common.messages'
+import {notesMessages} from './notes.messages'
 
 export interface NotesViewProps {
     notes: NoteViewModel[]
@@ -52,10 +54,12 @@ export interface NotesFilterSlots {
 export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, filter, pinned = [],
                               notice}: NotesViewProps) {
     const locale = useLocale()
+    const t = useMessages(notesMessages)
+    const common = useMessages(commonMessages)
     const unread = [...pinned, ...notes].filter((note) => note.unread).length
     const filtered = filter?.onClear !== undefined
     const count = (filtered ? filter?.count : undefined) ?? total ?? pinned.length + notes.length
-    const header = (right?: ReactNode) => <ScreenHeader kicker="Notes" count={count}
+    const header = (right?: ReactNode) => <ScreenHeader kicker={common.notes} count={count}
                                                         right={right || filter?.button ? <span className="notes-head-actions">
                                                             {right}{filter?.button}
                                                         </span> : undefined}/>
@@ -65,12 +69,10 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
             {filter?.bar}
             <div className="product-body"><div className="product-empty">
                 {filtered
-                    ? <EmptyState title="No notes in these constellations"
-                                  body="Notes placed here, in their sub-constellations or under their notes will show up in this list."
-                                  action="Clear filter" onAction={filter?.onClear}/>
-                    : <EmptyState title="Nothing written down yet"
-                                  body="Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never have to."
-                                  action="Start a chat" onAction={onStartChat}/>}
+                    ? <EmptyState title={t.noFiltered} body={t.noFilteredBody}
+                                  action={t.clearFilter} onAction={filter?.onClear}/>
+                    : <EmptyState title={t.noNotes} body={t.noNotesBody}
+                                  action={t.startChat} onAction={onStartChat}/>}
             </div></div>
             {filter?.picker}
         </div>
@@ -82,16 +84,16 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
                  meta={note.linkCount > 0 ? <><Icon name="star" size={12}/>{note.linkCount}</> : undefined}
                  onClick={onOpen ? () => onOpen(note) : undefined}
                  dots={openMenu !== undefined} onMenu={openMenu}
-                 menuLabel={`Actions for ${noteTitleText(note.title, note.icon)}`}/>
+                 menuLabel={common.actionsFor(noteTitleText(note.title, note.icon))}/>
 
     return (
         <div className="product-view">
-            {header(unread > 0 ? <Kicker size={9} spacing="2px" color="var(--text-faint)">{unread} new</Kicker> : undefined)}
+            {header(unread > 0 ? <Kicker size={9} spacing="2px" color="var(--text-faint)">{t.unread(unread)}</Kicker> : undefined)}
             {filter?.bar}
             <div className="product-body"><div className="product-list">
                 {notice}
                 {[
-                    ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
+                    ...(pinned.length > 0 ? [{label: common.pinned, items: pinned}] : []),
                     ...groupByMonth(notes, (note) => note.listedAt, locale),
                 ].map((group, groupIndex) => <div
                     key={`${group.label}-${groupIndex}`} className="list-group">
@@ -122,12 +124,12 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
     )
 }
 
-function contentParts(content: string | null, storedTitle?: string): { title: string; excerpt: string } {
+function contentParts(content: string | null, fallbackTitle: string, storedTitle?: string): { title: string; excerpt: string } {
     const lines = content?.split(/\r?\n/).map((line) => line.trim()).filter(Boolean) ?? []
     const normalized = lines.join(' ').replace(/\s+/g, ' ').trim()
     if (storedTitle) return {title: storedTitle, excerpt: normalized}
     // Notes created before stored titles fall back to their first content line.
-    const first = lines[0]?.replace(/\s+/g, ' ').trim() ?? 'Ready note'
+    const first = lines[0]?.replace(/\s+/g, ' ').trim() ?? fallbackTitle
     const title = first.length > 80 ? `${first.slice(0, 79).trimEnd()}…` : first
     const excerpt = normalized.startsWith(first) ? normalized.slice(first.length).trim() : normalized
     return {title, excerpt}
@@ -137,19 +139,20 @@ function contentParts(content: string | null, storedTitle?: string): { title: st
 export function toNoteViewModels(notes: Note[], locale: Locale,
                                  listedAt: (note: Note) => string | undefined = (note) => note.createdAt):
     NoteViewModel[] {
+    const t = notesMessages[locale]
     return notes.map((note, index) => {
-        const content = contentParts(note.content, note.title)
+        const content = contentParts(note.content, t.readyNote, note.title)
         // a name the user gave a summary is shown while the note is still being written
         const title = note.status === 'GENERATING'
-            ? note.title || 'Generating note…'
-            : note.status === 'FAILED' ? 'Summary failed' : content.title
+            ? note.title || t.generating
+            : note.status === 'FAILED' ? t.summaryFailed : content.title
         return {
             id: note.id,
             ordinal: notes.length - index,
             title,
             icon: note.icon ?? null,
             excerpt: note.status === 'READY' ? content.excerpt
-                : note.status === 'GENERATING' && note.title ? 'Generating note…' : '',
+                : note.status === 'GENERATING' && note.title ? t.generating : '',
             date: formatShortDate(listedAt(note), locale),
             linkCount: 0,
             renamable: note.status === 'READY',
@@ -161,6 +164,8 @@ export function toNoteViewModels(notes: Note[], locale: Locale,
 export function NotesPage() {
     const navigate = useNavigate()
     const locale = useLocale()
+    const t = useMessages(notesMessages)
+    const common = useMessages(commonMessages)
     const [params, setParams] = useSearchParams()
     const filter = useMemo(() => readFilter(params), [params])
     const filterKey = filter.join(',')
@@ -204,30 +209,30 @@ export function NotesPage() {
     const pickerList = useMemo(() => tree ? pickerItems(tree) : [], [tree])
     const filterSlots: NotesFilterSlots = {
         button: tree && tree.flat.length > 0 ? <IconButton title={filter.length >= FILTER_LIMIT
-            ? `Up to ${FILTER_LIMIT} constellations` : 'Filter by constellation'}
+            ? t.filterLimit(FILTER_LIMIT) : t.filterBy}
                                                          aria-expanded={pickerOpen}
                                                          disabled={filter.length >= FILTER_LIMIT}
                                                          onClick={() => setPickerOpen((open) => !open)}>
             <Icon name="filter" size={15}/>
         </IconButton> : undefined,
-        bar: filter.length > 0 ? <div className="notes-filter-bar" aria-label="Constellation filter">
+        bar: filter.length > 0 ? <div className="notes-filter-bar" aria-label={t.filterBar}>
             {filter.map((id) => {
                 const node = tree?.byId.get(id)
                 const path = node ? [...node.ancestors, node].map((n) => n.name).join(' › ') : undefined
                 return <span key={id} title={path}>
-                    <ConstellationChip size="sm" label={node?.name ?? 'Constellation'}
+                    <ConstellationChip size="sm" label={node?.name ?? t.constellation}
                                        color={node ? constellationColor(node.hue, node.lightness) : 'var(--text-faint)'}
                                        onRemove={() => setFilter(filter.filter((other) => other !== id))}/>
                 </span>
             })}
-            <Button size="sm" variant="quiet" onClick={() => setFilter([])}>Clear</Button>
+            <Button size="sm" variant="quiet" onClick={() => setFilter([])}>{t.clear}</Button>
         </div> : undefined,
         picker: pickerOpen && tree ? <>
             <button type="button" className="notes-filter-scrim" tabIndex={-1} aria-hidden="true"
                     onClick={() => setPickerOpen(false)}/>
             <div className="notes-filter-picker">
-                <ConstellationPicker items={pickerList} exclude={filter} label="Find a constellation"
-                                     action={(name) => `Show ${name}`}
+                <ConstellationPicker items={pickerList} exclude={filter} label={t.findConstellation}
+                                     action={t.show}
                                      onPick={(id) => {
                                          setFilter(addToFilter(filter, id, tree))
                                          setPickerOpen(false)
@@ -236,7 +241,7 @@ export function NotesPage() {
             </div>
         </> : undefined,
         count: state.status === 'ready' && state.total !== undefined && state.allTotal !== undefined
-            ? `${state.total} of ${state.allTotal}` : undefined,
+            ? t.filteredCount(state.total, state.allTotal) : undefined,
         onClear: filter.length > 0 ? () => setFilter([]) : undefined,
     }
 
@@ -253,14 +258,14 @@ export function NotesPage() {
         ? withoutPinned(state.items, sharedPinned) : []
     // "Nothing written down yet" waits for the pinned list: every note may be pinned
     if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
-        return <div className="product-view"><ScreenHeader kicker="Notes"/>{filterSlots.bar}
-            <p className="notes-state">Loading…</p></div>
+        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
+            <p className="notes-state">{common.loading}</p></div>
     }
     if (state.status === 'error') {
-        return <div className="product-view"><ScreenHeader kicker="Notes"/>{filterSlots.bar}
+        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
             <div className="notes-state notes-state-error">
-                <p>{describeError(state.error)}</p><Button size="sm" variant="quiet"
-                                                           onClick={() => setRevision((value) => value + 1)}>Retry</Button>
+                <p>{describeError(state.error, locale)}</p><Button size="sm" variant="quiet"
+                                                           onClick={() => setRevision((value) => value + 1)}>{common.retry}</Button>
             </div>
         </div>
     }

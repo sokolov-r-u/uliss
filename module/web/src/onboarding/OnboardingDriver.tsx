@@ -9,13 +9,14 @@
  * reload, the session is refreshed once the last blocking step is done, and such a refusal starts onboarding again.
  */
 import {type ComponentType, useEffect, useRef, useState} from 'react'
-import {Notice} from '@uliss/design-system'
+import {Notice, useMessages} from '@uliss/design-system'
 import {AuthRequiredError, onOnboardingRequired, refreshSession, tokenRequiresOnboarding} from '../auth/apiClient'
 import {notifyChatListChanged} from '../chat/chatApi'
 import {notifyNotesChanged} from '../notes/noteApi'
 import {NoticeOverlay} from '../ui/notice/NoticeOverlay'
 import {fetchPending, type OnboardingCode, type OnboardingMessage} from './onboardingApi'
 import {DisplayNameStep, ProfileStep, type StepProps} from './steps'
+import {onboardingMessages} from './onboarding.messages'
 
 const STEPS: Record<OnboardingCode, ComponentType<StepProps>> = {
     SET_DISPLAY_NAME: DisplayNameStep,
@@ -50,6 +51,7 @@ type State =
     | { status: 'done' }
 
 export function OnboardingDriver() {
+    const t = useMessages(onboardingMessages)
     const [state, setState] = useState<State>({status: 'idle'})
     const [attempt, setAttempt] = useState(0)
     // a service refused the user: if nothing blocking is pending any more, the access token is stale
@@ -99,9 +101,9 @@ export function OnboardingDriver() {
             <NoticeOverlay blocking>
                 <Notice
                     blocking
-                    title="Could not load your setup"
-                    body="Uliss needs a few details before you start. Check the connection and try again."
-                    primary="Try again"
+                    title={t.loadFailed}
+                    body={t.loadFailedBody}
+                    primary={t.tryAgain}
                     onPrimary={() => setAttempt((n) => n + 1)}
                 />
             </NoticeOverlay>
@@ -113,9 +115,9 @@ export function OnboardingDriver() {
             <NoticeOverlay blocking>
                 <Notice
                     blocking
-                    title="Uliss has been updated"
-                    body="A new setup step needs the latest version of the app. Reload the page to continue."
-                    primary="Reload"
+                    title={t.updated}
+                    body={t.updatedBody}
+                    primary={t.reload}
                     onPrimary={() => window.location.reload()}
                 />
             </NoticeOverlay>

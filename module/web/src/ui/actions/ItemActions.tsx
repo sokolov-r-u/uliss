@@ -1,5 +1,5 @@
 import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Dialog, ItemMenu, type ItemMenuAction, noteTitleText, Notice, OptionList, TextField} from '@uliss/design-system'
+import {Dialog, ItemMenu, type ItemMenuAction, type Locale, noteTitleText, Notice, OptionList, TextField, useLocale, useMessages} from '@uliss/design-system'
 import {describeError} from '../../lib/apiHelpers'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
@@ -25,6 +25,8 @@ import {
 } from '../../notes/noteApi'
 import {NoticeOverlay} from '../notice/NoticeOverlay'
 import {PIN_LIMIT, pinnedChats, pinnedNotes, usePinnedIds} from '../pins/pinned'
+import {commonMessages} from '../../i18n/common.messages'
+import {itemActionsMessages} from './itemActions.messages'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -52,22 +54,19 @@ const NOTE_LIST_DIALOG_WIDTH = 460
 /** The sub-notes a deleted note would leave: counted when its dialog opens. */
 type SubNotes = { status: 'loading' } | { status: 'error' } | { status: 'ready'; count: number }
 
-const FATES: { fate: SubNoteFate; label: string; note: string }[] = [
-    {fate: 'KEEP', label: 'Keep sub-notes', note: 'They take its place'},
-    {fate: 'DELETE', label: 'Delete all', note: 'The note with all its sub-notes'},
+type ActionWords = typeof itemActionsMessages.en
+
+const FATES: { fate: SubNoteFate; label: 'keepSubNotes' | 'deleteAll'; note: 'keepSubNotesNote' | 'deleteAllNote' }[] = [
+    {fate: 'KEEP', label: 'keepSubNotes', note: 'keepSubNotesNote'},
+    {fate: 'DELETE', label: 'deleteAll', note: 'deleteAllNote'},
 ]
 
-export function deleteNoteBody(title: string, count: number): string {
-    const subNotes = count === 1 ? 'a sub-note' : `${count} sub-notes`
-    return `“${title}” has ${subNotes}. Kept sub-notes move up to its place; chats are never deleted.`
+export function deleteNoteBody(title: string, count: number, locale: Locale = 'en'): string {
+    return itemActionsMessages[locale].deleteNoteBody(title, count)
 }
 
-export function deleteChatBody(noteCount: number): string {
-    if (noteCount <= 0) return 'No notes were written from it. The conversation does not come back.'
-    if (noteCount === 1) {
-        return 'Uliss wrote a note from this chat. It will stay — delete it from Notes if you no longer need it.'
-    }
-    return `Uliss wrote ${noteCount} notes from this chat. They will stay — delete them from Notes if you no longer need them.`
+export function deleteChatBody(noteCount: number, locale: Locale = 'en'): string {
+    return itemActionsMessages[locale].deleteChatBody(noteCount)
 }
 
 function failureStatus(error: unknown): number | undefined {
@@ -76,21 +75,20 @@ function failureStatus(error: unknown): number | undefined {
 }
 
 /** Why a pin or unpin failed, in the words of the message card. */
-export function pinFailureMessage(kind: ItemActionTarget['kind'], error: unknown): string {
+export function pinFailureMessage(kind: ItemActionTarget['kind'], error: unknown, locale: Locale = 'en'): string {
+    const t = itemActionsMessages[locale]
     const status = failureStatus(error)
-    if (status === 409) return `${PIN_LIMIT} ${kind}s are pinned already. Unpin one first.`
-    if (status === 404) return kind === 'chat' ? 'This chat no longer exists.' : 'This note no longer exists.'
-    return describeError(error)
+    if (status === 409) return t.pinLimit(PIN_LIMIT, kind)
+    if (status === 404) return t.gone(kind)
+    return describeError(error, locale)
 }
 
-function failureMessage(target: ItemActionTarget, error: unknown): string {
+function failureMessage(target: ItemActionTarget, error: unknown, t: ActionWords, locale: Locale): string {
     const status = failureStatus(error)
-    if (status === 409) {
-        return target.kind === 'chat' ? 'Stop the reply before deleting this chat.' : 'This note is still being written.'
-    }
-    if (status === 404) return target.kind === 'chat' ? 'This chat no longer exists.' : 'This note no longer exists.'
-    if (status === 400) return 'Use a title of 1 to 50 characters.'
-    return describeError(error)
+    if (status === 409) return t.busy(target.kind)
+    if (status === 404) return t.gone(target.kind)
+    if (status === 400) return t.titleRule
+    return describeError(error, locale)
 }
 
 /** Rename · Delete (and a screen's own items) for one chat or note: menu, dialogs, API calls and in-dialog errors. */
@@ -104,6 +102,9 @@ export function ItemActions({
                                 initialOpen = false,
                                 children,
                             }: ItemActionsProps) {
+    const locale = useLocale()
+    const t = useMessages(itemActionsMessages)
+    const common = useMessages(commonMessages)
     const hostRef = useRef<HTMLDivElement>(null)
     const pendingRef = useRef(false)
     const [anchor, setAnchor] = useState<HTMLElement | null>(null)
@@ -203,7 +204,7 @@ export function ItemActions({
             else onRenamed?.(saved)
         } catch (e) {
             finish()
-            if (!(e instanceof AuthRequiredError)) setError(failureMessage(target, e))
+            if (!(e instanceof AuthRequiredError)) setError(failureMessage(target, e, t, locale))
         }
     }
 
@@ -223,7 +224,7 @@ export function ItemActions({
             // Already gone (e.g. deleted in another tab) is the outcome the user asked for.
             if (failureStatus(e) !== 404) {
                 finish()
-                if (!(e instanceof AuthRequiredError)) setError(failureMessage(target, e))
+                if (!(e instanceof AuthRequiredError)) setError(failureMessage(target, e, t, locale))
                 return
             }
         }
@@ -243,7 +244,7 @@ export function ItemActions({
             else if (target.kind === 'chat') pinnedChats.addPinned(await pinChat(target.id))
             else pinnedNotes.addPinned(await pinNote(target.id))
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setPinFailure({unpin, message: pinFailureMessage(target.kind, e)})
+            if (!(e instanceof AuthRequiredError)) setPinFailure({unpin, message: pinFailureMessage(target.kind, e, locale)})
         } finally {
             pendingRef.current = false
         }
@@ -254,7 +255,7 @@ export function ItemActions({
     }
 
     const actions: ItemMenuAction[] = [pinned ? {
-        label: 'Unpin',
+        label: t.unpin,
         onSelect: () => {
             setAnchor(null)
             void togglePin(true)
@@ -262,7 +263,7 @@ export function ItemActions({
     } : {
         // the service refuses one more past the limit; the label says why before it is tried. Until the pinned list
         // has loaded, whether this item is pinned is unknown, so Pin waits for it.
-        label: pins.full ? `Pin · ${PIN_LIMIT} max` : 'Pin',
+        label: pins.full ? t.pinFull(PIN_LIMIT) : t.pin,
         disabled: !pins.ready || pins.full,
         onSelect: () => {
             setAnchor(null)
@@ -271,7 +272,7 @@ export function ItemActions({
     }]
     if (target.kind === 'chat' || target.renamable) {
         actions.push({
-            label: 'Rename',
+            label: t.rename,
             onSelect: () => {
                 setAnchor(null)
                 setDraft(target.title)
@@ -290,7 +291,7 @@ export function ItemActions({
         })
     }
     actions.push({
-        label: 'Delete',
+        label: t.delete,
         danger: true,
         disabled: deleteDisabled,
         onSelect: () => {
@@ -304,39 +305,39 @@ export function ItemActions({
     return (
         <div ref={hostRef} style={{minWidth: 0}}>
             {children(openMenu, anchor !== null)}
-            {anchor && <ItemMenu anchor={anchor} label={`Actions for ${shownTitle}`}
+            {anchor && <ItemMenu anchor={anchor} label={common.actionsFor(shownTitle)}
                                  actions={actions} onClose={closeMenu}/>}
             {pinFailure && <NoticeOverlay onBackdropClick={() => setPinFailure(null)}>
-                <Notice title={pinFailure.unpin ? `Could not unpin this ${target.kind}` : `Could not pin this ${target.kind}`}
-                        body={pinFailure.message} primary="Close" onPrimary={() => setPinFailure(null)}/>
+                <Notice title={t.couldNotPin(pinFailure.unpin, target.kind)}
+                        body={pinFailure.message} primary={t.close} onPrimary={() => setPinFailure(null)}/>
             </NoticeOverlay>}
-            {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
+            {dialog === 'rename' && <Dialog title={t.renameTitle(target.kind)}
                                             body={error ?? undefined}
-                                            confirm={pending ? 'Saving…' : 'Save'} cancel="Cancel" busy={pending}
+                                            confirm={pending ? t.saving : t.save} cancel={t.cancel} busy={pending}
                                             confirmDisabled={pending || normalizeTitle(draft) === null}
                                             onConfirm={() => void submitRename()} onCancel={closeDialog}
                                             width={320}>
-                <TextField label="Title" value={draft} maxLength={TITLE_LIMIT} autoFocus
+                <TextField label={t.title} value={draft} maxLength={TITLE_LIMIT} autoFocus
                            onChange={(event) => setDraft(event.target.value)}
                            onKeyDown={(event) => {
                                if (event.key === 'Enter') void submitRename()
                            }}/>
             </Dialog>}
             {dialog === 'delete' && target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0
-                && <Dialog danger title={`Delete “${shownTitle}”?`} width={340}
-                           body={error ?? deleteNoteBody(shownTitle, subNotes.count)}
-                           confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={pending}
+                && <Dialog danger title={t.deleteTitle(shownTitle)} width={340}
+                           body={error ?? t.deleteNoteBody(shownTitle, subNotes.count)}
+                           confirm={pending ? t.deleting : t.delete} cancel={t.cancel} busy={pending}
                            confirmDisabled={pending}
                            onConfirm={() => void submitDelete()} onCancel={closeDialog}>
-                    <OptionList label="Sub-notes" marker="dot" disabled={pending}
+                    <OptionList label={t.subNotes} marker="dot" disabled={pending}
                                 selected={FATES.findIndex((item) => item.fate === fate)}
-                                options={FATES.map((item) => ({label: item.label, note: item.note}))}
+                                options={FATES.map((item) => ({label: t[item.label], note: t[item.note]}))}
                                 onPick={(index) => setFate(FATES[index]!.fate)}/>
                 </Dialog>}
             {dialog === 'delete' && !(target.kind === 'note' && subNotes.status === 'ready' && subNotes.count > 0)
-                && <Dialog danger title={`Delete “${shownTitle}”?`}
-                                            body={error ?? (target.kind === 'chat' ? deleteChatBody(target.noteCount) : undefined)}
-                                            confirm={pending ? 'Deleting…' : 'Delete'} cancel="Cancel"
+                && <Dialog danger title={t.deleteTitle(shownTitle)}
+                                            body={error ?? (target.kind === 'chat' ? t.deleteChatBody(target.noteCount) : undefined)}
+                                            confirm={pending ? t.deleting : t.delete} cancel={t.cancel}
                                             confirmDisabled={target.kind === 'note' && subNotes.status === 'loading'}
                                             onConfirm={() => void submitDelete()} onCancel={closeDialog}
                                             width={target.kind === 'chat' && target.noteCount > 0 ? NOTE_LIST_DIALOG_WIDTH : undefined}>

@@ -1,0 +1,72 @@
+import type {Dictionaries} from '@uliss/design-system'
+
+/** How many example commands the edit field rotates through as its placeholder; every language has this many. */
+export const HINT_COUNT = 4
+
+/** Editing a note by hand and with Uliss. */
+const en = {
+    conflict: 'This note changed elsewhere. Copy your edits and reload.',
+    updatingSave: 'Uliss is updating this note. Save again when it finishes.',
+    notEditable: 'This note can no longer be edited.',
+    invalid: 'Use a title of 1 to 50 characters and a text of up to 100,000 characters.',
+    hint: (index: number) => [
+        "Fix spelling and punctuation, don't change the wording…",
+        "Format the text: headings, lists, paragraphs; don't change the wording…",
+        'Make it shorter…',
+        'Turn the lists into a table…',
+    ][index % HINT_COUNT],
+    updatingRewrite: 'Uliss is updating this note. Try again when it finishes.',
+    rewriteInvalid: 'Use a command of up to 1,000 characters and a text of up to 30,000 characters.',
+    unavailable: 'Uliss is unavailable. Try again.',
+    rewriteFailed: 'Uliss could not rewrite the text. Try again.',
+    commandTooLong: 'Keep the command under 1,000 characters.',
+    writeFirst: 'Write some text first.',
+    tooLong: 'Note is too long for Uliss to edit (30,000 characters at most).',
+    nothingChanged: 'Nothing changed.',
+    stopped: 'Stopped.',
+    icon: 'Icon',
+    title: 'Title',
+    cancel: 'Cancel',
+    saving: 'Saving…',
+    save: 'Save',
+    discardTitle: 'Discard your edits?',
+    discardBody: 'The note stays as it was last saved.',
+    discard: 'Discard',
+    keepEditing: 'Keep editing',
+    noteText: 'Note text',
+}
+
+export const noteEditMessages: Dictionaries<typeof en> = {
+    en,
+    ru: {
+        conflict: 'Заметка изменилась в другом месте. Скопируйте свои правки и перезагрузите страницу.',
+        updatingSave: 'Uliss обновляет эту заметку. Сохраните ещё раз, когда он закончит.',
+        notEditable: 'Эту заметку больше нельзя редактировать.',
+        invalid: 'Название — от 1 до 50 символов, текст — до 100 000 символов.',
+        hint: (index) => [
+            'Исправь орфографию и пунктуацию, не меняя формулировок…',
+            'Оформи текст: заголовки, списки, абзацы; не меняй формулировок…',
+            'Сделай короче…',
+            'Преврати списки в таблицу…',
+        ][index % HINT_COUNT],
+        updatingRewrite: 'Uliss обновляет эту заметку. Попробуйте, когда он закончит.',
+        rewriteInvalid: 'Команда — до 1000 символов, текст — до 30 000 символов.',
+        unavailable: 'Uliss недоступен. Попробуйте ещё раз.',
+        rewriteFailed: 'Uliss не смог переписать текст. Попробуйте ещё раз.',
+        commandTooLong: 'Команда должна быть короче 1000 символов.',
+        writeFirst: 'Сначала напишите текст.',
+        tooLong: 'Заметка слишком длинная для правки через Uliss (не больше 30 000 символов).',
+        nothingChanged: 'Ничего не изменилось.',
+        stopped: 'Остановлено.',
+        icon: 'Иконка',
+        title: 'Название',
+        cancel: 'Отмена',
+        saving: 'Сохранение…',
+        save: 'Сохранить',
+        discardTitle: 'Отменить правки?',
+        discardBody: 'Заметка останется такой, какой была сохранена.',
+        discard: 'Отменить правки',
+        keepEditing: 'Продолжить',
+        noteText: 'Текст заметки',
+    },
+}

@@ -26,8 +26,16 @@ export type OnboardingSubmit = {
     gender?: Gender
 }
 
-/** Thrown on a 4xx submit so steps can show an inline message and stay open. */
+/**
+ * Thrown on a refused submit so steps can show an inline message and stay open. `field` names the first field the
+ * service rejected (`displayName`, `birthDate`); the step words it in the interface language. The service's own text
+ * stays in `message`, for the console only.
+ */
 export class OnboardingSubmitError extends Error {
+    constructor(message: string, readonly field?: string) {
+        super(message)
+        this.name = 'OnboardingSubmitError'
+    }
 }
 
 export async function fetchPending(): Promise<OnboardingMessage[]> {
@@ -44,19 +52,18 @@ export async function submit(request: OnboardingSubmit): Promise<void> {
     })
     // 409: the step is no longer pending (a double submit, another tab) — it is done either way
     if (res.status === 409) return
-    if (!res.ok) throw new OnboardingSubmitError(await errorMessage(res))
+    if (!res.ok) throw await submitError(res)
 }
 
-/** Pull a human message out of the service `ErrorResponse` (`{ details: { field: msg } }`). */
-async function errorMessage(res: Response): Promise<string> {
+/** The service `ErrorResponse` (`{ code, details: { field: msg } }`) as a submit error naming the rejected field. */
+async function submitError(res: Response): Promise<OnboardingSubmitError> {
     const text = await res.text().catch(() => '')
     try {
         const body = JSON.parse(text) as { details?: Record<string, string>; code?: string }
-        const detail = body.details && Object.values(body.details)[0]
-        if (detail) return detail
-        if (body.code) return body.code
+        const [field, detail] = Object.entries(body.details ?? {})[0] ?? []
+        return new OnboardingSubmitError(detail ?? body.code ?? `submit failed (${res.status})`, field)
     } catch {
-        // not JSON — fall through to the raw body / status
+        // not JSON (a proxy page): no field to name
+        return new OnboardingSubmitError(`submit failed (${res.status})`)
     }
-    return text || `submit failed (${res.status})`
 }

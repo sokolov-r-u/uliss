@@ -27,8 +27,3 @@ export const formatFullDate = (iso: string | undefined, locale: Locale) =>
 /** 'June 2026' · 'июнь 2026 г.' — month headings of wide lists. */
 export const formatMonth = (iso: string | undefined, locale: Locale) => format(iso, locale, {month: 'long', year: 'numeric'})
 
-/** 'No notes yet' · '1 note' · '3 notes'. */
-export function noteCountLabel(count: number): string {
-    if (count <= 0) return 'No notes yet'
-    return count === 1 ? '1 note' : `${count} notes`
-}

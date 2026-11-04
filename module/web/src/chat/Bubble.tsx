@@ -1,8 +1,10 @@
-import {Bubble as DesignBubble, Button, PendingStatus} from '@uliss/design-system'
+import {Bubble as DesignBubble, Button, PendingStatus, useMessages} from '@uliss/design-system'
 import {memo} from 'react'
 import {MarkdownContent} from '../ui/MarkdownContent'
 import type {ChatMessageRole, ChatMessageStatus} from './chatApi'
 import type {ChatActivity} from './streamChatReply'
+import {commonMessages} from '../i18n/common.messages'
+import {threadMessages} from './thread.messages'
 
 /**
  * A message as rendered in the thread — a `ChatMessage` plus client-only streaming state: the `pending` flag and the
@@ -17,14 +19,16 @@ export type DisplayMessage = {
     activity?: ChatActivity
 }
 
-function activityLabel(activity: ChatActivity | undefined): string {
-    return activity === 'SEARCHING_NOTES' ? 'searching notes…' : 'thinking…'
+type ThreadWords = typeof threadMessages.en
+
+function activityLabel(activity: ChatActivity | undefined, t: ThreadWords): string {
+    return activity === 'SEARCHING_NOTES' ? t.searchingNotes : t.thinking
 }
 
-function statusLabel(status: ChatMessageStatus): string | null {
-    if (status === 'PARTIAL') return 'interrupted'
-    if (status === 'FAILED') return 'failed to reply'
-    if (status === 'CANCELED') return 'stopped'
+function statusLabel(status: ChatMessageStatus, t: ThreadWords): string | null {
+    if (status === 'PARTIAL') return t.interrupted
+    if (status === 'FAILED') return t.failedToReply
+    if (status === 'CANCELED') return t.stopped
     return null
 }
 
@@ -39,21 +43,23 @@ export const Bubble = memo(function Bubble({role, status, content, pending, acti
     /** Regenerates this reply; given only to the latest failed or interrupted one. */
     onRetry?: () => void
 }) {
-    const label = pending ? null : statusLabel(status)
+    const t = useMessages(threadMessages)
+    const common = useMessages(commonMessages)
+    const label = pending ? null : statusLabel(status, t)
     const waiting = pending && role === 'ASSISTANT' && content === ''
 
     return (
         <div className={role === 'USER' ? 'bubble-adapter bubble-adapter-user' : 'bubble-adapter'}>
             <DesignBubble role={role === 'USER' ? 'me' : 'uliss'}>
                 {waiting
-                    ? <PendingStatus label={activityLabel(activity)} pad="0" minHeight={0}/>
+                    ? <PendingStatus label={activityLabel(activity, t)} pad="0" minHeight={0}/>
                     : role === 'ASSISTANT'
                     ? <MarkdownContent content={content} pending={pending}/>
                     : <>{content}{pending && <span className="bubble-cursor" aria-hidden/>}</>}
             </DesignBubble>
             {label && <div className={role === 'USER' ? 'bubble-status-line bubble-status-user' : 'bubble-status-line'}>
                 <span className="bubble-status">{label}</span>
-                {onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
+                {onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>{common.retry}</Button>}
             </div>}
         </div>
     )

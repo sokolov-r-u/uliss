@@ -1,10 +1,11 @@
-import {type EditorCommand, EditorToolbar} from '@uliss/design-system'
+import {type EditorCommand, EditorToolbar, useMessages} from '@uliss/design-system'
 import {type Editor, EditorContent, useEditor, useEditorState} from '@tiptap/react'
 import {type Ref, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {findScrollParent} from '../../lib/scrollParent'
 import {MarkdownContent} from '../../ui/MarkdownContent'
 import {noteEditorExtensions} from './noteEditorExtensions'
 import './note-editor.css'
+import {noteEditMessages} from '../noteEdit.messages'
 
 export interface NoteEditorChange {
     markdown: string
@@ -54,6 +55,7 @@ export function NoteEditor({
                                preview = null,
                                handleRef,
                            }: NoteEditorProps) {
+    const t = useMessages(noteEditMessages)
     const [original, setOriginal] = useState(false)
     const rootRef = useRef<HTMLDivElement>(null)
     // Where each view was left: switching back returns to it; the original opens at the top the first time.
@@ -73,7 +75,7 @@ export function NoteEditor({
         contentType: 'markdown',
         editable: !locked,
         editorProps: {
-            attributes: {role: 'textbox', 'aria-multiline': 'true', 'aria-label': 'Note text'},
+            attributes: {role: 'textbox', 'aria-multiline': 'true', 'aria-label': t.noteText},
         },
         onCreate: ({editor}) => {
             baselineRef.current = editor.getMarkdown().trim()

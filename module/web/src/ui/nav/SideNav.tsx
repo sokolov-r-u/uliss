@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
-import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, useLocale, Wordmark} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, useLocale, useMessages, Wordmark} from '@uliss/design-system'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
@@ -10,17 +10,18 @@ import {ListMore} from '../list/ListMore'
 import {useKeysetList} from '../list/useKeysetList'
 import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
-import {noteCountLabel} from '../format'
 import {pinnedChats as pinnedChatsStore, pinnedNotes as pinnedNotesStore, usePinnedChats, usePinnedNotes, withoutPinned} from '../pins/pinned'
 import {PinnedFailed} from '../pins/PinnedFailed'
+import {commonMessages} from '../../i18n/common.messages'
+import {sideNavMessages} from './SideNav.messages'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
-const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
-    {to: '/chats', label: 'Chats', icon: <Icon name="node" size={16}/>},
-    {to: '/notes', label: 'Notes', icon: <Icon name="journal" size={16}/>},
-    {to: '/constellations', label: 'Constellations', icon: <Icon name="constellation" size={17}/>},
-    {to: '/sky', label: 'Sky', icon: <Icon name="star" size={16}/>},
-    {to: '/updates', label: 'Updates', icon: <Icon name="pulse" size={17}/>},
+const NAV_ITEMS: { to: string; label: 'chats' | 'notes' | 'constellations' | 'sky' | 'updates'; icon: ReactNode }[] = [
+    {to: '/chats', label: 'chats', icon: <Icon name="node" size={16}/>},
+    {to: '/notes', label: 'notes', icon: <Icon name="journal" size={16}/>},
+    {to: '/constellations', label: 'constellations', icon: <Icon name="constellation" size={17}/>},
+    {to: '/sky', label: 'sky', icon: <Icon name="star" size={16}/>},
+    {to: '/updates', label: 'updates', icon: <Icon name="pulse" size={17}/>},
 ]
 
 type ListTab = 'chats' | 'notes'
@@ -38,12 +39,15 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 }) {
     const navigate = useNavigate()
     const locale = useLocale()
+    const t = useMessages(sideNavMessages)
+    const common = useMessages(commonMessages)
+    const recency = [t.today, t.yesterday, t.thisWeek, t.thisMonth, t.earlier] as const
     const location = useLocation()
     const [chatsRevision, setChatsRevision] = useState(0)
     const [notesRevision, setNotesRevision] = useState(0)
     const [tab, setTab] = useState<ListTab>('chats')
     const {width, handleProps: resizeHandle} = useResizableWidth({
-        storageKey: 'uliss.sidenav.width', min: 220, max: 420, initial: 264, edge: 'right', label: 'Resize sidebar',
+        storageKey: 'uliss.sidenav.width', min: 220, max: 420, initial: 264, edge: 'right', label: t.resize,
     })
 
     useEffect(() => subscribeToChatListChanges(() => setChatsRevision((value) => value + 1)), [])
@@ -80,46 +84,46 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const noteViews = toNoteViewModels(notes, locale, noteChangedAt)
     // pinned rows come first, under their own label, and never again in the recency groups
     const chatGroups = [
-        ...(pinnedChats.length > 0 ? [{label: 'Pinned', items: pinnedChats}] : []),
-        ...groupByRecency(chats, chatActivity),
+        ...(pinnedChats.length > 0 ? [{label: common.pinned, items: pinnedChats}] : []),
+        ...groupByRecency(chats, chatActivity, undefined, recency),
     ]
     const pinnedNoteViews = toNoteViewModels(pinnedNotes, locale, noteChangedAt)
     const noteGroups = [
         ...(pinnedNotes.length > 0
-            ? [{label: 'Pinned', items: pinnedNotes.map((note, index) => ({note, view: pinnedNoteViews[index]}))}]
+            ? [{label: common.pinned, items: pinnedNotes.map((note, index) => ({note, view: pinnedNoteViews[index]}))}]
             : []),
-        ...groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})), ({view}) => view.listedAt),
+        ...groupByRecency(notes.map((note, index) => ({note, view: noteViews[index]})), ({view}) => view.listedAt, undefined, recency),
     ]
 
     return (
         <>
-            {open && <button type="button" className="nav-backdrop" aria-label="Close navigation" onClick={onClose}/>}
-            <aside id="app-navigation" aria-label="Primary navigation"
+            {open && <button type="button" className="nav-backdrop" aria-label={t.closeNavigation} onClick={onClose}/>}
+            <aside id="app-navigation" aria-label={t.primaryNavigation}
                    style={{'--side-nav-width': `${width}px`} as CSSProperties}
                    className={`side-nav${open ? ' open' : ''}${collapsed ? ' collapsed' : ''}`}>
                 <div className="side-nav-top">
                     <div className="side-nav-head">
                         <span className="side-nav-wordmark"><Wordmark size={24}/></span>
-                        <span className="side-nav-mobile-close"><IconButton s={44} title="Close navigation"
+                        <span className="side-nav-mobile-close"><IconButton s={44} title={t.closeNavigation}
                                                                             onClick={onClose}><Icon name="close"
                                                                                                     size={17}/></IconButton></span>
-                        <IconButton s={30} title="Search" onClick={go('/search')}><Icon name="search"
+                        <IconButton s={30} title={common.search} onClick={go('/search')}><Icon name="search"
                                                                                         size={16}/></IconButton>
                         <span className="side-nav-collapse">
-                            <IconButton s={30} title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+                            <IconButton s={30} title={collapsed ? t.expand : t.collapse}
                                         onClick={onToggleCollapsed}><Icon name="collapse" size={16}/></IconButton>
                         </span>
                     </div>
 
                     <NavLink to="/chats/new" onClick={onClose} className="side-nav-new">
                         <span className="side-nav-new-icon"><Icon name="plus" size={15}/></span>
-                        <span className="side-nav-new-label">New</span>
+                        <span className="side-nav-new-label">{t.newChat}</span>
                     </NavLink>
 
                     <nav className="side-nav-links">
                         {NAV_ITEMS.map(({to, label, icon}) => (
                             <NavLink key={to} to={to} onClick={onClose} className="side-nav-link">
-                                {({isActive}) => <NavRow icon={icon} label={label} active={isActive}/>}
+                                {({isActive}) => <NavRow icon={icon} label={common[label]} active={isActive}/>}
                             </NavLink>
                         ))}
                     </nav>
@@ -128,18 +132,18 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                 <div className="side-nav-body">
                     {empty && anyFailed ? (
                         <div className="side-nav-empty" role="alert">
-                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Could not load</Kicker>
-                            <p className="side-nav-body-note">Your chats and notes did not load. Check the connection.</p>
-                            <Button size="sm" variant="quiet" onClick={retryLists}>Retry</Button>
+                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">{t.couldNotLoad}</Kicker>
+                            <p className="side-nav-body-note">{t.couldNotLoadBody}</p>
+                            <Button size="sm" variant="quiet" onClick={retryLists}>{common.retry}</Button>
                         </div>
                     ) : empty && allSettled ? (
                         <div className="side-nav-empty">
-                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Nothing here yet</Kicker>
-                            <p className="side-nav-body-note">Chats and notes will collect here as you talk.</p>
+                            <Kicker size={9} spacing="2.5px" color="var(--text-faint)">{t.empty}</Kicker>
+                            <p className="side-nav-body-note">{t.emptyBody}</p>
                         </div>
                     ) : (
                         <>
-                            <div className="side-nav-tabs" role="tablist" aria-label="Side panel list"
+                            <div className="side-nav-tabs" role="tablist" aria-label={t.tabs}
                                  onKeyDown={(event) => {
                                      // tabs pattern: arrows switch, the selected tab is the only tab stop
                                      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
@@ -153,12 +157,12 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                     <button key={id} type="button" role="tab" aria-selected={tab === id}
                                             data-tab={id} tabIndex={tab === id ? 0 : -1}
                                             className="side-nav-tab" onClick={() => setTab(id)}>
-                                        {id === 'chats' ? 'Chats' : 'Notes'}
+                                        {common[id]}
                                     </button>
                                 ))}
                             </div>
                             <div className="side-nav-list" role="tabpanel"
-                                 aria-label={tab === 'chats' ? 'Recent chats' : 'Recent notes'}>
+                                 aria-label={tab === 'chats' ? t.recentChats : t.recentNotes}>
                                 {tab === 'chats' && pinnedChatsState.status === 'error' &&
                                     <PinnedFailed announce={false} onRetry={pinnedChatsStore.refresh}/>}
                                 {tab === 'notes' && pinnedNotesState.status === 'error' &&
@@ -176,7 +180,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                                          }}>
                                                 {(openMenu) => <ListRow title={chat.title} onClick={go(`/chats/${chat.id}`)}
                                                                         onMenu={openMenu}
-                                                                        menuLabel={`Actions for ${chat.title}`}/>}
+                                                                        menuLabel={common.actionsFor(chat.title)}/>}
                                             </ItemActions>
                                         ))}
                                     </div>
@@ -205,7 +209,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                                 {(openMenu) => <ListRow title={view.title} icon={view.icon ?? null}
                                                                         onClick={go(`/notes/${note.id}`)}
                                                                         onMenu={openMenu}
-                                                                        menuLabel={`Actions for ${noteTitleText(view.title, view.icon)}`}/>}
+                                                                        menuLabel={common.actionsFor(noteTitleText(view.title, view.icon))}/>}
                                             </ItemActions>
                                         ))}
                                     </div>
@@ -217,7 +221,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                                     <ListMore hasMore={noteList.state.hasMore} state={noteList.state.more}
                                               onMore={noteList.loadMore}/>}
                                 <Link to={tab === 'chats' ? '/chats' : '/notes'} onClick={onClose}
-                                      className="side-nav-all">View all →</Link>
+                                      className="side-nav-all">{t.viewAll}</Link>
                             </div>
                         </>
                     )}
@@ -225,8 +229,8 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
 
                 <div className="side-nav-foot">
                     <span className="side-nav-avatar"><StarMark size={15} glow={false}/></span>
-                    <span className="side-nav-count">{noteCountLabel(noteList.state.status === 'ready' ? noteList.state.total ?? notes.length : 0)}</span>
-                    <IconButton s={26} title="Settings" onClick={go('/settings')}><Icon name="gear"
+                    <span className="side-nav-count">{common.noteCount(noteList.state.status === 'ready' ? noteList.state.total ?? notes.length : 0)}</span>
+                    <IconButton s={26} title={common.settings} onClick={go('/settings')}><Icon name="gear"
                                                                                         size={15}/></IconButton>
                 </div>
 

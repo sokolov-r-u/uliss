@@ -2,7 +2,7 @@
 import {useEffect, useState} from 'react'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, Kicker, ListRow, useLocale} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow, useLocale, useMessages} from '@uliss/design-system'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
@@ -13,10 +13,14 @@ import {pinnedChats, usePinnedChats, withoutPinned} from '../ui/pins/pinned'
 import {PinnedFailed} from '../ui/pins/PinnedFailed'
 import './chat.css'
 import {formatShortDate} from '../ui/format'
+import {commonMessages} from '../i18n/common.messages'
+import {chatMessages} from './chat.messages'
 
 export function ChatListPage() {
     const navigate = useNavigate()
     const locale = useLocale()
+    const t = useMessages(chatMessages)
+    const common = useMessages(commonMessages)
     const [revision, setRevision] = useState(0)
     // A refresh after rename/delete keeps the current rows; a failed one keeps them until the next list change.
     const {state, loadMore} = useKeysetList(listChats, revision)
@@ -34,28 +38,28 @@ export function ChatListPage() {
     return (
         <div className="product-view">
             <ScreenHeader
-                kicker="Chats"
+                kicker={common.chats}
                 right={
                     <Button variant="quiet" size="sm" onClick={onNewChat}>
-                        New chat
+                        {t.newChat}
                     </Button>
                 }
             />
 
             <div className="product-body">
-                {state.status === 'loading' && <p className="chat-state">Loading…</p>}
-                {state.status === 'error' && <p className="chat-state chat-state-error">{describeError(state.error)}</p>}
+                {state.status === 'loading' && <p className="chat-state">{common.loading}</p>}
+                {state.status === 'error' && <p className="chat-state chat-state-error">{describeError(state.error, locale)}</p>}
 
                 {state.status === 'ready' && pinnedState.status === 'error' && <PinnedFailed onRetry={pinnedChats.refresh}/>}
 
                 {state.status === 'ready' && pinnedState.status === 'loading' && items.length === 0 &&
-                    <p className="chat-state">Loading…</p>}
+                    <p className="chat-state">{common.loading}</p>}
 
                 {state.status === 'ready' && pinnedState.status === 'ready' && items.length === 0 && pinned.length === 0 && <div className="product-empty">
                     <EmptyState
-                        title="No chats yet"
-                        body="Start a conversation. Uliss keeps the thread and writes a note when a thought is worth keeping."
-                        action="Start a chat"
+                        title={t.noChats}
+                        body={t.noChatsBody}
+                        action={t.startChat}
                         onAction={onNewChat}
                     />
                 </div>}
@@ -64,7 +68,7 @@ export function ChatListPage() {
                     <div className="product-list">
                         {[
                             // pinned chats come first under their own label; the pages leave them out
-                            ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
+                            ...(pinned.length > 0 ? [{label: common.pinned, items: pinned}] : []),
                             ...groupByMonth(items, chatActivity, locale),
                         ].map((group, groupIndex) => <div
                             key={`${group.label}-${groupIndex}`} className="list-group">
@@ -85,7 +89,7 @@ export function ChatListPage() {
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
                                     onMenu={openMenu}
-                                    menuLabel={`Actions for ${chat.title}`}/>}
+                                    menuLabel={common.actionsFor(chat.title)}/>}
                             </ItemActions>
                         ))}
                         </div>)}

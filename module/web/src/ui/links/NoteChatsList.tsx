@@ -1,9 +1,10 @@
 import type {ReactNode} from 'react'
-import {ListRow} from '@uliss/design-system'
+import {ListRow, useMessages} from '@uliss/design-system'
 import {chatActivity, listNoteChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {formatShortDate} from '../format'
 import {useLinkedItems} from './useLinkedItems'
 import {useLocale} from '@uliss/design-system'
+import {uiMessages} from '../ui.messages'
 
 const SUBSCRIPTIONS = [subscribeToChatListChanges]
 
@@ -17,10 +18,11 @@ export function NoteChatsList({noteId, onOpen, empty}: {
     empty: ReactNode
 }) {
     const locale = useLocale()
+    const t = useMessages(uiMessages)
     const {items: chats, status} = useLinkedItems(noteId, listNoteChats, SUBSCRIPTIONS)
     // the empty text ("Written by hand") only once the list is known to be empty
     if (chats.length === 0) {
-        if (status === 'failed') return <p className="context-text" role="alert">Could not load the chats.</p>
+        if (status === 'failed') return <p className="context-text" role="alert">{t.couldNotLoadChats}</p>
         return status === 'ready' ? <>{empty}</> : null
     }
     return (

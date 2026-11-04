@@ -7,8 +7,7 @@ import {useLocaleChoice} from '../i18n/AppLocale'
 import {LANGUAGE_NAMES} from '../i18n/languageNames'
 import {languageSettingsMessages} from './LanguageSettings.messages'
 import {settingsPageMessages} from './SettingsPage.messages'
-
-const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
+import {appearanceMessages} from './appearance.messages'
 
 /**
  * Settings — five rows, five screens; each hint states the current value (see `SettingsRow.prompt.md`). One layout
@@ -19,6 +18,7 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 export function SettingsPage() {
     const t = useMessages(settingsPageMessages)
     const language = useMessages(languageSettingsMessages)
+    const appearance = useMessages(appearanceMessages)
     const {choice, locale} = useLocaleChoice()
     const navigate = useNavigate()
     const {pathname} = useLocation()
@@ -32,7 +32,7 @@ export function SettingsPage() {
     }, [])
 
     const rows = [
-        {id: 'appearance', label: t.appearance, hint: `${cap(theme.ground)} · ${cap(theme.accent)} · ${cap(theme.read)} text`},
+        {id: 'appearance', label: t.appearance, hint: appearance.hint(appearance[theme.ground], appearance[theme.accent], appearance[theme.read])},
         {id: 'sky', label: t.sky, hint: t.skyHint},
         {id: 'about-you', label: t.aboutYou, hint: t.aboutYouHint},
         {id: 'account', label: t.account, hint: t.accountHint},

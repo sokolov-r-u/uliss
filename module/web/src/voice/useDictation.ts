@@ -1,5 +1,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {DEFAULT_MAX_RECORDING_SECONDS, getMaxRecordingSeconds, SpeechApiError, transcribe} from './speechApi'
+import {useMessages} from '@uliss/design-system'
+import {type DictationNoticeKey, dictationMessages} from './dictation.messages'
 
 export type DictationState = 'idle' | 'recording' | 'transcribing' | 'failed'
 
@@ -15,12 +17,11 @@ export interface DictationNotice {
 const RECORDING_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4']
 const TICK_MS = 250
 
-export const NOTHING_HEARD = 'Nothing heard'
-export const TRANSCRIPTION_FAILED = "Couldn't transcribe the recording"
-export const MICROPHONE_BLOCKED = 'Allow microphone access to dictate'
-export const MICROPHONE_UNAVAILABLE = "Couldn't start the microphone"
-export const RECORDING_REFUSED = "Uliss couldn't read this recording"
-export const RECORDING_TOO_LARGE = 'The recording is too large to transcribe'
+/** A notice is kept by its key and worded on render, so a language switch rewords one already shown. */
+interface StoredNotice {
+    key: DictationNoticeKey
+    tone: DictationNotice['tone']
+}
 
 /** Browser recording needs `MediaRecorder` and a secure context (HTTPS or localhost). */
 export function isDictationSupported(): boolean {
@@ -64,7 +65,8 @@ export function useDictation(
     const [elapsedSeconds, setElapsedSeconds] = useState(0)
     const [serviceMaxSeconds, setMaxSeconds] = useState(DEFAULT_MAX_RECORDING_SECONDS)
     const maxSeconds = ownLimit === undefined ? serviceMaxSeconds : Math.min(serviceMaxSeconds, ownLimit)
-    const [notice, setNotice] = useState<DictationNotice | null>(null)
+    const t = useMessages(dictationMessages)
+    const [notice, setNotice] = useState<StoredNotice | null>(null)
     const [supported] = useState(isDictationSupported)
 
     const onTextRef = useRef(onText)
@@ -94,18 +96,18 @@ export function useDictation(
             const text = await transcribe(audio, controller.signal)
             if (!mountedRef.current) return
             setState('idle')
-            if (text === '') setNotice({text: NOTHING_HEARD, tone: 'info'})
+            if (text === '') setNotice({key: 'nothingHeard', tone: 'info'})
             else onTextRef.current(text, intent)
         } catch (error) {
             if (!mountedRef.current || isAbortError(error)) return
             if (error instanceof SpeechApiError && (error.kind === 'refused' || error.kind === 'tooLarge')) {
                 setState('idle')
-                setNotice({text: error.kind === 'refused' ? RECORDING_REFUSED : RECORDING_TOO_LARGE, tone: 'error'})
+                setNotice({key: error.kind === 'refused' ? 'recordingRefused' : 'recordingTooLarge', tone: 'error'})
                 return
             }
             failedRef.current = {audio, intent}
             setState('failed')
-            setNotice({text: TRANSCRIPTION_FAILED, tone: 'error'})
+            setNotice({key: 'transcriptionFailed', tone: 'error'})
         } finally {
             if (uploadRef.current === controller) uploadRef.current = null
         }
@@ -132,7 +134,7 @@ export function useDictation(
             startingRef.current = false
             if (!mountedRef.current) return
             setState('idle')
-            setNotice({text: isPermissionError(error) ? MICROPHONE_BLOCKED : MICROPHONE_UNAVAILABLE, tone: 'error'})
+            setNotice({key: isPermissionError(error) ? 'microphoneBlocked' : 'microphoneUnavailable', tone: 'error'})
             return
         }
         startingRef.current = false
@@ -147,7 +149,7 @@ export function useDictation(
         } catch {
             stream.getTracks().forEach((track) => track.stop())
             setState('idle')
-            setNotice({text: MICROPHONE_UNAVAILABLE, tone: 'error'})
+            setNotice({key: 'microphoneUnavailable', tone: 'error'})
             return
         }
         const startedAt = Date.now()
@@ -189,7 +191,7 @@ export function useDictation(
             recordingRef.current = null
             stream.getTracks().forEach((track) => track.stop())
             setState('idle')
-            setNotice({text: MICROPHONE_UNAVAILABLE, tone: 'error'})
+            setNotice({key: 'microphoneUnavailable', tone: 'error'})
             return
         }
         setElapsedSeconds(0)
@@ -227,7 +229,7 @@ export function useDictation(
         state,
         elapsedSeconds,
         maxSeconds,
-        notice,
+        notice: notice && {text: t[notice.key], tone: notice.tone} satisfies DictationNotice,
         start: () => void start(),
         stop: () => finish('field'),
         send: () => finish('send'),

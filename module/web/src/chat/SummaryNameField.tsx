@@ -1,7 +1,8 @@
 import {type ReactNode, useEffect, useRef} from 'react'
-import {Icon, IconButton, TextField} from '@uliss/design-system'
+import {Icon, IconButton, TextField, useMessages} from '@uliss/design-system'
 import {appendDictation} from '../voice/appendDictation'
 import {type DictationState, useDictation} from '../voice/useDictation'
+import {threadMessages} from './thread.messages'
 
 /** The note-service title rule: at most 50 code points after trimming. */
 export const SUMMARY_NAME_LIMIT = 50
@@ -17,11 +18,11 @@ function clock(seconds: number): string {
     return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`
 }
 
-const MIC_TITLES: Record<DictationState, string> = {
-    idle: 'Dictate the name',
-    recording: 'Stop recording',
-    transcribing: 'Transcribing…',
-    failed: 'Retry the transcription',
+const MIC_TITLES: Record<DictationState, 'dictateName' | 'stopRecording' | 'transcribing' | 'retryTranscription'> = {
+    idle: 'dictateName',
+    recording: 'stopRecording',
+    transcribing: 'transcribing',
+    failed: 'retryTranscription',
 }
 
 /**
@@ -37,6 +38,7 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange, 
     /** A control before the field, bottom-aligned with its input: the note's emoji. */
     leading?: ReactNode
 }) {
+    const t = useMessages(threadMessages)
     const valueRef = useRef(value)
     valueRef.current = value
     const dictation = useDictation(
@@ -51,10 +53,10 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange, 
     }, [dictating])
 
     const hint = dictation.state === 'recording'
-        ? {text: `Recording ${clock(dictation.elapsedSeconds)} / ${clock(dictation.maxSeconds)}`, tone: 'info'}
-        : dictation.state === 'transcribing' ? {text: 'Transcribing…', tone: 'info'}
+        ? {text: t.recordingClock(clock(dictation.elapsedSeconds), clock(dictation.maxSeconds)), tone: 'info'}
+        : dictation.state === 'transcribing' ? {text: t.transcribing, tone: 'info'}
             : dictation.notice ?? (isSummaryNameTooLong(value)
-                ? {text: `Shorten the name to ${SUMMARY_NAME_LIMIT} characters.`, tone: 'error'}
+                ? {text: t.shortenName(SUMMARY_NAME_LIMIT), tone: 'error'}
                 : null)
 
     function onMic() {
@@ -64,7 +66,7 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange, 
     }
 
     const mic = dictation.supported && <IconButton
-        title={MIC_TITLES[dictation.state]}
+        title={t[MIC_TITLES[dictation.state]]}
         aria-pressed={dictation.state === 'recording'}
         disabled={disabled || dictation.state === 'transcribing'}
         color={dictation.state === 'recording' ? 'var(--accent)'
@@ -78,7 +80,7 @@ export function SummaryNameField({value, onChange, disabled, onDictatingChange, 
         <div className="summary-name-row">
             {leading}
             <div className="summary-name-input">
-                <TextField label="Name" placeholder="Uliss names it if you leave this empty" value={value}
+                <TextField label={t.name} placeholder={t.namePlaceholder} value={value}
                            limit={SUMMARY_NAME_LIMIT} disabled={disabled || dictating}
                            onChange={(event) => onChange(event.target.value)} trailing={mic}/>
             </div>

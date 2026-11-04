@@ -3,11 +3,12 @@
  * `onDone` to advance. Built on the controlled Notice fields (ui/notice/fields).
  */
 import {useState} from 'react'
-import {Notice, type SelectOption} from '@uliss/design-system'
+import {Notice, type SelectOption, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect} from '../ui/notice/fields'
 import {maxBirthDateIso, MIN_AGE_YEARS} from './age'
 import {DISPLAY_NAME_MAX_LENGTH, type Gender, OnboardingSubmitError, submit} from './onboardingApi'
+import {onboardingMessages} from './onboarding.messages'
 
 export type StepProps = {
     progress: { current: number; total: number }
@@ -27,8 +28,18 @@ function ErrorLine({children}: { children: string }) {
     )
 }
 
+/** A refused submit in the user's words: the rejected field when known, never the service's own text. */
+function refusal(error: unknown, t: typeof onboardingMessages.en): string {
+    if (error instanceof OnboardingSubmitError && error.field === 'displayName') {
+        return t.displayNameRefused(DISPLAY_NAME_MAX_LENGTH)
+    }
+    if (error instanceof OnboardingSubmitError && error.field === 'birthDate') return t.birthDateRefused
+    return t.somethingWrong
+}
+
 /** Turns a submit call into busy/error handling shared by both steps. */
 function useSubmit(onDone: () => void) {
+    const t = useMessages(onboardingMessages)
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const run = async (build: () => Parameters<typeof submit>[0]) => {
@@ -39,7 +50,7 @@ function useSubmit(onDone: () => void) {
             onDone()
         } catch (e) {
             if (e instanceof AuthRequiredError) return // auth flow took over
-            setError(e instanceof OnboardingSubmitError ? e.message : 'Something went wrong. Try again.')
+            setError(refusal(e, t))
         } finally {
             setBusy(false)
         }
@@ -49,6 +60,7 @@ function useSubmit(onDone: () => void) {
 
 // ── step 1: display name (blocking) ──────────────────────────────
 export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
+    const t = useMessages(onboardingMessages)
     const [name, setName] = useState('')
     const {busy, error, run} = useSubmit(onDone)
     const trimmed = name.trim()
@@ -57,13 +69,13 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
         <Notice
             blocking={blocking}
             progress={progress}
-            title="What should Uliss call you?"
-            primary="Continue"
+            title={t.nameTitle}
+            primary={t.continue}
             primaryDisabled={trimmed.length === 0}
             busy={busy}
             onPrimary={() => run(() => ({command: 'SET_DISPLAY_NAME', displayName: trimmed}))}
         >
-            <NoticeField label="Display name" placeholder="e.g. Wayfarer" value={name} onChange={setName}
+            <NoticeField label={t.displayName} placeholder={t.namePlaceholder} value={name} onChange={setName}
                          max={DISPLAY_NAME_MAX_LENGTH}/>
             {error && <ErrorLine>{error}</ErrorLine>}
         </Notice>
@@ -71,13 +83,15 @@ export function DisplayNameStep({progress, blocking, onDone}: StepProps) {
 }
 
 // ── step 2: profile — gender + date of birth (optional / skippable) ──
-const GENDERS: SelectOption<Gender>[] = [
-    {value: 'FEMALE', label: 'Female'},
-    {value: 'MALE', label: 'Male'},
-    {value: 'OTHER', label: 'Other'},
+const GENDERS: { value: Gender; label: 'female' | 'male' | 'other' }[] = [
+    {value: 'FEMALE', label: 'female'},
+    {value: 'MALE', label: 'male'},
+    {value: 'OTHER', label: 'other'},
 ]
 
 export function ProfileStep({progress, blocking, onDone}: StepProps) {
+    const t = useMessages(onboardingMessages)
+    const genders: SelectOption<Gender>[] = GENDERS.map(({value, label}) => ({value, label: t[label]}))
     const [gender, setGender] = useState<Gender | null>(null)
     const [date, setDate] = useState<DateFieldValue>({state: 'empty'})
     const {busy, error, run} = useSubmit(onDone)
@@ -85,7 +99,7 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
 
     const underage = date.state === 'valid' && date.iso > maxDate
     const dateError =
-        date.state === 'invalid' ? 'Not a real date.' : underage ? `You must be at least ${MIN_AGE_YEARS} years old.` : null
+        date.state === 'invalid' ? t.notRealDate : underage ? t.tooYoung(MIN_AGE_YEARS) : null
     // Empty/partial is a valid skip; only a present-but-bad date blocks submit.
     const birthDate = date.state === 'valid' && !underage ? date.iso : undefined
     const primaryDisabled = date.state === 'invalid' || underage
@@ -94,11 +108,11 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
         <Notice
             blocking={blocking}
             progress={progress}
-            title="A little about you"
-            body="Gender and date of birth help Uliss shape its answers to you. Skip them and nothing breaks."
-            primary="Save"
-            secondary="Skip for now"
-            skip="Skip for now"
+            title={t.profileTitle}
+            body={t.profileBody}
+            primary={t.save}
+            secondary={t.skip}
+            skip={t.skip}
             primaryDisabled={primaryDisabled}
             busy={busy}
             onSecondary={() => run(() => ({command: 'COMPLETE_PROFILE'}))}
@@ -112,8 +126,8 @@ export function ProfileStep({progress, blocking, onDone}: StepProps) {
             }
         >
             <div style={{display: 'flex', flexDirection: 'column', gap: 15}}>
-                <NoticeSelect label="Gender" options={GENDERS} value={gender} onChange={setGender}/>
-                <NoticeDate label="Date of birth" value={null} onChange={setDate} maxDate={maxDate}/>
+                <NoticeSelect label={t.gender} options={genders} value={gender} onChange={setGender}/>
+                <NoticeDate label={t.birthDate} value={null} onChange={setDate} maxDate={maxDate}/>
             </div>
             {dateError && <ErrorLine>{dateError}</ErrorLine>}
             {error && <ErrorLine>{error}</ErrorLine>}

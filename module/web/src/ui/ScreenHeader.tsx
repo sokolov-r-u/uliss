@@ -1,6 +1,7 @@
 import {createContext, type ReactNode, useContext} from 'react'
-import {Icon, IconButton, Kicker} from '@uliss/design-system'
+import {Icon, IconButton, Kicker, useMessages} from '@uliss/design-system'
 import {BackButton} from './BackButton'
+import {commonMessages} from '../i18n/common.messages'
 
 /** Opens the mobile navigation drawer; provided by `AppShell`, a no-op elsewhere (tests, fixtures). */
 export const ShellNavContext = createContext<() => void>(() => undefined)
@@ -21,11 +22,12 @@ export function ScreenHeader({kicker, count, title, meta, right, back = false, c
     children?: ReactNode
 }) {
     const openNav = useContext(ShellNavContext)
+    const common = useMessages(commonMessages)
     const detail = title != null
     return (
         <header className={detail ? 'screen-head screen-head-detail' : 'screen-head'}>
             <span className="screen-head-menu">
-                <IconButton s={44} title="Open navigation" aria-controls="app-navigation" onClick={openNav}>
+                <IconButton s={44} title={common.openNavigation} aria-controls="app-navigation" onClick={openNav}>
                     <Icon name="menu" size={18}/>
                 </IconButton>
             </span>

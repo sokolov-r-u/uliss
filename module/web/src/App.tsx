@@ -18,6 +18,8 @@ import {SkySettings} from './settings/SkySettings'
 import {AccountSettings} from './settings/AccountSettings'
 import {AboutYouSettings} from './settings/AboutYouSettings'
 import {LanguageSettings} from './settings/LanguageSettings'
+import {useMessages} from '@uliss/design-system'
+import {authPagesMessages} from './pages/authPages.messages'
 
 // The heaviest screens (the editor, the tree, the sky renderer) load on first visit, not with the first page.
 const NoteDetailPage = lazy(() => import('./notes/NoteDetailPage').then((m) => ({default: m.NoteDetailPage})))
@@ -28,6 +30,7 @@ const SkyPage = lazy(() => import('./sky/SkyPage').then((m) => ({default: m.SkyP
 /** Gate: hands off to the service login flow (full-page) when there are no tokens. */
 function RequireAuth({ children }: { children: ReactNode }) {
   const { isAuthenticated, login } = useAuth()
+  const t = useMessages(authPagesMessages)
 
   useEffect(() => {
     // Double-check storage so a transient state desync (e.g. right after code exchange)
@@ -37,8 +40,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
   if (!isAuthenticated) {
     return (
-      <Shell kicker="redirecting">
-          <p className="auth-muted">Taking you to sign in…</p>
+      <Shell kicker={t.redirecting}>
+          <p className="auth-muted">{t.takingYou}</p>
       </Shell>
     )
   }

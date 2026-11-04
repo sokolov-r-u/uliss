@@ -1,0 +1,61 @@
+import {type Dictionaries, plural} from '@uliss/design-system'
+
+/** The notes list, its filter and the note details panel. */
+const en = {
+    noFiltered: 'No notes in these constellations',
+    noFilteredBody: 'Notes placed here, in their sub-constellations or under their notes will show up in this list.',
+    clearFilter: 'Clear filter',
+    noNotes: 'Nothing written down yet',
+    noNotesBody: 'Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never '
+        + 'have to.',
+    startChat: 'Start a chat',
+    unread: (count: number) => `${count} new`,
+    readyNote: 'Ready note',
+    generating: 'Generating note…',
+    summaryFailed: 'Summary failed',
+    filterLimit: (limit: number) => `Up to ${limit} constellations`,
+    filterBy: 'Filter by constellation',
+    filterBar: 'Constellation filter',
+    constellation: 'Constellation',
+    clear: 'Clear',
+    findConstellation: 'Find a constellation',
+    show: (name: string) => `Show ${name}`,
+    filteredCount: (shown: number, all: number) => `${shown} of ${all}`,
+    writtenFrom: 'Written from',
+    chatSummary: 'Summary of a chat',
+    byHand: 'Written by hand',
+    dates: 'Dates',
+    written: 'Written',
+    updated: 'Updated',
+}
+
+export const notesMessages: Dictionaries<typeof en> = {
+    en,
+    ru: {
+        noFiltered: 'В этих созвездиях нет заметок',
+        noFilteredBody: 'Здесь появятся заметки из этих созвездий, их подсозвездий и из-под их заметок.',
+        clearFilter: 'Сбросить фильтр',
+        noNotes: 'Пока ничего не записано',
+        noNotesBody: 'Поговорите с Uliss. Когда появится мысль, которую стоит сохранить, он сам напишет заметку — '
+            + 'вам ничего делать не нужно.',
+        startChat: 'Начать чат',
+        unread: (count) => `${count} ${plural('ru', count, {one: 'новая', few: 'новые', many: 'новых', other: 'новых'})}`,
+        readyNote: 'Готовая заметка',
+        generating: 'Заметка пишется…',
+        summaryFailed: 'Итог не удался',
+        filterLimit: (limit) => `Не больше ${limit} созвездий`,
+        filterBy: 'Фильтр по созвездиям',
+        filterBar: 'Фильтр по созвездиям',
+        constellation: 'Созвездие',
+        clear: 'Сбросить',
+        findConstellation: 'Найти созвездие',
+        show: (name) => `Показать «${name}»`,
+        filteredCount: (shown, all) => `${shown} из ${all}`,
+        writtenFrom: 'Источник',
+        chatSummary: 'Итог чата',
+        byHand: 'Написана вручную',
+        dates: 'Даты',
+        written: 'Написана',
+        updated: 'Обновлена',
+    },
+}

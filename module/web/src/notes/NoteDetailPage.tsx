@@ -1,7 +1,7 @@
 import {type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {Button, Icon, IconButton, noteTitleText} from '@uliss/design-system'
+import {Button, Icon, IconButton, noteTitleText, useLocale, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {isBackToDeleteDialog} from '../ui/actions/deleteDialogReturn'
 import {ItemActions} from '../ui/actions/ItemActions'
@@ -16,6 +16,8 @@ import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
 import {ResummarizeDialog} from './ResummarizeDialog'
 import './notes.css'
+import {commonMessages} from '../i18n/common.messages'
+import {noteDetailMessages} from './noteDetail.messages'
 
 type ReadyNote = Note & { content: string }
 
@@ -50,28 +52,30 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
     const title = state.status === 'ready' || state.status === 'generating'
         ? (state.note.title ? noteTitleText(state.note.title, state.note.icon) : undefined)
         : undefined
+    const t = useMessages(noteDetailMessages)
+    const common = useMessages(commonMessages)
     const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const navigate = useNavigate()
     const note = 'note' in state ? state.note : null
-    const right = <>{note && <PanelToggle label="Note details" open={panelOpen}
+    const right = <>{note && <PanelToggle label={t.noteDetails} open={panelOpen}
                                           onToggle={togglePanel}/>}{actions}</>
     return <div className="detail-layout"><div className="note-detail">
-        {title ? <ScreenHeader back={back} title={title} right={right}/> : <ScreenHeader back={back} kicker="Note" right={right}/>}
+        {title ? <ScreenHeader back={back} title={title} right={right}/> : <ScreenHeader back={back} kicker={t.note} right={right}/>}
         <div className="note-detail-body">
-        {state.status === 'loading' && <p className="note-detail-state">Loading…</p>}
+        {state.status === 'loading' && <p className="note-detail-state">{common.loading}</p>}
         {state.status === 'generating' &&
-            <div className="note-detail-state" aria-live="polite"><h1>Writing this note…</h1>
-                <p>Generation continues in the background. You can leave and return later.</p></div>}
-        {state.status === 'failed' && <div className="note-detail-state note-detail-error"><h1>Summary failed</h1>
-            <p>The source chat is unchanged. Request a new summary from the conversation.</p></div>}
-        {state.status === 'not-found' && <div className="note-detail-state"><h1>Note not found</h1>
-            <p>It may not exist, or it may belong to another account.</p></div>}
+            <div className="note-detail-state" aria-live="polite"><h1>{t.writing}</h1>
+                <p>{t.writingBody}</p></div>}
+        {state.status === 'failed' && <div className="note-detail-state note-detail-error"><h1>{t.summaryFailed}</h1>
+            <p>{t.summaryFailedBody}</p></div>}
+        {state.status === 'not-found' && <div className="note-detail-state"><h1>{t.notFound}</h1>
+            <p>{t.notFoundBody}</p></div>}
         {state.status === 'error' &&
-            <div className="note-detail-state note-detail-error"><h1>Could not load the note</h1>
-                <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>Retry</Button>}
+            <div className="note-detail-state note-detail-error"><h1>{t.couldNotLoad}</h1>
+                <p>{state.message}</p>{onRetry && <Button size="sm" variant="quiet" onClick={onRetry}>{common.retry}</Button>}
             </div>}
         {state.status === 'ready' && !edit && state.note.updating &&
-            <p className="note-update-notice" role="status">Updating this note…</p>}
+            <p className="note-update-notice" role="status">{t.updating}</p>}
         {state.status === 'ready' && edit && <div className="note-content note-content-editing">{edit}</div>}
         {state.status === 'ready' && !edit && <article className="note-content">
             <MarkdownContent content={state.note.content}
@@ -79,7 +83,7 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
         </article>}
         </div>
     </div>
-        {note && <ContextPanel label="This note" open={panelOpen} onClose={closePanel}>
+        {note && <ContextPanel label={t.thisNote} open={panelOpen} onClose={closePanel}>
             <NoteDetailsSections note={note} onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
                                  onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}/>
         </ContextPanel>}
@@ -90,6 +94,12 @@ export function NoteDetailPage() {
     const {noteId} = useParams<{ noteId: string }>()
     const navigate = useNavigate()
     const backToDeleteDialog = isBackToDeleteDialog(useLocation().state)
+    const locale = useLocale()
+    // the loader words its failures in the language of the moment without reloading on a switch
+    const localeRef = useRef(locale)
+    localeRef.current = locale
+    const t = useMessages(noteDetailMessages)
+    const common = useMessages(commonMessages)
     const [state, setState] = useState<DetailState>({status: 'loading'})
     const [editing, setEditing] = useState(false)
     const [resummarizing, setResummarizing] = useState(false)
@@ -171,7 +181,7 @@ export function NoteDetailPage() {
                 if (reconnects === MAX_STATUS_RECONNECTS) {
                     // An updating note stays readable under its notice; only a note still being written fails here.
                     if (note.status === 'READY') return
-                    setState({status: 'error', message: 'The note is still being written. Check back later.'})
+                    setState({status: 'error', message: noteDetailMessages[localeRef.current].stillWriting})
                     return
                 }
                 note = await getNote(noteId, controller.signal)
@@ -181,7 +191,7 @@ export function NoteDetailPage() {
             if (error instanceof NoteApiError && error.kind === 'http' && error.status === 404) {
                 setState({status: 'not-found'})
             } else {
-                setState({status: 'error', message: describeError(error)})
+                setState({status: 'error', message: describeError(error, localeRef.current)})
             }
         }
     }, [noteId])
@@ -192,7 +202,7 @@ export function NoteDetailPage() {
     }, [load])
 
     const note = 'note' in state ? state.note : null
-    const noteTitle = note?.title ?? 'Untitled note'
+    const noteTitle = note?.title ?? common.untitledNote
     const editable = state.status === 'ready' ? asEditable(state.note) : null
     const edit = editing && editable
         ? <NoteEditForm note={editable}
@@ -203,13 +213,13 @@ export function NoteDetailPage() {
                         onClose={() => setEditing(false)}/>
         : undefined
     const editButton = state.status === 'ready' &&
-        <IconButton s={44} title="Edit note" disabled={editable === null || state.note.updating === true}
+        <IconButton s={44} title={t.edit} disabled={editable === null || state.note.updating === true}
                     onClick={() => setEditing(true)}>
             <Icon name="edit" size={17}/>
         </IconButton>
     const canResummarize = resummarizeOn && summaryNote && noteChats.length > 0
     const resummarizeAction = canResummarize
-        ? [{label: 'Summarize again', disabled: state.note.updating === true, onSelect: () => setResummarizing(true)}]
+        ? [{label: t.summarizeAgain, disabled: state.note.updating === true, onSelect: () => setResummarizing(true)}]
         : []
     const actions = note && <ItemActions
         target={{kind: 'note', id: note.id, title: noteTitle, icon: note.icon, renamable: note.status === 'READY'}}
@@ -219,14 +229,14 @@ export function NoteDetailPage() {
             : current)}
         // Deleted from the chat delete dialog's list: go back to that dialog, which no longer lists it.
         onDeleted={() => backToDeleteDialog ? navigate(-1) : navigate('/notes', {replace: true})}>
-        {(openMenu) => <IconButton s={44} title={`Actions for ${noteTitleText(noteTitle, note.icon)}`}
+        {(openMenu) => <IconButton s={44} title={common.actionsFor(noteTitleText(noteTitle, note.icon))}
                                    onClick={(event) => openMenu(event.currentTarget)}>
             <Icon name="dots" size={17}/>
         </IconButton>}
     </ItemActions>
 
     // Opened from the chat delete dialog: the previous history entry is that screen with the dialog open.
-    const backButton = backToDeleteDialog && <Button variant="quiet" size="sm" onClick={() => navigate(-1)}>Back</Button>
+    const backButton = backToDeleteDialog && <Button variant="quiet" size="sm" onClick={() => navigate(-1)}>{common.back}</Button>
 
     return <>
         <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}

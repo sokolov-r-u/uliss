@@ -4,7 +4,8 @@
  * the design system has no calendar primitive.
  */
 import {useState} from 'react'
-import {Icon, IconButton, LabelRow, Select, TextField, type SelectOption} from '@uliss/design-system'
+import {Icon, IconButton, LabelRow, type Locale, Select, type SelectOption, TextField, useLocale, useMessages} from '@uliss/design-system'
+import {fieldsMessages} from './fields.messages'
 
 export type {SelectOption} from '@uliss/design-system'
 
@@ -33,7 +34,7 @@ export function NoticeField({
 // ── dropdown (kind="profile" — gender) ───────────────────────────
 export function NoticeSelect<T extends string>({
                                                    label,
-                                                   placeholder = 'Select…',
+                                                   placeholder,
                                                    options,
                                                    value,
                                                    onChange,
@@ -49,7 +50,11 @@ export function NoticeSelect<T extends string>({
 }
 
 // ── date of birth (kind="profile") ───────────────────────────────
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+/** The calendar's month heading: 'June 2026' · 'июнь 2026'. */
+function monthTitle(year: number, month: number, locale: Locale): string {
+    const name = new Intl.DateTimeFormat(locale, {month: 'long'}).format(new Date(year, month, 1))
+    return `${name} ${year}`
+}
 
 /** Cells for a month grid, Monday-first; leading/trailing blanks are null. */
 function buildMonth(year: number, month: number): (number | null)[] {
@@ -89,9 +94,9 @@ function parseDigits(digits: string): Date | null {
     return d
 }
 
-/** Format a digit buffer as `DD/MM/YYYY` (separators only between digits). */
-function formatDigits(digits: string): string {
-    return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter((p) => p.length > 0).join('/')
+/** Format a digit buffer as `DD/MM/YYYY` or `ДД.ММ.ГГГГ` (separators only between digits); typing keeps digits only. */
+function formatDigits(digits: string, separator: string): string {
+    return [digits.slice(0, 2), digits.slice(2, 4), digits.slice(4, 8)].filter((p) => p.length > 0).join(separator)
 }
 
 /** Extract `DDMMYYYY` digits from an ISO `YYYY-MM-DD` seed. */
@@ -114,8 +119,10 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
     onNav: (delta: number) => void;
     onPick: (day: number) => void
 }) {
+    const locale = useLocale()
+    const t = useMessages(fieldsMessages)
     const cells = buildMonth(view.year, view.month)
-    const wd = ['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su']
+    const wd = t.weekdays.split(' ')
     const navBtn: React.CSSProperties = {
         width: 26,
         height: 26,
@@ -140,7 +147,7 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
             }}
         >
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10}}>
-                <IconButton s={26} style={navBtn} title="Previous month" onClick={() => onNav(-1)}>
+                <IconButton s={26} style={navBtn} title={t.previousMonth} onClick={() => onNav(-1)}>
           <Icon name="caret" size={14}/>
                 </IconButton>
                 <span style={{
@@ -150,9 +157,9 @@ function DatePicker({view, selected, maxDate, onNav, onPick}: {
                     textTransform: 'uppercase',
                     color: 'var(--cream)',
                 }}>
-          {MONTHS[view.month]} {view.year}
+          {monthTitle(view.year, view.month, locale)}
         </span>
-                <IconButton s={26} style={navBtn} title="Next month" onClick={() => onNav(1)}>
+                <IconButton s={26} style={navBtn} title={t.nextMonth} onClick={() => onNav(1)}>
           <Icon name="caret" size={14} rotate={180}/>
                 </IconButton>
             </div>
@@ -217,6 +224,7 @@ export function NoticeDate({
     /** ISO `YYYY-MM-DD` of the latest selectable day; only constrains the calendar. */
     maxDate?: string
 }) {
+    const t = useMessages(fieldsMessages)
     const [digits, setDigits] = useState(() => isoToDigits(value))
     const [open, setOpen] = useState(false)
     const maxDateObj = maxDate ? new Date(`${maxDate}T00:00:00`) : null
@@ -260,8 +268,8 @@ export function NoticeDate({
                 <input
                     type="text"
                     inputMode="numeric"
-                    value={formatDigits(digits)}
-                    placeholder="DD/MM/YYYY"
+                    value={formatDigits(digits, t.dateSeparator)}
+                    placeholder={t.datePlaceholder}
                     onChange={(e) => commit(e.target.value.replace(/\D/g, '').slice(0, 8))}
                     style={{
                         flex: 1,
@@ -278,7 +286,7 @@ export function NoticeDate({
                 />
                 <IconButton
                     s={36}
-                    title={open ? 'Close calendar' : 'Open calendar'}
+                    title={open ? t.closeCalendar : t.openCalendar}
                     onClick={() => setOpen((o) => !o)}
                     style={{
                         width: 36,

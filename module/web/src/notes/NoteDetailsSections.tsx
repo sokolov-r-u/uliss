@@ -4,7 +4,8 @@ import {PanelFact, PanelSection} from '../ui/ContextPanel'
 import {formatFullDate} from '../ui/format'
 import {NoteChatsList} from '../ui/links/NoteChatsList'
 import type {Note} from './noteApi'
-import {useLocale} from '@uliss/design-system'
+import {useLocale, useMessages} from '@uliss/design-system'
+import {notesMessages} from './notes.messages'
 
 /**
  * Everything a note's details panel says about it: where it lives (Constellation), its sub-notes, the chats it was
@@ -18,20 +19,21 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
     onPlaceChanged?: () => void
 }) {
     const locale = useLocale()
+    const t = useMessages(notesMessages)
     return <>
-        <PanelSection label="Constellation">
+        <PanelSection label={t.constellation}>
             <NoteConstellationSection key={note.id} noteId={note.id} noteTitle={note.title} noteIcon={note.icon}
                                       onChanged={onPlaceChanged}/>
         </PanelSection>
         <SubNotesSection noteId={note.id} onOpen={onOpenNote}/>
-        <PanelSection label="Written from">
+        <PanelSection label={t.writtenFrom}>
             <NoteChatsList noteId={note.id} onOpen={onOpenChat}
                            empty={<p className="context-text">
-                               {note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>}/>
+                               {note.source === 'CHAT_SUMMARY' ? t.chatSummary : t.byHand}</p>}/>
         </PanelSection>
-        <PanelSection label="Dates">
-            <PanelFact label="Written" value={formatFullDate(note.createdAt, locale) || '—'}/>
-            <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt, locale) || '—'}/>
+        <PanelSection label={t.dates}>
+            <PanelFact label={t.written} value={formatFullDate(note.createdAt, locale) || '—'}/>
+            <PanelFact label={t.updated} value={formatFullDate(note.updatedAt ?? note.createdAt, locale) || '—'}/>
         </PanelSection>
     </>
 }
