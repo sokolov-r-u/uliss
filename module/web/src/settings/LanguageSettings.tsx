@@ -1,7 +1,7 @@
 import {OptionList, useMessages} from '@uliss/design-system'
 import {SectionLabel, SettingsShell} from './SettingsShell'
 import {useLocaleChoice} from '../i18n/AppLocale'
-import {browserLocale, type LocaleChoice} from '../i18n/localeChoice'
+import type {LocaleChoice} from '../i18n/localeChoice'
 import {LANGUAGE_NAMES} from '../i18n/languageNames'
 import {languageSettingsMessages} from './LanguageSettings.messages'
 
@@ -14,9 +14,9 @@ const CHOICES: LocaleChoice[] = ['auto', 'en', 'ru']
  */
 export function LanguageSettings() {
     const t = useMessages(languageSettingsMessages)
-    const {choice, setChoice} = useLocaleChoice()
+    const {choice, browser, setChoice} = useLocaleChoice()
     const options = CHOICES.map((item) => item === 'auto'
-        ? {label: t.auto, note: t.autoNote(LANGUAGE_NAMES[browserLocale()])}
+        ? {label: t.auto, note: t.autoNote(LANGUAGE_NAMES[browser])}
         : {label: LANGUAGE_NAMES[item], note: t.explicitNote})
 
     return (

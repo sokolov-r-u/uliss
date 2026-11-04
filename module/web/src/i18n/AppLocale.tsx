@@ -1,10 +1,12 @@
 import {createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useState} from 'react'
 import {type Locale, LocaleProvider, useLocale} from '@uliss/design-system'
-import {applyLocale, effectiveLocale, LOCALE_EVENT, type LocaleChoice, readLocaleChoice, writeLocaleChoice} from './localeChoice'
+import {applyLocale, browserLocale, LOCALE_EVENT, type LocaleChoice, readLocaleChoice, writeLocaleChoice} from './localeChoice'
 
 interface LocaleChoiceState {
     choice: LocaleChoice
     locale: Locale
+    /** The browser's preferred supported language now; what `auto` follows. */
+    browser: Locale
     setChoice: (choice: LocaleChoice) => void
 }
 
@@ -18,7 +20,9 @@ export function AppLocaleProvider({children}: { children: ReactNode }) {
     const [choice, setChoiceState] = useState<LocaleChoice>(readLocaleChoice)
     // re-read on the browser's languagechange so `auto` follows it
     const [browserTick, setBrowserTick] = useState(0)
-    const locale = useMemo(() => effectiveLocale(choice), [choice, browserTick])
+    // browserTick re-reads navigator.languages on the browser's languagechange
+    const browser = useMemo(() => browserLocale(), [browserTick])
+    const locale = choice === 'auto' ? browser : choice
 
     useEffect(() => {
         applyLocale(locale)
@@ -41,7 +45,7 @@ export function AppLocaleProvider({children}: { children: ReactNode }) {
         setChoiceState(next)
     }, [])
 
-    const state = useMemo(() => ({choice, locale, setChoice}), [choice, locale, setChoice])
+    const state = useMemo(() => ({choice, locale, browser, setChoice}), [choice, locale, browser, setChoice])
     return (
         <LocaleChoiceContext.Provider value={state}>
             <LocaleProvider locale={locale}>{children}</LocaleProvider>
@@ -56,5 +60,5 @@ export function AppLocaleProvider({children}: { children: ReactNode }) {
 export function useLocaleChoice(): LocaleChoiceState {
     const state = useContext(LocaleChoiceContext)
     const locale = useLocale()
-    return state ?? {choice: readLocaleChoice(), locale, setChoice: writeLocaleChoice}
+    return state ?? {choice: readLocaleChoice(), locale, browser: browserLocale(), setChoice: writeLocaleChoice}
 }

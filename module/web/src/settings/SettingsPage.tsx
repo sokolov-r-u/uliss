@@ -32,7 +32,7 @@ export function SettingsPage() {
     }, [])
 
     const rows = [
-        {id: 'appearance', label: t.appearance, hint: appearance.hint(appearance[theme.ground], appearance[theme.accent], appearance[theme.read])},
+        {id: 'appearance', label: t.appearance, hint: appearance.hint(appearance[`${theme.ground}Short`], appearance[theme.accent], appearance[theme.read])},
         {id: 'sky', label: t.sky, hint: t.skyHint},
         {id: 'about-you', label: t.aboutYou, hint: t.aboutYouHint},
         {id: 'account', label: t.account, hint: t.accountHint},

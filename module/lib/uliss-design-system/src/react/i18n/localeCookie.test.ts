@@ -15,6 +15,11 @@ describe('readLocaleCookie', () => {
         expect(readLocaleCookie('')).toBeNull()
     })
 
+    it('reads a malformed escape as no choice instead of throwing', () => {
+        expect(readLocaleCookie('uliss_lang=%E0')).toBeNull()
+        expect(readLocaleCookie('uliss_lang=%E0; uliss_lang=ru')).toBe('ru')
+    })
+
     it('takes the first valid one when a host-only duplicate holds junk', () => {
         expect(readLocaleCookie('uliss_lang=zz; uliss_lang=ru')).toBe('ru')
     })

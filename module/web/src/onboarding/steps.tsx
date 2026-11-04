@@ -7,7 +7,7 @@ import {Notice, type SelectOption, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {type DateFieldValue, NoticeDate, NoticeField, NoticeSelect} from '../ui/notice/fields'
 import {maxBirthDateIso, MIN_AGE_YEARS} from './age'
-import {DISPLAY_NAME_MAX_LENGTH, type Gender, OnboardingSubmitError, submit} from './onboardingApi'
+import {DISPLAY_NAME_MAX_LENGTH, type Gender, type OnboardingCode, OnboardingSubmitError, submit} from './onboardingApi'
 import {onboardingMessages} from './onboarding.messages'
 
 export type StepProps = {
@@ -29,11 +29,16 @@ function ErrorLine({children}: { children: string }) {
 }
 
 /** A refused submit in the user's words: the rejected field when known, never the service's own text. */
-function refusal(error: unknown, t: typeof onboardingMessages.en): string {
+function refusal(error: unknown, command: OnboardingCode, t: typeof onboardingMessages.en): string {
     if (error instanceof OnboardingSubmitError && error.field === 'displayName') {
         return t.displayNameRefused(DISPLAY_NAME_MAX_LENGTH)
     }
     if (error instanceof OnboardingSubmitError && error.field === 'birthDate') return t.birthDateRefused
+    // the service names no field when it refuses the name itself (invisible or control characters only)
+    if (error instanceof OnboardingSubmitError && (error.field === 'message' || error.field === undefined)
+        && command === 'SET_DISPLAY_NAME') {
+        return t.displayNameUnreadable
+    }
     return t.somethingWrong
 }
 
@@ -43,14 +48,15 @@ function useSubmit(onDone: () => void) {
     const [busy, setBusy] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const run = async (build: () => Parameters<typeof submit>[0]) => {
+        const request = build()
         setBusy(true)
         setError(null)
         try {
-            await submit(build())
+            await submit(request)
             onDone()
         } catch (e) {
             if (e instanceof AuthRequiredError) return // auth flow took over
-            setError(refusal(e, t))
+            setError(refusal(e, request.command, t))
         } finally {
             setBusy(false)
         }

@@ -609,7 +609,6 @@ function YouMark({x, y, mark, onExit}: { x: number; y: number; mark: SkySettings
                 <rect x={x - 0.9 * k} y={y - 15 * k} width={1.8 * k} height={23 * k}/>
                 <path d={`M${x} ${y - 13.5 * k} L${x + 10.5 * k} ${y + 6 * k} L${x} ${y + 6 * k} Z`} opacity={0.92}/>
             </g>}
-        <text x={x} y={y + 34 * k} textAnchor="middle" className="sky-you-label" fontSize={10 * k}>YOU
-        </text>
+        <text x={x} y={y + 34 * k} textAnchor="middle" className="sky-you-label" fontSize={10 * k}>{t.you}</text>
     </g>
 }

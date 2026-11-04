@@ -14,12 +14,21 @@ export interface CookieHost {
     protocol: string
 }
 
+/** A cookie value percent-decoded; a malformed escape (`%E0`) reads as no value. */
+function decoded(value: string): string {
+    try {
+        return decodeURIComponent(value)
+    } catch {
+        return ''
+    }
+}
+
 /** The chosen locale in a `document.cookie` string; null when absent or not a supported value. */
 export function readLocaleCookie(cookies: string): Locale | null {
     for (const part of cookies.split(';')) {
         const separator = part.indexOf('=')
         if (separator < 0 || part.slice(0, separator).trim() !== LOCALE_COOKIE) continue
-        const locale = parseLocale(decodeURIComponent(part.slice(separator + 1).trim()))
+        const locale = parseLocale(decoded(part.slice(separator + 1).trim()))
         if (locale) return locale
     }
     return null

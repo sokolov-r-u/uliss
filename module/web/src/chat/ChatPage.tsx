@@ -158,6 +158,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const {chatId} = useParams<{ chatId: string }>()
     const navigate = useNavigate()
     const locale = useLocale()
+    // the history loader words a failure in the language of the moment without reloading on a switch
+    const localeRef = useRef(locale)
+    localeRef.current = locale
     const t = useMessages(chatPageMessages)
     const common = useMessages(commonMessages)
     const [pagePhase, setPagePhase] = useState<PagePhase>(newChat ? 'ready' : 'loading')
@@ -433,7 +436,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             })
             .catch((error: unknown) => {
                 if (!active || error instanceof AuthRequiredError) return
-                setLoadError(describeError(error, locale))
+                setLoadError(describeError(error, localeRef.current))
                 setPagePhase('error')
             })
         return () => {

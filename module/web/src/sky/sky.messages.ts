@@ -42,6 +42,7 @@ const en = {
     note: 'Note',
     couldNotLoadNote: 'Could not load the note.',
     openNote: 'Open note',
+    you: 'YOU',
 }
 
 export const skyMessages: Dictionaries<typeof en> = {
@@ -87,5 +88,6 @@ export const skyMessages: Dictionaries<typeof en> = {
         note: 'Заметка',
         couldNotLoadNote: 'Не удалось загрузить заметку.',
         openNote: 'Открыть заметку',
+        you: 'ВЫ',
     },
 }
