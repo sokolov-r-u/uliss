@@ -348,9 +348,15 @@ export async function renameNote(noteId: string, title: string): Promise<Note> {
     return note
 }
 
-/** The user's pinned notes, last pinned first; never more than [PIN_LIMIT]. */
-export async function listPinnedNotes(signal?: AbortSignal): Promise<Note[]> {
-    const response = await fetchNotes('/note/notes/pinned', {signal})
+/**
+ * The user's pinned notes, last pinned first; never more than [PIN_LIMIT]. Non-empty [constellationIds] keep those of
+ * the same filter as [listNotes].
+ */
+export async function listPinnedNotes(signal?: AbortSignal, constellationIds: readonly string[] = []): Promise<Note[]> {
+    const params = new URLSearchParams()
+    constellationIds.forEach((id) => params.append('constellationId', id))
+    const search = params.toString()
+    const response = await fetchNotes(`/note/notes/pinned${search ? `?${search}` : ''}`, {signal})
     await requireOk(response, 'pinned notes fetch')
     const value = await responseJson(response)
     if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid pinned notes response')

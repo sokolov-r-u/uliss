@@ -25,6 +25,7 @@ import {useKeysetList} from '../ui/list/useKeysetList'
 import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from './noteApi'
 import {pinnedNotes as pinnedNotesStore, usePinnedNotes, withoutPinned} from '../ui/pins/pinned'
 import {PinnedFailed} from '../ui/pins/PinnedFailed'
+import {useFilteredPinned} from './useFilteredPinned'
 import './notes.css'
 import {formatShortDate} from '../ui/format'
 
@@ -205,7 +206,9 @@ export function NotesPage() {
         if (tree && knownFilter(filter, tree).length !== filter.length) setFilter(knownFilter(filter, tree))
     })
 
-    const pinned = usePinnedNotes()
+    const allPinned = usePinnedNotes()
+    // the Pinned group follows the filter too
+    const {state: pinned, retry: retryPinned} = useFilteredPinned(filter, revision, allPinned)
     const pickerList = useMemo(() => tree ? pickerItems(tree) : [], [tree])
     const filterSlots: NotesFilterSlots = {
         button: tree && tree.flat.length > 0 ? <IconButton title={filter.length >= FILTER_LIMIT
@@ -246,8 +249,10 @@ export function NotesPage() {
     }
 
     const pinnedNotes = pinned.status === 'ready' ? pinned.items : []
-    // a pinned note lives only in the Pinned group, also while a page fetched before the pin is still shown
-    const items = state.status === 'ready' ? withoutPinned(state.items, pinnedNotes) : []
+    // a pinned note lives only in the Pinned group, also while a page fetched before the pin is still shown; pages
+    // leave out every pinned note, filtered or not
+    const items = state.status === 'ready'
+        ? withoutPinned(state.items, allPinned.status === 'ready' ? allPinned.items : []) : []
     // "Nothing written down yet" waits for the pinned list: every note may be pinned
     if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
         return <div className="product-view"><ScreenHeader kicker="Notes"/>{filterSlots.bar}
@@ -263,7 +268,7 @@ export function NotesPage() {
     }
     return <NotesView notes={toNoteViewModels(items, noteChangedAt)} total={state.total}
                       pinned={toNoteViewModels(pinnedNotes, noteChangedAt)}
-                      notice={pinned.status === 'error' ? <PinnedFailed onRetry={pinnedNotesStore.refresh}/> : undefined}
+                      notice={pinned.status === 'error' ? <PinnedFailed onRetry={filter.length > 0 ? retryPinned : pinnedNotesStore.refresh}/> : undefined}
                       onOpen={(note) => navigate(`/notes/${note.id}`)}
                       onStartChat={() => navigate('/chats')}
                       filter={filterSlots}

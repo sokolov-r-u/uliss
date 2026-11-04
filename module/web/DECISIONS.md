@@ -277,3 +277,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   instead of the previous filter's rows.
 - **Consequences:** no design-system change; choosing several constellations opens the picker once per constellation.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`.
+
+## 2026-11-04 — The Pinned group of the Notes page follows the constellation filter
+
+- **Context:** after merging pinned notes, a filtered list showed every pinned note above it; the user chose to
+  filter the Pinned group too.
+- **Decision:** without a filter the page reads the shared pinned store as before. With one, `useFilteredPinned`
+  fetches `GET /notes/pinned` with the same `constellationId`s and refetches when the filter, a change event or the
+  shared pinned list changes; it never shows the pinned notes of another filter, and Retry refetches it. Rows still
+  leave out every pinned note (the shared list), as the pages do.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main).
