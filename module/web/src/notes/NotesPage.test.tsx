@@ -89,4 +89,11 @@ describe('notes list presentation', () => {
         expect(screen.getByText('Pinned note')).toBeInTheDocument()
         expect(screen.queryByText('Nothing written down yet')).not.toBeInTheDocument()
     })
+
+    it('is not called empty while it has a notice to give', () => {
+        render(<MemoryRouter><NotesView notes={[]} notice={<p>Pinned items did not load.</p>}/></MemoryRouter>)
+
+        expect(screen.getByText('Pinned items did not load.')).toBeInTheDocument()
+        expect(screen.queryByText('Nothing written down yet')).not.toBeInTheDocument()
+    })
 })

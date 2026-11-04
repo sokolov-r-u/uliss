@@ -31,6 +31,19 @@ describe('ChatListPage', () => {
             .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
     })
 
+    it('does not say there are no chats while the pinned ones are loading or failed to load', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listPinnedChats).mockRejectedValueOnce(new Error('down'))
+            .mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        render(<MemoryRouter><ChatListPage/></MemoryRouter>)
+
+        expect(await screen.findByText('Pinned items did not load.')).toBeInTheDocument()
+        expect(screen.queryByText('No chats yet')).not.toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+
+        expect(await screen.findByRole('button', {name: /^Books/})).toBeInTheDocument()
+    })
+
     it('with only pinned chats does not say there are none', async () => {
         vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
         vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])

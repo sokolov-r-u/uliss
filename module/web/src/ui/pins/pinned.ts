@@ -11,11 +11,13 @@ export type PinKind = 'chat' | 'note'
 /** `loading` only before the first answer: a refetch keeps the shown items until the new ones arrive. */
 export type PinnedState<T> = { status: 'loading' } | { status: 'error' } | { status: 'ready'; items: T[] }
 
-export interface PinnedStore<T> {
+export interface PinnedStore<T extends { id: string }> {
     subscribe: (listener: () => void) => () => void
     getSnapshot: () => PinnedState<T>
-    /** Fetches again now, e.g. after a pin failed because another tab filled the list. */
+    /** Fetches again now, e.g. on Retry after a failed load. */
     refresh: () => void
+    /** Puts a just pinned item on top at once, before the refetch that follows the pin confirms it. */
+    addPinned: (item: T) => void
 }
 
 /**
@@ -23,7 +25,7 @@ export interface PinnedStore<T> {
  * through [usePinned], so a screen of rows makes one request, not one per row. It loads when the first reader mounts,
  * refetches on the kind's list-change events and is dropped when the last reader goes.
  */
-export function createPinnedStore<T>(
+export function createPinnedStore<T extends { id: string }>(
     load: (signal: AbortSignal) => Promise<T[]>,
     subscribeToChanges: (listener: () => void) => () => void,
 ): PinnedStore<T> {
@@ -71,6 +73,10 @@ export function createPinnedStore<T>(
         },
         getSnapshot: () => state,
         refresh,
+        addPinned(item) {
+            if (state.status !== 'ready') return
+            set({status: 'ready', items: [item, ...state.items.filter((other) => other.id !== item.id)]})
+        },
     }
 }
 
@@ -89,10 +95,18 @@ export function usePinnedNotes(): PinnedState<Note> {
     return useSyncExternalStore(pinnedNotes.subscribe, pinnedNotes.getSnapshot)
 }
 
-/** The ids of the pinned items of [kind]; empty until the list has loaded. */
-export function usePinnedIds(kind: PinKind): { ids: ReadonlySet<string>; full: boolean } {
-    const store = pinnedStore(kind) as PinnedStore<{ id: string }>
-    const state = useSyncExternalStore(store.subscribe, store.getSnapshot)
+/** The ids of the pinned items of [kind]; `ready` is false until the list has loaded (or after it failed to). */
+export function usePinnedIds(kind: PinKind): { ready: boolean; ids: ReadonlySet<string>; full: boolean } {
+    const store = pinnedStore(kind)
+    const getSnapshot: () => PinnedState<{ id: string }> = store.getSnapshot
+    const state = useSyncExternalStore(store.subscribe, getSnapshot)
     const items = state.status === 'ready' ? state.items : []
-    return {ids: new Set(items.map((item) => item.id)), full: items.length >= PIN_LIMIT}
+    return {ready: state.status === 'ready', ids: new Set(items.map((item) => item.id)), full: items.length >= PIN_LIMIT}
+}
+
+/** [items] without the pinned ones: a page fetched before a pin landed must not show the item a second time. */
+export function withoutPinned<T extends { id: string }>(items: T[], pinned: readonly { id: string }[]): T[] {
+    if (pinned.length === 0) return items
+    const ids = new Set(pinned.map((item) => item.id))
+    return items.filter((item) => !ids.has(item.id))
 }

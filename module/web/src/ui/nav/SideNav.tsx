@@ -11,7 +11,8 @@ import {useKeysetList} from '../list/useKeysetList'
 import {useResizableWidth} from '../useResizableWidth'
 import {groupByRecency} from './recency'
 import {noteCountLabel} from '../format'
-import {usePinnedChats, usePinnedNotes} from '../pins/pinned'
+import {pinnedChats as pinnedChatsStore, pinnedNotes as pinnedNotesStore, usePinnedChats, usePinnedNotes, withoutPinned} from '../pins/pinned'
+import {PinnedFailed} from '../pins/PinnedFailed'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: string; icon: ReactNode }[] = [
@@ -50,19 +51,23 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     // Each list refetches only on its own event: a chat turn does not reload the notes.
     const chatList = useKeysetList(listChats, chatsRevision)
     const noteList = useKeysetList(listNotes, notesRevision)
-    const chats: Chat[] = chatList.state.status === 'ready' ? chatList.state.items : []
-    const notes: Note[] = noteList.state.status === 'ready' ? noteList.state.items : []
-    // a failed load is told apart from an empty account: "Nothing here yet" would be a lie
-    const chatsFailed = chatList.state.status === 'error'
-    const notesFailed = noteList.state.status === 'error'
     const pinnedChatsState = usePinnedChats()
     const pinnedNotesState = usePinnedNotes()
     const pinnedChats: Chat[] = pinnedChatsState.status === 'ready' ? pinnedChatsState.items : []
     const pinnedNotes: Note[] = pinnedNotesState.status === 'ready' ? pinnedNotesState.items : []
+    // a pinned row lives only in its Pinned group, also while a page fetched before the pin is still shown
+    const chats = withoutPinned(chatList.state.status === 'ready' ? chatList.state.items : [], pinnedChats)
+    const notes = withoutPinned(noteList.state.status === 'ready' ? noteList.state.items : [], pinnedNotes)
+    const states = [chatList.state.status, noteList.state.status, pinnedChatsState.status, pinnedNotesState.status]
+    // a failed load is told apart from an empty account, and so is one still loading: "Nothing here yet" would be a lie
+    const anyFailed = states.includes('error')
+    const allSettled = !states.includes('loading')
 
     const retryLists = () => {
         setChatsRevision((value) => value + 1)
         setNotesRevision((value) => value + 1)
+        pinnedChatsStore.refresh()
+        pinnedNotesStore.refresh()
     }
 
     const go = (to: string) => () => {
@@ -120,13 +125,13 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                 </div>
 
                 <div className="side-nav-body">
-                    {empty && (chatsFailed || notesFailed) ? (
+                    {empty && anyFailed ? (
                         <div className="side-nav-empty" role="alert">
                             <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Could not load</Kicker>
                             <p className="side-nav-body-note">Your chats and notes did not load. Check the connection.</p>
                             <Button size="sm" variant="quiet" onClick={retryLists}>Retry</Button>
                         </div>
-                    ) : empty ? (
+                    ) : empty && allSettled ? (
                         <div className="side-nav-empty">
                             <Kicker size={9} spacing="2.5px" color="var(--text-faint)">Nothing here yet</Kicker>
                             <p className="side-nav-body-note">Chats and notes will collect here as you talk.</p>
@@ -153,6 +158,10 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                             </div>
                             <div className="side-nav-list" role="tabpanel"
                                  aria-label={tab === 'chats' ? 'Recent chats' : 'Recent notes'}>
+                                {tab === 'chats' && pinnedChatsState.status === 'error' &&
+                                    <PinnedFailed onRetry={pinnedChatsStore.refresh}/>}
+                                {tab === 'notes' && pinnedNotesState.status === 'error' &&
+                                    <PinnedFailed onRetry={pinnedNotesStore.refresh}/>}
                                 {tab === 'chats' && chatGroups.map((group) => (
                                     <div key={group.label} className="side-nav-group">
                                         <Kicker size={8.5} spacing="2.5px" color="var(--text-faint)">{group.label}</Kicker>

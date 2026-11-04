@@ -79,12 +79,21 @@ describe('ItemActions', () => {
 
     const pinnedNote = (id: string): Note => ({id, source: 'MANUAL', status: 'READY', title: id, content: 'x'})
 
-    it('pins an unpinned note and tells the note lists', async () => {
-        vi.mocked(pinNote).mockResolvedValue(pinnedNote('n1'))
+    it('keeps Pin disabled until the pinned list has loaded, so a pinned item is never offered Pin', async () => {
+        vi.mocked(listPinnedNotes).mockReturnValue(new Promise(() => undefined))
         renderRow(note)
         await openMenu('Idea')
 
-        await userEvent.click(screen.getByRole('menuitem', {name: 'Pin'}))
+        expect(screen.getByRole('menuitem', {name: 'Pin'})).toBeDisabled()
+    })
+
+    it('pins an unpinned note and tells the note lists', async () => {
+        vi.mocked(pinNote).mockResolvedValue(pinnedNote('n1'))
+        renderRow(note)
+        await waitFor(() => expect(listPinnedNotes).toHaveBeenCalled())
+        await openMenu('Idea')
+
+        await userEvent.click(await screen.findByRole('menuitem', {name: 'Pin'}))
 
         expect(pinNote).toHaveBeenCalledWith('n1')
         await waitFor(() => expect(notifyNotesChanged).toHaveBeenCalled())
@@ -119,9 +128,10 @@ describe('ItemActions', () => {
     it('a refused pin says why in a notice and refreshes the lists', async () => {
         vi.mocked(pinNote).mockRejectedValue(new NoteApiError('http', 'note pin failed (409)', 409, undefined, 'PIN_LIMIT_REACHED'))
         renderRow(note)
+        await waitFor(() => expect(listPinnedNotes).toHaveBeenCalled())
         await openMenu('Idea')
 
-        await userEvent.click(screen.getByRole('menuitem', {name: 'Pin'}))
+        await userEvent.click(await screen.findByRole('menuitem', {name: 'Pin'}))
 
         const notice = await screen.findByRole('dialog', {name: 'Could not pin this note'})
         expect(notice).toHaveTextContent('15 notes are pinned already. Unpin one first.')

@@ -81,6 +81,43 @@ describe('SideNav', () => {
         expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument()
     })
 
+    it('a failed pinned list with nothing else to show is a failed load, not an empty account', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 1})
+        vi.mocked(listPinnedNotes).mockRejectedValueOnce(new Error('down')).mockResolvedValue([
+            {id: 'n9', source: 'MANUAL', status: 'READY', title: 'Pinned plan', content: 'Body'},
+        ])
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('Could not load')).toBeInTheDocument()
+        expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        await userEvent.click(await screen.findByRole('tab', {name: 'Notes'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned plan'})).toBeInTheDocument()
+    })
+
+    it('says when the pinned items did not load and loads them again on Retry', async () => {
+        vi.mocked(listPinnedChats).mockRejectedValueOnce(new Error('down'))
+            .mockResolvedValue([{id: 'c9', title: 'Pinned trip', noteCount: 0}])
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('Pinned items did not load.')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Trip'})).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned trip'})).toBeInTheDocument()
+        expect(screen.queryByText('Pinned items did not load.')).not.toBeInTheDocument()
+    })
+
+    it('shows a pinned chat once even while a page fetched before the pin still lists it', async () => {
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        renderNav('/chats/c1')
+
+        await screen.findByText('Pinned')
+        expect(screen.getAllByRole('button', {name: 'Books'})).toHaveLength(1)
+    })
+
     it('moves a chat into the pinned group when the chat list changes', async () => {
         renderNav('/chats/c1')
         await screen.findByRole('button', {name: 'Books'})

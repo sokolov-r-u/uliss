@@ -24,7 +24,7 @@ import {
     unpinNote,
 } from '../../notes/noteApi'
 import {NoticeOverlay} from '../notice/NoticeOverlay'
-import {PIN_LIMIT, usePinnedIds} from '../pins/pinned'
+import {PIN_LIMIT, pinnedChats, pinnedNotes, usePinnedIds} from '../pins/pinned'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -240,7 +240,8 @@ export function ItemActions({
         pendingRef.current = true
         try {
             if (unpin) await (target.kind === 'chat' ? unpinChat(target.id) : unpinNote(target.id))
-            else await (target.kind === 'chat' ? pinChat(target.id) : pinNote(target.id))
+            else if (target.kind === 'chat') pinnedChats.addPinned(await pinChat(target.id))
+            else pinnedNotes.addPinned(await pinNote(target.id))
         } catch (e) {
             if (!(e instanceof AuthRequiredError)) setPinFailure({unpin, message: pinFailureMessage(target.kind, e)})
         } finally {
@@ -259,9 +260,10 @@ export function ItemActions({
             void togglePin(true)
         },
     } : {
-        // the service refuses one more past the limit; the label says why before it is tried
+        // the service refuses one more past the limit; the label says why before it is tried. Until the pinned list
+        // has loaded, whether this item is pinned is unknown, so Pin waits for it.
         label: pins.full ? `Pin · ${PIN_LIMIT} max` : 'Pin',
-        disabled: pins.full,
+        disabled: !pins.ready || pins.full,
         onSelect: () => {
             setAnchor(null)
             void togglePin(false)
