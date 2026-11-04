@@ -45,6 +45,23 @@ class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
         }
     }
 
+    /** Up to [limit] ids of the user's pinned notes under the filter of [findPage], last pinned first. */
+    fun findPinned(userId: UUID, constellationIds: Set<UUID>, limit: Int): List<UUID> {
+        val query = Query(userId, constellationIds)
+        query.conditions += "pinned_at IS NOT NULL"
+        val sql = """
+            ${query.with}
+            SELECT id
+            FROM note.notes
+            WHERE ${query.where()}
+            ORDER BY pinned_at DESC, id DESC
+            LIMIT :limit
+        """
+        return jdbcTemplate.query(sql, query.params.addValue("limit", limit)) { rs, _ ->
+            rs.getObject("id", UUID::class.java)
+        }
+    }
+
     /** The size of the list [findPage] reads with the same filter. */
     fun count(userId: UUID, constellationIds: Set<UUID> = emptySet()): Int {
         val query = Query(userId, constellationIds)

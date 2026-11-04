@@ -130,6 +130,20 @@ class NoteServiceTest {
     }
 
     @Test
+    fun `getPinnedNotes with constellations keeps the store's filtered order`() {
+        val userId = UUID.randomUUID()
+        val filter = setOf(UUID.randomUUID())
+        val first = NoteEntity(userId, "pinned last", NoteSource.MANUAL, NoteStatus.READY)
+        val second = NoteEntity(userId, "pinned first", NoteSource.MANUAL, NoteStatus.READY)
+        Mockito.`when`(noteListStore.findPinned(userId, filter, PinLimit.MAX)).thenReturn(listOf(first.id, second.id))
+        Mockito.`when`(noteRepository.findAllById(listOf(first.id, second.id))).thenReturn(listOf(second, first))
+
+        val pinned = noteService.getPinnedNotes(userId, filter)
+
+        assertEquals(listOf(first.id, second.id), pinned.map { it.id })
+    }
+
+    @Test
     fun `getNotes without constellations counts the notes once, all of them are the list`() {
         val userId = UUID.randomUUID()
         Mockito.`when`(noteListStore.findPage(userId, null, 3)).thenReturn(emptyList())

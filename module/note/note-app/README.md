@@ -221,6 +221,8 @@ A finished rebuild clears a stamp made before it started and the batch shrink.
   of all their sub-constellations, plus every sub-note of those notes, each note once (one recursive query in
   `NoteListStore`). An id that is missing or another user's adds nothing; without the parameter the list is unfiltered
   and `allTotal` equals `total`.
+- Pinned notes are never in those pages: `GET /note/notes/pinned` lists them, last pinned first, and takes the same
+  `constellationId` filter; `total` and `allTotal` count them.
 - Both list endpoints take `cursor` (the opaque `nextCursor` of the previous page) and `limit` (default 30, 1..100); a
   broken cursor or a limit out of range is `400`.
 - `GET /note/notes/{noteId}` returns the ownership-filtered persisted note.

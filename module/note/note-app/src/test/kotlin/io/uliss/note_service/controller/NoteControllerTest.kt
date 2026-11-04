@@ -171,6 +171,24 @@ class NoteControllerTest {
     }
 
     @Test
+    fun `getPinnedNotes passes the constellation filter and rejects an id that is not a uuid`() {
+        val userId = UUID.randomUUID()
+        val music = UUID.randomUUID()
+        Mockito.`when`(noteService.getPinnedNotes(userId, setOf(music))).thenReturn(emptyList())
+
+        mockMvc.get("/note/notes/pinned?constellationId=$music") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.length()") { value(0) }
+        }
+        mockMvc.get("/note/notes/pinned?constellationId=music") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { status { isBadRequest() } }
+        Mockito.verify(noteService).getPinnedNotes(userId, setOf(music))
+    }
+
+    @Test
     fun `getNotes rejects more than 50 constellations and an id that is not a uuid`() {
         val userId = UUID.randomUUID()
         val tooMany = (1..51).joinToString("&") { "constellationId=${UUID.randomUUID()}" }

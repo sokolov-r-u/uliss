@@ -150,6 +150,27 @@ class NoteListStoreIntegrationTest : NoteIntegrationTest() {
         assertEquals(4, store.count(userId))
     }
 
+    @Test
+    fun `pinned notes of a filter are its pinned notes with sub-notes, last pinned first, and stay out of its pages`() {
+        val at = Instant.parse("2026-11-03T10:00:00Z")
+        val music = constellation(userId, null)
+        val rock = constellation(userId, music)
+        val films = constellation(userId, null)
+        val bowie = pin(placed(note(userId, at), rock), at.minusSeconds(30))
+        val album = pin(subNote(note(userId, at), bowie), at.minusSeconds(10))
+        pin(placed(note(userId, at), films), at)
+        val unpinned = placed(note(userId, at), music)
+
+        assertEquals(listOf(album, bowie), store.findPinned(userId, setOf(music), 15))
+        assertEquals(listOf(album), store.findPinned(userId, setOf(music), 1))
+        assertEquals(listOf(unpinned), store.findPage(userId, null, 10, setOf(music)).map { it.id })
+    }
+
+    private fun pin(noteId: UUID, pinnedAt: Instant): UUID {
+        jdbcTemplate.update("UPDATE note.notes SET pinned_at = ? WHERE id = ?", Timestamp.from(pinnedAt), noteId)
+        return noteId
+    }
+
     private fun subNote(noteId: UUID, parentNoteId: UUID): UUID {
         jdbcTemplate.update("UPDATE note.notes SET parent_note_id = ? WHERE id = ?", parentNoteId, noteId)
         return noteId

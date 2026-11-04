@@ -78,10 +78,15 @@ class NoteController(
         return noteService.getNotes(jwt.getUserId(), cursor?.let(ListCursor::decode), limit, filter).toResponse()
     }
 
-    /** The pinned notes, last pinned first; the pages of [getNotes] leave them out. */
+    /**
+     * The pinned notes, last pinned first, under the same constellation filter as [getNotes], whose pages leave them
+     * out.
+     */
     @GetMapping("/pinned")
-    fun getPinnedNotes(@AuthenticationPrincipal jwt: Jwt): List<NoteResponse> =
-        noteService.getPinnedNotes(jwt.getUserId())
+    fun getPinnedNotes(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestParam(name = "constellationId", required = false) constellationIds: List<UUID?>?,
+    ): List<NoteResponse> = noteService.getPinnedNotes(jwt.getUserId(), NoteListFilter.of(constellationIds))
 
     @PutMapping("/{noteId}/pin")
     fun pinNote(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID): NoteResponse =

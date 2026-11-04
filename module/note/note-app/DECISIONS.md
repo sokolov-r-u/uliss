@@ -813,3 +813,12 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   constellation_id)` and `notes (parent_note_id)`, and pages over `notes (user_id, updated_at, id)`. The page and
   its count each walk the subtree once.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md`, epic `docs/tasks/2026-11-03-keyset-lists-epic.md`.
+
+## 2026-11-04 — The constellation filter applies to the pinned notes too
+
+- **Context:** after merging pinned notes into the filter branch, the Notes page showed every pinned note above a
+  filtered list, while the filter's own pinned notes were in no list.
+- **Decision:** `GET /notes/pinned` takes the same `constellationId` filter as `GET /notes`; `NoteListStore.findPinned`
+  reads it with the same CTE, last pinned first. Pages stay without pinned notes, filtered or not, and `total` keeps
+  counting them, so "`total` of `allTotal`" counts the Pinned group with the rows.
+- **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main, user's choice).
