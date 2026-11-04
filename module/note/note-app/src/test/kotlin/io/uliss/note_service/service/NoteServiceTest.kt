@@ -1,5 +1,7 @@
 package io.uliss.note_service.service
 
+import io.uliss.note_service.exception.PinLimitReachedException
+import io.uliss.note_service.util.PinLimit
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
@@ -484,5 +486,50 @@ class NoteServiceTest {
         val result = noteService.getChatNotes(userId, chatId)
 
         assertEquals(listOf(true, false), result.map { it.updating })
+    }
+
+    @Test
+    fun `pinNote pins under the user's pin lock and answers with the note read after the pin`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "body").apply { pinnedAt = Instant.parse("2026-11-03T10:00:00Z") }
+        Mockito.`when`(noteRepository.pin(note.id, userId, PinLimit.MAX)).thenReturn(1)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertEquals(note.pinnedAt, noteService.pinNote(userId, note.id).pinnedAt)
+
+        val order = Mockito.inOrder(noteRepository)
+        order.verify(noteRepository).lockPins(userId)
+        order.verify(noteRepository).pin(note.id, userId, PinLimit.MAX)
+    }
+
+    @Test
+    fun `pinNote of a note pinned already answers with it unchanged`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "body").apply { pinnedAt = Instant.parse("2026-11-03T10:00:00Z") }
+        Mockito.`when`(noteRepository.pin(note.id, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertEquals(note.pinnedAt, noteService.pinNote(userId, note.id).pinnedAt)
+    }
+
+    @Test
+    fun `pinNote of an unpinned note that was not pinned means the limit is reached`() {
+        val userId = UUID.randomUUID()
+        val note = NoteEntity(userId, "body")
+        Mockito.`when`(noteRepository.pin(note.id, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(noteRepository.findByIdAndUserId(note.id, userId)).thenReturn(note)
+
+        assertFailsWith<PinLimitReachedException> { noteService.pinNote(userId, note.id) }
+    }
+
+    @Test
+    fun `pinNote and unpinNote of a missing or foreign note fail as not found`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.pin(noteId, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(noteRepository.unpin(noteId, userId)).thenReturn(0)
+
+        assertFailsWith<NotFoundException> { noteService.pinNote(userId, noteId) }
+        assertFailsWith<NotFoundException> { noteService.unpinNote(userId, noteId) }
     }
 }

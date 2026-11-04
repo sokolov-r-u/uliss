@@ -21,6 +21,8 @@ export interface Note {
     parentNoteId?: string
     /** The user's emoji, shown before the title; absent for none. */
     icon?: string
+    /** When the user pinned it; absent for an unpinned note. */
+    pinnedAt?: string
 }
 
 /** What happens to the sub-notes of a deleted note. */
@@ -113,6 +115,7 @@ function parseNote(value: unknown): Note {
     }
     const parentNoteId = optionalString(value.parentNoteId, 'parentNoteId')
     const icon = optionalString(value.icon, 'icon')
+    const pinnedAt = optionalString(value.pinnedAt, 'pinnedAt')
     return {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
@@ -125,6 +128,7 @@ function parseNote(value: unknown): Note {
         version: optionalVersion(value.version),
         ...(parentNoteId ? {parentNoteId} : {}),
         ...(icon ? {icon} : {}),
+        ...(pinnedAt ? {pinnedAt} : {}),
     }
 }
 
@@ -326,6 +330,29 @@ export async function renameNote(noteId: string, title: string): Promise<Note> {
     const note = parseNote(await responseJson(response))
     if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
     return note
+}
+
+/** The user's pinned notes, last pinned first; never more than [PIN_LIMIT]. */
+export async function listPinnedNotes(signal?: AbortSignal): Promise<Note[]> {
+    const response = await fetchNotes('/note/notes/pinned', {signal})
+    await requireOk(response, 'pinned notes fetch')
+    const value = await responseJson(response)
+    if (!Array.isArray(value)) throw new NoteApiError('protocol', 'invalid pinned notes response')
+    return value.map(parseNote)
+}
+
+/** Pins the note; a full pinned list fails with code `PIN_LIMIT_REACHED`. Pinning a pinned note keeps its place. */
+export async function pinNote(noteId: string): Promise<Note> {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/pin`, {method: 'PUT'})
+    await requireOk(response, 'note pin')
+    const note = parseNote(await responseJson(response))
+    if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
+    return note
+}
+
+export async function unpinNote(noteId: string): Promise<void> {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/pin`, {method: 'DELETE'})
+    await requireOk(response, 'note unpin')
 }
 
 /** Saves a user edit made against [edit.version]; a newer stored note fails with code `NOTE_VERSION_CONFLICT`. */

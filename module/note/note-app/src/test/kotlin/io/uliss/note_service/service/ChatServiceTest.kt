@@ -4,12 +4,14 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ListCursor
+import io.uliss.note_service.exception.PinLimitReachedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
 import io.uliss.note_service.model.ChatMessageStatus
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.util.PinLimit
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import org.springframework.data.domain.PageRequest
@@ -317,4 +319,49 @@ class ChatServiceTest {
 
     private fun chat(userId: UUID, updatedAt: Instant) =
         ChatEntity(userId, "Chat").apply { this.updatedAt = updatedAt }
+
+    @Test
+    fun `pinChat pins under the user's pin lock and returns the chat read after the pin`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Chat").apply { id = UUID.randomUUID(); pinnedAt = Instant.parse("2026-11-03T10:00:00Z") }
+        Mockito.`when`(chatRepository.pin(chat.id, userId, PinLimit.MAX)).thenReturn(1)
+        Mockito.`when`(chatRepository.findByIdAndUserId(chat.id, userId)).thenReturn(chat)
+
+        assertSame(chat, chatService.pinChat(userId, chat.id))
+
+        val order = Mockito.inOrder(chatRepository)
+        order.verify(chatRepository).lockPins(userId)
+        order.verify(chatRepository).pin(chat.id, userId, PinLimit.MAX)
+    }
+
+    @Test
+    fun `pinChat of a chat pinned already returns it unchanged`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Chat").apply { id = UUID.randomUUID(); pinnedAt = Instant.parse("2026-11-03T10:00:00Z") }
+        Mockito.`when`(chatRepository.pin(chat.id, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(chatRepository.findByIdAndUserId(chat.id, userId)).thenReturn(chat)
+
+        assertSame(chat, chatService.pinChat(userId, chat.id))
+    }
+
+    @Test
+    fun `pinChat of an unpinned chat that was not pinned means the limit is reached`() {
+        val userId = UUID.randomUUID()
+        val chat = ChatEntity(userId, "Chat").apply { id = UUID.randomUUID() }
+        Mockito.`when`(chatRepository.pin(chat.id, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(chatRepository.findByIdAndUserId(chat.id, userId)).thenReturn(chat)
+
+        assertFailsWith<PinLimitReachedException> { chatService.pinChat(userId, chat.id) }
+    }
+
+    @Test
+    fun `pinChat and unpinChat of a missing or foreign chat fail as not found`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        Mockito.`when`(chatRepository.pin(chatId, userId, PinLimit.MAX)).thenReturn(0)
+        Mockito.`when`(chatRepository.unpin(chatId, userId)).thenReturn(0)
+
+        assertFailsWith<NotFoundException> { chatService.pinChat(userId, chatId) }
+        assertFailsWith<NotFoundException> { chatService.unpinChat(userId, chatId) }
+    }
 }

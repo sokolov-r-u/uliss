@@ -1,9 +1,9 @@
 import {type ReactNode, useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Dialog, ItemMenu, type ItemMenuAction, noteTitleText, OptionList, TextField} from '@uliss/design-system'
+import {Dialog, ItemMenu, type ItemMenuAction, noteTitleText, Notice, OptionList, TextField} from '@uliss/design-system'
 import {describeError} from '../../lib/apiHelpers'
 import {useLocation, useNavigate} from 'react-router-dom'
 import {AuthRequiredError} from '../../auth/apiClient'
-import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
+import {ChatApiError, deleteChat, notifyChatListChanged, pinChat, renameChat, unpinChat} from '../../chat/chatApi'
 import {normalizeTitle, TITLE_LIMIT} from '../../lib/titleRule'
 import {ChatNotesList} from '../links/ChatNotesList'
 import {
@@ -18,9 +18,13 @@ import {
     type Note,
     NoteApiError,
     notifyNotesChanged,
+    pinNote,
     renameNote,
     type SubNoteFate,
+    unpinNote,
 } from '../../notes/noteApi'
+import {NoticeOverlay} from '../notice/NoticeOverlay'
+import {PIN_LIMIT, pinnedChats, pinnedNotes, usePinnedIds} from '../pins/pinned'
 
 export type ItemActionTarget =
     | { kind: 'chat'; id: string; title: string; noteCount: number }
@@ -71,6 +75,14 @@ function failureStatus(error: unknown): number | undefined {
     return undefined
 }
 
+/** Why a pin or unpin failed, in the words of the message card. */
+export function pinFailureMessage(kind: ItemActionTarget['kind'], error: unknown): string {
+    const status = failureStatus(error)
+    if (status === 409) return `${PIN_LIMIT} ${kind}s are pinned already. Unpin one first.`
+    if (status === 404) return kind === 'chat' ? 'This chat no longer exists.' : 'This note no longer exists.'
+    return describeError(error)
+}
+
 function failureMessage(target: ItemActionTarget, error: unknown): string {
     const status = failureStatus(error)
     if (status === 409) {
@@ -104,6 +116,9 @@ export function ItemActions({
     const [subNotes, setSubNotes] = useState<SubNotes>({status: 'loading'})
     const [fate, setFate] = useState<SubNoteFate>('KEEP')
     const [subNotesRevision, setSubNotesRevision] = useState(0)
+    const pins = usePinnedIds(target.kind)
+    const pinned = pins.ids.has(target.id)
+    const [pinFailure, setPinFailure] = useState<{ unpin: boolean; message: string } | null>(null)
 
     // A note's delete dialog asks about its sub-notes, so it counts them first.
     useEffect(() => {
@@ -220,7 +235,40 @@ export function ItemActions({
         onDeleted?.()
     }
 
-    const actions: ItemMenuAction[] = []
+    async function togglePin(unpin: boolean) {
+        if (pendingRef.current) return
+        pendingRef.current = true
+        try {
+            if (unpin) await (target.kind === 'chat' ? unpinChat(target.id) : unpinNote(target.id))
+            else if (target.kind === 'chat') pinnedChats.addPinned(await pinChat(target.id))
+            else pinnedNotes.addPinned(await pinNote(target.id))
+        } catch (e) {
+            if (!(e instanceof AuthRequiredError)) setPinFailure({unpin, message: pinFailureMessage(target.kind, e)})
+        } finally {
+            pendingRef.current = false
+        }
+        // after a failure too: the lists show what the service holds now (e.g. another tab filled the pins)
+        // (the shared pinned list refetches on the same event)
+        if (target.kind === 'chat') notifyChatListChanged()
+        else notifyNotesChanged()
+    }
+
+    const actions: ItemMenuAction[] = [pinned ? {
+        label: 'Unpin',
+        onSelect: () => {
+            setAnchor(null)
+            void togglePin(true)
+        },
+    } : {
+        // the service refuses one more past the limit; the label says why before it is tried. Until the pinned list
+        // has loaded, whether this item is pinned is unknown, so Pin waits for it.
+        label: pins.full ? `Pin · ${PIN_LIMIT} max` : 'Pin',
+        disabled: !pins.ready || pins.full,
+        onSelect: () => {
+            setAnchor(null)
+            void togglePin(false)
+        },
+    }]
     if (target.kind === 'chat' || target.renamable) {
         actions.push({
             label: 'Rename',
@@ -258,6 +306,10 @@ export function ItemActions({
             {children(openMenu, anchor !== null)}
             {anchor && <ItemMenu anchor={anchor} label={`Actions for ${shownTitle}`}
                                  actions={actions} onClose={closeMenu}/>}
+            {pinFailure && <NoticeOverlay onBackdropClick={() => setPinFailure(null)}>
+                <Notice title={pinFailure.unpin ? `Could not unpin this ${target.kind}` : `Could not pin this ${target.kind}`}
+                        body={pinFailure.message} primary="Close" onPrimary={() => setPinFailure(null)}/>
+            </NoticeOverlay>}
             {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
                                             body={error ?? undefined}
                                             confirm={pending ? 'Saving…' : 'Save'} cancel="Cancel" busy={pending}

@@ -7,9 +7,11 @@ import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatSummaryContext
+import io.uliss.note_service.exception.PinLimitReachedException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.util.PinLimit
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -59,6 +61,29 @@ class ChatService(
             throw NotFoundException("chat id=$chatId not found")
         }
     }
+
+    /**
+     * Pins the owned chat on top of the pinned list; a pinned chat keeps its place. Fails with
+     * [PinLimitReachedException] when [PinLimit.MAX] chats are pinned already.
+     */
+    @Transactional
+    fun pinChat(userId: UUID, chatId: UUID): ChatEntity {
+        chatRepository.lockPins(userId)
+        if (chatRepository.pin(chatId, userId, PinLimit.MAX) == 0) {
+            val chat = getOwnedChat(userId, chatId)
+            if (chat.pinnedAt == null) throw PinLimitReachedException("chat")
+            return chat
+        }
+        return getOwnedChat(userId, chatId)
+    }
+
+    @Transactional
+    fun unpinChat(userId: UUID, chatId: UUID) {
+        if (chatRepository.unpin(chatId, userId) == 0) throw NotFoundException("chat id=$chatId not found")
+    }
+
+    /** The user's pinned chats, last pinned first. */
+    fun getPinnedChats(userId: UUID): List<ChatEntity> = chatRepository.findPinned(userId, PinLimit.MAX)
 
     @Transactional
     fun renameChat(userId: UUID, chatId: UUID, rawTitle: String): ChatEntity {

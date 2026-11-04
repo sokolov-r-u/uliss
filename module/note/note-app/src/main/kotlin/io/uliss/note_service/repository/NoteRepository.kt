@@ -4,9 +4,12 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.NoteStatusRow
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.util.UUID
 
 @Repository
@@ -85,4 +88,56 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
         @Param("status") status: NoteStatus,
         @Param("ids") ids: Collection<UUID>,
     ): List<UUID>
+
+    /** Serializes one user's note pins until the transaction ends, so two pins checked apart cannot pass the limit. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT 1
+            FROM (SELECT pg_advisory_xact_lock(hashtextextended('pins:note:' || CAST(:userId AS text), 0))) l
+        """,
+    )
+    fun lockPins(@Param("userId") userId: UUID): Int
+
+    /**
+     * Pins the owned, unpinned note while the user has fewer than [limit] pinned; 0 when it is pinned already, not
+     * theirs, or the limit is reached. Leaves `updated_at` and `version` alone.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.notes
+            SET pinned_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND user_id = :userId AND pinned_at IS NULL
+              AND (SELECT count(*) FROM note.notes WHERE user_id = :userId AND pinned_at IS NOT NULL) < :limit
+        """,
+    )
+    fun pin(@Param("id") id: UUID, @Param("userId") userId: UUID, @Param("limit") limit: Int): Int
+
+    /** Unpins the owned note; leaves `updated_at` and `version` alone. */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.notes
+            SET pinned_at = NULL
+            WHERE id = :id AND user_id = :userId
+        """,
+    )
+    fun unpin(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
+
+    /** The user's pinned notes, last pinned first. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT *
+            FROM note.notes
+            WHERE user_id = :userId AND pinned_at IS NOT NULL
+            ORDER BY pinned_at DESC, id DESC
+            LIMIT :limit
+        """,
+    )
+    fun findPinned(@Param("userId") userId: UUID, @Param("limit") limit: Int): List<NoteEntity>
 }

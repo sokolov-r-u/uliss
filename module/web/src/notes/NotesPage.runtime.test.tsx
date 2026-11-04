@@ -8,7 +8,8 @@ import {NotesPage} from './NotesPage'
 
 vi.mock('./noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./noteApi')>()
-    return {...actual, listNotes: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([]))}
+    return {...actual, listNotes: vi.fn(), renameNote: vi.fn(), deleteNote: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([])),
+        listPinnedNotes: vi.fn(() => Promise.resolve([]))}
 })
 
 const mockedListNotes = vi.mocked(listNotes)

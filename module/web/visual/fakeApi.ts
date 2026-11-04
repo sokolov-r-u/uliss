@@ -11,6 +11,8 @@
  * as a chat already being summarized.
  * Notes can move under notes and back, and a note
  * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
+ * Chats and notes can be pinned (nothing is pinned at first): the pages leave pinned items out, as in the service;
+ * `?pins=refuse` answers every pin with the limit refusal, as when another tab filled the list.
  */
 import {CHAT_MESSAGES, CHATS, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -26,6 +28,32 @@ const params = new URLSearchParams(location.search)
 const empty = params.get('data') === 'empty'
 // `?links=on` links chat c1 with notes n1, n2 and n3 (a long title); without it the panels show their empty states, as in the snapshots.
 const CHAT_NOTE_LINKS: Array<[string, string]> = params.get('links') === 'on' ? [['c1', 'n1'], ['c1', 'n2'], ['c1', 'n3']] : []
+
+/** Pinned ids by kind, last pinned first; up to [PIN_LIMIT] each. */
+const PIN_LIMIT = 15
+const pins = {chats: [] as string[], notes: [] as string[]}
+
+function pinResponse(path: string, method: string, chats: typeof CHATS, notes: typeof NOTES): Response | null {
+    if (path === '/note/chats/pinned') return json(pins.chats.flatMap((id) => chats.filter((item) => item.id === id)))
+    if (path === '/note/notes/pinned') {
+        return json(pins.notes.flatMap((id) => notes.filter((item) => item.id === id)).map(withParent))
+    }
+    const pin = path.match(/^\/note\/(chats|notes)\/([^/]+)\/pin$/)
+    if (!pin) return null
+    const kind = pin[1] as 'chats' | 'notes'
+    const items: Array<{ id: string }> = kind === 'chats' ? chats : notes
+    const found = items.find((item) => item.id === pin[2])
+    if (!found) return json({}, 404)
+    if (method === 'DELETE') {
+        pins[kind] = pins[kind].filter((id) => id !== found.id)
+        return json(null, 204)
+    }
+    if (!pins[kind].includes(found.id)) {
+        if (params.get('pins') === 'refuse' || pins[kind].length >= PIN_LIMIT) return json({code: 'PIN_LIMIT_REACHED'}, 409)
+        pins[kind] = [found.id, ...pins[kind]]
+    }
+    return json(kind === 'notes' ? withParent(found as typeof NOTES[number]) : found)
+}
 
 function json(body: unknown, status = 200): Response {
     if (status === 204) return new Response(null, {status})
@@ -315,9 +343,13 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         found.content = 'Written again from the whole chat.'
         return json(withParent(found), 202)
     }
-    if (url.pathname === '/note/chats') return listPage(chats, url.searchParams.get('cursor'))
+    const pinned = pinResponse(url.pathname, method, chats, notes)
+    if (pinned) return pinned
+    if (url.pathname === '/note/chats') {
+        return listPage(chats.filter((item) => !pins.chats.includes(item.id)), url.searchParams.get('cursor'))
+    }
     if (url.pathname === '/note/notes') {
-        const page = await listPage(notes, url.searchParams.get('cursor'), true)
+        const page = await listPage(notes.filter((item) => !pins.notes.includes(item.id)), url.searchParams.get('cursor'), true)
         return page.ok ? json({...await page.json(), total: notes.length}) : page
     }
     // A change of a note's place fails once or waits while asked to, so the place dialog's states can be checked

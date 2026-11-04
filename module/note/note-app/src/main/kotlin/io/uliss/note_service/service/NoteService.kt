@@ -10,6 +10,7 @@ import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.exception.NoteNotReadyException
 import io.uliss.note_service.exception.NoteUpdatingException
 import io.uliss.note_service.exception.NoteVersionConflictException
+import io.uliss.note_service.exception.PinLimitReachedException
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.repository.ChatNoteRepository
@@ -20,6 +21,7 @@ import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.getOwnedNote
+import io.uliss.note_service.util.PinLimit
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
@@ -45,6 +47,28 @@ class NoteService(
         val ids = positions.items.map { it.id }
         val page = KeysetPage(toResponses(userId) { orderedById(ids) }, positions.nextCursor)
         return NoteListPage(page, noteListStore.count(userId))
+    }
+
+    /** The user's pinned notes, last pinned first; the pages of [getNotes] leave them out. */
+    fun getPinnedNotes(userId: UUID): List<NoteResponse> =
+        toResponses(userId) { noteRepository.findPinned(userId, PinLimit.MAX) }
+
+    /**
+     * Pins the owned note on top of the pinned list; a pinned note keeps its place. Any status may be pinned. Fails with
+     * [PinLimitReachedException] when [PinLimit.MAX] notes are pinned already.
+     */
+    @Transactional
+    fun pinNote(userId: UUID, noteId: UUID): NoteResponse {
+        noteRepository.lockPins(userId)
+        val pinned = noteRepository.pin(noteId, userId, PinLimit.MAX) > 0
+        val note = noteRepository.getOwnedNote(userId, noteId)
+        if (!pinned && note.pinnedAt == null) throw PinLimitReachedException("note")
+        return getNote(userId, noteId)
+    }
+
+    @Transactional
+    fun unpinNote(userId: UUID, noteId: UUID) {
+        if (noteRepository.unpin(noteId, userId) == 0) throw NotFoundException("note id=$noteId not found")
     }
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse {
