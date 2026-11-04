@@ -10,6 +10,8 @@ data class ChatResponse(
     val noteCount: Int,
     val createdAt: Instant?,
     val updatedAt: Instant?,
+    /** When the user pinned it; null for an unpinned chat. */
+    val pinnedAt: Instant? = null,
 )
 
-fun ChatWithNoteCount.toResponse() = ChatResponse(chat.id, chat.title, noteCount, chat.createdAt, chat.updatedAt)
+fun ChatWithNoteCount.toResponse() = ChatResponse(chat.id, chat.title, noteCount, chat.createdAt, chat.updatedAt, chat.pinnedAt)

@@ -802,3 +802,15 @@ profile until the next rebuild. Fix options: reset `attempts` when a PENDING eve
 the payload which mode (update or a rebuild id) the attempts belong to and act only on a match. The terminal-failure
 log also prints the live profile's mark while a rebuild runs.
 
+
+## Pins: an unpinned row disappears until its list page refetches (`web`)
+
+**Status:** accepted for now (2026-11-04, `docs/tasks/2026-11-03-pin-chats-notes.md`).
+
+An unpin fires one list-change event, which refetches the shared pinned list (`ui/pins/pinned.ts`) and the keyset page
+separately. When the pinned list answers first, the row leaves the Pinned group while the page still shown was fetched
+without it, so on a slow network the row is gone for a moment from the side nav and `/chats` / `/notes`. A pin does not
+have this (`addPinned` shows it at once, `withoutPinned` hides the page copy). Fix options: hold a just unpinned item in
+the page until its next result lands, or refetch the pinned list only after the page refetch has been applied.
+Smaller related gaps: with the pinned list failed, the row menu on a chat or note screen shows Pin disabled without a
+reason, and the side nav says "Your chats and notes did not load" when only a pinned list failed.

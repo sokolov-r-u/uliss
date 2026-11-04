@@ -36,6 +36,7 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
@@ -61,6 +62,21 @@ class ChatController(
     ): ChatPageResponse {
         ListPageLimit.check(limit)
         return chatFacade.getChats(jwt.getUserId(), cursor?.let(ListCursor::decode), limit).toResponse()
+    }
+
+    /** The pinned chats, last pinned first; the pages of [getChats] leave them out. */
+    @GetMapping("/pinned")
+    fun getPinnedChats(@AuthenticationPrincipal jwt: Jwt): List<ChatResponse> =
+        chatFacade.getPinnedChats(jwt.getUserId()).map { it.toResponse() }
+
+    @PutMapping("/{chatId}/pin")
+    fun pinChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID): ChatResponse =
+        chatFacade.pinChat(jwt.getUserId(), chatId).toResponse()
+
+    @DeleteMapping("/{chatId}/pin")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun unpinChat(@AuthenticationPrincipal jwt: Jwt, @PathVariable chatId: UUID) {
+        chatFacade.unpinChat(jwt.getUserId(), chatId)
     }
 
     @GetMapping("/{chatId}")

@@ -6,6 +6,7 @@ import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
+import java.time.Instant
 import java.util.UUID
 
 @Entity
@@ -28,6 +29,10 @@ class NoteEntity(
     /** The user's emoji shown before the title (`NoteIconNormalizer`); the model never sets it. */
     var icon: String? = null,
 ) : AuditEntity() {
+
+    /** Set and cleared only by `NoteRepository`'s pin queries, so a save of a note loaded earlier never undoes a pin. */
+    @Column(name = "pinned_at", insertable = false, updatable = false)
+    var pinnedAt: Instant? = null
 
     override fun toString(): String {
         return "NoteEntity(id=$id, userId=$userId, source=$source, status=$status" + auditFields()

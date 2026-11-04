@@ -15,9 +15,9 @@ import java.util.UUID
 class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
 
     /**
-     * Up to [limit] positions of the user's notes strictly after [after] (from the newest when null). A non-empty
-     * [constellationIds] keeps the notes of those constellations and their subtrees with all their sub-notes; ids that
-     * are not the user's add nothing.
+     * Up to [limit] positions of the user's unpinned notes strictly after [after] (from the newest when null). A
+     * non-empty [constellationIds] keeps the notes of those constellations and their subtrees with all their sub-notes;
+     * ids that are not the user's add nothing.
      */
     fun findPage(
         userId: UUID,
@@ -26,6 +26,8 @@ class NoteListStore(private val jdbcTemplate: NamedParameterJdbcTemplate) {
         constellationIds: Set<UUID> = emptySet(),
     ): List<ListCursor> {
         val query = Query(userId, constellationIds)
+        // pinned notes come in their own list (`NoteRepository.findPinned`)
+        query.conditions += "pinned_at IS NULL"
         if (after != null) {
             query.conditions += "(updated_at, id) < (:afterAt, :afterId)"
             query.params.addValue("afterAt", Timestamp.from(after.updatedAt)).addValue("afterId", after.id)

@@ -51,6 +51,16 @@ class ChatFacade(
         return noteService.getChatNotes(userId, chatId)
     }
 
+    fun getPinnedChats(userId: UUID): List<ChatWithNoteCount> {
+        val chats = chatService.getPinnedChats(userId)
+        val counts = noteService.getNoteCounts(chats.map { it.id })
+        return chats.map { ChatWithNoteCount(it, counts[it.id] ?: 0) }
+    }
+
+    fun pinChat(userId: UUID, chatId: UUID): ChatWithNoteCount = withNoteCount(chatService.pinChat(userId, chatId))
+
+    fun unpinChat(userId: UUID, chatId: UUID) = chatService.unpinChat(userId, chatId)
+
     fun renameChat(userId: UUID, chatId: UUID, title: String): ChatWithNoteCount =
         withNoteCount(chatService.renameChat(userId, chatId, title))
 

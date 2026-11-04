@@ -6,6 +6,8 @@ import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
 import org.springframework.data.repository.query.Param
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Propagation
+import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 import java.util.UUID
 
@@ -42,13 +44,13 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
     ): ChatEntity?
 
     fun findByIdAndUserId(id: UUID, userId: UUID): ChatEntity?
-    /** The user's chats by last activity, newest first. */
+    /** The user's unpinned chats by last activity, newest first; pinned ones come from [findPinned]. */
     @Query(
         nativeQuery = true,
         value = """
             SELECT *
             FROM note.chat
-            WHERE user_id = :userId
+            WHERE user_id = :userId AND pinned_at IS NULL
             ORDER BY updated_at DESC, id DESC
             LIMIT :limit
         """,
@@ -61,7 +63,7 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
         value = """
             SELECT *
             FROM note.chat
-            WHERE user_id = :userId
+            WHERE user_id = :userId AND pinned_at IS NULL
               AND (updated_at, id) < (:updatedAt, :id)
             ORDER BY updated_at DESC, id DESC
             LIMIT :limit
@@ -87,4 +89,56 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
         """,
     )
     fun touchActivity(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
+
+    /** Serializes one user's chat pins until the transaction ends, so two pins checked apart cannot pass the limit. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT 1
+            FROM (SELECT pg_advisory_xact_lock(hashtextextended('pins:chat:' || CAST(:userId AS text), 0))) l
+        """,
+    )
+    fun lockPins(@Param("userId") userId: UUID): Int
+
+    /**
+     * Pins the owned, unpinned chat while the user has fewer than [limit] pinned; 0 when it is pinned already, not
+     * theirs, or the limit is reached. Leaves `updated_at` and `version` alone.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.chat
+            SET pinned_at = CURRENT_TIMESTAMP
+            WHERE id = :id AND user_id = :userId AND pinned_at IS NULL
+              AND (SELECT count(*) FROM note.chat WHERE user_id = :userId AND pinned_at IS NOT NULL) < :limit
+        """,
+    )
+    fun pin(@Param("id") id: UUID, @Param("userId") userId: UUID, @Param("limit") limit: Int): Int
+
+    /** Unpins the owned chat; leaves `updated_at` and `version` alone. */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.chat
+            SET pinned_at = NULL
+            WHERE id = :id AND user_id = :userId
+        """,
+    )
+    fun unpin(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
+
+    /** The user's pinned chats, last pinned first. */
+    @Query(
+        nativeQuery = true,
+        value = """
+            SELECT *
+            FROM note.chat
+            WHERE user_id = :userId AND pinned_at IS NOT NULL
+            ORDER BY pinned_at DESC, id DESC
+            LIMIT :limit
+        """,
+    )
+    fun findPinned(@Param("userId") userId: UUID, @Param("limit") limit: Int): List<ChatEntity>
 }

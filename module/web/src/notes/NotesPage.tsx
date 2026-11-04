@@ -23,6 +23,8 @@ import {ScreenHeader} from '../ui/ScreenHeader'
 import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
 import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from './noteApi'
+import {pinnedNotes as pinnedNotesStore, usePinnedNotes, withoutPinned} from '../ui/pins/pinned'
+import {PinnedFailed} from '../ui/pins/PinnedFailed'
 import './notes.css'
 import {formatShortDate} from '../ui/format'
 
@@ -40,6 +42,10 @@ export interface NotesViewProps {
     footer?: ReactNode
     /** The constellation filter: its header button, its bar under the header, and its open picker. */
     filter?: NotesFilterSlots
+    /** The pinned notes, shown above the months under their own label; [notes] leaves them out. */
+    pinned?: NoteViewModel[]
+    /** Said above the rows (e.g. that the pinned notes did not load); the list is not called empty while it is set. */
+    notice?: ReactNode
 }
 
 export interface NotesFilterSlots {
@@ -53,16 +59,17 @@ export interface NotesFilterSlots {
     onClear?: () => void
 }
 
-export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, filter}: NotesViewProps) {
-    const unread = notes.filter((note) => note.unread).length
+export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, filter, pinned = [],
+                              notice}: NotesViewProps) {
+    const unread = [...pinned, ...notes].filter((note) => note.unread).length
     const filtered = filter?.onClear !== undefined
-    const count = (filtered ? filter?.count : undefined) ?? total ?? notes.length
+    const count = (filtered ? filter?.count : undefined) ?? total ?? pinned.length + notes.length
     const header = (right?: ReactNode) => <ScreenHeader kicker="Notes" count={count}
                                                         right={right || filter?.button ? <span className="notes-head-actions">
                                                             {right}{filter?.button}
                                                         </span> : undefined}/>
 
-    if (notes.length === 0) {
+    if (notes.length === 0 && pinned.length === 0 && !notice) {
         return <div className="product-view">{header()}
             {filter?.bar}
             <div className="product-body"><div className="product-empty">
@@ -91,7 +98,11 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
             {header(unread > 0 ? <Kicker size={9} spacing="2px" color="var(--text-faint)">{unread} new</Kicker> : undefined)}
             {filter?.bar}
             <div className="product-body"><div className="product-list">
-                {groupByMonth(notes, (note) => note.listedAt).map((group, groupIndex) => <div
+                {notice}
+                {[
+                    ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
+                    ...groupByMonth(notes, (note) => note.listedAt),
+                ].map((group, groupIndex) => <div
                     key={`${group.label}-${groupIndex}`} className="list-group">
                     {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
                                                                         color="var(--text-faint)">{group.label}</Kicker></div>}
@@ -194,7 +205,8 @@ export function NotesPage() {
         if (tree && knownFilter(filter, tree).length !== filter.length) setFilter(knownFilter(filter, tree))
     })
 
-    const items = useMemo(() => tree ? pickerItems(tree) : [], [tree])
+    const pinned = usePinnedNotes()
+    const pickerList = useMemo(() => tree ? pickerItems(tree) : [], [tree])
     const filterSlots: NotesFilterSlots = {
         button: tree && tree.flat.length > 0 ? <IconButton title={filter.length >= FILTER_LIMIT
             ? `Up to ${FILTER_LIMIT} constellations` : 'Filter by constellation'}
@@ -219,7 +231,7 @@ export function NotesPage() {
             <button type="button" className="notes-filter-scrim" tabIndex={-1} aria-hidden="true"
                     onClick={() => setPickerOpen(false)}/>
             <div className="notes-filter-picker">
-                <ConstellationPicker items={items} exclude={filter} label="Find a constellation"
+                <ConstellationPicker items={pickerList} exclude={filter} label="Find a constellation"
                                      action={(name) => `Show ${name}`}
                                      onPick={(id) => {
                                          setFilter(addToFilter(filter, id, tree))
@@ -233,7 +245,11 @@ export function NotesPage() {
         onClear: filter.length > 0 ? () => setFilter([]) : undefined,
     }
 
-    if (state.status === 'loading') {
+    const pinnedNotes = pinned.status === 'ready' ? pinned.items : []
+    // a pinned note lives only in the Pinned group, also while a page fetched before the pin is still shown
+    const items = state.status === 'ready' ? withoutPinned(state.items, pinnedNotes) : []
+    // "Nothing written down yet" waits for the pinned list: every note may be pinned
+    if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
         return <div className="product-view"><ScreenHeader kicker="Notes"/>{filterSlots.bar}
             <p className="notes-state">Loading…</p></div>
     }
@@ -245,7 +261,9 @@ export function NotesPage() {
             </div>
         </div>
     }
-    return <NotesView notes={toNoteViewModels(state.items, noteChangedAt)} total={state.total}
+    return <NotesView notes={toNoteViewModels(items, noteChangedAt)} total={state.total}
+                      pinned={toNoteViewModels(pinnedNotes, noteChangedAt)}
+                      notice={pinned.status === 'error' ? <PinnedFailed onRetry={pinnedNotesStore.refresh}/> : undefined}
                       onOpen={(note) => navigate(`/notes/${note.id}`)}
                       onStartChat={() => navigate('/chats')}
                       filter={filterSlots}

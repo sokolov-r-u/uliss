@@ -2,18 +2,18 @@ import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {deleteChat, listChats, notifyChatListChanged} from '../../chat/chatApi'
-import {listNotes, notifyNotesChanged} from '../../notes/noteApi'
+import {deleteChat, listChats, listPinnedChats, notifyChatListChanged} from '../../chat/chatApi'
+import {listNotes, listPinnedNotes, notifyNotesChanged} from '../../notes/noteApi'
 import {SideNav} from './SideNav'
 
 vi.mock('../../auth/AuthContext', () => ({useAuth: () => ({logout: vi.fn()})}))
 vi.mock('../../chat/chatApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../chat/chatApi')>()
-    return {...actual, listChats: vi.fn(), deleteChat: vi.fn()}
+    return {...actual, listChats: vi.fn(), deleteChat: vi.fn(), listPinnedChats: vi.fn()}
 })
 vi.mock('../../notes/noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../notes/noteApi')>()
-    return {...actual, listNotes: vi.fn()}
+    return {...actual, listNotes: vi.fn(), listPinnedNotes: vi.fn()}
 })
 
 function renderNav(path: string) {
@@ -44,7 +44,90 @@ describe('SideNav', () => {
             {id: 'n2', source: 'CHAT_SUMMARY', status: 'READY', title: 'Reading list', content: 'Body',
                 createdAt: new Date().toISOString()},
         ], nextCursor: null, total: 2, allTotal: 2})
+        vi.mocked(listPinnedChats).mockReset().mockResolvedValue([])
+        vi.mocked(listPinnedNotes).mockReset().mockResolvedValue([])
         localStorage.clear()
+    })
+
+    it('shows the pinned items first on each tab, under their own label', async () => {
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c9', title: 'Pinned trip', noteCount: 0}])
+        vi.mocked(listPinnedNotes).mockResolvedValue([
+            {id: 'n9', source: 'MANUAL', status: 'READY', title: 'Pinned plan', content: 'Body'},
+        ])
+        renderNav('/chats/c1')
+
+        const pinnedChat = await screen.findByRole('button', {name: 'Pinned trip'})
+        expect(screen.getByText('Pinned').compareDocumentPosition(pinnedChat)).toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+        expect(pinnedChat.compareDocumentPosition(screen.getByRole('button', {name: 'Trip'})))
+            .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+
+        await userEvent.click(screen.getByRole('tab', {name: 'Notes'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned plan'})).toBeInTheDocument()
+        expect(screen.getByText('Pinned')).toBeInTheDocument()
+        expect(screen.queryByRole('button', {name: 'Pinned trip'})).not.toBeInTheDocument()
+    })
+
+    it('with only pinned items is not an empty account', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 1, allTotal: 1})
+        vi.mocked(listPinnedNotes).mockResolvedValue([
+            {id: 'n9', source: 'MANUAL', status: 'READY', title: 'Pinned plan', content: 'Body'},
+        ])
+        renderNav('/chats/c1')
+        await userEvent.click(await screen.findByRole('tab', {name: 'Notes'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned plan'})).toBeInTheDocument()
+        expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument()
+    })
+
+    it('a failed pinned list with nothing else to show is a failed load, not an empty account', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listNotes).mockResolvedValue({items: [], nextCursor: null, total: 1, allTotal: 1})
+        vi.mocked(listPinnedNotes).mockRejectedValueOnce(new Error('down')).mockResolvedValue([
+            {id: 'n9', source: 'MANUAL', status: 'READY', title: 'Pinned plan', content: 'Body'},
+        ])
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('Could not load')).toBeInTheDocument()
+        expect(screen.queryByText('Nothing here yet')).not.toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+        await userEvent.click(await screen.findByRole('tab', {name: 'Notes'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned plan'})).toBeInTheDocument()
+    })
+
+    it('says when the pinned items did not load and loads them again on Retry', async () => {
+        vi.mocked(listPinnedChats).mockRejectedValueOnce(new Error('down'))
+            .mockResolvedValue([{id: 'c9', title: 'Pinned trip', noteCount: 0}])
+        renderNav('/chats/c1')
+
+        expect(await screen.findByText('Pinned items did not load.')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Trip'})).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Retry'}))
+
+        expect(await screen.findByRole('button', {name: 'Pinned trip'})).toBeInTheDocument()
+        expect(screen.queryByText('Pinned items did not load.')).not.toBeInTheDocument()
+    })
+
+    it('shows a pinned chat once even while a page fetched before the pin still lists it', async () => {
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        renderNav('/chats/c1')
+
+        await screen.findByText('Pinned')
+        expect(screen.getAllByRole('button', {name: 'Books'})).toHaveLength(1)
+    })
+
+    it('moves a chat into the pinned group when the chat list changes', async () => {
+        renderNav('/chats/c1')
+        await screen.findByRole('button', {name: 'Books'})
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        vi.mocked(listChats).mockResolvedValue({items: [{id: 'c1', title: 'Trip', noteCount: 0}], nextCursor: null})
+
+        act(() => notifyChatListChanged())
+
+        expect(await screen.findByText('Pinned')).toBeInTheDocument()
+        expect(screen.getAllByRole('button', {name: 'Books'})).toHaveLength(1)
     })
 
     it('leaves the route of a chat deleted from the sidebar', async () => {

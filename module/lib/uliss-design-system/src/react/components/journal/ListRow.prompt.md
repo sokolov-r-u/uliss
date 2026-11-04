@@ -11,6 +11,8 @@ One line per note or chat. Dense index, not a feed.
   out for chats, which have no emoji.
 - **Absolute dates only.** 'Jun 22'. No "yesterday", no "2h ago".
 - `meta` is `star` + link count on notes, `noteDoc` + note count on chats.
+- A row without `meta` or `date` draws no column for it: a bare title row (the side nav) gives the whole line to its
+  title. Rows of one list that all pass `date` stay aligned on the 44px date column.
 - `unread` shows the dot; `dim` greys everything already read. Both together are how a fresh row stands out — no badges,
   no bold.
 - Rows sit directly on the ground inside an 18px gutter, separated by nothing but their own height.
