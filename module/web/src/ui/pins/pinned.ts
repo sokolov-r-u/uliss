@@ -16,7 +16,10 @@ export interface PinnedStore<T extends { id: string }> {
     getSnapshot: () => PinnedState<T>
     /** Fetches again now, e.g. on Retry after a failed load. */
     refresh: () => void
-    /** Puts a just pinned item on top at once, before the refetch that follows the pin confirms it. */
+    /**
+     * Shows a just pinned item at once, before the refetch that follows the pin confirms it: on top when new, in its
+     * place when it was pinned already (the service keeps that place).
+     */
     addPinned: (item: T) => void
 }
 
@@ -75,7 +78,10 @@ export function createPinnedStore<T extends { id: string }>(
         refresh,
         addPinned(item) {
             if (state.status !== 'ready') return
-            set({status: 'ready', items: [item, ...state.items.filter((other) => other.id !== item.id)]})
+            const known = state.items.some((other) => other.id === item.id)
+            set({status: 'ready', items: known
+                ? state.items.map((other) => other.id === item.id ? item : other)
+                : [item, ...state.items]})
         },
     }
 }

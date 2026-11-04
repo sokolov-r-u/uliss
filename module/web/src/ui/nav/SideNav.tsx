@@ -159,9 +159,9 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
                             <div className="side-nav-list" role="tabpanel"
                                  aria-label={tab === 'chats' ? 'Recent chats' : 'Recent notes'}>
                                 {tab === 'chats' && pinnedChatsState.status === 'error' &&
-                                    <PinnedFailed onRetry={pinnedChatsStore.refresh}/>}
+                                    <PinnedFailed announce={false} onRetry={pinnedChatsStore.refresh}/>}
                                 {tab === 'notes' && pinnedNotesState.status === 'error' &&
-                                    <PinnedFailed onRetry={pinnedNotesStore.refresh}/>}
+                                    <PinnedFailed announce={false} onRetry={pinnedNotesStore.refresh}/>}
                                 {tab === 'chats' && chatGroups.map((group) => (
                                     <div key={group.label} className="side-nav-group">
                                         <Kicker size={8.5} spacing="2.5px" color="var(--text-faint)">{group.label}</Kicker>

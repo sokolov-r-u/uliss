@@ -110,7 +110,7 @@ describe('createPinnedStore', () => {
         expect(load).toHaveBeenCalledTimes(2)
     })
 
-    it('puts a just pinned item on top at once, once, and only into a loaded list', async () => {
+    it('puts a just pinned item on top at once, keeps a pinned one in its place, and waits for a loaded list', async () => {
         const store = createPinnedStore<Item>(vi.fn().mockResolvedValue([{id: 'a'}, {id: 'b'}]), changes().subscribe)
         store.addPinned({id: 'x'})
         expect(store.getSnapshot()).toEqual({status: 'loading'})
@@ -118,7 +118,9 @@ describe('createPinnedStore', () => {
         await settle()
 
         store.addPinned({id: 'b'})
+        expect(store.getSnapshot()).toEqual({status: 'ready', items: [{id: 'a'}, {id: 'b'}]})
 
-        expect(store.getSnapshot()).toEqual({status: 'ready', items: [{id: 'b'}, {id: 'a'}]})
+        store.addPinned({id: 'c'})
+        expect(store.getSnapshot()).toEqual({status: 'ready', items: [{id: 'c'}, {id: 'a'}, {id: 'b'}]})
     })
 })
