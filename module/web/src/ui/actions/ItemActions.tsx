@@ -306,8 +306,7 @@ export function ItemActions({
                                  actions={actions} onClose={closeMenu}/>}
             {pinFailure && <NoticeOverlay onBackdropClick={() => setPinFailure(null)}>
                 <Notice title={pinFailure.unpin ? `Could not unpin this ${target.kind}` : `Could not pin this ${target.kind}`}
-                        body={pinFailure.message} primary="Close" onPrimary={() => setPinFailure(null)}
-                        onClose={() => setPinFailure(null)} showClose/>
+                        body={pinFailure.message} primary="Close" onPrimary={() => setPinFailure(null)}/>
             </NoticeOverlay>}
             {dialog === 'rename' && <Dialog title={target.kind === 'chat' ? 'Rename chat' : 'Rename note'}
                                             body={error ?? undefined}

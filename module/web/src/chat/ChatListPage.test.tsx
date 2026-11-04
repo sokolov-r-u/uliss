@@ -2,18 +2,42 @@ import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {MemoryRouter} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
-import {deleteChat, listChats} from './chatApi'
+import {deleteChat, listChats, listPinnedChats} from './chatApi'
 import {ChatListPage} from './ChatListPage'
 
 vi.mock('./chatApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('./chatApi')>()
-    return {...actual, listChats: vi.fn(), deleteChat: vi.fn()}
+    return {...actual, listChats: vi.fn(), deleteChat: vi.fn(), listPinnedChats: vi.fn()}
 })
 
 describe('ChatListPage', () => {
     beforeEach(() => {
         vi.mocked(listChats).mockReset()
         vi.mocked(deleteChat).mockReset().mockResolvedValue(undefined)
+        vi.mocked(listPinnedChats).mockReset().mockResolvedValue([])
+    })
+
+    it('puts the pinned chats above the months under their own label', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [
+            {id: 'c1', title: 'Trip', noteCount: 0, createdAt: '2026-06-22T09:00:00Z'},
+        ], nextCursor: null})
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        render(<MemoryRouter><ChatListPage/></MemoryRouter>)
+
+        const pinned = await screen.findByText('Pinned')
+        expect(pinned.compareDocumentPosition(screen.getByRole('button', {name: /^Books/})))
+            .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+        expect(screen.getByRole('button', {name: /^Books/}).compareDocumentPosition(screen.getByRole('button', {name: /^Trip/})))
+            .toBe(Node.DOCUMENT_POSITION_FOLLOWING)
+    })
+
+    it('with only pinned chats does not say there are none', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c2', title: 'Books', noteCount: 1}])
+        render(<MemoryRouter><ChatListPage/></MemoryRouter>)
+
+        expect(await screen.findByRole('button', {name: /^Books/})).toBeInTheDocument()
+        expect(screen.queryByText('No chats yet')).not.toBeInTheDocument()
     })
 
     it('shows each chat note count and its actions button', async () => {

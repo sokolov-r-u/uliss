@@ -74,4 +74,19 @@ describe('notes list presentation', () => {
         const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
         expect(screen.getByText(june)).toBeInTheDocument()
     })
+
+    it('puts the pinned notes above the months, and does not call an account with only pinned notes empty', () => {
+        const pinned = [{id: 'p', ordinal: 1, title: 'Pinned note', excerpt: '', date: 'Sep 11', linkCount: 0}]
+        const notes = [{id: '1', ordinal: 1, title: 'A note', excerpt: '', date: 'Sep 12', linkCount: 0,
+            listedAt: '2026-09-12T10:00:00Z'}]
+        const {unmount} = render(<MemoryRouter><NotesView notes={notes} pinned={pinned} total={2}/></MemoryRouter>)
+
+        const labels = screen.getAllByText(/^(Pinned|September 2026)$/).map((label) => label.textContent)
+        expect(labels).toEqual(['Pinned', 'September 2026'])
+        unmount()
+
+        render(<MemoryRouter><NotesView notes={[]} pinned={pinned} total={1}/></MemoryRouter>)
+        expect(screen.getByText('Pinned note')).toBeInTheDocument()
+        expect(screen.queryByText('Nothing written down yet')).not.toBeInTheDocument()
+    })
 })

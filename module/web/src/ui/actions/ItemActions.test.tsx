@@ -3,25 +3,32 @@ import userEvent from '@testing-library/user-event'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {ListRow} from '@uliss/design-system'
 import {MemoryRouter, useLocation, useNavigate} from 'react-router-dom'
-import {ChatApiError, deleteChat, notifyChatListChanged, renameChat} from '../../chat/chatApi'
+import {ChatApiError, deleteChat, listPinnedChats, notifyChatListChanged, pinChat, renameChat, unpinChat} from '../../chat/chatApi'
 import {
     deleteNote,
     listChatNotes,
+    listPinnedNotes,
     listSubNotes,
     type Note,
     NoteApiError,
+    notifyNotesChanged,
+    pinNote,
     renameNote,
     subscribeToNotesChanges,
+    unpinNote,
 } from '../../notes/noteApi'
 import {deleteChatBody, ItemActions, type ItemActionsProps, type ItemActionTarget} from './ItemActions'
 
 vi.mock('../../chat/chatApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../chat/chatApi')>()
-    return {...actual, renameChat: vi.fn(), deleteChat: vi.fn(), notifyChatListChanged: vi.fn()}
+    return {...actual, renameChat: vi.fn(), deleteChat: vi.fn(), notifyChatListChanged: vi.fn(),
+        listPinnedChats: vi.fn(() => Promise.resolve([])), pinChat: vi.fn(), unpinChat: vi.fn()}
 })
 vi.mock('../../notes/noteApi', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../notes/noteApi')>()
-    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([]))}
+    return {...actual, renameNote: vi.fn(), deleteNote: vi.fn(), listChatNotes: vi.fn(), listSubNotes: vi.fn(() => Promise.resolve([])),
+        listPinnedNotes: vi.fn(() => Promise.resolve([])), pinNote: vi.fn(), unpinNote: vi.fn(),
+        notifyNotesChanged: vi.fn(actual.notifyNotesChanged)}
 })
 
 const chat: ItemActionTarget = {kind: 'chat', id: 'c1', title: 'Trip', noteCount: 2}
@@ -61,6 +68,79 @@ describe('ItemActions', () => {
         vi.mocked(renameChat).mockReset()
         vi.mocked(listChatNotes).mockReset().mockResolvedValue([])
         vi.mocked(listSubNotes).mockReset().mockResolvedValue([])
+        vi.mocked(listPinnedChats).mockReset().mockResolvedValue([])
+        vi.mocked(listPinnedNotes).mockReset().mockResolvedValue([])
+        vi.mocked(pinChat).mockReset()
+        vi.mocked(unpinChat).mockReset()
+        vi.mocked(pinNote).mockReset()
+        vi.mocked(unpinNote).mockReset()
+        vi.mocked(notifyNotesChanged).mockClear()
+    })
+
+    const pinnedNote = (id: string): Note => ({id, source: 'MANUAL', status: 'READY', title: id, content: 'x'})
+
+    it('pins an unpinned note and tells the note lists', async () => {
+        vi.mocked(pinNote).mockResolvedValue(pinnedNote('n1'))
+        renderRow(note)
+        await openMenu('Idea')
+
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Pin'}))
+
+        expect(pinNote).toHaveBeenCalledWith('n1')
+        await waitFor(() => expect(notifyNotesChanged).toHaveBeenCalled())
+        expect(screen.queryByRole('menu')).not.toBeInTheDocument()
+    })
+
+    it('offers Unpin for a pinned chat and unpins it', async () => {
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c1', title: 'Trip', noteCount: 2}])
+        vi.mocked(unpinChat).mockResolvedValue(undefined)
+        renderRow(chat)
+        await waitFor(() => expect(listPinnedChats).toHaveBeenCalled())
+        await openMenu('Trip')
+
+        expect(screen.queryByRole('menuitem', {name: 'Pin'})).not.toBeInTheDocument()
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Unpin'}))
+
+        expect(unpinChat).toHaveBeenCalledWith('c1')
+        await waitFor(() => expect(notifyChatListChanged).toHaveBeenCalled())
+    })
+
+    it('greys Pin and names the limit while 15 notes are pinned', async () => {
+        vi.mocked(listPinnedNotes).mockResolvedValue(Array.from({length: 15}, (_, index) => pinnedNote(`p${index}`)))
+        renderRow(note)
+        await openMenu('Idea')
+
+        const pin = await screen.findByRole('menuitem', {name: 'Pin · 15 max'})
+
+        expect(pin).toBeDisabled()
+        expect(pinNote).not.toHaveBeenCalled()
+    })
+
+    it('a refused pin says why in a notice and refreshes the lists', async () => {
+        vi.mocked(pinNote).mockRejectedValue(new NoteApiError('http', 'note pin failed (409)', 409, undefined, 'PIN_LIMIT_REACHED'))
+        renderRow(note)
+        await openMenu('Idea')
+
+        await userEvent.click(screen.getByRole('menuitem', {name: 'Pin'}))
+
+        const notice = await screen.findByRole('dialog', {name: 'Could not pin this note'})
+        expect(notice).toHaveTextContent('15 notes are pinned already. Unpin one first.')
+        expect(notifyNotesChanged).toHaveBeenCalled()
+        await userEvent.click(within(notice).getByRole('button', {name: 'Close'}))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('a failed unpin of a chat that is gone says so', async () => {
+        vi.mocked(listPinnedChats).mockResolvedValue([{id: 'c1', title: 'Trip', noteCount: 2}])
+        vi.mocked(unpinChat).mockRejectedValue(new ChatApiError('chat unpin failed (404)', 404))
+        renderRow(chat)
+        await waitFor(() => expect(listPinnedChats).toHaveBeenCalled())
+        await openMenu('Trip')
+
+        await userEvent.click(await screen.findByRole('menuitem', {name: 'Unpin'}))
+
+        expect(await screen.findByRole('dialog', {name: 'Could not unpin this chat'}))
+            .toHaveTextContent('This chat no longer exists.')
     })
 
     it('puts a screen item between Rename and Delete and closes the menu when it is picked', async () => {
