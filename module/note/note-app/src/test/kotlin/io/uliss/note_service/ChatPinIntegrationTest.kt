@@ -2,7 +2,14 @@ package io.uliss.note_service
 
 import io.uliss.note_service.exception.PinLimitReachedException
 import io.uliss.note_service.model.ChatEntity
+import io.uliss.note_service.model.ChatNoteEntity
+import io.uliss.note_service.model.ChatNoteId
+import io.uliss.note_service.model.NoteEntity
+import io.uliss.note_service.model.NoteSource
+import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
+import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.util.PinLimit
 import org.junit.jupiter.api.Test
@@ -37,6 +44,12 @@ class ChatPinIntegrationTest : NoteIntegrationTest() {
     lateinit var chatService: ChatService
 
     @Autowired
+    lateinit var noteRepository: NoteRepository
+
+    @Autowired
+    lateinit var chatNoteRepository: ChatNoteRepository
+
+    @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
     @Autowired
@@ -65,6 +78,16 @@ class ChatPinIntegrationTest : NoteIntegrationTest() {
             jsonPath("$[0].id") { value(pinned.id.toString()) }
             jsonPath("$[0].noteCount") { value(0) }
         }
+    }
+
+    @Test
+    fun `a pinned chat carries the count of its notes, as in the chat pages`() {
+        val chat = chat("With notes")
+        val note = noteRepository.save(NoteEntity(userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), userId))
+
+        mockMvc.put("/note/chats/${chat.id}/pin") { asUser() }.andExpect { jsonPath("$.noteCount") { value(1) } }
+        mockMvc.get("/note/chats/pinned") { asUser() }.andExpect { jsonPath("$[0].noteCount") { value(1) } }
     }
 
     @Test
