@@ -4,6 +4,13 @@ import {afterEach} from 'vitest'
 
 afterEach(cleanup)
 
+// Tests run in English whatever the machine's language: the browser prefers en-US and no language choice is stored.
+Object.defineProperty(window.navigator, 'languages', {configurable: true, get: () => ['en-US']})
+afterEach(() => {
+    document.cookie = 'uliss_lang=; Path=/; Max-Age=0'
+    document.documentElement.lang = ''
+})
+
 if (!globalThis.requestAnimationFrame) {
     globalThis.requestAnimationFrame = (callback) => window.setTimeout(() => callback(performance.now()), 0)
 }

@@ -1,7 +1,7 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, IconPicker, Notice, noteTitleText, PlaceField} from '@uliss/design-system'
+import {ActionChip, Button, IconPicker, noteTitleText, Notice, PlaceField, useLocale} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
@@ -155,6 +155,7 @@ function readPendingChatRequest(chatId: string): PendingChatRequest | null {
 export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const {chatId} = useParams<{ chatId: string }>()
     const navigate = useNavigate()
+    const locale = useLocale()
     const [pagePhase, setPagePhase] = useState<PagePhase>(newChat ? 'ready' : 'loading')
     const [loadError, setLoadError] = useState<string | null>(null)
     const [persistedMessages, setPersistedMessages] = useState<ChatMessage[]>([])
@@ -940,8 +941,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                        something worth keeping. Deleting the chat keeps its notes.</p>}/>
                 </PanelSection>
                 <PanelSection label="Dates">
-                    <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt) || '—'}/>
-                    <PanelFact label="Updated" value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
+                    <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt, locale) || '—'}/>
+                    <PanelFact label="Updated" value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt, locale) || '—'}/>
                 </PanelSection>
             </ContextPanel>}
         </div>

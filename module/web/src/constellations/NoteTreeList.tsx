@@ -2,6 +2,7 @@ import {type ReactNode, useState} from 'react'
 import {Icon, IconButton, ListRow, noteTitleText} from '@uliss/design-system'
 import type {Note} from '../notes/noteApi'
 import {formatShortDate} from '../ui/format'
+import {useLocale} from '@uliss/design-system'
 
 interface NoteBranch {
     note: Note
@@ -24,6 +25,7 @@ const title = (note: Note) => note.title || 'Untitled note'
 
 /** Notes with their sub-notes folded under them; a chevron with the count unfolds one level. */
 export function NoteTreeList({notes, onOpen}: { notes: Note[]; onOpen: (noteId: string) => void }) {
+    const locale = useLocale()
     const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
     const toggle = (id: string) => setOpen((current) => {
         const next = new Set(current)
@@ -44,7 +46,7 @@ export function NoteTreeList({notes, onOpen}: { notes: Note[]; onOpen: (noteId: 
                             <Icon name="chevron" size={10} rotate={unfolded ? 0 : -90}/>
                         </IconButton>}
                 </span>
-                <ListRow title={title(note)} icon={note.icon ?? null} date={formatShortDate(note.createdAt)} dots={false}
+                <ListRow title={title(note)} icon={note.icon ?? null} date={formatShortDate(note.createdAt, locale)} dots={false}
                          meta={children.length > 0 ? <><Icon name="noteDoc" size={12}/>{children.length}</> : undefined}
                          onClick={() => onOpen(note.id)}/>
             </div>,

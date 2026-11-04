@@ -4,6 +4,7 @@ import {PanelFact, PanelSection} from '../ui/ContextPanel'
 import {formatFullDate} from '../ui/format'
 import {NoteChatsList} from '../ui/links/NoteChatsList'
 import type {Note} from './noteApi'
+import {useLocale} from '@uliss/design-system'
 
 /**
  * Everything a note's details panel says about it: where it lives (Constellation), its sub-notes, the chats it was
@@ -16,6 +17,7 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
     /** A change of the note's place or of the tree was stored. */
     onPlaceChanged?: () => void
 }) {
+    const locale = useLocale()
     return <>
         <PanelSection label="Constellation">
             <NoteConstellationSection key={note.id} noteId={note.id} noteTitle={note.title} noteIcon={note.icon}
@@ -28,8 +30,8 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
                                {note.source === 'CHAT_SUMMARY' ? 'Summary of a chat' : 'Written by hand'}</p>}/>
         </PanelSection>
         <PanelSection label="Dates">
-            <PanelFact label="Written" value={formatFullDate(note.createdAt) || '—'}/>
-            <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt) || '—'}/>
+            <PanelFact label="Written" value={formatFullDate(note.createdAt, locale) || '—'}/>
+            <PanelFact label="Updated" value={formatFullDate(note.updatedAt ?? note.createdAt, locale) || '—'}/>
         </PanelSection>
     </>
 }

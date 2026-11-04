@@ -2,7 +2,7 @@
 import {useEffect, useState} from 'react'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, Kicker, ListRow} from '@uliss/design-system'
+import {Button, EmptyState, Icon, Kicker, ListRow, useLocale} from '@uliss/design-system'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
@@ -16,6 +16,7 @@ import {formatShortDate} from '../ui/format'
 
 export function ChatListPage() {
     const navigate = useNavigate()
+    const locale = useLocale()
     const [revision, setRevision] = useState(0)
     // A refresh after rename/delete keeps the current rows; a failed one keeps them until the next list change.
     const {state, loadMore} = useKeysetList(listChats, revision)
@@ -64,7 +65,7 @@ export function ChatListPage() {
                         {[
                             // pinned chats come first under their own label; the pages leave them out
                             ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
-                            ...groupByMonth(items, chatActivity),
+                            ...groupByMonth(items, chatActivity, locale),
                         ].map((group, groupIndex) => <div
                             key={`${group.label}-${groupIndex}`} className="list-group">
                             {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
@@ -80,7 +81,7 @@ export function ChatListPage() {
                                 {(openMenu) => <ListRow
                                     title={chat.title}
                                     first={index === 0}
-                                    date={formatShortDate(chatActivity(chat))}
+                                    date={formatShortDate(chatActivity(chat), locale)}
                                     meta={<><Icon name="noteDoc" size={12}/>{chat.noteCount}</>}
                                     onClick={() => navigate(`/chats/${chat.id}`)}
                                     onMenu={openMenu}

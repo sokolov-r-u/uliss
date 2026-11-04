@@ -1,7 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react'
 import {useEffect, useState} from 'react'
 import {Link, NavLink, useLocation, useNavigate} from 'react-router-dom'
-import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, Wordmark} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker, ListRow, NavRow, noteTitleText, StarMark, useLocale, Wordmark} from '@uliss/design-system'
 import {type Chat, chatActivity, listChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {listNotes, type Note, noteChangedAt, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
@@ -37,6 +37,7 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     onToggleCollapsed: () => void
 }) {
     const navigate = useNavigate()
+    const locale = useLocale()
     const location = useLocation()
     const [chatsRevision, setChatsRevision] = useState(0)
     const [notesRevision, setNotesRevision] = useState(0)
@@ -76,13 +77,13 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     }
 
     const empty = chats.length === 0 && notes.length === 0 && pinnedChats.length === 0 && pinnedNotes.length === 0
-    const noteViews = toNoteViewModels(notes, noteChangedAt)
+    const noteViews = toNoteViewModels(notes, locale, noteChangedAt)
     // pinned rows come first, under their own label, and never again in the recency groups
     const chatGroups = [
         ...(pinnedChats.length > 0 ? [{label: 'Pinned', items: pinnedChats}] : []),
         ...groupByRecency(chats, chatActivity),
     ]
-    const pinnedNoteViews = toNoteViewModels(pinnedNotes, noteChangedAt)
+    const pinnedNoteViews = toNoteViewModels(pinnedNotes, locale, noteChangedAt)
     const noteGroups = [
         ...(pinnedNotes.length > 0
             ? [{label: 'Pinned', items: pinnedNotes.map((note, index) => ({note, view: pinnedNoteViews[index]}))}]

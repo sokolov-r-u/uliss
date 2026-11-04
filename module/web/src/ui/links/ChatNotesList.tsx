@@ -1,5 +1,5 @@
 import {type ReactNode, useEffect} from 'react'
-import {ListRow} from '@uliss/design-system'
+import {ListRow, useLocale} from '@uliss/design-system'
 import {listChatNotes, streamNoteStatus, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
 import {useLinkedItems} from './useLinkedItems'
@@ -15,6 +15,7 @@ export function ChatNotesList({chatId, onOpen, empty}: {
     onOpen: (noteId: string) => void
     empty: ReactNode
 }) {
+    const locale = useLocale()
     const {items: notes, reload, status} = useLinkedItems(chatId, listChatNotes, SUBSCRIPTIONS)
     const pendingIds = notes.filter((note) => note.status === 'GENERATING' || note.updating).map((note) => note.id)
     const pendingKey = pendingIds.join(',')
@@ -41,7 +42,7 @@ export function ChatNotesList({chatId, onOpen, empty}: {
     }
     return (
         <div className="context-links">
-            {toNoteViewModels(notes).map((view) => (
+            {toNoteViewModels(notes, locale).map((view) => (
                 <ListRow key={view.id} title={view.title} icon={view.icon ?? null} date={view.date} dots={false}
                          onClick={() => onOpen(view.id)}/>
             ))}

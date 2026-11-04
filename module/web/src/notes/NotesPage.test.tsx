@@ -9,7 +9,7 @@ describe('notes list presentation', () => {
             {id: 'ready', source: 'CHAT_SUMMARY', status: 'READY', content: 'First line\nSecond line'},
             {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
             {id: 'failed', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
-        ])
+        ], 'en')
         expect(models.map((note) => note.title)).toEqual(['First line', 'Generating note…', 'Summary failed'])
         expect(models[0]?.excerpt).toBe('Second line')
     })
@@ -25,7 +25,7 @@ describe('notes list presentation', () => {
             },
             {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', title: 'Giant Steps', content: null},
             {id: 'unnamed', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
-        ])
+        ], 'en')
         // a name the user gave shows while the note is still being written
         expect(models.map((note) => note.title)).toEqual(['Ownership columns', 'Giant Steps', 'Generating note…'])
         expect(models.map((note) => note.excerpt)).toEqual(['Keep user_id on every table', 'Generating note…', ''])
@@ -41,7 +41,7 @@ describe('notes list presentation', () => {
         const models = toNoteViewModels([
             {id: 'sax', source: 'MANUAL', status: 'READY', title: 'Giant Steps', icon: '🎷', content: 'Body'},
             {id: 'plain', source: 'MANUAL', status: 'READY', title: 'Blue Train', content: 'Body'},
-        ])
+        ], 'en')
         render(<MemoryRouter><NotesView notes={models} onOpen={() => undefined}/></MemoryRouter>)
 
         const withIcon = screen.getByRole('button', {name: '🎷 Giant Steps'})
@@ -55,7 +55,7 @@ describe('notes list presentation', () => {
             {id: 'ready', source: 'CHAT_SUMMARY', status: 'READY', content: 'Body'},
             {id: 'working', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
             {id: 'failed', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
-        ])
+        ], 'en')
         expect(models.map((model) => model.renamable)).toEqual([true, false, false])
     })
 

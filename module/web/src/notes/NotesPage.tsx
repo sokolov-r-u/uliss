@@ -1,16 +1,5 @@
 import {type ReactNode, useEffect, useMemo, useState} from 'react'
-import {
-    Button,
-    ConstellationChip,
-    ConstellationPicker,
-    constellationColor,
-    EmptyState,
-    Icon,
-    IconButton,
-    Kicker,
-    ListRow,
-    noteTitleText,
-} from '@uliss/design-system'
+import {Button, ConstellationChip, constellationColor, ConstellationPicker, EmptyState, Icon, IconButton, Kicker, ListRow, type Locale, noteTitleText, useLocale} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate, useSearchParams} from 'react-router-dom'
 import {listConstellations} from '../constellations/constellationApi'
@@ -62,6 +51,7 @@ export interface NotesFilterSlots {
 
 export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, filter, pinned = [],
                               notice}: NotesViewProps) {
+    const locale = useLocale()
     const unread = [...pinned, ...notes].filter((note) => note.unread).length
     const filtered = filter?.onClear !== undefined
     const count = (filtered ? filter?.count : undefined) ?? total ?? pinned.length + notes.length
@@ -102,7 +92,7 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
                 {notice}
                 {[
                     ...(pinned.length > 0 ? [{label: 'Pinned', items: pinned}] : []),
-                    ...groupByMonth(notes, (note) => note.listedAt),
+                    ...groupByMonth(notes, (note) => note.listedAt, locale),
                 ].map((group, groupIndex) => <div
                     key={`${group.label}-${groupIndex}`} className="list-group">
                     {group.label && <div className="list-month"><Kicker size={8.5} spacing="3px"
@@ -144,7 +134,8 @@ function contentParts(content: string | null, storedTitle?: string): { title: st
 }
 
 /** Row models; [listedAt] picks the time a row shows and is grouped by (creation unless the list orders otherwise). */
-export function toNoteViewModels(notes: Note[], listedAt: (note: Note) => string | undefined = (note) => note.createdAt):
+export function toNoteViewModels(notes: Note[], locale: Locale,
+                                 listedAt: (note: Note) => string | undefined = (note) => note.createdAt):
     NoteViewModel[] {
     return notes.map((note, index) => {
         const content = contentParts(note.content, note.title)
@@ -159,7 +150,7 @@ export function toNoteViewModels(notes: Note[], listedAt: (note: Note) => string
             icon: note.icon ?? null,
             excerpt: note.status === 'READY' ? content.excerpt
                 : note.status === 'GENERATING' && note.title ? 'Generating note…' : '',
-            date: formatShortDate(listedAt(note)),
+            date: formatShortDate(listedAt(note), locale),
             linkCount: 0,
             renamable: note.status === 'READY',
             listedAt: listedAt(note),
@@ -169,6 +160,7 @@ export function toNoteViewModels(notes: Note[], listedAt: (note: Note) => string
 
 export function NotesPage() {
     const navigate = useNavigate()
+    const locale = useLocale()
     const [params, setParams] = useSearchParams()
     const filter = useMemo(() => readFilter(params), [params])
     const filterKey = filter.join(',')
@@ -272,8 +264,8 @@ export function NotesPage() {
             </div>
         </div>
     }
-    return <NotesView notes={toNoteViewModels(items, noteChangedAt)} total={state.total}
-                      pinned={toNoteViewModels(pinnedNotes, noteChangedAt)}
+    return <NotesView notes={toNoteViewModels(items, locale, noteChangedAt)} total={state.total}
+                      pinned={toNoteViewModels(pinnedNotes, locale, noteChangedAt)}
                       notice={pinned.status === 'error' || allPinned.status === 'error'
                           ? <PinnedFailed onRetry={() => {
                               pinnedNotesStore.refresh()

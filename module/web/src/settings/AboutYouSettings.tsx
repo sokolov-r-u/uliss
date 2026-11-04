@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {Button, Dialog, Disclosure, TextArea} from '@uliss/design-system'
+import {Button, Dialog, Disclosure, type Locale, TextArea, useLocale} from '@uliss/design-system'
 import {SettingsShell} from './SettingsShell'
 import {
     ABOUT_MAX_CHARS,
@@ -32,6 +32,7 @@ const ABOUT_HINT_CHARS = 48
  * rules, and may rebuild it from all notes a few times a month.
  */
 export function AboutYouSettings() {
+    const locale = useLocale()
     const [state, setState] = useState<State>({status: 'loading'})
     const [attempt, setAttempt] = useState(0)
     const [open, setOpen] = useState({about: false, rules: false, profile: true})
@@ -103,7 +104,7 @@ export function AboutYouSettings() {
                                 onToggle={(rules) => setOpen((current) => ({...current, rules}))}>
                         <RulesSection rules={profile.rules} onSaved={show}/>
                     </Disclosure>
-                    <Disclosure title="Profile" hint={profileHint(profile)} open={open.profile}
+                    <Disclosure title="Profile" hint={profileHint(profile, locale)} open={open.profile}
                                 onToggle={(opened) => setOpen((current) => ({...current, profile: opened}))}>
                         <p className="settings-para">
                             Compiled from your notes and updated each night with new and changed ones; deleted notes
@@ -261,6 +262,7 @@ function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: Us
 }
 
 function ProfileBody({profile}: { profile: UserProfile }) {
+    const locale = useLocale()
     if (profile.content === null) {
         return (
             <p className="settings-para">
@@ -268,7 +270,7 @@ function ProfileBody({profile}: { profile: UserProfile }) {
             </p>
         )
     }
-    const updated = formatFullDate(profile.updatedAt ?? undefined)
+    const updated = formatFullDate(profile.updatedAt ?? undefined, locale)
     return (
         <>
             <MarkdownContent content={profile.content}/>
@@ -288,10 +290,10 @@ function rulesHint(rules: string[]): string {
     return `${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}`
 }
 
-function profileHint(profile: UserProfile): string {
+function profileHint(profile: UserProfile, locale: Locale): string {
     if (profile.rebuild.running) return 'Rebuilding'
     if (profile.applyingRules) return 'Applying your rules'
-    const updated = formatFullDate(profile.updatedAt ?? undefined)
+    const updated = formatFullDate(profile.updatedAt ?? undefined, locale)
     if (profile.content === null || !updated) return 'Not built yet'
     return `Updated ${updated}`
 }
@@ -306,6 +308,7 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
     onStarted: (rebuild: ProfileRebuild) => void
     onRefused: () => void
 }) {
+    const locale = useLocale()
     const [confirming, setConfirming] = useState(false)
     const [pending, setPending] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
@@ -334,7 +337,7 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
                     {rebuild.running ? 'Rebuilding…' : 'Rebuild'}
                 </Button>
             </div>
-            <p className="settings-para">{rebuildStatus(rebuild)}</p>
+            <p className="settings-para">{rebuildStatus(rebuild, locale)}</p>
             {message && <p className="settings-para" role="alert">{message}</p>}
             {confirming && (
                 <Dialog title="Rebuild your profile?" width={340} busy={pending} confirmDisabled={pending}
@@ -349,10 +352,10 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
     )
 }
 
-function rebuildStatus(rebuild: ProfileRebuild): string {
+function rebuildStatus(rebuild: ProfileRebuild, locale: Locale): string {
     if (rebuild.running) return 'Rebuilding from all your notes. The current profile stays until it is done.'
     if (rebuild.remaining > 0) return `Rewrite the profile from all your notes. ${triesLeft(rebuild.remaining)}.`
-    const next = formatFullDate(rebuild.availableAt ?? undefined)
+    const next = formatFullDate(rebuild.availableAt ?? undefined, locale)
     return next ? `No rebuilds left. The next one is available on ${next}.` : 'No rebuilds left for now.'
 }
 

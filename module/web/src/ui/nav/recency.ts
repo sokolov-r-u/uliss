@@ -1,3 +1,4 @@
+import type {Locale} from '@uliss/design-system'
 import {formatMonth, parseDate} from '../format'
 
 export interface RecencyGroup<T> {
@@ -30,10 +31,10 @@ export function groupByRecency<T>(items: T[], dateOf: (item: T) => string | unde
 }
 
 /** Wide-list grouping: 'June 2026' headings in input order; undated items fall into one unlabeled group. */
-export function groupByMonth<T>(items: T[], dateOf: (item: T) => string | undefined): RecencyGroup<T>[] {
+export function groupByMonth<T>(items: T[], dateOf: (item: T) => string | undefined, locale: Locale): RecencyGroup<T>[] {
     const groups: RecencyGroup<T>[] = []
     for (const item of items) {
-        const label = formatMonth(dateOf(item))
+        const label = formatMonth(dateOf(item), locale)
         const last = groups.at(-1)
         if (last && last.label === label) last.items.push(item)
         else groups.push({label, items: [item]})

@@ -3,6 +3,7 @@ import {ListRow} from '@uliss/design-system'
 import {chatActivity, listNoteChats, subscribeToChatListChanges} from '../../chat/chatApi'
 import {formatShortDate} from '../format'
 import {useLinkedItems} from './useLinkedItems'
+import {useLocale} from '@uliss/design-system'
 
 const SUBSCRIPTIONS = [subscribeToChatListChanges]
 
@@ -15,6 +16,7 @@ export function NoteChatsList({noteId, onOpen, empty}: {
     onOpen: (chatId: string) => void
     empty: ReactNode
 }) {
+    const locale = useLocale()
     const {items: chats, status} = useLinkedItems(noteId, listNoteChats, SUBSCRIPTIONS)
     // the empty text ("Written by hand") only once the list is known to be empty
     if (chats.length === 0) {
@@ -24,7 +26,7 @@ export function NoteChatsList({noteId, onOpen, empty}: {
     return (
         <div className="context-links">
             {chats.map((chat) => (
-                <ListRow key={chat.id} title={chat.title} date={formatShortDate(chatActivity(chat))} dots={false}
+                <ListRow key={chat.id} title={chat.title} date={formatShortDate(chatActivity(chat), locale)} dots={false}
                          onClick={() => onOpen(chat.id)}/>
             ))}
         </div>
