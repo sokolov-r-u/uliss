@@ -15,11 +15,6 @@ const en = {
     recentChats: 'Recent chats',
     recentNotes: 'Recent notes',
     viewAll: 'View all →',
-    today: 'Today',
-    yesterday: 'Yesterday',
-    thisWeek: 'This week',
-    thisMonth: 'This month',
-    earlier: 'Earlier',
 }
 
 export const sideNavMessages: Dictionaries<typeof en> = {
@@ -39,10 +34,5 @@ export const sideNavMessages: Dictionaries<typeof en> = {
         recentChats: 'Недавние чаты',
         recentNotes: 'Недавние заметки',
         viewAll: 'Все →',
-        today: 'Сегодня',
-        yesterday: 'Вчера',
-        thisWeek: 'На этой неделе',
-        thisMonth: 'В этом месяце',
-        earlier: 'Раньше',
     },
 }

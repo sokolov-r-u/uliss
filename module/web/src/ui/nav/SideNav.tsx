@@ -14,6 +14,7 @@ import {pinnedChats as pinnedChatsStore, pinnedNotes as pinnedNotesStore, usePin
 import {PinnedFailed} from '../pins/PinnedFailed'
 import {commonMessages} from '../../i18n/common.messages'
 import {sideNavMessages} from './SideNav.messages'
+import {recencyMessages} from './recency.messages'
 
 /** The five destinations — this order, every breakpoint (see NavRow.prompt.md). */
 const NAV_ITEMS: { to: string; label: 'chats' | 'notes' | 'constellations' | 'sky' | 'updates'; icon: ReactNode }[] = [
@@ -41,7 +42,8 @@ export function SideNav({open, collapsed, onClose, onToggleCollapsed}: {
     const locale = useLocale()
     const t = useMessages(sideNavMessages)
     const common = useMessages(commonMessages)
-    const recency = [t.today, t.yesterday, t.thisWeek, t.thisMonth, t.earlier] as const
+    const groups = useMessages(recencyMessages)
+    const recency = [groups.today, groups.yesterday, groups.thisWeek, groups.thisMonth, groups.earlier] as const
     const location = useLocation()
     const [chatsRevision, setChatsRevision] = useState(0)
     const [notesRevision, setNotesRevision] = useState(0)
