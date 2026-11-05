@@ -1,9 +1,10 @@
 import type {Dictionaries} from '@uliss/design-system'
 
-/** The confirmations of a change of a note's place. Paths and note names come in already quoted. */
+/** The confirmations of a change of a note's place. Note names come in already quoted; paths go through `path`. */
 const en = {
     untitledNote: 'Untitled note',
     quote: (text: string) => `“${text}”`,
+    path: (path: string) => path,
     and: ' and ',
     moveTo: (path: string) => `Move to ${path}?`,
     leaves: (paths: string) => `It leaves ${paths}.`,
@@ -32,6 +33,7 @@ export const placeMovesMessages: Dictionaries<typeof en> = {
     ru: {
         untitledNote: 'Без названия',
         quote: (text) => `«${text}»`,
+        path: (path) => `«${path}»`,
         and: ' и ',
         moveTo: (path) => `Переместить в ${path}?`,
         leaves: (paths) => `Она уйдёт из ${paths}.`,
@@ -43,7 +45,7 @@ export const placeMovesMessages: Dictionaries<typeof en> = {
         noPlaceLeft: 'У заметки не останется места.',
         staysInOnly: (paths) => `Она останется в ${paths}.`,
         remove: 'Убрать',
-        removing: 'Удаление…',
+        removing: 'Убираю…',
         moveUnder: (note) => `Переместить под ${note}?`,
         leavesAndLivesWhere: (paths, note) => `Она уйдёт из ${paths} и будет там же, где ${note}.`,
         leavesNotesAndLivesWhere: (chain, note) => `Она уйдёт из-под ${chain} и будет там же, где ${note}.`,

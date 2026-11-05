@@ -42,7 +42,7 @@ export const notesMessages: Dictionaries<typeof en> = {
         unread: (count) => `${count} ${plural('ru', count, {one: 'новая', few: 'новые', many: 'новых', other: 'новых'})}`,
         readyNote: 'Готовая заметка',
         generating: 'Заметка пишется…',
-        summaryFailed: 'Итог не удался',
+        summaryFailed: 'Заметка не написана',
         filterLimit: (limit) => `Не больше ${limit} созвездий`,
         filterBy: 'Фильтр по созвездиям',
         filterBar: 'Фильтр по созвездиям',

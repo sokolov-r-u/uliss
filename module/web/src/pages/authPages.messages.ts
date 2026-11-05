@@ -29,7 +29,7 @@ export const authPagesMessages: Dictionaries<typeof en> = {
         authFailed: 'вход не удался',
         completing: 'завершаю вход',
         tryAgain: 'попробовать ещё раз',
-        oneMoment: 'χαῖρε · минуту…',
+        oneMoment: 'χαῖρε · минутку…',
         signedOut: 'вы вышли',
         signedOutBody: 'Вы вышли из Uliss на этом устройстве.',
         signIn: 'войти',

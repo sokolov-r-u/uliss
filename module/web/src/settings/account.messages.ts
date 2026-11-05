@@ -3,7 +3,7 @@ import type {Dictionaries} from '@uliss/design-system'
 const en = {
     kicker: 'Account',
     profile: 'Profile',
-    profileBody: 'Profile details are not available to this client. Account editing is unavailable.',
+    profileBody: 'Account details cannot be viewed or edited here yet.',
     session: 'Session',
     signOut: 'Sign out',
 }
@@ -13,7 +13,7 @@ export const accountMessages: Dictionaries<typeof en> = {
     ru: {
         kicker: 'Аккаунт',
         profile: 'Профиль',
-        profileBody: 'Данные профиля недоступны в этом клиенте. Редактировать аккаунт пока нельзя.',
+        profileBody: 'Данные аккаунта здесь пока нельзя посмотреть или изменить.',
         session: 'Сеанс',
         signOut: 'Выйти',
     },

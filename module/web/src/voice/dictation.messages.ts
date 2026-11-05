@@ -19,7 +19,7 @@ export const dictationMessages: Dictionaries<typeof en> = {
         transcriptionFailed: 'Не удалось расшифровать запись',
         microphoneBlocked: 'Разрешите доступ к микрофону, чтобы диктовать',
         microphoneUnavailable: 'Не удалось включить микрофон',
-        recordingRefused: 'Uliss не смог прочитать эту запись',
+        recordingRefused: 'Uliss не смог распознать эту запись',
         recordingTooLarge: 'Запись слишком большая для расшифровки',
     },
 }
