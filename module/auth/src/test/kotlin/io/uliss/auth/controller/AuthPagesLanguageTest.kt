@@ -37,6 +37,18 @@ class AuthPagesLanguageTest {
     }
 
     @Test
+    fun `the switcher marks the page's language and links to the other one for the same tab`() {
+        mockMvc.get("/register") { cookie(Cookie("uliss_lang", "ru")) }
+            .andExpect {
+                content {
+                    string(containsString("<nav class=\"lang-switch\" aria-label=\"Язык\">"))
+                    string(containsString("<span aria-current=\"true\" class=\"lang-option is-active\">RU</span>"))
+                    string(containsString("href=\"/lang?to=en&amp;from=register\""))
+                }
+            }
+    }
+
+    @Test
     fun `without the cookie the page follows the browser's language`() {
         mockMvc.get("/register") { header("Accept-Language", "ru-RU,ru;q=0.9,en;q=0.8") }
             .andExpect {

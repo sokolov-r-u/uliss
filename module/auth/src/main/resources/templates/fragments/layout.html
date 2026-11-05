@@ -89,6 +89,39 @@
       margin-top: 74px;
     }
 
+    /* ── Language switch (top right; reloads through /lang) ── */
+    .lang-switch {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-family: var(--font-text);
+      font-size: 11px;
+      font-weight: var(--w-ui);
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--cream);
+    }
+    .lang-option {
+      padding: 6px 2px;
+      border-bottom: 2px solid transparent;
+      color: inherit;
+      text-decoration: none;
+      opacity: .55;
+      transition: opacity var(--dur-hover) var(--ease);
+    }
+    a.lang-option:hover { opacity: .82; }
+    .lang-option.is-active {
+      border-bottom-color: var(--accent);
+      color: var(--accent);
+      opacity: 1;
+      font-weight: var(--w-emphasis);
+    }
+    .lang-sep { opacity: .35; }
+
     /* ── Tabs (client-side switch) ─────────────────────── */
     .auth-tabs {
       display: flex;
@@ -316,6 +349,11 @@
         padding: 44px 24px 40px;
       }
 
+      .lang-switch {
+        top: 12px;
+        right: 16px;
+      }
+
       .wordmark {
         font-size: 44px;
       }
@@ -343,6 +381,16 @@
   <div class="auth-layer auth-layer--wash"></div>
   <div class="auth-layer auth-layer--sky" th:insert="~{fragments/starfield :: starfield}"></div>
   <div class="auth-layer auth-layer--sink"></div>
+
+  <nav class="lang-switch" aria-label="Language" th:aria-label="#{page.language}">
+    <th:block th:each="lang, stat : ${ {'en', 'ru'} }">
+      <span aria-current="true" class="lang-option is-active" th:if="${lang == #locale.language}"
+            th:text="${#strings.toUpperCase(lang)}">EN</span>
+      <a class="lang-option" th:href="@{/lang(to=${lang},from=${active})}" th:lang="${lang}"
+         th:text="${#strings.toUpperCase(lang)}" th:unless="${lang == #locale.language}">RU</a>
+      <span aria-hidden="true" class="lang-sep" th:unless="${stat.last}">·</span>
+    </th:block>
+  </nav>
 
   <div class="auth-col">
     <span class="wordmark">Uliss</span>
@@ -499,6 +547,10 @@
             p.hidden = !active;
         });
         try { history.replaceState(null, '', name === 'register' ? '/register' : '/login'); } catch (e) {}
+        // the language switch returns to the tab now open
+        document.querySelectorAll('a.lang-option').forEach(function (a) {
+            a.href = a.href.replace(/([?&]from=)[^&]*/, '$1' + name);
+        });
         focusFirst(name);
       }
 

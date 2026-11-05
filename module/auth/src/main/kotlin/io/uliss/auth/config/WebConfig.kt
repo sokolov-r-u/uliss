@@ -15,7 +15,7 @@ import java.time.Clock
 class WebConfig : WebMvcConfigurer {
 
     override fun addInterceptors(registry: InterceptorRegistry) {
-        registry.addInterceptor(NoStoreInterceptor()).addPathPatterns("/login", "/register")
+        registry.addInterceptor(NoStoreInterceptor()).addPathPatterns("/login", "/register", "/lang")
     }
 
     /** The auth pages' language: the `uliss_lang` cookie shared with the SPA, then the browser's languages. */
