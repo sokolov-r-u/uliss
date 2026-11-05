@@ -386,7 +386,7 @@
     <th:block th:each="lang, stat : ${ {'en', 'ru'} }">
       <span aria-current="true" class="lang-option is-active" th:if="${lang == #locale.language}"
             th:text="${#strings.toUpperCase(lang)}">EN</span>
-      <a class="lang-option" th:href="@{/lang(to=${lang},from=${active})}" th:lang="${lang}"
+      <a class="lang-option" th:href="@{/lang(to=${lang},from=${active == 'register' ? 'register' : 'login'})}" th:lang="${lang}"
          th:text="${#strings.toUpperCase(lang)}" th:unless="${lang == #locale.language}">RU</a>
       <span aria-hidden="true" class="lang-sep" th:unless="${stat.last}">·</span>
     </th:block>
@@ -549,7 +549,7 @@
         try { history.replaceState(null, '', name === 'register' ? '/register' : '/login'); } catch (e) {}
         // the language switch returns to the tab now open
         document.querySelectorAll('a.lang-option').forEach(function (a) {
-            a.href = a.href.replace(/([?&]from=)[^&]*/, '$1' + name);
+            a.href = a.href.replace(/([?&]from=)[^&]*/, '$1' + (name === 'register' ? 'register' : 'login'));
         });
         focusFirst(name);
       }

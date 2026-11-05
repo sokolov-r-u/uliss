@@ -49,6 +49,24 @@ class AuthPagesLanguageTest {
     }
 
     @Test
+    fun `the sign-in tab's switcher returns to sign-in`() {
+        mockMvc.get("/login") { cookie(Cookie("uliss_lang", "en")) }
+            .andExpect { content { string(containsString("href=\"/lang?to=ru&amp;from=login\"")) } }
+    }
+
+    @Test
+    fun `sign-in notices are in Russian`() {
+        mockMvc.get("/login?error&logout&registered") { cookie(Cookie("uliss_lang", "ru")) }
+            .andExpect {
+                content {
+                    string(containsString("Неверный email или пароль."))
+                    string(containsString("Вы вышли из аккаунта."))
+                    string(containsString("Аккаунт создан. Войдите ниже."))
+                }
+            }
+    }
+
+    @Test
     fun `without the cookie the page follows the browser's language`() {
         mockMvc.get("/register") { header("Accept-Language", "ru-RU,ru;q=0.9,en;q=0.8") }
             .andExpect {
