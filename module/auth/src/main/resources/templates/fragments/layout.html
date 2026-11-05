@@ -4,7 +4,7 @@
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <meta http-equiv="Cache-Control" content="no-store"/>
-  <title th:text="${title}">Uliss</title>
+  <title th:text="#{${title}}">Uliss</title>
   <link rel="stylesheet" th:href="@{/ds/styles.css}"/>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
@@ -346,36 +346,28 @@
 
   <div class="auth-col">
     <span class="wordmark">Uliss</span>
-    <span class="tagline">Voice journal</span>
+    <span class="tagline" th:text="#{page.tagline}">Voice journal</span>
 
     <div class="auth-form-col" th:attr="data-active=${active}">
-        <nav aria-label="Authentication" class="auth-tabs" role="tablist">
+        <nav aria-label="Authentication" class="auth-tabs" role="tablist" th:attr="aria-label=#{page.tabs}">
         <button class="auth-tab" data-tab="signin" th:classappend="${active == 'signin'} ? 'is-active'"
-                aria-controls="signin-panel" role="tab" type="button">Sign in
-        </button>
+                aria-controls="signin-panel" role="tab" type="button" th:text="#{page.tab.signin}">Sign in</button>
         <button class="auth-tab" data-tab="register" th:classappend="${active == 'register'} ? 'is-active'"
-                aria-controls="register-panel" role="tab" type="button">Register
-        </button>
+                aria-controls="register-panel" role="tab" type="button" th:text="#{page.tab.register}">Register</button>
       </nav>
 
       <!-- ── Sign in ───────────────────────────────────── -->
         <div aria-labelledby="signin-tab" class="tab-panel" data-panel="signin" id="signin-panel" role="tabpanel"
            th:classappend="${active == 'register'} ? 'tab-panel--off'">
         <form class="auth-body" method="post" novalidate th:action="@{/login}">
-          <h1 class="auth-heading">Return to your sky</h1>
+          <h1 class="auth-heading" th:text="#{signin.heading}">Return to your sky</h1>
 
-          <div class="auth-note auth-note--ok" th:if="${param.registered}">
-            Account created. Sign in below.
-          </div>
-          <div class="auth-note" th:if="${param.logout}">
-            You have signed out.
-          </div>
-          <div class="auth-note auth-note--err" th:if="${param.error}">
-            Wrong email or passphrase.
-          </div>
+          <div class="auth-note auth-note--ok" th:if="${param.registered}" th:text="#{signin.registered}">Account created. Sign in below.</div>
+          <div class="auth-note" th:if="${param.logout}" th:text="#{signin.loggedOut}">You have signed out.</div>
+          <div class="auth-note auth-note--err" th:if="${param.error}" th:text="#{signin.error}">Wrong email or passphrase.</div>
 
           <div class="field">
-            <label class="field-label" for="username">Email</label>
+            <label class="field-label" for="username" th:text="#{field.email}">Email</label>
             <div class="field-box">
               <input autocomplete="email" id="username" name="username" placeholder="wayfarer@uliss.app"
                      required type="email"/>
@@ -383,11 +375,11 @@
           </div>
 
           <div class="field">
-            <label class="field-label" for="password">Passphrase</label>
+            <label class="field-label" for="password" th:text="#{field.password}">Passphrase</label>
             <div class="field-box">
-              <input autocomplete="current-password" id="password" name="password" placeholder="your passphrase"
+              <input autocomplete="current-password" id="password" name="password" placeholder="your passphrase" th:placeholder="#{signin.passwordPlaceholder}"
                      required type="password"/>
-              <button aria-label="Show passphrase" class="eye" data-toggle="password" type="button">
+              <button aria-label="Show passphrase" th:attr="aria-label=#{field.showPassword}" class="eye" data-toggle="password" type="button">
                 <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
                      stroke-width="1.6" viewBox="0 0 24 24" width="18">
                   <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/>
@@ -398,23 +390,23 @@
           </div>
 
           <div class="field-aux">
-            <span class="muted" title="Coming soon">Forgot passphrase?</span>
+            <span class="muted" title="Coming soon" th:title="#{sso.comingSoon}" th:text="#{field.forgotPassword}">Forgot passphrase?</span>
           </div>
 
-          <button class="auth-button" type="submit">Enter</button>
-          <div class="divider"><span></span><em>or</em><span></span></div>
+          <button class="auth-button" type="submit" th:text="#{signin.submit}">Enter</button>
+          <div class="divider"><span></span><em th:text="#{sso.or}">or</em><span></span></div>
           <div class="sso-row">
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <svg fill="none" height="12" stroke="currentColor" stroke-linecap="square" stroke-width="1.7"
                    viewBox="0 0 24 24" width="12">
                 <path d="M4 6h16v12H4zM4 7l8 6 8-6"/>
               </svg>
-              Link
+              <span th:text="#{sso.link}">Link</span>
             </button>
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <span class="dot"></span>Apple
             </button>
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <span class="dot"></span>Google
             </button>
           </div>
@@ -425,14 +417,12 @@
         <div aria-labelledby="register-tab" class="tab-panel" data-panel="register" id="register-panel" role="tabpanel"
            th:classappend="${active == 'signin'} ? 'tab-panel--off'">
         <form class="auth-body" method="post" novalidate th:action="@{/register}" th:object="${registerForm}">
-          <h1 class="auth-heading">Trace your first star</h1>
+          <h1 class="auth-heading" th:text="#{register.heading}">Trace your first star</h1>
 
-          <div class="auth-note auth-note--err" th:if="${#fields.hasAnyErrors()}">
-            Please fix the highlighted fields.
-          </div>
+          <div class="auth-note auth-note--err" th:if="${#fields.hasAnyErrors()}" th:text="#{register.fixFields}">Please fix the highlighted fields.</div>
 
           <div class="field">
-            <label class="field-label" for="email">Email</label>
+            <label class="field-label" for="email" th:text="#{field.email}">Email</label>
             <div class="field-box" th:classappend="${#fields.hasErrors('email')} ? 'has-error'">
               <input autocomplete="email" id="email" placeholder="you@uliss.app" required
                      th:field="*{email}" type="email"/>
@@ -441,11 +431,11 @@
           </div>
 
           <div class="field">
-            <label class="field-label" for="reg-password">Passphrase</label>
+            <label class="field-label" for="reg-password" th:text="#{field.password}">Passphrase</label>
             <div class="field-box" th:classappend="${#fields.hasErrors('password')} ? 'has-error'">
-              <input autocomplete="new-password" id="reg-password" placeholder="choose a passphrase" required
+              <input autocomplete="new-password" id="reg-password" placeholder="choose a passphrase" th:placeholder="#{register.passwordPlaceholder}" required
                      th:field="*{password}" type="password"/>
-              <button aria-label="Show passphrase" class="eye" data-toggle="reg-password" type="button">
+              <button aria-label="Show passphrase" th:attr="aria-label=#{field.showPassword}" class="eye" data-toggle="reg-password" type="button">
                 <svg fill="none" height="18" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
                      stroke-width="1.6" viewBox="0 0 24 24" width="18">
                   <path d="M1.5 12S5 5 12 5s10.5 7 10.5 7-3.5 7-10.5 7S1.5 12 1.5 12Z"/>
@@ -459,23 +449,23 @@
           <!--/* Reserves the vertical space the "Forgot passphrase?" row takes on the
                  Sign-in tab, so Begin and Enter sit at the same height. */-->
           <div aria-hidden="true" class="field-aux field-aux--reserved">
-            <span class="muted">Forgot passphrase?</span>
+            <span class="muted" th:text="#{field.forgotPassword}">Forgot passphrase?</span>
           </div>
 
-          <button class="auth-button" type="submit">Begin</button>
-          <div class="divider"><span></span><em>or</em><span></span></div>
+          <button class="auth-button" type="submit" th:text="#{register.submit}">Begin</button>
+          <div class="divider"><span></span><em th:text="#{sso.or}">or</em><span></span></div>
           <div class="sso-row">
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <svg fill="none" height="12" stroke="currentColor" stroke-linecap="square" stroke-width="1.7"
                    viewBox="0 0 24 24" width="12">
                 <path d="M4 6h16v12H4zM4 7l8 6 8-6"/>
               </svg>
-              Link
+              <span th:text="#{sso.link}">Link</span>
             </button>
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <span class="dot"></span>Apple
             </button>
-            <button class="sso-btn" disabled title="Coming soon" type="button">
+            <button class="sso-btn" disabled title="Coming soon" th:title="#{sso.comingSoon}" type="button">
               <span class="dot"></span>Google
             </button>
           </div>
