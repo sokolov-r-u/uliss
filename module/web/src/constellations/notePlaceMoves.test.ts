@@ -117,3 +117,21 @@ describe('sub-note', () => {
         })
     })
 })
+
+describe('in Russian', () => {
+    it('quotes every constellation path, so an undeclined name still reads as a name', () => {
+        const bebop = at('bebop', true)
+        const biopics = at('biopics')
+
+        expect(topCross([bebop, biopics], bebop, 0, 'ru')).toMatchObject({
+            title: 'Убрать из «Music / Jazz / Bebop»?',
+            body: 'Она останется в «Cinema / Biopics». «Cinema / Biopics» станет главным местом.',
+            busy: 'Убираю…',
+        })
+        expect(subOut([MILES], [bebop, biopics], tree.byId.get('rock')!, 'ru')).toMatchObject({
+            title: 'Переместить в «Music / Rock»?',
+            body: 'Она уйдёт из-под «Miles Davis» и попадёт только в «Music / Rock».'
+                + ' Её больше не будет в «Music / Jazz / Bebop» и «Cinema / Biopics».',
+        })
+    })
+})

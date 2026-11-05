@@ -44,6 +44,11 @@ export function quotedNote(note: NoteRef, locale: Locale = 'en'): string {
     return t.quote(noteTitleText(note.title || t.untitledNote, note.icon))
 }
 
+/** A constellation path in a sentence: bare in English, quoted where the language would otherwise decline it. */
+function shownPath(node: ConstellationNode, locale: Locale): string {
+    return placeMovesMessages[locale].path(placePath(node))
+}
+
 function list(paths: string[], locale: Locale): string {
     return paths.length < 2 ? paths.join('')
         : `${paths.slice(0, -1).join(', ')}${placeMovesMessages[locale].and}${paths[paths.length - 1]}`
@@ -67,10 +72,10 @@ export function topMoveTo(places: PlacedNode[], target: ConstellationNode, local
     const lost = places.filter((place) => onOneLine(place.node, target))
     if (lost.length === 0) return null
     const kept = places.filter((place) => !lost.includes(place))
-    const stays = kept.length > 0 ? t.staysIn(list(kept.map((place) => placePath(place.node)), locale)) : ''
+    const stays = kept.length > 0 ? t.staysIn(list(kept.map((place) => shownPath(place.node, locale)), locale)) : ''
     return {
-        title: t.moveTo(placePath(target)),
-        body: `${t.leaves(list(lost.map((place) => placePath(place.node)), locale))}${stays}`,
+        title: t.moveTo(shownPath(target, locale)),
+        body: `${t.leaves(list(lost.map((place) => shownPath(place.node, locale)), locale))}${stays}`,
         confirm: t.move,
         busy: t.moving,
         change: {kind: 'add', constellationId: target.id},
@@ -86,12 +91,12 @@ export function topCross(places: PlacedNode[], place: PlacedNode, index: number,
         return topMoveTo(places, segments[index - 1], locale) as PlaceConfirmation
     }
     const kept = places.filter((item) => item !== place)
-    const heir = place.main && kept.length > 0 ? t.becomesMain(placePath(kept[0].node)) : ''
+    const heir = place.main && kept.length > 0 ? t.becomesMain(shownPath(kept[0].node, locale)) : ''
     return {
-        title: t.removeFrom(placePath(place.node)),
+        title: t.removeFrom(shownPath(place.node, locale)),
         body: kept.length === 0
             ? t.noPlaceLeft
-            : `${t.staysInOnly(list(kept.map((item) => placePath(item.node)), locale))}${heir}`,
+            : `${t.staysInOnly(list(kept.map((item) => shownPath(item.node, locale)), locale))}${heir}`,
         confirm: t.remove,
         busy: t.removing,
         change: {kind: 'remove', constellationId: place.node.id},
@@ -105,7 +110,7 @@ export function topUnder(places: PlacedNode[], parent: NoteRef, locale: Locale =
     return {
         title: t.moveUnder(note),
         body: places.length > 0
-            ? t.leavesAndLivesWhere(list(places.map((place) => placePath(place.node)), locale), note)
+            ? t.leavesAndLivesWhere(list(places.map((place) => shownPath(place.node, locale)), locale), note)
             : t.willLiveWhere(note),
         confirm: t.move,
         busy: t.moving,
@@ -122,11 +127,11 @@ export function subOut(ancestors: NoteRef[], topPlaces: PlacedNode[], target: Co
     const t = placeMovesMessages[locale]
     const parent = ancestors[ancestors.length - 1]
     // Leaving the parent leaves every note above it too.
-    const lost = topPlaces.filter((place) => place.node.id !== target?.id).map((place) => placePath(place.node))
-    const goes = target ? t.goesTo(placePath(target)) : t.noPlace
+    const lost = topPlaces.filter((place) => place.node.id !== target?.id).map((place) => shownPath(place.node, locale))
+    const goes = target ? t.goesTo(shownPath(target, locale)) : t.noPlace
     const noLonger = lost.length > 0 ? t.noLongerIn(list(lost, locale)) : ''
     return {
-        title: target ? t.moveTo(placePath(target)) : t.moveOutOf(quotedNote(parent, locale)),
+        title: target ? t.moveTo(shownPath(target, locale)) : t.moveOutOf(quotedNote(parent, locale)),
         body: t.leavesChain(chain(ancestors, locale), `${goes}${noLonger}`),
         confirm: t.move,
         busy: t.moving,

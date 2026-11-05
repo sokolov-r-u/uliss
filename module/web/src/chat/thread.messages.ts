@@ -26,7 +26,7 @@ export const threadMessages: Dictionaries<typeof en> = {
     ru: {
         loadingEarlier: 'Загружаю ранние сообщения…',
         beginning: 'Начало разговора',
-        nothingSaid: 'Пока ничего не сказано',
+        nothingSaid: 'Разговор ещё не начат',
         nothingSaidBody: 'Запишите мысль ниже. Uliss сохранит разговор и вынесет заметку, когда будет что сохранить.',
         searchingNotes: 'ищу в заметках…',
         thinking: 'думаю…',

@@ -115,7 +115,7 @@ describe('NoteConstellationSection', () => {
         vi.mocked(setMainNoteConstellation).mockResolvedValue([place('films', true), place('jazz', false)])
 
         expect(within(screen.getByRole('group', {name: 'Music / Jazz'})).getByText('Main')).toBeInTheDocument()
-        await userEvent.click(screen.getByRole('button', {name: 'Make Films main'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Make Films the main place'}))
 
         expect(setMainNoteConstellation).toHaveBeenCalledWith('n1', 'films', false)
         expect(await within(screen.getByRole('group', {name: 'Films'})).findByText('Main')).toBeInTheDocument()

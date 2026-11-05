@@ -37,7 +37,7 @@ test('a note is placed through the tree picker, keeps one place per line and cha
     await expect(placeRow(page, 'Films')).toBeVisible()
     await expect(placeRow(page, 'Music / Jazz').getByText('Main', {exact: true})).toBeVisible()
 
-    await panel.getByRole('button', {name: 'Make Films main'}).click()
+    await panel.getByRole('button', {name: 'Make Films the main place'}).click()
     await expect(placeRow(page, 'Films').getByText('Main', {exact: true})).toBeVisible()
 
     // Miles lies on Jazz's line: it takes Jazz's place after a confirmation.

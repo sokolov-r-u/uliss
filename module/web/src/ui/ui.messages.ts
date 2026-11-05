@@ -20,7 +20,7 @@ export const uiMessages: Dictionaries<typeof en> = {
         reload: 'Перезагрузить',
         closePanel: 'Закрыть панель',
         resizePanel: 'Изменить ширину панели',
-        pinnedFailed: 'Закреплённые не загрузились.',
+        pinnedFailed: 'Не удалось загрузить закреплённые.',
         couldNotLoadNotes: 'Не удалось загрузить заметки.',
         couldNotLoadChats: 'Не удалось загрузить чаты.',
     },
