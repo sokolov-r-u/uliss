@@ -1,9 +1,11 @@
 import {useEffect, useState} from 'react'
-import {Button, Icon, IconButton, Kicker} from '@uliss/design-system'
+import {Button, Icon, IconButton, Kicker, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteDetailsSections} from '../notes/NoteDetailsSections'
 import {getNote, type Note} from '../notes/noteApi'
 import type {SkyGraph} from './skyModel'
+import {commonMessages} from '../i18n/common.messages'
+import {skyMessages} from './sky.messages'
 
 /** Markdown reduced to one plain line for a preview: headings, emphasis, links and list marks dropped. */
 export function plainExcerpt(markdown: string | null): string {
@@ -31,6 +33,8 @@ export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpen
     onOpenChat: (chatId: string) => void
     onChanged: () => void
 }) {
+    const t = useMessages(skyMessages)
+    const common = useMessages(commonMessages)
     const star = graph.byId.get(starId)
     const [loaded, setLoaded] = useState<{ id: string; note: Note | null } | null>(null)
 
@@ -56,16 +60,16 @@ export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpen
     if (!star) return null
     const note = loaded?.id === starId ? loaded.note : undefined
 
-    return <aside className="sky-panel" data-sky-ui="" aria-label="Note">
+    return <aside className="sky-panel" data-sky-ui="" aria-label={t.note}>
         <header className="sky-panel-head">
-            <Kicker size={9} spacing="3px" color="var(--accent)">Note</Kicker>
-            <IconButton s={44} title="Close" onClick={onClose}><Icon name="close" size={15}/></IconButton>
+            <Kicker size={9} spacing="3px" color="var(--accent)">{t.note}</Kicker>
+            <IconButton s={44} title={t.close} onClick={onClose}><Icon name="close" size={15}/></IconButton>
         </header>
         <div className="sky-panel-body">
             <h2 className="sky-panel-title">{star.label}</h2>
-            <p className="sky-panel-excerpt">{note === undefined ? 'Loading…'
-                : note ? plainExcerpt(note.content) : 'Could not load the note.'}</p>
-            <Button variant="outline" onClick={() => onOpen(star.id)}>Open note</Button>
+            <p className="sky-panel-excerpt">{note === undefined ? common.loading
+                : note ? plainExcerpt(note.content) : t.couldNotLoadNote}</p>
+            <Button variant="outline" onClick={() => onOpen(star.id)}>{t.openNote}</Button>
             {note && <div className="sky-panel-details">
                 <NoteDetailsSections note={note} onOpenNote={(id) => graph.byId.has(id) ? onPickStar(id) : onOpen(id)}
                                      onOpenChat={onOpenChat} onPlaceChanged={onChanged}/>

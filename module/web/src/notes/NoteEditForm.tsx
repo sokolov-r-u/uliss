@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Button, Dialog, IconPicker, TextField} from '@uliss/design-system'
+import {Button, Dialog, IconPicker, type Locale, TextField, useLocale, useMessages} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {AuthRequiredError} from '../auth/apiClient'
 import {normalizeTitle, TITLE_LIMIT} from '../lib/titleRule'
@@ -16,6 +16,7 @@ import {
     streamNoteAiEdit,
     updateNote,
 } from './noteApi'
+import {HINT_COUNT, noteEditMessages} from './noteEdit.messages'
 
 export type EditableNote = Note & { content: string; version: number }
 
@@ -31,44 +32,38 @@ interface NoteEditFormProps {
     onClose: () => void
 }
 
-function saveFailure(error: unknown): string {
-    if (error instanceof NoteApiError && error.kind === 'http') {
-        if (error.code === 'NOTE_VERSION_CONFLICT') return 'This note changed elsewhere. Copy your edits and reload.'
-        if (error.code === 'NOTE_UPDATING') return 'Uliss is updating this note. Save again when it finishes.'
-        if (error.status === 404 || error.code === 'NOTE_NOT_READY') return 'This note can no longer be edited.'
-        if (error.status === 400) return 'Use a title of 1 to 50 characters and a text of up to 100,000 characters.'
-    }
-    return describeError(error)
-}
+type EditWords = typeof noteEditMessages.en
 
-/** Examples of what the command field is for; shown one at a time as its placeholder. */
-const COMMAND_HINTS = [
-    "Fix spelling and punctuation, don't change the wording…",
-    "Format the text: headings, lists, paragraphs; don't change the wording…",
-    'Make it shorter…',
-    'Turn the lists into a table…',
-]
+function saveFailure(error: unknown, t: EditWords, locale: Locale): string {
+    if (error instanceof NoteApiError && error.kind === 'http') {
+        if (error.code === 'NOTE_VERSION_CONFLICT') return t.conflict
+        if (error.code === 'NOTE_UPDATING') return t.updatingSave
+        if (error.status === 404 || error.code === 'NOTE_NOT_READY') return t.notEditable
+        if (error.status === 400) return t.invalid
+    }
+    return describeError(error, locale)
+}
 
 function nextHint(current: number): number {
-    if (COMMAND_HINTS.length < 2) return 0
-    const step = 1 + Math.floor(Math.random() * (COMMAND_HINTS.length - 1))
-    return (current + step) % COMMAND_HINTS.length
+    if (HINT_COUNT < 2) return 0
+    const step = 1 + Math.floor(Math.random() * (HINT_COUNT - 1))
+    return (current + step) % HINT_COUNT
 }
 
-function rewriteFailure(error: unknown): string {
+function rewriteFailure(error: unknown, t: EditWords): string {
     if (error instanceof NoteApiError) {
-        if (error.code === 'NOTE_UPDATING') return 'Uliss is updating this note. Try again when it finishes.'
-        if (error.status === 404 || error.code === 'NOTE_NOT_READY') return 'This note can no longer be edited.'
-        if (error.status === 400) {
-            return 'Use a command of up to 1,000 characters and a text of up to 30,000 characters.'
-        }
-        if (error.kind === 'transport') return 'Uliss is unavailable. Try again.'
+        if (error.code === 'NOTE_UPDATING') return t.updatingRewrite
+        if (error.status === 404 || error.code === 'NOTE_NOT_READY') return t.notEditable
+        if (error.status === 400) return t.rewriteInvalid
+        if (error.kind === 'transport') return t.unavailable
     }
-    return 'Uliss could not rewrite the text. Try again.'
+    return t.rewriteFailed
 }
 
 /** Icon, title and text of a ready note in edit mode: Save sends them with the version the edit started from. */
 export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
+    const locale = useLocale()
+    const t = useMessages(noteEditMessages)
     const initialTitle = note.title ?? ''
     const [title, setTitle] = useState(initialTitle)
     const initialIcon = note.icon ?? null
@@ -80,7 +75,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     const savingRef = useRef(false)
     const editorRef = useRef<NoteEditorHandle>(null)
     const [command, setCommand] = useState('')
-    const [hint, setHint] = useState(() => Math.floor(Math.random() * COMMAND_HINTS.length))
+    const [hint, setHint] = useState(() => Math.floor(Math.random() * HINT_COUNT))
     const [preview, setPreview] = useState<string | null>(null)
     const [rewriteNotice, setRewriteNotice] = useState<string | null>(null)
     const rewriteRef = useRef<AbortController | null>(null)
@@ -113,7 +108,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
             notifyNotesChanged()
             onSaved(savedNote)
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setError(saveFailure(e))
+            if (!(e instanceof AuthRequiredError)) setError(saveFailure(e, t, locale))
         } finally {
             savingRef.current = false
             setSaving(false)
@@ -127,15 +122,15 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
         const content = editor.getMarkdown()
         setError(null)
         if (instruction.length > AI_EDIT_INSTRUCTION_LIMIT) {
-            setRewriteNotice('Keep the command under 1,000 characters.')
+            setRewriteNotice(t.commandTooLong)
             return
         }
         if (content === '') {
-            setRewriteNotice('Write some text first.')
+            setRewriteNotice(t.writeFirst)
             return
         }
         if (content.length > AI_EDIT_CONTENT_LIMIT) {
-            setRewriteNotice('Note is too long for Uliss to edit (30,000 characters at most).')
+            setRewriteNotice(t.tooLong)
             return
         }
         const controller = new AbortController()
@@ -161,15 +156,15 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
                 // Text from a stopped or failed stream is dropped: half a note must not be saved by mistake.
                 const changed = editorRef.current?.replaceText(result) ?? false
                 setCommand('')
-                if (!changed) setRewriteNotice('Nothing changed.')
+                if (!changed) setRewriteNotice(t.nothingChanged)
             } else {
-                setRewriteNotice('Uliss could not rewrite the text. Try again.')
+                setRewriteNotice(t.rewriteFailed)
             }
         } catch (e) {
             if (isAbortError(e)) {
-                if (rewriteRef.current === controller) setRewriteNotice('Stopped.')
+                if (rewriteRef.current === controller) setRewriteNotice(t.stopped)
             } else if (!(e instanceof AuthRequiredError)) {
-                setRewriteNotice(rewriteFailure(e))
+                setRewriteNotice(rewriteFailure(e, t))
             }
         } finally {
             if (frame !== null) cancelAnimationFrame(frame)
@@ -180,9 +175,9 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
 
     return <div className="note-edit">
         <div className="note-edit-title">
-            <IconPicker label="Icon" value={icon} onChange={setIcon} disabled={busy} dataSource={EMOJI_DATA_URL}/>
+            <IconPicker label={t.icon} value={icon} onChange={setIcon} disabled={busy} dataSource={EMOJI_DATA_URL}/>
             <div className="note-edit-title-input">
-                <TextField label="Title" value={title} maxLength={TITLE_LIMIT} disabled={busy}
+                <TextField label={t.title} value={title} maxLength={TITLE_LIMIT} disabled={busy}
                            onChange={(event) => setTitle(event.target.value)}/>
             </div>
         </div>
@@ -191,18 +186,18 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
         <div className="note-edit-dock">
             {rewriteNotice && <p className="note-edit-notice" role="status">{rewriteNotice}</p>}
             <ChatComposer value={command} onChange={setCommand} onSubmit={(text) => void rewrite(text)}
-                          placeholder={COMMAND_HINTS[hint]} disabled={saving}
+                          placeholder={t.hint(hint)} disabled={saving}
                           generationActive={generating} onStop={() => rewriteRef.current?.abort()}/>
             <div className="note-edit-actions">
                 {error && <p className="note-edit-error" role="alert">{error}</p>}
                 <Button variant="ghost" disabled={busy}
-                        onClick={() => (dirty ? setConfirmingDiscard(true) : onClose())}>Cancel</Button>
+                        onClick={() => (dirty ? setConfirmingDiscard(true) : onClose())}>{t.cancel}</Button>
                 <Button variant="outline" disabled={!canSave} aria-busy={saving}
-                        onClick={() => void save()}>{saving ? 'Saving…' : 'Save'}</Button>
+                        onClick={() => void save()}>{saving ? t.saving : t.save}</Button>
             </div>
         </div>
-        {confirmingDiscard && <Dialog title="Discard your edits?" body="The note stays as it was last saved."
-                                      confirm="Discard" cancel="Keep editing"
+        {confirmingDiscard && <Dialog title={t.discardTitle} body={t.discardBody}
+                                      confirm={t.discard} cancel={t.keepEditing}
                                       onConfirm={onClose} onCancel={() => setConfirmingDiscard(false)}/>}
     </div>
 }

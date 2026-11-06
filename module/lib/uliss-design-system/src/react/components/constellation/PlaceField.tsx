@@ -2,6 +2,8 @@ import {useEffect, useRef} from 'react'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {LabelRow} from '../layout/LabelRow'
+import {useMessages} from '../../i18n/LocaleContext'
+import {placeFieldMessages} from './PlaceField.messages'
 
 // A place as one collapsed 48px line: the chosen path, or a placeholder. A
 // click asks the host to show the picker — in a dialog, as the dialog's own
@@ -22,8 +24,10 @@ export interface PlaceFieldProps {
     onClear?: () => void
 }
 
-export function PlaceField({label, value, placeholder = 'Choose a place', open, onOpen, disabled = false, onClear}:
+export function PlaceField({label, value, placeholder: placeholderProp, open, onOpen, disabled = false, onClear}:
                            PlaceFieldProps) {
+    const t = useMessages(placeFieldMessages)
+    const placeholder = placeholderProp ?? t.placeholder
     const lineRef = useRef<HTMLButtonElement>(null)
     const wasOpen = useRef(open)
 
@@ -73,7 +77,7 @@ export function PlaceField({label, value, placeholder = 'Choose a place', open, 
                         <Icon name="chevron" size={10} rotate={-90}/>
                     </span>
                 </button>
-                {value && onClear && <IconButton s={44} title="Clear the place" disabled={disabled} onClick={() => {
+                {value && onClear && <IconButton s={44} title={t.clear} disabled={disabled} onClick={() => {
                     onClear()
                     lineRef.current?.focus()
                 }}><Icon name="close" size={12}/></IconButton>}

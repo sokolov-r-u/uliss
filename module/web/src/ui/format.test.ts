@@ -1,24 +1,23 @@
 import {describe, expect, it} from 'vitest'
-import {formatFullDate, formatMonth, formatShortDate, noteCountLabel} from './format'
+import {formatFullDate, formatMonth, formatShortDate} from './format'
 
-const iso = '2026-06-22T09:00:00Z'
-const local = (options: Intl.DateTimeFormatOptions) => new Date(iso).toLocaleDateString(undefined, options)
-
+// local midday: the same calendar day in every time zone the tests run in
+const iso = '2026-06-22T12:00:00'
 describe('format', () => {
-    it('formats absolute dates in three lengths and tolerates missing or invalid input', () => {
-        expect(formatShortDate(iso)).toBe(local({month: 'short', day: 'numeric'}))
-        expect(formatFullDate(iso)).toBe(local({month: 'short', day: 'numeric', year: 'numeric'}))
-        expect(formatMonth(iso)).toBe(local({month: 'long', year: 'numeric'}))
-        for (const bad of [undefined, '', 'not a date']) {
-            expect(formatShortDate(bad)).toBe('')
-            expect(formatFullDate(bad)).toBe('')
-            expect(formatMonth(bad)).toBe('')
-        }
+    it('formats absolute dates in three lengths in the interface language, not the OS locale', () => {
+        expect(formatShortDate(iso, 'en')).toBe('Jun 22')
+        expect(formatFullDate(iso, 'en')).toBe('Jun 22, 2026')
+        expect(formatMonth(iso, 'en')).toBe('June 2026')
+        expect(formatShortDate(iso, 'ru')).toBe('22 июн.')
+        expect(formatFullDate(iso, 'ru')).toBe('22 июн. 2026 г.')
+        expect(formatMonth(iso, 'ru')).toBe('июнь 2026 г.')
     })
 
-    it('words a note count', () => {
-        expect(noteCountLabel(0)).toBe('No notes yet')
-        expect(noteCountLabel(1)).toBe('1 note')
-        expect(noteCountLabel(3)).toBe('3 notes')
+    it('tolerates missing or invalid input', () => {
+        for (const bad of [undefined, '', 'not a date']) {
+            expect(formatShortDate(bad, 'en')).toBe('')
+            expect(formatFullDate(bad, 'ru')).toBe('')
+            expect(formatMonth(bad, 'en')).toBe('')
+        }
     })
 })

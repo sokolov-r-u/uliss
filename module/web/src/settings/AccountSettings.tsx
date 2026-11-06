@@ -1,6 +1,7 @@
-import {Button} from '@uliss/design-system'
+import {Button, useMessages} from '@uliss/design-system'
 import {SectionLabel, SettingsShell} from './SettingsShell'
 import {useAuth} from '../auth/AuthContext'
+import {accountMessages} from './account.messages'
 
 /**
  * Account — static per the mock-up. The SPA holds only opaque tokens (`sub` is a UUID, not
@@ -9,16 +10,15 @@ import {useAuth} from '../auth/AuthContext'
  */
 export function AccountSettings() {
     const {logout} = useAuth()
+    const t = useMessages(accountMessages)
 
     return (
-        <SettingsShell kicker="Account">
-            <SectionLabel>Profile</SectionLabel>
-            <p className="settings-para">
-                Profile details are not available to this client. Account editing is unavailable.
-            </p>
+        <SettingsShell kicker={t.kicker}>
+            <SectionLabel>{t.profile}</SectionLabel>
+            <p className="settings-para">{t.profileBody}</p>
 
-            <SectionLabel>Session</SectionLabel>
-            <Button variant="quiet" size="lg" onClick={() => void logout()}>Sign out</Button>
+            <SectionLabel>{t.session}</SectionLabel>
+            <Button variant="quiet" size="lg" onClick={() => void logout()}>{t.signOut}</Button>
         </SettingsShell>
     )
 }

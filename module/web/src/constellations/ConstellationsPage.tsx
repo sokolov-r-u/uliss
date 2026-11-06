@@ -1,7 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useNavigate} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {Button, Dialog, EmptyState, TextField} from '@uliss/design-system'
+import {Button, Dialog, EmptyState, type Locale, TextField, useLocale, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {listNotesWithoutConstellation, type Note, notifyNotesChanged} from '../notes/noteApi'
 import {ContextPanel} from '../ui/ContextPanel'
@@ -21,12 +21,13 @@ import {
     CONSTELLATION_NAME_LIMIT,
     type ConstellationNode,
     normalizeConstellationName,
-    plural,
 } from './constellationTree'
 import {ConstellationTreeView} from './ConstellationTreeView'
 import {DeleteConstellationDialog, type DeleteTarget} from './DeleteConstellationDialog'
 import {UnplacedPanel} from './UnplacedPanel'
 import './constellations.css'
+import {commonMessages} from '../i18n/common.messages'
+import {constellationsMessages} from './constellations.messages'
 
 type LoadState =
     | { status: 'loading' }
@@ -42,31 +43,30 @@ type DialogState =
 export type ConstellationChange = 'name' | 'colour' | 'move' | 'delete'
 
 /** The user's message for a failed change; 404 means the branch is gone (another tab), 409 carries the reason. */
-export function constellationFailureMessage(error: unknown, change: ConstellationChange, name?: string): string {
+export function constellationFailureMessage(error: unknown, change: ConstellationChange, name?: string,
+                                            locale: Locale = 'en'): string {
+    const t = constellationsMessages[locale]
     if (error instanceof ConstellationApiError) {
         if (error.code === 'CONSTELLATION_NAME_TAKEN') {
-            if (!name) return 'That name is already taken there.'
+            if (!name) return t.nameTakenThere
             // A move has no name field: the clash is at the target, renaming is the way out.
-            return change === 'move'
-                ? `“${name}” is already taken there. Rename it or pick another place.`
-                : `“${name}” is already taken here. Pick another name.`
+            return change === 'move' ? t.nameTakenMove(name) : t.nameTakenHere(name)
         }
-        if (error.code === 'CONSTELLATION_MOVE_CYCLE') return 'A branch cannot move inside itself.'
-        if (error.status === 404) {
-            return change === 'delete' ? 'This constellation or the chosen target no longer exists.'
-                : 'This constellation no longer exists.'
-        }
-        if (error.status === 400) {
-            return change === 'name'
-                ? `Use a name of 1 to ${CONSTELLATION_NAME_LIMIT} characters.`
-                : 'The tree changed since it was loaded. Reload the page and try again.'
-        }
-        if (error.kind === 'transport') return 'The note service is unavailable. Try again.'
+        if (error.code === 'CONSTELLATION_MOVE_CYCLE') return t.moveCycle
+        if (error.status === 404) return change === 'delete' ? t.deleteGone : t.gone
+        if (error.status === 400) return change === 'name' ? t.nameRule(CONSTELLATION_NAME_LIMIT) : t.treeChanged
+        if (error.kind === 'transport') return t.unavailable
     }
-    return 'Could not save the change. Try again.'
+    return t.saveFailed
 }
 
 export function ConstellationsPage() {
+    const locale = useLocale()
+    // the loader words a failure in the language of the moment without reloading on a switch
+    const localeRef = useRef(locale)
+    localeRef.current = locale
+    const t = useMessages(constellationsMessages)
+    const common = useMessages(commonMessages)
     const [load, setLoad] = useState<LoadState>({status: 'loading'})
     const [open, setOpen] = useState<ReadonlySet<string>>(() => new Set())
     const [selectedId, setSelectedId] = useState<string | null>(null)
@@ -89,7 +89,7 @@ export function ConstellationsPage() {
             setLoad({status: 'ready', items, unplaced})
         } catch (e) {
             if (e instanceof AuthRequiredError || signal?.aborted) return
-            setLoad({status: 'error', message: describeError(e)})
+            setLoad({status: 'error', message: describeError(e, localeRef.current)})
         }
     }, [])
 
@@ -162,7 +162,7 @@ export function ConstellationsPage() {
             return result
         } catch (e) {
             // A 404 keeps the stale tree: reloading would close the panel or dialog together with this message.
-            if (!(e instanceof AuthRequiredError)) setError(constellationFailureMessage(e, kind, name))
+            if (!(e instanceof AuthRequiredError)) setError(constellationFailureMessage(e, kind, name, locale))
             return undefined
         } finally {
             pendingRef.current = false
@@ -246,26 +246,26 @@ export function ConstellationsPage() {
         }
         : undefined
     const openNote = (noteId: string) => navigate(`/notes/${noteId}`)
-    const count = load.status === 'ready' ? `${plural(tree.roots.length, 'root', 'roots')} · ${tree.flat.length} in all` : undefined
+    const count = load.status === 'ready' ? t.count(tree.roots.length, tree.flat.length) : undefined
     const dialogNode = dialog && dialog.kind !== 'create' ? tree.byId.get(dialog.id) ?? null : null
     const createParent = dialog?.kind === 'create' && dialog.parentId ? tree.byId.get(dialog.parentId) ?? null : null
 
     return <div className="detail-layout">
         <div className="product-view constellations-view">
-            <ScreenHeader kicker="Constellations" count={count}/>
+            <ScreenHeader kicker={common.constellations} count={count}/>
             <div className="product-body">
-                {load.status === 'loading' && <p className="constellations-state">Loading…</p>}
+                {load.status === 'loading' && <p className="constellations-state">{common.loading}</p>}
                 {load.status === 'error' && <div className="constellations-state" role="alert">
-                    <p>Could not load the constellations. {load.message}</p>
+                    <p>{t.couldNotLoad(load.message)}</p>
                     <Button size="sm" variant="quiet" onClick={() => {
                         setLoad({status: 'loading'})
                         void reload()
-                    }}>Retry</Button>
+                    }}>{common.retry}</Button>
                 </div>}
                 {load.status === 'ready' && tree.flat.length === 0 && <div className="product-empty">
-                    <EmptyState title="No constellations yet"
-                                body="Constellations are the places your notes live: roots like Music or Films, with branches under them as deep as you like."
-                                action="New constellation" onAction={() => openDialog({kind: 'create', parentId: null})}/>
+                    <EmptyState title={t.empty}
+                                body={t.emptyBody}
+                                action={t.newConstellation} onAction={() => openDialog({kind: 'create', parentId: null})}/>
                     {unplacedRow && <ConstellationTreeView tree={tree} open={open} selectedId={null} onToggle={toggle}
                                                            onSelect={select} unplaced={unplacedRow}/>}
                 </div>}
@@ -274,15 +274,14 @@ export function ConstellationsPage() {
                                            onSelect={select} unplaced={unplacedRow}/>
                     <div className="constellations-foot">
                         <button type="button" className="constellations-new"
-                                onClick={() => openDialog({kind: 'create', parentId: null})}>+ New constellation
+                                onClick={() => openDialog({kind: 'create', parentId: null})}>{t.addNew}
                         </button>
-                        <p>You choose where each note lives. Colour comes from the root; the branches below it play
-                            with lightness.</p>
+                        <p>{t.foot}</p>
                     </div>
                 </div>}
             </div>
         </div>
-        {selected && <ContextPanel label={selected.depth === 0 ? 'Constellation' : 'Sub-constellation'} open
+        {selected && <ContextPanel label={selected.depth === 0 ? t.constellation : t.subConstellation} open
                                    onClose={closePanel}>
             <ConstellationPanel node={selected} tree={tree} tool={tool} busy={pending}
                                 error={dialog ? null : error}
@@ -297,17 +296,17 @@ export function ConstellationsPage() {
                                 onMove={(parentId) => void move(selected, parentId)}
                                 onOpenNote={openNote}/>
         </ContextPanel>}
-        {unplacedOpen && !selected && <ContextPanel label="Without constellation" open onClose={closePanel}>
+        {unplacedOpen && !selected && <ContextPanel label={t.unplaced} open onClose={closePanel}>
             <UnplacedPanel count={unplaced.length} onOpenNote={openNote}/>
         </ContextPanel>}
         {dialog && dialog.kind !== 'delete' && <Dialog
-            title={dialog.kind === 'rename' ? 'Rename constellation'
-                : createParent ? `New sub-constellation in ${createParent.name}` : 'New constellation'}
+            title={dialog.kind === 'rename' ? t.rename
+                : createParent ? t.newIn(createParent.name) : t.newConstellation}
             body={error ?? undefined}
-            confirm={pending ? 'Saving…' : dialog.kind === 'rename' ? 'Save' : 'Create'} cancel="Cancel"
+            confirm={pending ? t.saving : dialog.kind === 'rename' ? t.save : t.create} cancel={t.cancel}
             busy={pending} confirmDisabled={pending || normalizeConstellationName(draft) === null}
             onConfirm={() => void submitName()} onCancel={closeDialog} width={320}>
-            <TextField label="Name" value={draft} maxLength={CONSTELLATION_NAME_LIMIT} autoFocus
+            <TextField label={t.name} value={draft} maxLength={CONSTELLATION_NAME_LIMIT} autoFocus
                        onChange={(event) => setDraft(event.target.value)}
                        onKeyDown={(event) => {
                            if (event.key === 'Enter') void submitName()

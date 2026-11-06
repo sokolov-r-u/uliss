@@ -3,6 +3,8 @@ import {createPortal} from 'react-dom'
 import {Icon} from '../icons/Icon'
 import {IconButton} from '../actions/IconButton'
 import {EMOJI_PICKER_HEIGHT, EmojiPicker} from './EmojiPicker'
+import {useMessages} from '../../i18n/LocaleContext'
+import {iconPickerMessages} from './IconPicker.messages'
 
 // A 48px square that shows a note's emoji (or a faint plus) next to its name field.
 // It opens an `EmojiPicker` under itself (above when the room below is short);
@@ -40,6 +42,7 @@ const PANEL_WIDTH = 380
 const PANEL_HEIGHT = PANEL_PADDING.top + TITLE_HEIGHT + EMOJI_PICKER_HEIGHT + PANEL_PADDING.bottom + 2
 
 export function IconPicker({label, value, onChange, dataSource, disabled = false, cover = false}: IconPickerProps) {
+    const t = useMessages(iconPickerMessages)
     const [open, setOpen] = useState(false)
     const [position, setPosition] = useState<{ top: number; left: number; width: number; height: number } | null>(
         null)
@@ -108,8 +111,8 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
 
     return (
         <div ref={wrapRef} onKeyDown={onKeyDown} style={{position: 'relative', flex: '0 0 auto'}}>
-            <button ref={buttonRef} type="button" disabled={disabled} aria-label={`${label}: ${value ?? 'none'}`}
-                    title="Choose an icon" aria-haspopup="dialog" aria-expanded={open}
+            <button ref={buttonRef} type="button" disabled={disabled} aria-label={`${label}: ${value ?? t.none}`}
+                    title={t.choose} aria-haspopup="dialog" aria-expanded={open}
                     onClick={() => setOpen((shown) => !shown)}
                     style={{
                         width: 48,
@@ -129,7 +132,7 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                 {value ?? <Icon name="plus" size={14}/>}
             </button>
             {open && createPortal(
-                <div ref={panelRef} role="dialog" aria-label="Choose an icon" style={{
+                <div ref={panelRef} role="dialog" aria-label={t.choose} style={{
                     position: 'fixed',
                     top: position?.top ?? 0,
                     left: position?.left ?? 0,
@@ -152,8 +155,8 @@ export function IconPicker({label, value, onChange, dataSource, disabled = false
                             fontFamily: 'var(--heading-font)',
                             fontSize: 20,
                             color: 'var(--heading-color)',
-                        }}>Choose an icon</span>
-                        <IconButton title="Close the picker" s={30} onClick={close}>
+                        }}>{t.choose}</span>
+                        <IconButton title={t.close} s={30} onClick={close}>
                             <Icon name="close" size={13}/>
                         </IconButton>
                     </div>

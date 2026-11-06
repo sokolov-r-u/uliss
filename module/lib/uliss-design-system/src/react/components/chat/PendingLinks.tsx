@@ -1,4 +1,6 @@
 import {PendingStatus} from '../feedback/PendingStatus'
+import {useMessages} from '../../i18n/LocaleContext'
+import {pendingLinksMessages} from './PendingLinks.messages'
 
 // The "still thinking" line for links. Uliss computes a note's links after it
 // saves, so any list of links has a window where it is legitimately empty — and
@@ -14,10 +16,12 @@ export interface PendingLinksProps {
 }
 
 export function PendingLinks({
-                                 label = 'looking for links…',
+                                 label: labelProp,
                                  size = 10.5,
                                  pad = '11px 0',
                                  minHeight = 44,
                              }: PendingLinksProps) {
+    const t = useMessages(pendingLinksMessages)
+    const label = labelProp ?? t.lookingForLinks
     return <PendingStatus label={label} size={size} pad={pad} minHeight={minHeight}/>
 }

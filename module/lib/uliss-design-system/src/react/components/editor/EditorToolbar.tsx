@@ -1,5 +1,7 @@
 import type {CSSProperties, ReactNode} from 'react'
 import {Icon} from '../icons/Icon'
+import {useMessages} from '../../i18n/LocaleContext'
+import {editorToolbarMessages} from './EditorToolbar.messages'
 
 // The formatting strip above a note being edited: a few marks, two lists,
 // undo/redo, and the "Original" switch that swaps the editor for the saved
@@ -25,7 +27,6 @@ export interface EditorToolbarProps {
 
 interface ToolDef {
     command: EditorCommand
-    label: string
     glyph: ReactNode
     toggles: boolean
 }
@@ -35,13 +36,13 @@ const letter = (text: string, style: CSSProperties) => (
 )
 
 const TOOLS: ToolDef[] = [
-    {command: 'bold', label: 'Bold', glyph: letter('B', {fontWeight: 700}), toggles: true},
-    {command: 'italic', label: 'Italic', glyph: letter('I', {fontStyle: 'italic'}), toggles: true},
-    {command: 'heading', label: 'Heading', glyph: letter('H', {fontWeight: 600}), toggles: true},
-    {command: 'bulletList', label: 'Bulleted list', glyph: <Icon name="listBullet" size={17}/>, toggles: true},
-    {command: 'orderedList', label: 'Numbered list', glyph: <Icon name="listNumbered" size={17}/>, toggles: true},
-    {command: 'undo', label: 'Undo', glyph: <Icon name="undo" size={17}/>, toggles: false},
-    {command: 'redo', label: 'Redo', glyph: <Icon name="redo" size={17}/>, toggles: false},
+    {command: 'bold', glyph: letter('B', {fontWeight: 700}), toggles: true},
+    {command: 'italic', glyph: letter('I', {fontStyle: 'italic'}), toggles: true},
+    {command: 'heading', glyph: letter('H', {fontWeight: 600}), toggles: true},
+    {command: 'bulletList', glyph: <Icon name="listBullet" size={17}/>, toggles: true},
+    {command: 'orderedList', glyph: <Icon name="listNumbered" size={17}/>, toggles: true},
+    {command: 'undo', glyph: <Icon name="undo" size={17}/>, toggles: false},
+    {command: 'redo', glyph: <Icon name="redo" size={17}/>, toggles: false},
 ]
 
 const buttonStyle = (pressed: boolean, disabled: boolean): CSSProperties => ({
@@ -68,8 +69,9 @@ export function EditorToolbar({
                                   disabled = false,
                                   style,
                               }: EditorToolbarProps) {
+    const t = useMessages(editorToolbarMessages)
     return (
-        <div role="toolbar" aria-label="Formatting" onKeyDown={(event) => {
+        <div role="toolbar" aria-label={t.formatting} onKeyDown={(event) => {
             // toolbar pattern: arrows move between the enabled tools
             const tools = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('button:not(:disabled)'))
             const index = tools.indexOf(document.activeElement as HTMLButtonElement)
@@ -96,8 +98,8 @@ export function EditorToolbar({
                         }}/>}
                         <button
                             type="button"
-                            title={tool.label}
-                            aria-label={tool.label}
+                            title={t[tool.command]}
+                            aria-label={t[tool.command]}
                             aria-pressed={tool.toggles ? pressed : undefined}
                             disabled={off}
                             // Keep the caret in the editor: a toolbar click must not take focus from it.
@@ -112,8 +114,8 @@ export function EditorToolbar({
             })}
             <button
                 type="button"
-                title="Original"
-                aria-label="Original"
+                title={t.original}
+                aria-label={t.original}
                 aria-pressed={original}
                 disabled={disabled}
                 onClick={() => onOriginalChange(!original)}
@@ -127,7 +129,7 @@ export function EditorToolbar({
                     textTransform: 'uppercase',
                 }}
             >
-                Original
+                {t.original}
             </button>
         </div>
     )

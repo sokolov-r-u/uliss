@@ -4,6 +4,8 @@ import {Button} from '../actions/Button'
 import {IconButton} from '../actions/IconButton'
 import {Icon} from '../icons/Icon'
 import {ProgressDots} from './ProgressDots'
+import {useMessages} from '../../i18n/LocaleContext'
+import {noticeMessages} from './Notice.messages'
 
 // Corner ticks — the 'framed' variant's ceremony.
 function CornerTicks({color = 'var(--accent)', size = 12}: { color?: string; size?: number }) {
@@ -60,7 +62,7 @@ export function Notice({
                            title,
                            body,
                            children,
-                           primary = 'Continue',
+                           primary: primaryProp,
                            secondary,
                            skip,
                            progress,
@@ -75,6 +77,8 @@ export function Notice({
                            width = 304,
                            step,
                        }: NoticeProps) {
+    const t = useMessages(noticeMessages)
+    const primary = primaryProp === undefined ? t.continue : primaryProp
     const titleId = useId()
     const stepTitleId = useId()
     const stepRef = useRef<HTMLDivElement>(null)
@@ -163,7 +167,7 @@ export function Notice({
                     <div inert={step != null || undefined} style={step ? {visibility: 'hidden'} : undefined}>
                     {closable && (
                         <div style={corner}>
-                            <IconButton title="Close" onClick={onClose} s={30}><Icon name="close"
+                            <IconButton title={t.close} onClick={onClose} s={30}><Icon name="close"
                                                                                      size={17}/></IconButton>
                         </div>
                     )}
@@ -204,7 +208,7 @@ export function Notice({
                         {primary && (
                             <Button variant="primary" size="lg" full onClick={onPrimary}
                                     disabled={primaryDisabled || busy}>
-                                {busy ? 'Working…' : primary}
+                                {busy ? t.working : primary}
                             </Button>
                         )}
                     </div>
@@ -247,7 +251,7 @@ export function Notice({
                             style={{position: 'absolute', inset: 0, padding: pad, display: 'flex', flexDirection: 'column'}}
                         >
                             <div style={corner}>
-                                <IconButton data-step-back="" title="Back" onClick={step.onBack} s={30}>
+                                <IconButton data-step-back="" title={t.back} onClick={step.onBack} s={30}>
                                     <Icon name="chevron" size={17} rotate={90}/></IconButton>
                             </div>
                             {variant !== 'framed' && (

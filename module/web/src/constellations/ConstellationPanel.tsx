@@ -1,19 +1,13 @@
-import {
-    ConstellationColorEditor,
-    type ConstellationLightness,
-    ConstellationPicker,
-    constellationColor,
-    TagDot,
-} from '@uliss/design-system'
+import {constellationColor, ConstellationColorEditor, type ConstellationLightness, ConstellationPicker, TagDot, useMessages} from '@uliss/design-system'
 import {listConstellationNotes} from '../notes/noteApi'
 import {
     type ConstellationNode,
     type ConstellationTree,
     descendantIds,
     pickerItems,
-    plural,
 } from './constellationTree'
 import {NotesHere} from './NotesHere'
+import {constellationsMessages} from './constellations.messages'
 
 export type PanelTool = 'colour' | 'move' | null
 
@@ -49,6 +43,7 @@ export function ConstellationPanel({
                                        onMove,
                                        onOpenNote,
                                    }: ConstellationPanelProps) {
+    const t = useMessages(constellationsMessages)
     const isRoot = node.depth === 0
     const root = node.ancestors[0] ?? node
     const below = node.count - node.ownCount
@@ -64,19 +59,19 @@ export function ConstellationPanel({
                     <span>{node.name}</span>
                 </h2>
                 <p className="constellation-panel-meta">
-                    {plural(node.count, 'star', 'stars')}
-                    {node.children.length > 0 && ` · ${plural(node.children.length, 'sub-constellation', 'sub-constellations')}`}
+                    {t.stars(node.count)}
+                    {node.children.length > 0 && ` · ${t.subConstellations(node.children.length)}`}
                 </p>
                 <div className="constellation-panel-actions">
-                    <button type="button" disabled={busy} onClick={onRename}>Rename</button>
+                    <button type="button" disabled={busy} onClick={onRename}>{t.renameAction}</button>
                     <button type="button" disabled={busy} aria-expanded={tool === 'colour'}
-                            onClick={() => toggle('colour')}>Change colour
+                            onClick={() => toggle('colour')}>{t.changeColour}
                     </button>
                     <button type="button" className="dashed" disabled={busy} onClick={onCreateChild}>
-                        + New sub-constellation
+                        {t.newSub}
                     </button>
                     <button type="button" disabled={busy} aria-expanded={tool === 'move'}
-                            onClick={() => toggle('move')}>Move
+                            onClick={() => toggle('move')}>{t.move}
                     </button>
                 </div>
                 {error && <p className="constellation-panel-error" role="alert">{error}</p>}
@@ -91,19 +86,19 @@ export function ConstellationPanel({
                                             onClose={() => onTool(null)}/>)}
             {tool === 'move' && <div className="constellation-panel-move">
                 <ConstellationPicker key={node.id} items={pickerItems(tree)} exclude={[node.id, ...descendantIds(node)]}
-                                     label="Move to…" action={(name) => `Move to ${name}`} busy={busy}
-                                     lead={isRoot ? undefined : {label: 'Make it a root', onSelect: () => onMove(null)}}
+                                     label={t.moveToPicker} action={t.moveToNamed} busy={busy}
+                                     lead={isRoot ? undefined : {label: t.makeRoot, onSelect: () => onMove(null)}}
                                      onPick={(id) => onMove(id)} onClose={() => onTool(null)}/>
             </div>}
             <NotesHere id={node.id} load={listConstellationNotes} onOpen={onOpenNote}
-                       empty="No notes here yet."
-                       deeper={below > 0 ? `Plus ${plural(below, 'star', 'stars')} deeper in ${deeperNames(node)}.` : null}/>
+                       empty={t.noNotesHere}
+                       deeper={below > 0 ? t.deeper(t.stars(below), deeperNames(node)) : null}/>
             <section className="constellation-panel-foot">
                 <p>{isRoot
-                    ? 'A root owns its colour. Everything below it plays with lightness.'
-                    : `Colour comes from ${root.name}; this level chooses how light it sits.`}</p>
+                    ? t.rootColour
+                    : t.inheritedColour(root.name)}</p>
                 <button type="button" className="constellation-panel-delete" disabled={busy} onClick={onDelete}>
-                    Delete constellation
+                    {t.deleteConstellation}
                 </button>
             </section>
         </div>

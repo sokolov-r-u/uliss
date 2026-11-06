@@ -1,6 +1,7 @@
 import {useLayoutEffect, useRef} from 'react'
-import {EmptyState} from '@uliss/design-system'
+import {EmptyState, useMessages} from '@uliss/design-system'
 import {Bubble, type DisplayMessage} from './Bubble'
+import {threadMessages} from './thread.messages'
 
 interface MessageThreadProps {
     messages: DisplayMessage[]
@@ -35,6 +36,7 @@ function snapshotOf(el: HTMLDivElement, messages: DisplayMessage[]): ScrollSnaps
 
 /** Scrollable message list with an anchored prepend path and tail auto-scrolling. */
 export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder, retryableId, onRetry}: MessageThreadProps) {
+    const t = useMessages(threadMessages)
     const containerRef = useRef<HTMLDivElement>(null)
     const snapshotRef = useRef<ScrollSnapshot | null>(null)
     const lastContentLength = messages.at(-1)?.content.length ?? 0
@@ -64,16 +66,16 @@ export function MessageThread({messages, hasMore, isLoadingOlder, onLoadOlder, r
     }
 
     const historyStatus = isLoadingOlder
-        ? 'Loading earlier messages…'
-        : !hasMore && messages.length > 0 ? 'Beginning of conversation' : ''
+        ? t.loadingEarlier
+        : !hasMore && messages.length > 0 ? t.beginning : ''
 
     return (
         <div className="message-thread" ref={containerRef} onScroll={handleScroll}>
             {messages.length > 0 && <p className="message-history-status" aria-live="polite">{historyStatus}</p>}
             {messages.length === 0 ? (
                 <EmptyState
-                    title="Nothing said yet"
-                    body="Write a thought below. Uliss keeps the thread and pulls out a note when one is worth keeping."
+                    title={t.nothingSaid}
+                    body={t.nothingSaidBody}
                 />
             ) : (
                 messages.map((m) => <Bubble key={m.id} {...m} onRetry={m.id === retryableId ? onRetry : undefined}/>)

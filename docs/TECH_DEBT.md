@@ -814,3 +814,11 @@ have this (`addPinned` shows it at once, `withoutPinned` hides the page copy). F
 the page until its next result lands, or refetch the pinned list only after the page refetch has been applied.
 Smaller related gaps: with the pinned list failed, the row menu on a chat or note screen shows Pin disabled without a
 reason, and the side nav says "Your chats and notes did not load" when only a pinned list failed.
+
+## Emoji search is English-only (`uliss-design-system`, `web`)
+
+- `EmojiPicker` translates the library's own labels (categories, search label, skin tones) but its data and search
+  stay English: the app serves `emoji-picker-element-data/en/...` and both `Database` and `Picker` use `locale: 'en'`,
+  so a Russian query («кот») finds nothing. Russian search needs the `ru` data file served next to the English one, a
+  `locale`-aware `dataSource`, and a separate IndexedDB store per locale (favorites would not carry over). Agreed with
+  the user to defer (task `docs/tasks/2026-11-04-russian-localization.md`).

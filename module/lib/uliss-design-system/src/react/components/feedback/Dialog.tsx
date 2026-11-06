@@ -1,6 +1,8 @@
 import {type ReactNode, useId, useRef} from 'react'
 import {useFocusTrap} from '../../hooks/useFocusTrap'
 import {Button} from '../actions/Button'
+import {useMessages} from '../../i18n/LocaleContext'
+import {dialogMessages} from './Dialog.messages'
 
 // The confirmation. Says what will happen and what survives, then offers a way
 // out first and the act second. Panel ground, hard edge, two text buttons.
@@ -30,8 +32,8 @@ export function Dialog({
                            title,
                            body,
                            children,
-                           confirm = 'Confirm',
-                           cancel = 'Not now',
+                           confirm: confirmProp,
+                           cancel: cancelProp,
                            danger = false,
                            onConfirm,
                            onCancel,
@@ -39,6 +41,9 @@ export function Dialog({
                            busy = false,
                            width = 280,
                        }: DialogProps) {
+    const t = useMessages(dialogMessages)
+    const confirm = confirmProp ?? t.confirm
+    const cancel = cancelProp ?? t.cancel
     const titleId = useId()
     const dialogRef = useRef<HTMLDivElement>(null)
 

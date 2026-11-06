@@ -1,5 +1,5 @@
-import {useEffect, useState} from 'react'
-import {Button, Dialog, Disclosure, TextArea} from '@uliss/design-system'
+import {useEffect, useRef, useState} from 'react'
+import {Button, Dialog, Disclosure, type Locale, TextArea, useLocale, useMessages} from '@uliss/design-system'
 import {SettingsShell} from './SettingsShell'
 import {
     ABOUT_MAX_CHARS,
@@ -17,6 +17,8 @@ import {MarkdownContent} from '../ui/MarkdownContent'
 import {formatFullDate} from '../ui/format'
 import {describeError} from '../lib/apiHelpers'
 import {NoteApiError} from '../notes/noteApi'
+import {commonMessages} from '../i18n/common.messages'
+import {aboutYouMessages} from './AboutYouSettings.messages'
 
 type State = { status: 'loading' } | { status: 'ready'; profile: UserProfile } | { status: 'error'; message: string }
 
@@ -32,6 +34,12 @@ const ABOUT_HINT_CHARS = 48
  * rules, and may rebuild it from all notes a few times a month.
  */
 export function AboutYouSettings() {
+    const locale = useLocale()
+    const t = useMessages(aboutYouMessages)
+    const common = useMessages(commonMessages)
+    // the loader words a failure in the language of the moment without reloading on a switch
+    const localeRef = useRef(locale)
+    localeRef.current = locale
     const [state, setState] = useState<State>({status: 'loading'})
     const [attempt, setAttempt] = useState(0)
     const [open, setOpen] = useState({about: false, rules: false, profile: true})
@@ -46,7 +54,7 @@ export function AboutYouSettings() {
             .catch((error: unknown) => {
                 // an expired session is already on its way to sign-in
                 if (error instanceof AuthRequiredError || controller.signal.aborted) return
-                setState({status: 'error', message: describeError(error)})
+                setState({status: 'error', message: describeError(error, localeRef.current)})
             })
         return () => controller.abort()
     }, [attempt])
@@ -82,39 +90,32 @@ export function AboutYouSettings() {
     }
 
     return (
-        <SettingsShell kicker="About you" wide>
-            <p className="settings-para">
-                What Uliss knows about you. The assistant reads it before every reply.
-            </p>
-            {state.status === 'loading' && <p className="settings-para">Loading…</p>}
+        <SettingsShell kicker={t.kicker} wide>
+            <p className="settings-para">{t.intro}</p>
+            {state.status === 'loading' && <p className="settings-para">{common.loading}</p>}
             {state.status === 'error' && (
                 <>
                     <p className="settings-para" role="alert">{state.message}</p>
-                    <Button variant="quiet" size="lg" onClick={() => setAttempt((n) => n + 1)}>Try again</Button>
+                    <Button variant="quiet" size="lg" onClick={() => setAttempt((n) => n + 1)}>{t.tryAgain}</Button>
                 </>
             )}
             {profile !== null && (
                 <div className="settings-about-sections">
-                    <Disclosure first title="About me" hint={aboutHint(profile.about)} open={open.about}
+                    <Disclosure first title={t.aboutMe} hint={aboutHint(profile.about, t)} open={open.about}
                                 onToggle={(about) => setOpen((current) => ({...current, about}))}>
                         <AboutSection about={profile.about} onSaved={show}/>
                     </Disclosure>
-                    <Disclosure title="Profile rules" hint={rulesHint(profile.rules)} open={open.rules}
+                    <Disclosure title={t.profileRules} hint={rulesHint(profile.rules, t)} open={open.rules}
                                 onToggle={(rules) => setOpen((current) => ({...current, rules}))}>
                         <RulesSection rules={profile.rules} onSaved={show}/>
                     </Disclosure>
-                    <Disclosure title="Profile" hint={profileHint(profile)} open={open.profile}
+                    <Disclosure title={t.profile} hint={profileHint(profile, locale)} open={open.profile}
                                 onToggle={(opened) => setOpen((current) => ({...current, profile: opened}))}>
-                        <p className="settings-para">
-                            Compiled from your notes and updated each night with new and changed ones; deleted notes
-                            leave it at the next rebuild. Your rules apply to it as soon as you save them.
-                        </p>
+                        <p className="settings-para">{t.profileIntro}</p>
                         <RebuildSection rebuild={profile.rebuild} onStarted={showRebuild} onRefused={reread}/>
-                        {profile.applyingRules && <p className="settings-para" role="status">Applying your rules…</p>}
+                        {profile.applyingRules && <p className="settings-para" role="status">{t.applyingRules}</p>}
                         {profile.rulesFailed && (
-                            <p className="settings-para" role="status">
-                                Couldn&apos;t apply your rules yet — Uliss will try again tonight.
-                            </p>
+                            <p className="settings-para" role="status">{t.rulesFailed}</p>
                         )}
                         <ProfileBody profile={profile}/>
                     </Disclosure>
@@ -129,6 +130,8 @@ export function AboutYouSettings() {
  * profile is not rewritten for it.
  */
 function AboutSection({about, onSaved}: { about: string | null; onSaved: (profile: UserProfile) => void }) {
+    const locale = useLocale()
+    const t = useMessages(aboutYouMessages)
     const [draft, setDraft] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
@@ -137,11 +140,10 @@ function AboutSection({about, onSaved}: { about: string | null; onSaved: (profil
         return (
             <>
                 {about === null
-                    ? <p className="settings-para">Nothing yet. Tell Uliss about yourself: your work, where you live,
-                        what matters to you. The assistant reads it as you wrote it.</p>
+                    ? <p className="settings-para">{t.aboutEmpty}</p>
                     : <p className="settings-about-text">{about}</p>}
                 <div className="settings-profile-actions">
-                    <Button variant="quiet" size="lg" onClick={() => setDraft(about ?? '')}>Edit</Button>
+                    <Button variant="quiet" size="lg" onClick={() => setDraft(about ?? '')}>{t.edit}</Button>
                 </div>
             </>
         )
@@ -159,25 +161,25 @@ function AboutSection({about, onSaved}: { about: string | null; onSaved: (profil
             })
             .catch((error: unknown) => {
                 if (error instanceof AuthRequiredError) return
-                setMessage(describeError(error))
+                setMessage(describeError(error, locale))
             })
             .finally(() => setSaving(false))
     }
 
     return (
         <>
-            <TextArea aria-label="About me" placeholder="Your work, where you live, what matters to you"
+            <TextArea aria-label={t.aboutMe} placeholder={t.aboutPlaceholder}
                       value={draft} limit={ABOUT_MAX_CHARS} rows={5} autoFocus
                       onChange={(event) => setDraft(event.target.value)}/>
             {message && <p className="settings-para" role="alert">{message}</p>}
             <div className="settings-profile-actions">
                 <Button variant="primary" size="lg" disabled={over || unchanged || saving} onClick={save}>
-                    {saving ? 'Saving…' : 'Save'}
+                    {saving ? t.saving : t.save}
                 </Button>
                 <Button variant="quiet" size="lg" disabled={saving} onClick={() => {
                     setDraft(null)
                     setMessage(null)
-                }}>Cancel</Button>
+                }}>{t.cancel}</Button>
             </div>
         </>
     )
@@ -188,6 +190,8 @@ function AboutSection({about, onSaved}: { about: string | null; onSaved: (profil
  * changed are applied to the profile at once.
  */
 function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: UserProfile) => void }) {
+    const locale = useLocale()
+    const t = useMessages(aboutYouMessages)
     const [draft, setDraft] = useState<string[] | null>(null)
     const [saving, setSaving] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
@@ -196,12 +200,11 @@ function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: Us
         return (
             <>
                 {rules.length === 0
-                    ? <p className="settings-para">No rules yet. Rules tell Uliss how to write your profile, for
-                        example &ldquo;Leave out films&rdquo; or &ldquo;Keep each section short&rdquo;.</p>
+                    ? <p className="settings-para">{t.rulesEmpty}</p>
                     : <ol className="settings-rules-list">{rules.map((rule, index) => <li key={index}>{rule}</li>)}</ol>}
                 <div className="settings-profile-actions">
                     <Button variant="quiet" size="lg" onClick={() => setDraft(rules.length === 0 ? [''] : [...rules])}>
-                        Edit
+                        {t.edit}
                     </Button>
                 </div>
             </>
@@ -222,7 +225,7 @@ function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: Us
             })
             .catch((error: unknown) => {
                 if (error instanceof AuthRequiredError) return
-                setMessage(describeError(error))
+                setMessage(describeError(error, locale))
             })
             .finally(() => setSaving(false))
     }
@@ -232,12 +235,12 @@ function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: Us
             <ol className="settings-rules-edit">
                 {draft.map((rule, index) => (
                     <li key={index}>
-                        <TextArea aria-label={`Rule ${index + 1}`} value={rule} limit={RULE_MAX_CHARS} rows={2}
-                                  placeholder="For example: leave out films"
+                        <TextArea aria-label={t.rule(index + 1)} value={rule} limit={RULE_MAX_CHARS} rows={2}
+                                  placeholder={t.rulePlaceholder}
                                   onChange={(event) => update(index, event.target.value)}/>
-                        <Button variant="ghost" size="sm" aria-label={`Remove rule ${index + 1}`}
+                        <Button variant="ghost" size="sm" aria-label={t.removeRule(index + 1)}
                                 onClick={() => setDraft((current) => current && current.filter((_, at) => at !== index))}>
-                            Remove
+                            {t.remove}
                         </Button>
                     </li>
                 ))}
@@ -246,54 +249,59 @@ function RulesSection({rules, onSaved}: { rules: string[]; onSaved: (profile: Us
             <div className="settings-profile-actions">
                 <Button variant="quiet" size="lg" disabled={draft.length >= RULES_MAX_COUNT || saving}
                         onClick={() => setDraft((current) => current && [...current, ''])}>
-                    Add rule
+                    {t.addRule}
                 </Button>
                 <Button variant="primary" size="lg" disabled={invalid || unchanged || saving} onClick={save}>
-                    {saving ? 'Saving…' : 'Save'}
+                    {saving ? t.saving : t.save}
                 </Button>
                 <Button variant="quiet" size="lg" disabled={saving} onClick={() => {
                     setDraft(null)
                     setMessage(null)
-                }}>Cancel</Button>
+                }}>{t.cancel}</Button>
             </div>
         </>
     )
 }
 
 function ProfileBody({profile}: { profile: UserProfile }) {
+    const locale = useLocale()
+    const t = useMessages(aboutYouMessages)
     if (profile.content === null) {
         return (
             <p className="settings-para">
-                Nothing yet. Your profile appears after the first nightly update once you have notes.
+                {t.profileEmpty}
             </p>
         )
     }
-    const updated = formatFullDate(profile.updatedAt ?? undefined)
+    const updated = formatFullDate(profile.updatedAt ?? undefined, locale)
     return (
         <>
             <MarkdownContent content={profile.content}/>
-            {updated && <p className="settings-para settings-profile-date">Updated {updated}</p>}
+            {updated && <p className="settings-para settings-profile-date">{t.updatedOn(updated)}</p>}
         </>
     )
 }
 
-function aboutHint(about: string | null): string {
-    if (about === null) return 'Not written yet'
+type AboutWords = typeof aboutYouMessages.en
+
+function aboutHint(about: string | null, t: AboutWords): string {
+    if (about === null) return t.notWritten
     const line = about.replace(/\s+/g, ' ')
     return line.length > ABOUT_HINT_CHARS ? `${line.slice(0, ABOUT_HINT_CHARS).trimEnd()}…` : line
 }
 
-function rulesHint(rules: string[]): string {
-    if (rules.length === 0) return 'No rules'
-    return `${rules.length} ${rules.length === 1 ? 'rule' : 'rules'}`
+function rulesHint(rules: string[], t: AboutWords): string {
+    if (rules.length === 0) return t.noRules
+    return t.ruleCount(rules.length)
 }
 
-function profileHint(profile: UserProfile): string {
-    if (profile.rebuild.running) return 'Rebuilding'
-    if (profile.applyingRules) return 'Applying your rules'
-    const updated = formatFullDate(profile.updatedAt ?? undefined)
-    if (profile.content === null || !updated) return 'Not built yet'
-    return `Updated ${updated}`
+function profileHint(profile: UserProfile, locale: Locale): string {
+    const t = aboutYouMessages[locale]
+    if (profile.rebuild.running) return t.rebuildingHint
+    if (profile.applyingRules) return t.applyingHint
+    const updated = formatFullDate(profile.updatedAt ?? undefined, locale)
+    if (profile.content === null || !updated) return t.notBuilt
+    return t.updatedOn(updated)
 }
 
 /**
@@ -306,6 +314,8 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
     onStarted: (rebuild: ProfileRebuild) => void
     onRefused: () => void
 }) {
+    const locale = useLocale()
+    const t = useMessages(aboutYouMessages)
     const [confirming, setConfirming] = useState(false)
     const [pending, setPending] = useState(false)
     const [message, setMessage] = useState<string | null>(null)
@@ -317,7 +327,7 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
             .then(onStarted)
             .catch((error: unknown) => {
                 if (error instanceof AuthRequiredError) return
-                setMessage(refusalMessage(error))
+                setMessage(refusalMessage(error, locale))
                 if (error instanceof NoteApiError && (error.status === 409 || error.status === 429)) onRefused()
             })
             .finally(() => {
@@ -331,16 +341,15 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
             <div className="settings-profile-actions">
                 <Button variant="quiet" size="lg" disabled={rebuild.running || rebuild.remaining === 0 || pending}
                         onClick={() => setConfirming(true)}>
-                    {rebuild.running ? 'Rebuilding…' : 'Rebuild'}
+                    {rebuild.running ? t.rebuilding : t.rebuild}
                 </Button>
             </div>
-            <p className="settings-para">{rebuildStatus(rebuild)}</p>
+            <p className="settings-para">{rebuildStatus(rebuild, locale)}</p>
             {message && <p className="settings-para" role="alert">{message}</p>}
             {confirming && (
-                <Dialog title="Rebuild your profile?" width={340} busy={pending} confirmDisabled={pending}
-                        body={`Uliss rereads all your notes and writes the profile anew, so deleted notes leave it. ` +
-                            `The current profile stays until the new one is ready. ${triesLeft(rebuild.remaining)}.`}
-                        confirm="Rebuild" cancel="Not now" onConfirm={start}
+                <Dialog title={t.rebuildTitle} width={340} busy={pending} confirmDisabled={pending}
+                        body={t.rebuildBody(t.triesLeft(rebuild.remaining))}
+                        confirm={t.rebuild} cancel={t.notNow} onConfirm={start}
                         onCancel={() => {
                             if (!pending) setConfirming(false)
                         }}/>
@@ -349,22 +358,20 @@ function RebuildSection({rebuild, onStarted, onRefused}: {
     )
 }
 
-function rebuildStatus(rebuild: ProfileRebuild): string {
-    if (rebuild.running) return 'Rebuilding from all your notes. The current profile stays until it is done.'
-    if (rebuild.remaining > 0) return `Rewrite the profile from all your notes. ${triesLeft(rebuild.remaining)}.`
-    const next = formatFullDate(rebuild.availableAt ?? undefined)
-    return next ? `No rebuilds left. The next one is available on ${next}.` : 'No rebuilds left for now.'
+function rebuildStatus(rebuild: ProfileRebuild, locale: Locale): string {
+    const t = aboutYouMessages[locale]
+    if (rebuild.running) return t.rebuildRunning
+    if (rebuild.remaining > 0) return t.rebuildOffer(t.triesLeft(rebuild.remaining))
+    const next = formatFullDate(rebuild.availableAt ?? undefined, locale)
+    return next ? t.noRebuildsUntil(next) : t.noRebuilds
 }
 
-function triesLeft(remaining: number): string {
-    return `${remaining} ${remaining === 1 ? 'rebuild' : 'rebuilds'} left in 30 days`
-}
-
-function refusalMessage(error: unknown): string {
+function refusalMessage(error: unknown, locale: Locale): string {
+    const t = aboutYouMessages[locale]
     if (error instanceof NoteApiError) {
-        if (error.code === 'PROFILE_REBUILD_RUNNING') return 'A rebuild is already running.'
-        if (error.code === 'PROFILE_NOTHING_TO_REBUILD') return 'There are no notes to build a profile from yet.'
-        if (error.code === 'PROFILE_REBUILD_LIMIT') return 'No rebuilds left for now.'
+        if (error.code === 'PROFILE_REBUILD_RUNNING') return t.alreadyRunning
+        if (error.code === 'PROFILE_NOTHING_TO_REBUILD') return t.nothingToRebuild
+        if (error.code === 'PROFILE_REBUILD_LIMIT') return t.noRebuilds
     }
-    return describeError(error)
+    return describeError(error, locale)
 }

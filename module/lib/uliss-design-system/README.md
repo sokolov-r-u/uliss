@@ -57,6 +57,19 @@ Motion is limited to tokenized colour changes, pending/twinkle states, notice en
 the mobile navigation drawer may enter horizontally using `--dur-drawer` and `--ease-drawer`. Other slide, bounce, and
 skeleton motion remains unsupported, and reduced-motion disables nonessential animation and transitions.
 
+## Interface language
+
+The package ships the en/ru i18n core the SPA builds on (`src/react/i18n`): `Locale`, `resolveLocale` (the first
+supported tag of `navigator.languages`, English otherwise), the `uliss_lang` cookie that carries an explicit choice
+between the SPA and the auth pages, `plural` over `Intl.PluralRules`, typed `Dictionaries` (a translation must have
+every key of the English source with the same parameters) and `LocaleProvider` / `useLocale` / `useMessages`.
+
+Components keep their own strings in an adjacent `<Component>.messages.ts` and read them through `useMessages`; without
+a provider they render in English, so previews and existing consumers are unchanged. A label passed as a prop always
+wins over the translated default. `EmojiPicker` translates only the library's own labels: its emoji data and search
+stay English. Cinzel has no Cyrillic, so under `lang="ru"` the sign-in surface's `--heading-font` falls back to the
+text face; the wordmark stays Cinzel.
+
 The visual system originated in the Claude Design project "Uliss Design System", which still holds the `PROT *`
 prototypes for features not yet built. For existing components, committed source, tokens, and `.prompt.md` files are
 authoritative; the "Uliss DS (code)" project is generated from them by `/design-sync`.

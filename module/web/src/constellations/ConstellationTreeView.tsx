@@ -1,6 +1,7 @@
 import type {CSSProperties} from 'react'
-import {constellationColor, Icon, IconButton, TagDot} from '@uliss/design-system'
+import {constellationColor, Icon, IconButton, TagDot, useMessages} from '@uliss/design-system'
 import {type ConstellationNode, type ConstellationTree, visibleNodes} from './constellationTree'
+import {constellationsMessages} from './constellations.messages'
 
 export interface ConstellationTreeViewProps {
     tree: ConstellationTree
@@ -17,9 +18,10 @@ export interface ConstellationTreeViewProps {
  * "Without constellation" row.
  */
 export function ConstellationTreeView({tree, open, selectedId, onToggle, onSelect, unplaced}: ConstellationTreeViewProps) {
+    const t = useMessages(constellationsMessages)
     const maxRoot = Math.max(0, ...tree.roots.map((root) => root.count))
     return (
-        <ul className="constellation-tree" aria-label="Constellations">
+        <ul className="constellation-tree" aria-label={t.tree}>
             {visibleNodes(tree, open).map((node) => (
                 <TreeRow key={node.id} node={node} open={open.has(node.id)} selected={node.id === selectedId}
                          maxRoot={maxRoot} onToggle={onToggle} onSelect={onSelect}/>
@@ -29,7 +31,7 @@ export function ConstellationTreeView({tree, open, selectedId, onToggle, onSelec
                 <span className="constellation-row-toggle"/>
                 <button type="button" className="constellation-row-select" aria-current={unplaced.selected || undefined}
                         onClick={unplaced.onSelect}>
-                    <span className="constellation-row-name">Without constellation</span>
+                    <span className="constellation-row-name">{t.unplaced}</span>
                     <span className="constellation-row-count">{unplaced.count}</span>
                 </button>
             </li>}
@@ -45,6 +47,7 @@ function TreeRow({node, open, selected, maxRoot, onToggle, onSelect}: {
     onToggle: (id: string) => void
     onSelect: (id: string) => void
 }) {
+    const t = useMessages(constellationsMessages)
     const color = constellationColor(node.hue, node.lightness)
     const hasChildren = node.children.length > 0
     const style = {'--depth': node.depth, '--branch-color': color} as CSSProperties
@@ -52,7 +55,7 @@ function TreeRow({node, open, selected, maxRoot, onToggle, onSelect}: {
         <li className={selected ? 'constellation-row selected' : 'constellation-row'} style={style}>
             {node.depth > 0 && <span className="constellation-row-guide" aria-hidden="true"/>}
             <span className="constellation-row-toggle">
-                {hasChildren && <IconButton s={44} title={`${open ? 'Collapse' : 'Expand'} ${node.name}`}
+                {hasChildren && <IconButton s={44} title={open ? t.collapse(node.name) : t.expand(node.name)}
                                             aria-expanded={open} onClick={() => onToggle(node.id)}>
                     <Icon name="chevron" size={11} rotate={open ? 0 : -90}/>
                 </IconButton>}

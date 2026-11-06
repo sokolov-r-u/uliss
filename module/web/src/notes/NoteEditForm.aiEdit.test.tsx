@@ -190,7 +190,7 @@ describe('NoteEditForm rewrite with the model', () => {
         await sendCommand(screen.getByRole('textbox', {name: 'Message'}), 'Fix')
 
         expect(screen.getByRole('status'))
-            .toHaveTextContent('Note is too long for Uliss to edit (30,000 characters at most).')
+            .toHaveTextContent('This note is too long for Uliss to edit (30,000 characters at most).')
         expect(mockedStream).not.toHaveBeenCalled()
     })
 

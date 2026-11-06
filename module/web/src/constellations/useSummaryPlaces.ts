@@ -1,9 +1,10 @@
 import {useCallback, useEffect, useMemo, useState} from 'react'
-import {type ConstellationPickerItem, type ConstellationPickerNoteItem, noteTitleText} from '@uliss/design-system'
+import {type ConstellationPickerItem, type ConstellationPickerNoteItem, noteTitleText, useLocale} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {ConstellationApiError, createConstellation, getSky, listConstellations, type Sky, type SkyStar} from './constellationApi'
 import {buildConstellationTree, type ConstellationTree, pickerItems, pickerNotes} from './constellationTree'
 import {placementFailureMessage} from './NoteConstellationSection'
+import {placementMessages} from './placement.messages'
 
 /** Where a new summary note goes: a constellation as its main place, or a note as its parent. */
 export type SummaryPlace = { constellationId: string } | { parentNoteId: string }
@@ -47,6 +48,7 @@ function placePath(place: SummaryPlace, sky: Sky, tree: ConstellationTree): stri
  */
 export function useSummaryPlaces(enabled: boolean, revision: number, onError: (message: string | null) => void):
     SummaryPlaces {
+    const locale = useLocale()
     const [load, setLoad] = useState<SummaryPlacesLoad>({status: 'loading'})
 
     const read = useCallback(async (signal?: AbortSignal) => {
@@ -83,10 +85,10 @@ export function useSummaryPlaces(enabled: boolean, revision: number, onError: (m
         } catch (e) {
             if (e instanceof ConstellationApiError && e.status === 404) {
                 // The branch to create in was deleted elsewhere: there is no note yet, so say so and refresh the tree.
-                onError('That constellation no longer exists. Pick another place.')
+                onError(placementMessages[locale].branchGone)
                 void read()
             } else if (!(e instanceof AuthRequiredError)) {
-                onError(placementFailureMessage(e, name))
+                onError(placementFailureMessage(e, name, locale))
             }
             throw e
         }

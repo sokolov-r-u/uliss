@@ -1,8 +1,9 @@
 import {type ReactNode, useEffect} from 'react'
-import {ListRow} from '@uliss/design-system'
+import {ListRow, useLocale, useMessages} from '@uliss/design-system'
 import {listChatNotes, streamNoteStatus, subscribeToNotesChanges} from '../../notes/noteApi'
 import {toNoteViewModels} from '../../notes/NotesPage'
 import {useLinkedItems} from './useLinkedItems'
+import {uiMessages} from '../ui.messages'
 
 const SUBSCRIPTIONS = [subscribeToNotesChanges]
 
@@ -15,6 +16,8 @@ export function ChatNotesList({chatId, onOpen, empty}: {
     onOpen: (noteId: string) => void
     empty: ReactNode
 }) {
+    const locale = useLocale()
+    const t = useMessages(uiMessages)
     const {items: notes, reload, status} = useLinkedItems(chatId, listChatNotes, SUBSCRIPTIONS)
     const pendingIds = notes.filter((note) => note.status === 'GENERATING' || note.updating).map((note) => note.id)
     const pendingKey = pendingIds.join(',')
@@ -36,12 +39,12 @@ export function ChatNotesList({chatId, onOpen, empty}: {
 
     // the empty text only once the list is known to be empty, not while loading or after a failure
     if (notes.length === 0) {
-        if (status === 'failed') return <p className="context-text" role="alert">Could not load the notes.</p>
+        if (status === 'failed') return <p className="context-text" role="alert">{t.couldNotLoadNotes}</p>
         return status === 'ready' ? <>{empty}</> : null
     }
     return (
         <div className="context-links">
-            {toNoteViewModels(notes).map((view) => (
+            {toNoteViewModels(notes, locale).map((view) => (
                 <ListRow key={view.id} title={view.title} icon={view.icon ?? null} date={view.date} dots={false}
                          onClick={() => onOpen(view.id)}/>
             ))}

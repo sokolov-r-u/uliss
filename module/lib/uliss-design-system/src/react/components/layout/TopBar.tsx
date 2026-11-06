@@ -1,6 +1,8 @@
 import type {ReactNode} from 'react'
 import {IconButton} from '../actions/IconButton'
 import {Icon} from '../icons/Icon'
+import {useMessages} from '../../i18n/LocaleContext'
+import {topBarMessages} from './TopBar.messages'
 
 // The screen header. The hamburger row IS the header — there is no wordmark
 // here. Right of the menu sits label · count · title; `right` carries actions.
@@ -21,11 +23,12 @@ export interface TopBarProps {
 }
 
 export function TopBar({onMenu, label, count, title, center, right}: TopBarProps) {
+    const t = useMessages(topBarMessages)
     const hasMid = label != null || count != null || title != null || center != null
     return (
         <div style={{display: 'flex', alignItems: 'center', gap: 12, padding: '5px 18px 5px', minHeight: 46}}>
             <span style={{flex: '0 0 30px', marginLeft: -7}}>
-                <IconButton s={44} title="Open navigation" onClick={onMenu}><Icon name="menu" size={20}/></IconButton>
+                <IconButton s={44} title={t.openNavigation} onClick={onMenu}><Icon name="menu" size={20}/></IconButton>
             </span>
             {hasMid ? (
                 center != null ? (

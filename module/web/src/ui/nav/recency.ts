@@ -1,3 +1,4 @@
+import type {Locale} from '@uliss/design-system'
 import {formatMonth, parseDate} from '../format'
 
 export interface RecencyGroup<T> {
@@ -5,7 +6,10 @@ export interface RecencyGroup<T> {
     items: T[]
 }
 
-const LABELS = ['Today', 'Yesterday', 'This week', 'This month', 'Earlier'] as const
+/** Today · Yesterday · This week · This month · Earlier — the caller's words for the five buckets. */
+export type RecencyLabels = readonly [string, string, string, string, string]
+
+const LABELS: RecencyLabels = ['Today', 'Yesterday', 'This week', 'This month', 'Earlier']
 
 function startOfDay(date: Date): number {
     return new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime()
@@ -23,17 +27,18 @@ function bucketOf(iso: string | undefined, now: Date): number {
 }
 
 /** Side-panel grouping: Today · Yesterday · This week · This month · Earlier. Keeps the input order inside a group. */
-export function groupByRecency<T>(items: T[], dateOf: (item: T) => string | undefined, now = new Date()): RecencyGroup<T>[] {
-    const buckets: T[][] = LABELS.map(() => [])
+export function groupByRecency<T>(items: T[], dateOf: (item: T) => string | undefined, now = new Date(),
+                                  labels: RecencyLabels = LABELS): RecencyGroup<T>[] {
+    const buckets: T[][] = labels.map(() => [])
     for (const item of items) buckets[bucketOf(dateOf(item), now)].push(item)
-    return LABELS.map((label, index) => ({label, items: buckets[index]})).filter((group) => group.items.length > 0)
+    return labels.map((label, index) => ({label, items: buckets[index]})).filter((group) => group.items.length > 0)
 }
 
 /** Wide-list grouping: 'June 2026' headings in input order; undated items fall into one unlabeled group. */
-export function groupByMonth<T>(items: T[], dateOf: (item: T) => string | undefined): RecencyGroup<T>[] {
+export function groupByMonth<T>(items: T[], dateOf: (item: T) => string | undefined, locale: Locale): RecencyGroup<T>[] {
     const groups: RecencyGroup<T>[] = []
     for (const item of items) {
-        const label = formatMonth(dateOf(item))
+        const label = formatMonth(dateOf(item), locale)
         const last = groups.at(-1)
         if (last && last.label === label) last.items.push(item)
         else groups.push({label, items: [item]})

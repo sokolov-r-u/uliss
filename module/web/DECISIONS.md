@@ -297,3 +297,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (a shown row is in the filter); the filtered fetch waits for the shared list to load; a failed shared list shows
   the notice under a filter too, and its Retry refetches both lists.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (code review).
+
+## 2026-11-04 — Interface language: as in the browser or a fixed one, kept in a cookie
+
+- **Decision:** Settings › Language offers "As in the browser" (default), English and Russian. The browser's language
+  is the first supported tag of `navigator.languages`, English otherwise. An explicit choice is the `uliss_lang`
+  cookie (`Domain=<SPA host>`, so the auth subdomain reads it; host-only on localhost and IPs); "as in the browser" is
+  no cookie — not `localStorage`, because the auth pages on another host must read the same choice.
+  `AppLocaleProvider` wraps the whole app in `main.tsx` (sign-in redirect and callback screens included) and switches
+  it without a reload; `<html lang>` is set before first paint like the theme. Dates format in the interface
+  language, not the OS locale. The setting does not steer the AI: replies and notes follow the chat's language.
+- **Source:** task `docs/tasks/2026-11-04-russian-localization.md`, block 2 (`dff0cba`).

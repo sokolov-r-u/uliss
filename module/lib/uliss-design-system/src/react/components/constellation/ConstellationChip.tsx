@@ -1,4 +1,6 @@
 import {TagDot} from './TagDot'
+import {useMessages} from '../../i18n/LocaleContext'
+import {constellationChipMessages} from './ConstellationChip.messages'
 
 export interface ConstellationChipProps {
     label: string
@@ -12,6 +14,7 @@ export interface ConstellationChipProps {
 
 /** Secondary membership with independent native label and remove actions. */
 export function ConstellationChip({label, color, size = 'md', onRemove, onClick}: ConstellationChipProps) {
+    const t = useMessages(constellationChipMessages)
     const sm = size === 'sm'
     const content = <><TagDot color={color} size={sm ? 5 : 7}/><span style={{
         fontFamily: 'var(--font-text)',
@@ -32,7 +35,7 @@ export function ConstellationChip({label, color, size = 'md', onRemove, onClick}
                     cursor: 'pointer'
                 }}>{content}</button>
             ) : content}
-            {onRemove && <button type="button" aria-label={`Remove ${label}`} onClick={onRemove}
+            {onRemove && <button type="button" aria-label={t.remove(label)} onClick={onRemove}
                                  style={{
                                      color: 'var(--text-faint)',
                                      fontFamily: 'var(--font-text)',

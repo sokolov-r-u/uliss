@@ -1,6 +1,7 @@
 import {type CSSProperties, type ReactNode, useCallback, useEffect, useRef, useState} from 'react'
-import {Icon, IconButton, Kicker} from '@uliss/design-system'
+import {Icon, IconButton, Kicker, useMessages} from '@uliss/design-system'
 import {useResizableWidth} from './useResizableWidth'
+import {uiMessages} from './ui.messages'
 
 /**
  * Open/closed state of the details panel. It starts open from the 768px breakpoint, where it is a rail beside the
@@ -26,8 +27,9 @@ export function ContextPanel({label, open, onClose, children}: {
     onClose: () => void
     children: ReactNode
 }) {
+    const t = useMessages(uiMessages)
     const {width, handleProps} = useResizableWidth({
-        storageKey: 'uliss.context-panel.width', min: 260, max: 480, initial: 300, edge: 'left', label: 'Resize panel',
+        storageKey: 'uliss.context-panel.width', min: 260, max: 480, initial: 300, edge: 'left', label: t.resizePanel,
     })
 
     const panelRef = useRef<HTMLElement>(null)
@@ -58,7 +60,7 @@ export function ContextPanel({label, open, onClose, children}: {
                 <div className="context-panel-resize" {...handleProps}/>
                 {/* The label names the panel for assistive tech only: on screen its first section says what it is. */}
                 <header className="context-panel-head">
-                    <IconButton s={30} title="Close panel" onClick={onClose}><Icon name="close" size={14}/></IconButton>
+                    <IconButton s={30} title={t.closePanel} onClick={onClose}><Icon name="close" size={14}/></IconButton>
                 </header>
                 <div className="context-panel-body">{children}</div>
             </aside>

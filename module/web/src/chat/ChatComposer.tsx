@@ -18,7 +18,7 @@ export function ChatComposer({
                                  generationActive,
                                  onStop,
                                  action,
-                                 placeholder = 'Write a thought…',
+                                 placeholder,
                              }: {
     value: string
     onChange: (v: string) => void

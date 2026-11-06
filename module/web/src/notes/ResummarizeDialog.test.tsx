@@ -53,7 +53,7 @@ describe('ResummarizeDialog', () => {
     it.each([
         ['NOTE_NOT_RESUMMARIZABLE', 409, 'The chat of this note is gone'],
         ['NOTE_NOT_READY', 409, 'This note is not ready yet.'],
-        [undefined, 404, 'Summarize again is not available any more.'],
+        [undefined, 404, 'This note can no longer be summarized again.'],
     ])('explains a %s refusal', async (code, status, message) => {
         mockedResummarize.mockRejectedValueOnce(new NoteApiError('http', 'refused', status, undefined, code))
         render(<ResummarizeDialog noteId="note-1" onQueued={vi.fn()} onClose={vi.fn()}/>)

@@ -1,5 +1,7 @@
 import type {ButtonHTMLAttributes} from 'react'
 import {Icon} from '../icons/Icon'
+import {useMessages} from '../../i18n/LocaleContext'
+import {micButtonMessages} from './MicButton.messages'
 
 // The record affordance — the largest element in the product and the only
 // circle in it. solid = idle (accent fill, dark glyph); ring = armed (hollow,
@@ -18,6 +20,7 @@ export function MicButton({
                               disabled = false,
                               ...buttonProps
                           }: MicButtonProps) {
+    const t = useMessages(micButtonMessages)
     const ring = variant === 'ring'
     const pulse = variant === 'pulse'
     return (
@@ -25,7 +28,7 @@ export function MicButton({
             {...buttonProps}
             type={type}
             disabled={disabled}
-            aria-label={buttonProps['aria-label'] ?? 'Voice input'}
+            aria-label={buttonProps['aria-label'] ?? t.voiceInput}
             style={{
                 position: 'relative',
                 width: size,

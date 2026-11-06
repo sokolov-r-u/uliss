@@ -1,8 +1,9 @@
 import {useEffect, useState} from 'react'
-import {ConstellationPicker, Dialog, Icon, Kicker} from '@uliss/design-system'
+import {ConstellationPicker, Dialog, Icon, Kicker, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {getConstellationDeletion} from './constellationApi'
-import {type ConstellationNode, type ConstellationTree, descendantIds, pickerItems, plural} from './constellationTree'
+import {type ConstellationNode, type ConstellationTree, descendantIds, pickerItems} from './constellationTree'
+import {constellationsMessages} from './constellations.messages'
 
 /** Where the notes of a deleted branch go: a constellation id, or nowhere. */
 export type DeleteTarget = string | 'none'
@@ -23,6 +24,7 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
     onDelete: (target: DeleteTarget | null) => void
     onCancel: () => void
 }) {
+    const t = useMessages(constellationsMessages)
     const [impact, setImpact] = useState<Impact>({status: 'loading'})
     const [target, setTarget] = useState<DeleteTarget | null>(node.parentId)
     const [picking, setPicking] = useState(false)
@@ -38,44 +40,40 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
     }, [node.id])
 
     const inside = descendantIds(node)
-    const branches = inside.length > 0
-        ? `Its ${plural(inside.length, 'sub-constellation', 'sub-constellations')} go with it. `
-        : ''
-    const title = `Delete “${node.name}”?`
+    const branches = inside.length > 0 ? t.goWithIt(t.subConstellations(inside.length)) : ''
+    const title = t.deleteTitle(node.name)
 
     if (impact.status !== 'ready' || impact.notesToMove === 0) {
-        const body = impact.status === 'loading' ? 'Counting the notes…'
-            : impact.status === 'error' ? 'Could not count the notes in this branch. Close and try again.'
-                : `${branches}Notes are never deleted with a constellation.`
+        const body = impact.status === 'loading' ? t.counting
+            : impact.status === 'error' ? t.countFailed
+                : `${branches}${t.notesStay}`
         // The parent still goes along: a note that lost its other places since the count moves there, not nowhere.
         return <Dialog danger title={title} body={error ?? body}
-                       confirm={busy ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={busy}
+                       confirm={busy ? t.deleting : t.delete} cancel={t.cancel} busy={busy}
                        confirmDisabled={busy || impact.status !== 'ready'}
                        onConfirm={() => onDelete(node.parentId)} onCancel={onCancel}/>
     }
 
     const targetNode = target && target !== 'none' ? tree.byId.get(target) ?? null : null
-    const label = target === 'none' ? 'Without constellation' : targetNode?.name ?? null
-    const notes = plural(impact.notesToMove, 'note', 'notes')
-    const body = `${node.name} holds ${notes} with no other place. ${branches}`
-        + (label ? 'The notes stay; only the container goes.' : 'Where should they move?')
+    const label = target === 'none' ? t.unplaced : targetNode?.name ?? null
+    const body = `${t.holds(node.name, impact.notesToMove)}${branches}` + (label ? t.containerGoes : t.whereMove)
     return (
         <Dialog danger title={title} body={error ?? body} width={340}
-                confirm={busy ? 'Deleting…' : 'Delete'} cancel="Cancel" busy={busy}
+                confirm={busy ? t.deleting : t.delete} cancel={t.cancel} busy={busy}
                 confirmDisabled={busy || label === null}
                 onConfirm={() => target && onDelete(target)} onCancel={onCancel}>
             <div className="constellation-delete-target">
                 <button type="button" className="constellation-delete-choice" aria-expanded={picking}
                         onClick={() => setPicking((value) => !value)}>
-                    <Kicker size={8.5} spacing="2.2px" color="var(--text-faint)">Move to</Kicker>
+                    <Kicker size={8.5} spacing="2.2px" color="var(--text-faint)">{t.moveTo}</Kicker>
                     <span className={label ? 'constellation-delete-label' : 'constellation-delete-label empty'}>
-                        {label ?? 'Choose'}
+                        {label ?? t.choose}
                     </span>
                     <Icon name="chevron" size={11} rotate={picking ? 180 : 0}/>
                 </button>
                 {picking && <>
                     <ConstellationPicker items={pickerItems(tree)} exclude={[node.id, ...inside]}
-                                         label="Move the notes to…" action={(name) => `Move them to ${name}`}
+                                         label={t.moveNotesTo} action={t.moveThemTo}
                                          onPick={(id) => {
                                              setTarget(id)
                                              setPicking(false)
@@ -84,11 +82,11 @@ export function DeleteConstellationDialog({node, tree, busy, error, onDelete, on
                     <button type="button" className="constellation-delete-leave" onClick={() => {
                         setTarget('none')
                         setPicking(false)
-                    }}>Leave them without a constellation
+                    }}>{t.leaveUnplaced}
                     </button>
                 </>}
                 {target === 'none' && <p className="constellation-delete-note">
-                    They lose their place and wait under Without constellation until you place them again.
+                    {t.loseTheirPlace}
                 </p>}
             </div>
         </Dialog>

@@ -1,7 +1,7 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, IconPicker, Notice, noteTitleText, PlaceField} from '@uliss/design-system'
+import {ActionChip, Button, IconPicker, noteTitleText, Notice, PlaceField, useLocale, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
@@ -42,6 +42,8 @@ import {ChatPageHeader} from './ChatPageHeader'
 import type {DisplayMessage} from './Bubble'
 import './chat.css'
 import {formatFullDate} from '../ui/format'
+import {commonMessages} from '../i18n/common.messages'
+import {chatPageMessages} from './ChatPage.messages'
 
 type PagePhase = 'loading' | 'error' | 'ready'
 type GenerationPhase = 'idle' | 'streaming' | 'settling' | 'reconciliation-required'
@@ -155,6 +157,12 @@ function readPendingChatRequest(chatId: string): PendingChatRequest | null {
 export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const {chatId} = useParams<{ chatId: string }>()
     const navigate = useNavigate()
+    const locale = useLocale()
+    // the history loader words a failure in the language of the moment without reloading on a switch
+    const localeRef = useRef(locale)
+    localeRef.current = locale
+    const t = useMessages(chatPageMessages)
+    const common = useMessages(commonMessages)
     const [pagePhase, setPagePhase] = useState<PagePhase>(newChat ? 'ready' : 'loading')
     const [loadError, setLoadError] = useState<string | null>(null)
     const [persistedMessages, setPersistedMessages] = useState<ChatMessage[]>([])
@@ -243,7 +251,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     function requireReconciliation() {
         updateGenerationPhase('reconciliation-required')
-        setStreamNotice('The saved reply could not be confirmed. Retry before sending another message.')
+        setStreamNotice(t.replyNotConfirmed)
     }
 
     function persistPendingChatRequest(request: PendingChatRequest, requestChatId = activeChatIdRef.current) {
@@ -428,7 +436,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             })
             .catch((error: unknown) => {
                 if (!active || error instanceof AuthRequiredError) return
-                setLoadError(describeError(error))
+                setLoadError(describeError(error, localeRef.current))
                 setPagePhase('error')
             })
         return () => {
@@ -459,7 +467,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         } catch (error) {
             if (!mountedRef.current || routeRevisionRef.current !== routeRevision
                 || error instanceof AuthRequiredError || isAbortError(error)) return
-            setStreamNotice(describeError(error))
+            setStreamNotice(describeError(error, locale))
         } finally {
             if (olderAbortRef.current === controller) {
                 olderAbortRef.current = null
@@ -549,8 +557,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
                 clearPendingChatRequest(request.idempotencyKey, resolvedChatId)
                 const rejected = request.retryOf
-                    ? `The reply could not be retried (${error.status}). Please try again.`
-                    : `The message was not accepted (${error.status}). Please try again.`
+                    ? t.retryRejected(error.status)
+                    : t.messageRejected(error.status)
                 if (!resolvedChatId) {
                     updateGenerationPhase('idle')
                     setStreamNotice(rejected)
@@ -769,21 +777,21 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             if (!mountedRef.current || summaryRequestIdRef.current !== requestId
                 || error instanceof AuthRequiredError || isAbortError(error)) return
             if (error instanceof NoteApiError && error.code === 'CONSTELLATION_NOT_FOUND') {
-                setSummaryError('That constellation no longer exists. Pick another place or leave it empty.')
+                setSummaryError(t.constellationGone)
                 setSummaryPlace(null)
                 setPlaceRevision((value) => value + 1)
                 return
             }
             if (error instanceof NoteApiError && error.code === 'PARENT_NOTE_NOT_FOUND') {
-                setSummaryError('That note no longer exists. Pick another place or leave it empty.')
+                setSummaryError(t.parentNoteGone)
                 setSummaryPlace(null)
                 setPlaceRevision((value) => value + 1)
                 return
             }
             if (error instanceof NoteApiError && error.status === 409) {
                 setSummaryError(target
-                    ? 'The note changed or is already being updated. Try again in a moment.'
-                    : 'A summary of this chat is already in progress. Try again in a moment.')
+                    ? t.noteBusy
+                    : t.summaryBusy)
                 getMessages(chatId)
                     .then((page) => {
                         if (mountedRef.current && summaryRequestIdRef.current === requestId) {
@@ -793,7 +801,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     .catch(() => undefined)
                 return
             }
-            setSummaryError(describeError(error))
+            setSummaryError(describeError(error, locale))
         } finally {
             if (summaryRequestIdRef.current === requestId) {
                 summaryPendingRef.current = false
@@ -807,13 +815,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
-            <ScreenHeader back kicker="Conversation"/>
-            <p className="chat-state">Loading…</p></div>
+            <ScreenHeader back kicker={t.conversation}/>
+            <p className="chat-state">{common.loading}</p></div>
     }
 
     if (pagePhase === 'error') {
         return <div className="chat-page">
-            <ScreenHeader back kicker="Conversation"/>
+            <ScreenHeader back kicker={t.conversation}/>
             <p className="chat-state chat-state-error">{loadError}</p></div>
     }
 
@@ -826,9 +834,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const updateTarget = summaryState
     const summaryTitle = updateTarget
         ? (updateTarget.noteTitle
-            ? `Update “${noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon)}”?`
-            : 'Update the note?')
-        : 'Create a summary note?'
+            ? t.updateNamed(noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon))
+            : t.updateNote)
+        : t.createSummary
 
     return (
         <div className="detail-layout">
@@ -842,22 +850,22 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             {acceptedSummary && <section
                 className="chat-summary-notice"
                 role="status"
-                aria-label="Summary note">
+                aria-label={t.summaryNote}>
                 <div className="chat-summary-notice-header">
                     <p>{acceptedSummary.update
-                        ? <><span>Uliss is updating the note</span> — update started</>
-                        : <><span>Uliss is writing a note</span> — summary started</>}</p>
-                    <Link to={`/notes/${acceptedSummary.noteId}`}>Open note</Link>
+                        ? <><span>{t.updatingNote}</span>{t.updateStarted}</>
+                        : <><span>{t.writingNote}</span>{t.summaryStarted}</>}</p>
+                    <Link to={`/notes/${acceptedSummary.noteId}`}>{t.openNote}</Link>
                 </div>
                 <p className="chat-summary-notice-detail">
-                    {acceptedSummary.update ? 'Updating in the background' : 'Generating in the background'}
+                    {acceptedSummary.update ? t.updatingInBackground : t.generatingInBackground}
                 </p>
             </section>}
             {streamNotice && <div className="chat-stream-notice">
                 <span>{streamNotice}</span>{generationPhase === 'reconciliation-required'
-                && <Button size="sm" variant="quiet" onClick={retryReconciliation}>Retry</Button>}</div>}
+                && <Button size="sm" variant="quiet" onClick={retryReconciliation}>{common.retry}</Button>}</div>}
             {generationPhase === 'settling' &&
-                <p className="chat-settling-notice" aria-live="polite">Saving the reply…</p>}
+                <p className="chat-settling-notice" aria-live="polite">{t.savingReply}</p>}
             {/* keyed by chat: switching chats drops a recording instead of sending it into the next chat */}
             <ChatComposer
                 key={chatId ?? 'new'}
@@ -869,7 +877,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}
                 onStop={stopGeneration}
                 action={showSummarize
-                    ? <ActionChip label="Summarize" disabled={!canSummarize}
+                    ? <ActionChip label={t.summarize} disabled={!canSummarize}
                                   onClick={() => {
                                       setSummaryError(null)
                                       setSummaryName('')
@@ -884,11 +892,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 {updateTarget ? <Notice
                     title={summaryTitle}
                     body={<SummaryDialogText error={summaryError}>
-                        New thoughts from this chat will be added at the end with today&apos;s date. The existing text
-                        stays as it is.
+                        {t.updateBody}
                     </SummaryDialogText>}
-                    primary={summaryPending ? 'Updating…' : 'Update note'}
-                    secondary="Cancel"
+                    primary={summaryPending ? t.updating : t.updateNoteAction}
+                    secondary={t.cancel}
                     secondaryDisabled={summaryPending}
                     busy={summaryPending}
                     primaryDisabled={summaryPending}
@@ -899,10 +906,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         width={360}
                         body={<SummaryDialogText error={summaryError}>
                             {summaryPending
-                                ? 'Starting the summary…'
-                                : 'Name the note if you like and choose where it will live. Uliss writes it in the background from the conversation saved so far.'}
+                                ? t.startingSummary
+                                : t.summaryBody}
                         </SummaryDialogText>}
-                        primary="Summarize"
+                        primary={t.summarize}
                         primaryDisabled={summaryHeld}
                         busy={summaryPending}
                         showClose
@@ -911,7 +918,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         }}
                         onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}
                         step={pickingPlace ? {
-                            title: 'Choose a place',
+                            title: t.choosePlace,
                             onBack: () => setPickingPlace(false),
                             children: <SummaryPlacePicker places={summaryPlaces} busy={summaryPending}
                                                           error={summaryError}
@@ -923,25 +930,24 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                         } : undefined}>
                         <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
                                           onDictatingChange={setSummaryNameDictating}
-                                          leading={<IconPicker label="Icon" value={summaryIcon} disabled={summaryPending}
+                                          leading={<IconPicker label={t.icon} value={summaryIcon} disabled={summaryPending}
                                                                dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}
                                                                cover/>}/>
-                        <PlaceField label="Place" placeholder="Choose a place" disabled={summaryPending}
+                        <PlaceField label={t.place} placeholder={t.choosePlace} disabled={summaryPending}
                                     value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
                                     open={pickingPlace} onOpen={() => setPickingPlace(true)}
                                     onClear={() => setSummaryPlace(null)}/>
                     </Notice>}
             </NoticeOverlay>}
         </div>
-            {chatMeta && <ContextPanel label="This chat" open={panelOpen} onClose={closePanel}>
-                <PanelSection label="Notes from this chat" count={chatMeta.noteCount}>
+            {chatMeta && <ContextPanel label={t.thisChat} open={panelOpen} onClose={closePanel}>
+                <PanelSection label={t.notesFromChat} count={chatMeta.noteCount}>
                     <ChatNotesList chatId={chatMeta.id} onOpen={(noteId) => navigate(`/notes/${noteId}`)}
-                                   empty={<p className="context-text">Uliss writes a note when the conversation has
-                                       something worth keeping. Deleting the chat keeps its notes.</p>}/>
+                                   empty={<p className="context-text">{t.notesFromChatEmpty}</p>}/>
                 </PanelSection>
-                <PanelSection label="Dates">
-                    <PanelFact label="Started" value={formatFullDate(chatMeta.createdAt) || '—'}/>
-                    <PanelFact label="Updated" value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt) || '—'}/>
+                <PanelSection label={t.dates}>
+                    <PanelFact label={t.started} value={formatFullDate(chatMeta.createdAt, locale) || '—'}/>
+                    <PanelFact label={t.updated} value={formatFullDate(chatMeta.updatedAt ?? chatMeta.createdAt, locale) || '—'}/>
                 </PanelSection>
             </ContextPanel>}
         </div>

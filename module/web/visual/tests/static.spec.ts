@@ -17,13 +17,16 @@ test('runtime does not import visual fixtures', () => {
     expect(sources.filter(({text}) => /from\s+['"][^'"]*(?:visual|fixtures)/.test(text)).map(({path}) => path)).toEqual([])
 })
 
-// Product copy only: tests and their helpers in src/test are not shown to users, and the side panel's recency group
-// headings (Today / Yesterday …) are the kit's section labels, not row dates.
-const NOT_PRODUCT_COPY = /(?:\.test\.tsx?|ui\/nav\/recency\.ts|\/src\/test\/[^/]+\.tsx?)$/
+// Product copy only: tests and their helpers in src/test are not shown to users.
+const NOT_PRODUCT_COPY = /(?:\.test\.tsx?|\/src\/test\/[^/]+\.tsx?)$/
+// The side panel's recency group headings (Today / Yesterday …, and their translations) are section labels, not row dates.
+const RECENCY_HEADINGS = /ui\/nav\/recency(?:\.messages)?\.ts$/
 
 test('product copy has no emoji or relative dates', () => {
     const violations = sources.filter(({path, text}) => !NOT_PRODUCT_COPY.test(path)
-        && (/\p{Extended_Pictographic}/u.test(text) || /["'`](?:Yesterday|Today|Tomorrow|[^"'`]*\bago\b|[^"'`]*last night)/i.test(text)))
+        && (/\p{Extended_Pictographic}/u.test(text)
+            || (!RECENCY_HEADINGS.test(path)
+                && /["'`](?:Yesterday|Today|Tomorrow|[^"'`]*\bago\b|[^"'`]*last night)/i.test(text))))
     expect(violations.map(({path}) => path)).toEqual([])
 })
 
