@@ -64,6 +64,10 @@ The sign-in/register switch is an accessible tablist: ArrowLeft/ArrowRight chang
 in the normal Tab order, its panel is labelled and hidden semantically, and focus moves to the first field. Buttons and
 fields share the design-system focus-visible and reduced-motion rules.
 
+The pages are in English or Russian (`messages.properties`, `messages_ru.properties`): the `uliss_lang` cookie the SPA
+shares, then the browser's `Accept-Language`, then English. The `EN · RU` switch in the top right corner links to
+`GET /lang?to=<en|ru>&from=<login|register>`, which writes that cookie for the SPA's host and reopens the same tab.
+
 The historical visual source is the external Claude Design project `Uliss Design System`. It is provenance, not a
 guaranteed available tool. Exact future comparisons require an accessible MCP integration or an exported reference.
 

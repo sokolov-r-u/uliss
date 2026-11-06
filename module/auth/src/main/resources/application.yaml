@@ -11,6 +11,9 @@ server:
 spring:
   application:
     name: auth
+  messages:
+    # messages.properties is English: never fall back to messages_ru on a Russian JVM
+    fallback-to-system-locale: false
   config:
     # noinspection SpringBootApplicationYaml
     import:

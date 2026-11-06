@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org" lang="en">
-<head th:replace="~{fragments/layout :: head('Register · Uliss')}"></head>
+<html xmlns:th="http://www.thymeleaf.org" lang="en" th:lang="${#locale.language}">
+<head th:replace="~{fragments/layout :: head('page.title.register')}"></head>
 <body th:replace="~{fragments/layout :: page('register')}"></body>
 </html>

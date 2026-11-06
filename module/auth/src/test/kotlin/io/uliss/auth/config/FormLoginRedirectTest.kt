@@ -60,6 +60,22 @@ class FormLoginRedirectTest {
     }
 
     @Test
+    fun `switching the language on the way keeps the saved authorize request`() {
+        val session = MockHttpSession()
+        mockMvc.get(AUTHORIZE) {
+            this.session = session
+            accept = MediaType.TEXT_HTML
+        }.andExpect { redirectedUrl("/login") }
+        mockMvc.get("/lang?to=ru&from=login") { this.session = session }
+            .andExpect { redirectedUrl("/login") }
+
+        val location = login(session, PASSWORD).andReturn().response.redirectedUrl
+
+        assertNotNull(location)
+        assertTrue(location.contains("/oauth2/authorize?"), "redirect: $location")
+    }
+
+    @Test
     fun `login behind the TLS proxy returns to the saved authorize request on the public https address`() {
         val session = MockHttpSession()
         mockMvc.get(AUTHORIZE) {

@@ -82,3 +82,31 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a thief holding a token rotated less than 30 seconds ago gets one pair without revoking the
   session. The user-service gRPC call stays outside any transaction; the row lock lasts only for the save.
 - **Source:** task `docs/tasks/2026-10-31-refresh-timeout-session-loss.md`, block 2.
+
+## 2026-11-05 — Auth pages follow the shared language cookie and switch it through `/lang`
+
+- **Context:** the SPA stores an explicit interface language in the `uliss_lang` cookie for its host (web decision
+  "Interface language: as in the browser or a fixed one, kept in a cookie"); the sign-in and registration pages were
+  English only and could not change it.
+- **Decision:** `LanguageCookieLocaleResolver` picks the pages' language: the cookie when it is `en` or `ru`, else the
+  first supported language of `Accept-Language`, else English (no header means English, never the JVM's locale;
+  `spring.messages.fallback-to-system-locale` is off). Texts live in `messages.properties` / `messages_ru.properties`.
+  An `EN · RU` switch links to `GET /lang?to=&from=`: `LanguageCookieService` writes the cookie with the SPA's
+  attributes (`Domain` = host of `app.frontend-url` except localhost/IP/dotless hosts, `Path=/`, `SameSite=Lax`, one
+  year, `Secure` on https, not `HttpOnly`) and the response redirects to `/login` or `/register` only. An unsupported
+  language is `400`. It is a permitted GET without CSRF: a forged link can only change the interface language.
+- **Consequences:** the switch reloads the page, so typed fields are lost; the saved authorize request survives it.
+- **Source:** task `docs/tasks/2026-11-05-auth-language-switcher.md`, block 2.
+
+## 2026-11-05 — The auth pages read the language cookie and header as the web app does
+
+- **Replaces:** in part, "Auth pages follow the shared language cookie and switch it through `/lang`" (2026-11-05):
+  how the cookie and `Accept-Language` are read.
+- **Context:** code review: the resolver took only the first `uliss_lang` cookie and accepted only exact `en`/`ru`,
+  while the SPA takes the first valid one and reads tags like `ru-RU`; a blank header went through the container's
+  `getLocales()`, which answers with the JVM's locale.
+- **Decision:** the first `uliss_lang` cookie that names a supported language counts, read like the SPA's
+  `parseLocale` (trimmed, case-insensitive, region dropped). `Accept-Language` is parsed with
+  `Locale.LanguageRange` by weight, never through `getLocales()`; a missing, blank or malformed header means English.
+  The switcher's `from` is `login` or `register`.
+- **Source:** task `docs/tasks/2026-11-05-auth-language-switcher.md`, code-review fixes.
