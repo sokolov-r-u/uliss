@@ -585,20 +585,21 @@ class NoteServiceTest {
         val key = UUID.randomUUID()
         val stored = NoteEntity(userId, "## New\n\nbody", NoteSource.MANUAL, NoteStatus.READY, title = "New title")
         Mockito.`when`(
-            noteRepository.insertManualNoteOnConflictDoNothing(
+            noteRepository.insertManualNote(
                 anyValue(), eqValue(userId), eqValue(key), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
-        ).thenReturn(1)
-        Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
+        ).thenReturn(stored)
 
         val response = noteService.createNote(userId, key, "  New  title ", "## New\n\nbody\n\n", null)
 
         assertEquals(stored.id, response.id)
-        Mockito.verify(noteRepository).insertManualNoteOnConflictDoNothing(
+        Mockito.verify(noteRepository).insertManualNote(
             anyValue(), eqValue(userId), eqValue(key), anyValue(), eqValue("New title"), eqValue("## New\n\nbody"),
             Mockito.isNull(),
         )
         Mockito.verify(indexRequests).requestNow(userId, stored.id)
+        // the insert returns the row: no second read
+        Mockito.verify(noteRepository, Mockito.never()).findByUserIdAndIdempotencyKey(anyValue(), anyValue())
     }
 
     @Test
@@ -608,10 +609,10 @@ class NoteServiceTest {
         val stored = NoteEntity(userId, "body", NoteSource.MANUAL, NoteStatus.READY, title = "Title")
         stored.requestFingerprint = ManualNoteFingerprint.of("Title", "body", null).toByteArray()
         Mockito.`when`(
-            noteRepository.insertManualNoteOnConflictDoNothing(
+            noteRepository.insertManualNote(
                 anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
-        ).thenReturn(0)
+        ).thenReturn(null)
         Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
 
         val response = noteService.createNote(userId, key, " Title ", "body\n", null)
@@ -627,10 +628,10 @@ class NoteServiceTest {
         val stored = NoteEntity(userId, "body", NoteSource.MANUAL, NoteStatus.READY, title = "Title")
         stored.requestFingerprint = ManualNoteFingerprint.of("Title", "body", null).toByteArray()
         Mockito.`when`(
-            noteRepository.insertManualNoteOnConflictDoNothing(
+            noteRepository.insertManualNote(
                 anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
-        ).thenReturn(0)
+        ).thenReturn(null)
         Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
 
         val error = assertFailsWith<IdempotencyKeyReusedException> {

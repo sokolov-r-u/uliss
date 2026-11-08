@@ -141,8 +141,11 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
     )
     fun findPinned(@Param("userId") userId: UUID, @Param("limit") limit: Int): List<NoteEntity>
 
-    /** Inserts a READY manual note unless the user already created one under [idempotencyKey]; returns rows inserted. */
-    @Modifying
+    /**
+     * Inserts a READY manual note and returns it; null when the user already created one under [idempotencyKey]
+     * (nothing is written then). Runs in the caller's read-write transaction.
+     */
+    @Transactional(propagation = Propagation.MANDATORY)
     @Query(
         nativeQuery = true,
         value = """
@@ -151,9 +154,10 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
             VALUES (:id, :userId, :idempotencyKey, :fingerprint, 'MANUAL', 'READY', :title, :content, :icon,
                     CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, CAST(:userId AS VARCHAR), CAST(:userId AS VARCHAR))
             ON CONFLICT (user_id, idempotency_key) DO NOTHING
+            RETURNING *
         """,
     )
-    fun insertManualNoteOnConflictDoNothing(
+    fun insertManualNote(
         @Param("id") id: UUID,
         @Param("userId") userId: UUID,
         @Param("idempotencyKey") idempotencyKey: UUID,
@@ -161,7 +165,7 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
         @Param("title") title: String,
         @Param("content") content: String,
         @Param("icon") icon: String?,
-    ): Int
+    ): NoteEntity?
 
     @Query(
         nativeQuery = true,

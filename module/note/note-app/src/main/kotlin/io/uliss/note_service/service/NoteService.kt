@@ -192,17 +192,21 @@ class NoteService(
     ): NoteResponse {
         val (title, content, icon) = normalizeUserNote(rawTitle, rawContent, rawIcon)
         val fingerprint = ManualNoteFingerprint.of(title, content, icon)
-        val inserted = noteRepository.insertManualNoteOnConflictDoNothing(
+        val inserted = noteRepository.insertManualNote(
             generateId(), userId, idempotencyKey, fingerprint.toByteArray(), title, content, icon,
-        ) > 0
-        val note = checkNotNull(noteRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)) {
-            "manual note could not be loaded after insert"
+        )
+        if (inserted != null) {
+            noteIndexRequestService.requestNow(userId, inserted.id)
+            return inserted.toResponse(updating = false)
         }
-        if (!inserted && note.requestFingerprint?.let(RequestFingerprint::from) != fingerprint) {
-            throw IdempotencyKeyReusedException(mapOf("noteId" to note.id.toString()))
+        // a retry: the key already holds a note
+        val stored = checkNotNull(noteRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)) {
+            "manual note under a conflicting key could not be loaded"
         }
-        if (inserted) noteIndexRequestService.requestNow(userId, note.id)
-        return note.toResponse(updating = false)
+        if (stored.requestFingerprint?.let(RequestFingerprint::from) != fingerprint) {
+            throw IdempotencyKeyReusedException(mapOf("noteId" to stored.id.toString()))
+        }
+        return stored.toResponse(updating = false)
     }
 
     /** The user's title, content and icon under the note rules; a blank icon is none. Breaking a rule is a 400. */
