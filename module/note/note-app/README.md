@@ -35,7 +35,7 @@ are logged once, aggregated.
 
 `ChatController` exposes atomic initial-chat streaming, chat listing, message history, idempotent
 streamed replies, turn cancellation, and summary requests under `/note/chats`. Stream events are `activity`, `append`,
-`pending`, `done`, and `error`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw
+`pending`, `done`, `error`, and, in a new chat's first turn only, `title`. `append` data is JSON `{"text": "..."}`, because SSE strips a leading space from raw
 `data:` lines; the others carry plain text (activity name, retry delay, terminal status, empty). `activity` is
 `SEARCHING_NOTES` when a notes search starts and `THINKING` when it ends; a replayed turn sends none. `ChatService` performs chat lookups using both
 chat ID and authenticated user
@@ -71,6 +71,15 @@ the first turn, and saves its user message. `Chat-Id` and `Chat-Turn-Id` respons
 two backend-generated identities. Both initial and subsequent stream responses include both headers.
 The same user-scoped idempotency key recovers the same chat after a
 lost response instead of creating a duplicate.
+
+A new chat starts with its first-message title (`title_source = FIRST_MESSAGE`). After the creating transaction
+commits, `ChatTitleService` asks the chat model once for a short title (`note.chat-title`: low reasoning and
+verbosity, the first 2,000 code points of the message, no tools), in parallel with the reply and whether or not the
+client still listens. The cleaned title (`TitleNormalizer.normalizeModelTitle`) is stored only while the title is still
+`FIRST_MESSAGE` (a rename sets `USER` and always wins; the update leaves `updated_at` and `version` alone) and is then
+sent as `title` with JSON `{"title": "..."}`. It may come before or after `done`/`error`: the stream stays open until it
+comes or `note.chat-title.timeout` (10 s) passes. A late, blank or failed title is dropped with a WARN naming the chat
+only; the first-message title stays and no `title` is sent. A replayed key, later turns and retries never ask again.
 
 `POST /note/chats/{chatId}/messages` handles subsequent turns and also requires a client-generated UUID in
 `Idempotency-Key`.
@@ -370,8 +379,7 @@ The application context can start without provider keys, but provider-backed cal
 background summary/index work then follows the outbox retry policy. Starting the application or
 making provider calls requires explicit permission under repository rules.
 
-Semantic AI-generated chat titles, outbox retention, and scalable status delivery are tracked in
-`docs/TECH_DEBT.md`.
+Outbox retention and scalable status delivery are tracked in `docs/TECH_DEBT.md`.
 
 ```bash
 ./gradlew :note:test

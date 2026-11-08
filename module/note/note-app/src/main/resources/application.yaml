@@ -92,6 +92,8 @@ note:
     reasoning-effort: low
     verbosity: low
     max-input-chars: 2000
+    # the first turn's stream waits this long for the title after the reply ends; a later title is dropped
+    timeout: 10s
   ai-edit:
     reasoning-effort: low
     # low verbosity invites the model to shorten a note it should only edit

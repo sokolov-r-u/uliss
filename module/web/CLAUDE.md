@@ -11,7 +11,8 @@ editing the SPA.
 - Native `EventSource` is not suitable for authenticated streams. Keep streaming on `authFetch` plus the reusable
   `ReadableStream` SSE parser.
 - After chat streaming ends or fails, re-fetch server history and replace optimistic state with persisted truth.
-- Abort an in-flight chat stream when its owning screen unmounts.
+- Abort an in-flight chat stream when its owning screen unmounts. The one exception: after a new chat's first turn
+  ends, the rest of its stream (a late `title` event, bounded by the server's timeout) is read on its own.
 - Mount onboarding once in `AppShell`, process server-provided steps in order, and respect the API's blocking flag.
   Preserve a usable skip action for optional profile completion.
 - Empty product areas remain honest empty states; do not fabricate backend data from design mockups.
