@@ -26,6 +26,7 @@ import io.uliss.note_service.repository.NoteListStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequest
 import io.uliss.note_service.repository.SummaryRequestStore
+import io.uliss.note_service.util.ManualNoteFingerprint
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
@@ -576,5 +577,75 @@ class NoteServiceTest {
 
         assertFailsWith<NotFoundException> { noteService.pinNote(userId, noteId) }
         assertFailsWith<NotFoundException> { noteService.unpinNote(userId, noteId) }
+    }
+
+    @Test
+    fun `createNote inserts a normalized manual note under the key and requests its index now`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val stored = NoteEntity(userId, "## New\n\nbody", NoteSource.MANUAL, NoteStatus.READY, title = "New title")
+        Mockito.`when`(
+            noteRepository.insertManualNoteOnConflictDoNothing(
+                anyValue(), eqValue(userId), eqValue(key), anyValue(), anyValue(), anyValue(), anyValue(),
+            ),
+        ).thenReturn(1)
+        Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
+
+        val response = noteService.createNote(userId, key, "  New  title ", "## New\n\nbody\n\n", null)
+
+        assertEquals(stored.id, response.id)
+        Mockito.verify(noteRepository).insertManualNoteOnConflictDoNothing(
+            anyValue(), eqValue(userId), eqValue(key), anyValue(), eqValue("New title"), eqValue("## New\n\nbody"),
+            Mockito.isNull(),
+        )
+        Mockito.verify(indexRequests).requestNow(userId, stored.id)
+    }
+
+    @Test
+    fun `createNote retried with the same body returns the stored note without indexing it again`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val stored = NoteEntity(userId, "body", NoteSource.MANUAL, NoteStatus.READY, title = "Title")
+        stored.requestFingerprint = ManualNoteFingerprint.of("Title", "body", null).toByteArray()
+        Mockito.`when`(
+            noteRepository.insertManualNoteOnConflictDoNothing(
+                anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+            ),
+        ).thenReturn(0)
+        Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
+
+        val response = noteService.createNote(userId, key, " Title ", "body\n", null)
+
+        assertEquals(stored.id, response.id)
+        Mockito.verifyNoInteractions(indexRequests)
+    }
+
+    @Test
+    fun `createNote retried with another body under the key is refused with the stored note id`() {
+        val userId = UUID.randomUUID()
+        val key = UUID.randomUUID()
+        val stored = NoteEntity(userId, "body", NoteSource.MANUAL, NoteStatus.READY, title = "Title")
+        stored.requestFingerprint = ManualNoteFingerprint.of("Title", "body", null).toByteArray()
+        Mockito.`when`(
+            noteRepository.insertManualNoteOnConflictDoNothing(
+                anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+            ),
+        ).thenReturn(0)
+        Mockito.`when`(noteRepository.findByUserIdAndIdempotencyKey(userId, key)).thenReturn(stored)
+
+        val error = assertFailsWith<IdempotencyKeyReusedException> {
+            noteService.createNote(userId, key, "Title", "edited body", null)
+        }
+
+        assertEquals(mapOf<Any, Any>("noteId" to stored.id.toString()), error.details)
+        Mockito.verifyNoInteractions(indexRequests)
+    }
+
+    @Test
+    fun `createNote rejects an icon that is not one emoji without inserting`() {
+        assertFailsWith<BadRequestException> {
+            noteService.createNote(UUID.randomUUID(), UUID.randomUUID(), "Title", "body", "🎷🎺")
+        }
+        Mockito.verifyNoInteractions(noteRepository, indexRequests)
     }
 }

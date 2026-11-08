@@ -140,4 +140,35 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
         """,
     )
     fun findPinned(@Param("userId") userId: UUID, @Param("limit") limit: Int): List<NoteEntity>
+
+    /** Inserts a READY manual note unless the user already created one under [idempotencyKey]; returns rows inserted. */
+    @Modifying
+    @Query(
+        nativeQuery = true,
+        value = """
+            INSERT INTO note.notes (id, user_id, idempotency_key, request_fingerprint, source, status, title, content,
+                                    icon, created_at, updated_at, version, created_by, updated_by)
+            VALUES (:id, :userId, :idempotencyKey, :fingerprint, 'MANUAL', 'READY', :title, :content, :icon,
+                    CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, 0, CAST(:userId AS VARCHAR), CAST(:userId AS VARCHAR))
+            ON CONFLICT (user_id, idempotency_key) DO NOTHING
+        """,
+    )
+    fun insertManualNoteOnConflictDoNothing(
+        @Param("id") id: UUID,
+        @Param("userId") userId: UUID,
+        @Param("idempotencyKey") idempotencyKey: UUID,
+        @Param("fingerprint") fingerprint: ByteArray,
+        @Param("title") title: String,
+        @Param("content") content: String,
+        @Param("icon") icon: String?,
+    ): Int
+
+    @Query(
+        nativeQuery = true,
+        value = "SELECT * FROM note.notes WHERE user_id = :userId AND idempotency_key = :idempotencyKey",
+    )
+    fun findByUserIdAndIdempotencyKey(
+        @Param("userId") userId: UUID,
+        @Param("idempotencyKey") idempotencyKey: UUID,
+    ): NoteEntity?
 }

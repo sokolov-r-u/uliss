@@ -822,3 +822,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reads it with the same CTE, last pinned first. Pages stay without pinned notes, filtered or not, and `total` keeps
   counting them, so "`total` of `allTotal`" counts the Pinned group with the rows.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main, user's choice).
+
+## 2026-11-08 — Manual notes are created under an idempotency key with a body fingerprint
+
+- **Context:** the Notes screen gets a "New note" action; a lost response must not leave a second note behind.
+- **Decision:** `POST /notes` requires `Idempotency-Key`. `notes` stores it with a SHA-256 fingerprint of the
+  normalized title, content and icon (`ManualNoteFingerprint`, length-prefixed fields) under
+  `UNIQUE (user_id, idempotency_key)`; summary notes keep both `NULL`. The insert is a native `INSERT … ON CONFLICT DO
+  NOTHING` that sets the audit columns itself. A retry with the same fingerprint returns the stored note (`201`, no
+  second index request); another body is `409 IDEMPOTENCY_KEY_REUSED` with `details.noteId`, so the client can link
+  to what was already saved instead of silently showing the first version.
+- **Consequences:** the fingerprint is the body at creation; later edits do not change it, so a retry after an edit
+  still returns the note as it is now.
+- **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, block 1.
+
