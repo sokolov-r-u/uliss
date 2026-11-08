@@ -3,19 +3,24 @@ package io.uliss.note_service.service
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.util.ChatTitlePrompts
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.extension.ExtendWith
 import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.boot.test.system.CapturedOutput
+import org.springframework.boot.test.system.OutputCaptureExtension
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.Duration
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
+@ExtendWith(OutputCaptureExtension::class)
 class ChatTitleServiceTest {
 
     private val chatClient = Mockito.mock(ChatClient::class.java)
@@ -73,10 +78,24 @@ class ChatTitleServiceTest {
     }
 
     @Test
-    fun `a blank answer gives no title`() {
+    fun `a blank answer gives no title and is logged with the chat id but never the message`(output: CapturedOutput) {
         stubModel("  \n ")
 
-        assertNull(service.findTitle(chatId, "Tune to drop D?"))
+        assertNull(service.findTitle(chatId, "Secret plans for drop D"))
+
+        assertTrue(output.out.contains("WARN") && output.out.contains("chat=$chatId"))
+        assertFalse(output.out.contains("Secret plans"))
+    }
+
+    @Test
+    fun `a failing provider is logged with the chat id but never the message`(output: CapturedOutput) {
+        stubModel("unused")
+        Mockito.`when`(requestSpec.call()).thenThrow(IllegalStateException("provider down"))
+
+        service.findTitle(chatId, "Secret plans for drop D")
+
+        assertTrue(output.out.contains("chat=$chatId"))
+        assertFalse(output.out.contains("Secret plans"))
     }
 
     @Test

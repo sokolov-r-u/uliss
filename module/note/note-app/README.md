@@ -78,7 +78,7 @@ verbosity, the first 2,000 code points of the message, no tools), in parallel wi
 client still listens. The cleaned title (`TitleNormalizer.normalizeModelTitle`) is stored only while the title is still
 `FIRST_MESSAGE` (a rename sets `USER` and always wins; the update leaves `updated_at` and `version` alone) and is then
 sent as `title` with JSON `{"title": "..."}`. It may come before or after `done`/`error`: the stream stays open until it
-comes or `note.chat-title.timeout` (10 s) passes. A late, blank or failed title is dropped with a WARN naming the chat
+comes or `note.chat-title.timeout` (10 s from the start of the title call) passes. A late, blank or failed title is dropped with a WARN naming the chat
 only; the first-message title stays and no `title` is sent. A replayed key, later turns and retries never ask again.
 
 `POST /note/chats/{chatId}/messages` handles subsequent turns and also requires a client-generated UUID in

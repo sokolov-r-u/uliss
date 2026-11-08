@@ -834,7 +834,7 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   that leaves `updated_at` and `version` alone), so a rename (`USER`) always wins and a concurrent rename does not
   fail. The stored title goes to the first turn's SSE stream as `title` (`{"title"}`), merged with the reply's
   events: it may come before or after `done`/`error`, and the stream stays open until it comes or
-  `note.chat-title.timeout` (10 s) passes. A late, blank or failed title is dropped (WARN with the chat id only); the
+  `note.chat-title.timeout` (10 s, counted from the start of the title call) passes. A late, blank or failed title is dropped (WARN with the chat id only); the
   first-message title stays and no event is sent.
 - **Consequences:** the title runs in memory, not through the outbox: a restart loses it, and the first-message title
   stays. Old chats are not renamed. The first turn's stream can outlive its `done` by up to the timeout.

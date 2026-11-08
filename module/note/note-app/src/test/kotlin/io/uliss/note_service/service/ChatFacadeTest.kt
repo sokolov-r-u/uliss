@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import reactor.core.publisher.Flux
 import reactor.core.publisher.Mono
+import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -80,6 +81,30 @@ class ChatFacadeTest {
                 AssistantStreamEvent.TitleGenerated("Greeting"),
             ),
             result.events.collectList().block()!!.toSet(),
+        )
+    }
+
+    @Test
+    fun `a title that comes after the reply's done still reaches the stream, which ends only then`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        Mockito.`when`(chatService.createChat(userId, idempotencyKey, "hello"))
+            .thenReturn(ChatCreation(chat, created = true))
+        Mockito.`when`(chatTitleService.generateTitle(userId, chatId, "hello"))
+            .thenReturn(Mono.delay(Duration.ofMillis(100)).map { "Greeting" })
+        Mockito.`when`(
+            assistantService.streamReply(
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+            ),
+        ).thenReturn(AssistantReplyStream(UUID.randomUUID(), Flux.just(AssistantStreamEvent.GenerationCompleted), chatId))
+
+        val events = chatFacade.streamReply(userId, null, idempotencyKey, "hello").events.collectList().block()
+
+        assertEquals(
+            listOf(AssistantStreamEvent.GenerationCompleted, AssistantStreamEvent.TitleGenerated("Greeting")),
+            events,
         )
     }
 

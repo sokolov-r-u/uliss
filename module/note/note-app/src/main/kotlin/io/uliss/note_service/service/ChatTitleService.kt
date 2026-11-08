@@ -59,7 +59,9 @@ class ChatTitleService(
     /** The model's title for the chat's first [message]; null when the call fails or yields no text. */
     fun findTitle(chatId: UUID, message: String): String? =
         try {
-            requestTitle(message)
+            requestTitle(message).also {
+                if (it == null) log.warn("model gave no title for chat=$chatId; the first-message title stays", "findTitle")
+            }
         } catch (ex: RuntimeException) {
             log.warn("title generation failed for chat=$chatId; the first-message title stays", "findTitle", ex)
             null

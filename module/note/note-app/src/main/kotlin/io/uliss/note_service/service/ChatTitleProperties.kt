@@ -9,6 +9,6 @@ data class ChatTitleProperties(
     val reasoningEffort: String = "low",
     val verbosity: String = "low",
     val maxInputChars: Int = 2000,
-    /** How long the first turn's stream waits for the title; a later title is dropped. */
+    /** Counted from the start of the title call: a later title is dropped, so the first turn never waits longer. */
     val timeout: Duration = Duration.ofSeconds(10),
 )

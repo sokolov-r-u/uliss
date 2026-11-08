@@ -142,6 +142,7 @@ async function streamReply(
     }
     const signal = connection ? connection.signal : opts.signal
     let tail = false
+    let events: AsyncGenerator<SseEvent> | null = null
     try {
         const res = await authFetch(path, {
             method: 'POST',
@@ -166,19 +167,18 @@ async function streamReply(
         }
         if (!res.body) return 'error'
 
-        const events = parseSseStream(res.body, signal)
+        const stream = parseSseStream(res.body, signal)
+        events = stream
         const finish = (outcome: StreamOutcome): StreamOutcome => {
             if (opts.onTitle) {
                 tail = true
                 opts.signal?.removeEventListener('abort', abortConnection)
-                void readTail(events, opts.onTitle)
-            } else {
-                void events.return(undefined)
+                void readTail(stream, opts.onTitle)
             }
             return outcome
         }
         while (true) {
-            const next = await events.next()
+            const next = await stream.next()
             if (next.done) break
             const evt = next.value
             if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
@@ -199,7 +199,11 @@ async function streamReply(
         // Connection dropped without an explicit done/error terminal event.
         return 'error'
     } finally {
-        if (!tail) opts.signal?.removeEventListener('abort', abortConnection)
+        if (!tail) {
+            opts.signal?.removeEventListener('abort', abortConnection)
+            // any exit but a detached tail (a terminal event, a throwing callback) closes the connection
+            void events?.return(undefined)
+        }
     }
 }
 
