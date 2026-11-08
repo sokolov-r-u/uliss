@@ -1,4 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
+import {Link} from 'react-router-dom'
 import {Button, Dialog, IconPicker, type Locale, TextField, useLocale, useMessages} from '@uliss/design-system'
 import {describeError} from '../lib/apiHelpers'
 import {AuthRequiredError} from '../auth/apiClient'
@@ -9,14 +10,18 @@ import {NoteEditor, type NoteEditorChange, type NoteEditorHandle} from './editor
 import {
     AI_EDIT_CONTENT_LIMIT,
     AI_EDIT_INSTRUCTION_LIMIT,
+    createNote,
     isAbortError,
     type Note,
+    NoteAlreadyCreatedError,
     NoteApiError,
     notifyNotesChanged,
     streamNoteAiEdit,
     updateNote,
 } from './noteApi'
 import {HINT_COUNT, noteEditMessages} from './noteEdit.messages'
+import {generateClientUuid} from '../lib/clientUuid'
+import {useLeaveGuard} from '../ui/useLeaveGuard'
 
 export type EditableNote = Note & { content: string; version: number }
 
@@ -27,7 +32,8 @@ export function asEditable(note: Note): EditableNote | null {
 }
 
 interface NoteEditFormProps {
-    note: EditableNote
+    /** The ready note being edited; null writes a new note. */
+    note: EditableNote | null
     onSaved: (note: Note) => void
     onClose: () => void
 }
@@ -60,15 +66,22 @@ function rewriteFailure(error: unknown, t: EditWords): string {
     return t.rewriteFailed
 }
 
-/** Icon, title and text of a ready note in edit mode: Save sends them with the version the edit started from. */
+/**
+ * Icon, title and text of a note. Editing a ready note, Save sends them with the version the edit started from; for a
+ * new note (no [NoteEditFormProps.note]) it creates one, without the model rewrite. Unsaved changes hold every way out.
+ */
 export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     const locale = useLocale()
     const t = useMessages(noteEditMessages)
-    const initialTitle = note.title ?? ''
+    const initialTitle = note?.title ?? ''
     const [title, setTitle] = useState(initialTitle)
-    const initialIcon = note.icon ?? null
+    const initialIcon = note?.icon ?? null
     const [icon, setIcon] = useState<string | null>(initialIcon)
-    const [text, setText] = useState<NoteEditorChange>({markdown: note.content, changed: false})
+    const initialContent = note?.content ?? ''
+    const [text, setText] = useState<NoteEditorChange>({markdown: initialContent, changed: false})
+    // one key per new note: a retry after a lost response finds the note the first request made
+    const [createKey] = useState(generateClientUuid)
+    const [savedElsewhere, setSavedElsewhere] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [confirmingDiscard, setConfirmingDiscard] = useState(false)
@@ -89,26 +102,27 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     // Leaving the screen stops the model; the server cancels the provider call with the connection.
     useEffect(() => () => rewriteRef.current?.abort(), [])
 
-    useEffect(() => {
-        if (!dirty) return
-        const warn = (event: BeforeUnloadEvent) => event.preventDefault()
-        window.addEventListener('beforeunload', warn)
-        return () => window.removeEventListener('beforeunload', warn)
-    }, [dirty])
+    const {blocker, release} = useLeaveGuard(dirty)
+    const leaving = blocker.state === 'blocked'
 
     async function save() {
         if (!canSave || normalizedTitle === null || savingRef.current) return
         savingRef.current = true
         setSaving(true)
         setError(null)
+        setSavedElsewhere(null)
         try {
             // Untouched text goes back as stored, not in the editor's equivalent spelling.
-            const content = text.changed ? text.markdown : note.content
-            const savedNote = await updateNote(note.id, {title: normalizedTitle, content, icon, version: note.version})
+            const content = text.changed ? text.markdown : initialContent
+            const savedNote = note === null
+                ? await createNote(createKey, {title: normalizedTitle, content, icon})
+                : await updateNote(note.id, {title: normalizedTitle, content, icon, version: note.version})
             notifyNotesChanged()
+            release()
             onSaved(savedNote)
         } catch (e) {
-            if (!(e instanceof AuthRequiredError)) setError(saveFailure(e, t, locale))
+            if (e instanceof NoteAlreadyCreatedError) setSavedElsewhere(e.noteId)
+            else if (!(e instanceof AuthRequiredError)) setError(saveFailure(e, t, locale))
         } finally {
             savingRef.current = false
             setSaving(false)
@@ -118,7 +132,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
     async function rewrite(text?: string) {
         const instruction = (text ?? command).trim()
         const editor = editorRef.current
-        if (instruction === '' || busy || editor === null || rewriteRef.current !== null) return
+        if (note === null || instruction === '' || busy || editor === null || rewriteRef.current !== null) return
         const content = editor.getMarkdown()
         setError(null)
         if (instruction.length > AI_EDIT_INSTRUCTION_LIMIT) {
@@ -181,23 +195,40 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
                            onChange={(event) => setTitle(event.target.value)}/>
             </div>
         </div>
-        <NoteEditor content={note.content} onChange={setText} locked={busy} preview={preview}
-                    handleRef={editorRef} highlightDateHeadings={note.source === 'CHAT_SUMMARY'}/>
+        <NoteEditor content={initialContent} onChange={setText} locked={busy} preview={preview}
+                    handleRef={editorRef} highlightDateHeadings={note?.source === 'CHAT_SUMMARY'}/>
         <div className="note-edit-dock">
             {rewriteNotice && <p className="note-edit-notice" role="status">{rewriteNotice}</p>}
-            <ChatComposer value={command} onChange={setCommand} onSubmit={(text) => void rewrite(text)}
-                          placeholder={t.hint(hint)} disabled={saving}
-                          generationActive={generating} onStop={() => rewriteRef.current?.abort()}/>
+            {note !== null && <ChatComposer value={command} onChange={setCommand} onSubmit={(text) => void rewrite(text)}
+                                            placeholder={t.hint(hint)} disabled={saving}
+                                            generationActive={generating} onStop={() => rewriteRef.current?.abort()}/>}
             <div className="note-edit-actions">
                 {error && <p className="note-edit-error" role="alert">{error}</p>}
+                {savedElsewhere && <p className="note-edit-error" role="alert">
+                    {t.alreadySaved} <Link to={`/notes/${encodeURIComponent(savedElsewhere)}`}>{t.openSaved}</Link>
+                </p>}
                 <Button variant="ghost" disabled={busy}
                         onClick={() => (dirty ? setConfirmingDiscard(true) : onClose())}>{t.cancel}</Button>
                 <Button variant="outline" disabled={!canSave} aria-busy={saving}
                         onClick={() => void save()}>{saving ? t.saving : t.save}</Button>
             </div>
         </div>
-        {confirmingDiscard && <Dialog title={t.discardTitle} body={t.discardBody}
-                                      confirm={t.discard} cancel={t.keepEditing}
-                                      onConfirm={onClose} onCancel={() => setConfirmingDiscard(false)}/>}
+        {(confirmingDiscard || leaving) &&
+            <Dialog title={note === null ? t.discardNewTitle : t.discardTitle}
+                    body={note === null ? t.discardNewBody : t.discardBody}
+                    confirm={note === null ? t.discardNew : t.discard} cancel={t.keepEditing}
+                    onConfirm={() => {
+                        setConfirmingDiscard(false)
+                        if (leaving) {
+                            blocker.proceed?.()
+                        } else {
+                            release()
+                            onClose()
+                        }
+                    }}
+                    onCancel={() => {
+                        setConfirmingDiscard(false)
+                        if (leaving) blocker.reset?.()
+                    }}/>}
     </div>
 }

@@ -36,6 +36,11 @@ const en = {
     noteText: 'Note text',
     fromUliss: 'Text from Uliss',
     originalNote: 'Original note',
+    discardNewTitle: 'Discard this note?',
+    discardNewBody: 'The note has not been saved, and what you wrote will be lost.',
+    discardNew: 'Discard',
+    alreadySaved: 'This note was already saved, with the text you had before the error.',
+    openSaved: 'Open the saved note',
 }
 
 export const noteEditMessages: Dictionaries<typeof en> = {
@@ -72,5 +77,10 @@ export const noteEditMessages: Dictionaries<typeof en> = {
         noteText: 'Текст заметки',
         fromUliss: 'Текст от Uliss',
         originalNote: 'Исходная заметка',
+        discardNewTitle: 'Не сохранять заметку?',
+        discardNewBody: 'Заметка не сохранена, написанное пропадёт.',
+        discardNew: 'Не сохранять',
+        alreadySaved: 'Эта заметка уже сохранена — с текстом, который был до ошибки.',
+        openSaved: 'Открыть сохранённую заметку',
     },
 }

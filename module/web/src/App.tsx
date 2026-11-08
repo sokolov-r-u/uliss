@@ -23,6 +23,7 @@ import {authPagesMessages} from './pages/authPages.messages'
 
 // The heaviest screens (the editor, the tree, the sky renderer) load on first visit, not with the first page.
 const NoteDetailPage = lazy(() => import('./notes/NoteDetailPage').then((m) => ({default: m.NoteDetailPage})))
+const NoteCreatePage = lazy(() => import('./notes/NoteCreatePage').then((m) => ({default: m.NoteCreatePage})))
 const ConstellationsPage = lazy(() =>
     import('./constellations/ConstellationsPage').then((m) => ({default: m.ConstellationsPage})))
 const SkyPage = lazy(() => import('./sky/SkyPage').then((m) => ({default: m.SkyPage})))
@@ -66,6 +67,7 @@ export function App() {
           <Route path="chats/new" element={<ChatPage newChat/>}/>
           <Route path="chats/:chatId" element={<ChatPage/>}/>
           <Route path="notes" element={<NotesPage/>}/>
+          <Route path="notes/new" element={<ScreenLoadBoundary><NoteCreatePage/></ScreenLoadBoundary>}/>
           <Route path="notes/:noteId" element={<ScreenLoadBoundary><NoteDetailPage/></ScreenLoadBoundary>}/>
           <Route path="search" element={<SearchPage/>}/>
           <Route path="constellations" element={<ScreenLoadBoundary><ConstellationsPage/></ScreenLoadBoundary>}/>

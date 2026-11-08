@@ -1,6 +1,7 @@
 import {render, screen} from '@testing-library/react'
 import {MemoryRouter} from 'react-router-dom'
-import {describe, expect, it} from 'vitest'
+import userEvent from '@testing-library/user-event'
+import {describe, expect, it, vi} from 'vitest'
 import {NotesView, toNoteViewModels} from './NotesPage'
 
 describe('notes list presentation', () => {
@@ -95,5 +96,16 @@ describe('notes list presentation', () => {
 
         expect(screen.getByText('Pinned items did not load.')).toBeInTheDocument()
         expect(screen.queryByText('Nothing written down yet')).not.toBeInTheDocument()
+    })
+
+    it('offers a new note in the header, also with no notes yet, and only when asked to', async () => {
+        const onCreate = vi.fn()
+        const view = render(<MemoryRouter><NotesView notes={[]} onCreate={onCreate}/></MemoryRouter>)
+
+        await userEvent.click(screen.getByRole('button', {name: 'New note'}))
+        expect(onCreate).toHaveBeenCalledOnce()
+
+        view.rerender(<MemoryRouter><NotesView notes={[]}/></MemoryRouter>)
+        expect(screen.queryByRole('button', {name: 'New note'})).not.toBeInTheDocument()
     })
 })
