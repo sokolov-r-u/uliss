@@ -188,6 +188,33 @@ describe('ChatPage summary flow', () => {
         expect(notifyChatListChanged).toHaveBeenCalledOnce()
     })
 
+    it('shows the created chat in the header during the first reply and refreshes it when the title arrives', async () => {
+        vi.mocked(getChat).mockResolvedValue({id: 'chat-new', title: 'First question', noteCount: 0})
+        let finish!: () => void
+        let sendTitle!: () => void
+        mockedInitialStream.mockImplementation(async (_content, _key, options) => {
+            options.onChatId('chat-new')
+            options.onTurnId('turn-new')
+            sendTitle = () => options.onTitle?.('Trip planning')
+            await new Promise<void>((resolve) => { finish = resolve })
+            return 'done'
+        })
+
+        renderNewPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'First question')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        // still on /chats/new and still generating: the header already names the created chat
+        expect(await screen.findByRole('heading', {name: 'First question'})).toBeInTheDocument()
+        expect(screen.getByTestId('route-path')).toHaveTextContent('/chats/new')
+        expect(getChat).toHaveBeenCalledWith('chat-new', expect.anything())
+
+        vi.mocked(notifyChatListChanged).mockClear()
+        act(() => sendTitle())
+        expect(notifyChatListChanged).toHaveBeenCalledOnce()
+        await act(async () => finish())
+    })
+
     it('retries initial creation with the same key when the chat id header was lost', async () => {
         mockedInitialStream
             .mockRejectedValueOnce(new Error('connection lost'))

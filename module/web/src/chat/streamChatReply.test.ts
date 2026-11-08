@@ -226,3 +226,96 @@ describe('streamRetriedReply', () => {
         })
     })
 })
+
+describe('streamInitialAssistantReply title', () => {
+    beforeEach(() => mockedFetch.mockReset())
+
+    /** A stream the test writes to record by record, so events can come after the call has resolved. */
+    function controlledResponse() {
+        const encoder = new TextEncoder()
+        let controller!: ReadableStreamDefaultController<Uint8Array>
+        const body = new ReadableStream<Uint8Array>({start: (c) => { controller = c }})
+        const response = new Response(body, {
+            status: 200,
+            headers: {'Content-Type': 'text/event-stream', 'Chat-Turn-Id': 'turn-1', 'Chat-Id': 'chat-1'},
+        })
+        return {
+            response,
+            send: (record: string) => controller.enqueue(encoder.encode(record)),
+            close: () => controller.close(),
+        }
+    }
+
+    const callbacks = () => ({onChatId: vi.fn(), onTurnId: vi.fn(), onAppendText: vi.fn()})
+
+    it('reports a title that comes before the reply ends', async () => {
+        const response = sseResponse([
+            'event:title\ndata:{"title":"Drop D tuning"}\n\n',
+            'event:append\ndata:{"text":"Hi"}\n\nevent:done\ndata:\n\n',
+        ])
+        response.headers.set('Chat-Id', 'chat-1')
+        mockedFetch.mockResolvedValue(response)
+        const onTitle = vi.fn()
+
+        await expect(streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle})).resolves.toBe('done')
+
+        expect(onTitle).toHaveBeenCalledWith('Drop D tuning')
+    })
+
+    it('resolves on done without waiting for the title, then reports a title that comes later', async () => {
+        const stream = controlledResponse()
+        mockedFetch.mockResolvedValue(stream.response)
+        const onTitle = vi.fn()
+
+        const outcome = streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle})
+        stream.send('event:append\ndata:{"text":"Hi"}\n\nevent:done\ndata:\n\n')
+        await expect(outcome).resolves.toBe('done')
+        expect(onTitle).not.toHaveBeenCalled()
+
+        stream.send('event:title\ndata:{"title":"Greeting"}\n\n')
+        stream.close()
+
+        await vi.waitFor(() => expect(onTitle).toHaveBeenCalledWith('Greeting'))
+    })
+
+    it('keeps reading a late title after the screen aborts its signal', async () => {
+        const stream = controlledResponse()
+        mockedFetch.mockResolvedValue(stream.response)
+        const screen = new AbortController()
+        const onTitle = vi.fn()
+
+        const outcome = streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle, signal: screen.signal})
+        stream.send('event:done\ndata:\n\n')
+        await expect(outcome).resolves.toBe('done')
+        screen.abort()
+
+        stream.send('event:title\ndata:{"title":"Greeting"}\n\n')
+        stream.close()
+
+        await vi.waitFor(() => expect(onTitle).toHaveBeenCalledWith('Greeting'))
+    })
+
+    it('still aborts the request when the screen leaves before the reply ends', async () => {
+        const stream = controlledResponse()
+        mockedFetch.mockResolvedValue(stream.response)
+        const screen = new AbortController()
+
+        const outcome = streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle: vi.fn(), signal: screen.signal})
+        stream.send('event:append\ndata:{"text":"Hi"}\n\n')
+        await vi.waitFor(() => expect(mockedFetch).toHaveBeenCalled())
+        screen.abort()
+
+        await expect(outcome).resolves.toBe('error')
+    })
+
+    it('ignores a title event whose data is not the expected JSON', async () => {
+        const response = sseResponse(['event:title\ndata:Drop D\n\nevent:done\ndata:\n\n'])
+        response.headers.set('Chat-Id', 'chat-1')
+        mockedFetch.mockResolvedValue(response)
+        const onTitle = vi.fn()
+
+        await expect(streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle})).resolves.toBe('done')
+
+        expect(onTitle).not.toHaveBeenCalled()
+    })
+})
