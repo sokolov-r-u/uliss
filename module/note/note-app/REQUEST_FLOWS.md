@@ -90,6 +90,7 @@ application services or outbox handlers.
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/chats`                  | `NoteController -> NoteFacade -> NoteService + ChatService`                         | Lists the chats the note was written from          |
 | `GET /note/notes/{noteId}/status/stream`          | `NoteController -> NoteService`                                                     | Streams persisted note status changes              |
+| `POST /note/notes`                                | `NoteController -> NoteService`                                                     | Creates a manual note under an `Idempotency-Key`, indexes it now |
 | `PATCH /note/notes/{noteId}`                      | `NoteController -> NoteService`                                                     | Renames a `READY` note and queues reindexing       |
 | `PUT /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Saves a versioned edit and queues reindexing       |
 | `POST /note/notes/{noteId}/ai-edit`               | `NoteController -> NoteAiEditService -> NoteService`                                | Streams a model rewrite; saves nothing             |

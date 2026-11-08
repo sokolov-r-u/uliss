@@ -51,6 +51,11 @@ over SSE; the SPA has the notes list and note screen.
 Chat lists follow the last activity (message, rename, Summarize). The context panel of a chat lists its notes, the
 panel of a note lists the chats it was written from, and the chat delete dialog lists the notes that stay.
 
+### Manual notes — 2026-11-08
+
+A "+" on the Notes screen opens the note editor on an empty note; `POST /note/notes` creates it under an
+`Idempotency-Key`. Any way out of a note form with unsaved changes asks first. The Chats screen got the same "+".
+
 ## Before the MVP
 
 ### 1. Chats and notes
@@ -59,7 +64,6 @@ panel of a note lists the chats it was written from, and the chat delete dialog 
 - Edit a chat message: later messages are removed and the reply is generated again. Design first: edits before the
   summarized boundary, a reply still being generated, deleting versus marking messages, a plain "regenerate".
 - Edit notes.
-- Create notes manually.
 - Start a new chat from a note to expand on its topics; the note is the chat's starting context. Design first: how the
   note reaches the model and where notes produced by that chat are placed (for example, as child notes).
 - Account settings backed by `user-service`.

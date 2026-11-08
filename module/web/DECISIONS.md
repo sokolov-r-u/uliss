@@ -309,6 +309,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   language, not the OS locale. The setting does not steer the AI: replies and notes follow the chat's language.
 - **Source:** task `docs/tasks/2026-11-04-russian-localization.md`, block 2 (`dff0cba`).
 
+## 2026-11-08 — A data router, so note forms can hold every navigation
+
+- **Context:** the user wants no way out of a note form (Cancel, the header's Back, the browser's Back, the side
+  navigation) to drop unsaved changes silently; `<BrowserRouter>` cannot block navigation.
+- **Decision:** `main.tsx` uses `createBrowserRouter` with one catch-all route around `<AuthProvider><App/>`; the app's
+  `<Routes>` stay as they were. `useLeaveGuard` (`ui/`) holds a navigation to another pathname through `useBlocker`
+  while the form is dirty and warns on unload; the form shows its discard dialog (`proceed` / `reset`) and releases
+  the guard after a save or a confirmed Cancel. The new-note screen (`/notes/new`) is `NoteEditForm` with no note:
+  no model rewrite, one `Idempotency-Key` per form, `409 IDEMPOTENCY_KEY_REUSED` links to the note already saved.
+- **Consequences:** any component calling `useBlocker` must render under a data router; tests use
+  `test/dataRouter.tsx` (`createMemoryRouter`), the visual harness `createMemoryRouter` too. Closing or reloading the
+  tab still gets only the browser's own prompt.
+- **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, blocks 2–3.
+
 ## 2026-11-08 — A first turn's stream outlives its screen until the chat title arrives
 
 - **Context:** note-service sends a new chat's generated title as an SSE `title` event, possibly after `done`, while

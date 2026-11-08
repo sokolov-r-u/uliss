@@ -823,6 +823,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   counting them, so "`total` of `allTotal`" counts the Pinned group with the rows.
 - **Source:** task `docs/tasks/2026-11-03-notes-constellation-filter.md` (merge of main, user's choice).
 
+## 2026-11-08 — Manual notes are created under an idempotency key with a body fingerprint
+
+- **Context:** the Notes screen gets a "New note" action; a lost response must not leave a second note behind.
+- **Decision:** `POST /notes` requires `Idempotency-Key`. `notes` stores it with a SHA-256 fingerprint of the
+  normalized title, content and icon (`ManualNoteFingerprint`, length-prefixed fields) under
+  `UNIQUE (user_id, idempotency_key)`; summary notes keep both `NULL`. The insert is a native `INSERT … ON CONFLICT DO
+  NOTHING` that sets the audit columns itself. A retry with the same fingerprint returns the stored note (`201`, no
+  second index request); another body is `409 IDEMPOTENCY_KEY_REUSED` with `details.noteId`, so the client can link
+  to what was already saved instead of silently showing the first version.
+- **Consequences:** the fingerprint is the body at creation; later edits do not change it, so a retry after an edit
+  still returns the note as it is now. Deleting a note deletes its row and key, so a retry after a delete creates the
+  note again (the user pressed Save on that text; accepted after the code review).
+- **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, block 1.
+
 ## 2026-11-08 — A new chat is named by the model, in parallel with its first reply
 
 - **Context:** the first-message title (a truncated first line) is often long and unspecific. This replaces "no

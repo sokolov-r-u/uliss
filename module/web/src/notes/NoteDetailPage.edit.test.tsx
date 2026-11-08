@@ -1,6 +1,7 @@
-import {fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter, Route, Routes} from 'react-router-dom'
+import {Route, Routes} from 'react-router-dom'
+import {dataRouter} from '../test/dataRouter'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {
     getNote,
@@ -36,16 +37,20 @@ const saved: Note = {
 }
 
 function renderPage() {
-    render(<MemoryRouter initialEntries={['/notes/note-1']}><Routes>
+    const {router, ui} = dataRouter(<Routes>
         <Route path="/notes/:noteId" element={<NoteDetailPage/>}/>
-    </Routes></MemoryRouter>)
+        <Route path="/notes" element={<p>Notes list</p>}/>
+    </Routes>, ['/notes', '/notes/note-1'])
+    render(ui)
+    return router
 }
 
 async function startEditing(note: Note = saved) {
     mockedGetNote.mockResolvedValue(note)
-    renderPage()
+    const router = renderPage()
     await userEvent.click(await screen.findByRole('button', {name: 'Edit note'}))
     return {
+        router,
         title: screen.getByRole('textbox', {name: 'Title'}),
         text: await screen.findByRole('textbox', {name: 'Note text'}),
         save: screen.getByRole('button', {name: 'Save'}),
@@ -217,6 +222,45 @@ describe('NoteDetailPage editing', () => {
         expect(screen.queryByRole('textbox', {name: 'Title'})).not.toBeInTheDocument()
         expect(screen.getByRole('heading', {name: 'Idea'})).toBeInTheDocument()
         expect(mockedUpdate).not.toHaveBeenCalled()
+    })
+
+    it('holds the browser Back over unsaved edits until the user discards them', async () => {
+        const {title, router} = await startEditing()
+        await userEvent.type(title, '!')
+
+        await act(() => router.navigate(-1))
+        expect(screen.getByRole('dialog', {name: 'Discard your edits?'})).toBeInTheDocument()
+        await userEvent.click(screen.getByRole('button', {name: 'Keep editing'}))
+
+        expect(router.state.location.pathname).toBe('/notes/note-1')
+        expect(screen.getByRole('textbox', {name: 'Title'})).toHaveValue('Idea!')
+
+        await userEvent.click(screen.getByRole('button', {name: 'Back'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Discard'}))
+
+        expect(router.state.location.pathname).toBe('/notes')
+        expect(mockedUpdate).not.toHaveBeenCalled()
+    })
+
+    it('leaves at once without unsaved edits', async () => {
+        const {router} = await startEditing()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Back'}))
+
+        expect(router.state.location.pathname).toBe('/notes')
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('lets the user leave once the edits are saved', async () => {
+        mockedUpdate.mockResolvedValue({...saved, title: 'Idea!', version: 4})
+        const {title, save, router} = await startEditing()
+        await userEvent.type(title, '!')
+        await userEvent.click(save)
+        await screen.findByRole('heading', {name: 'Idea!'})
+
+        await userEvent.click(screen.getByRole('button', {name: 'Back'}))
+
+        expect(router.state.location.pathname).toBe('/notes')
     })
 
     it('warns before the tab closes with unsaved edits only', async () => {

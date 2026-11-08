@@ -1,6 +1,6 @@
 import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {MemoryRouter} from 'react-router-dom'
+import {MemoryRouter, Route, Routes} from 'react-router-dom'
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {deleteChat, listChats, listPinnedChats} from './chatApi'
 import {ChatListPage} from './ChatListPage'
@@ -107,5 +107,17 @@ describe('ChatListPage', () => {
 
         const june = new Date('2026-06-22T09:00:00Z').toLocaleDateString(undefined, {month: 'long', year: 'numeric'})
         expect(await screen.findByText(june)).toBeInTheDocument()
+    })
+
+    it('starts a new chat from the plus button in the header', async () => {
+        vi.mocked(listChats).mockResolvedValue({items: [], nextCursor: null})
+        render(<MemoryRouter initialEntries={['/chats']}><Routes>
+            <Route path="/chats" element={<ChatListPage/>}/>
+            <Route path="/chats/new" element={<p>New chat screen</p>}/>
+        </Routes></MemoryRouter>)
+
+        await userEvent.click(screen.getByRole('button', {name: 'New chat'}))
+
+        expect(screen.getByText('New chat screen')).toBeInTheDocument()
     })
 })

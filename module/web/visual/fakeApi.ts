@@ -362,6 +362,16 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     if (url.pathname === '/note/chats') {
         return listPage(chats.filter((item) => !pins.chats.includes(item.id)), url.searchParams.get('cursor'))
     }
+    if (url.pathname === '/note/notes' && method === 'POST') {
+        const draft = JSON.parse(String(init?.body)) as { title: string; content: string; icon: string | null }
+        const created = {
+            id: `manual-${NOTES.length + 1}`, source: 'MANUAL' as const, status: 'READY' as const,
+            title: draft.title, content: draft.content, ...(draft.icon ? {icon: draft.icon} : {}),
+            version: 0, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+        }
+        NOTES.unshift(created)
+        return json(created, 201)
+    }
     if (url.pathname === '/note/notes') {
         const kept = filteredIds(url.searchParams)
         const listed = kept ? notes.filter((item) => kept.has(item.id)) : notes
