@@ -19,8 +19,10 @@ import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class ChatServiceTest {
 
@@ -51,7 +53,8 @@ class ChatServiceTest {
             "  Explain PostgreSQL locks\nwithout jargon  ",
         )
 
-        assertSame(persistedChat, result)
+        assertSame(persistedChat, result.chat)
+        assertTrue(result.created)
         assertEquals("Explain PostgreSQL locks", insertedTitle)
     }
 
@@ -68,8 +71,9 @@ class ChatServiceTest {
 
         val result = chatService.createChat(userId, idempotencyKey, "Changed retry content")
 
-        assertSame(originalChat, result)
-        assertEquals("Original title", result.title)
+        assertSame(originalChat, result.chat)
+        assertFalse(result.created)
+        assertEquals("Original title", result.chat.title)
         Mockito.verify(chatRepository).findByUserIdAndIdempotencyKey(userId, idempotencyKey)
     }
 

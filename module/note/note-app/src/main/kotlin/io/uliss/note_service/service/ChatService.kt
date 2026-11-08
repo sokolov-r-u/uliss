@@ -3,6 +3,7 @@ package io.uliss.note_service.service
 import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.dto.internal.ChatCreation
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
@@ -28,15 +29,16 @@ class ChatService(
 ) {
 
     @Transactional(propagation = Propagation.MANDATORY)
-    fun createChat(userId: UUID, idempotencyKey: UUID, content: String): ChatEntity {
-        chatRepository.insertChatOnConflictDoNothing(
+    fun createChat(userId: UUID, idempotencyKey: UUID, content: String): ChatCreation {
+        val inserted = chatRepository.insertChatOnConflictDoNothing(
             id = generateId(),
             userId = userId,
             idempotencyKey = idempotencyKey,
             title = TitleNormalizer.normalizeChatTitle(content),
         )
-        return chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+        val chat = chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
             ?: error("initial chat could not be loaded after insert")
+        return ChatCreation(chat, created = inserted == 1)
     }
 
     /** A page of the user's chats by last activity, starting strictly after [cursor] (from the top when null). */

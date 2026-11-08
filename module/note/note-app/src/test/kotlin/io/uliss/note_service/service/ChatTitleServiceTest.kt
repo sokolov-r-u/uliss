@@ -7,20 +7,30 @@ import org.mockito.ArgumentCaptor
 import org.mockito.Mockito
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.transaction.support.TransactionSynchronizationManager
+import java.time.Duration
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class ChatTitleServiceTest {
 
     private val chatClient = Mockito.mock(ChatClient::class.java)
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
     private val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
+    private val chatService = Mockito.mock(ChatService::class.java)
     private val service = ChatTitleService(
         chatClient,
-        ChatTitleProperties(reasoningEffort = "low", verbosity = "low", maxInputChars = 20),
+        chatService,
+        ChatTitleProperties(
+            reasoningEffort = "low", verbosity = "low", maxInputChars = 20, timeout = Duration.ofMillis(200),
+        ),
     )
     private val chatId = UUID.randomUUID()
+    private val userId = UUID.randomUUID()
 
     @Test
     fun `the first message goes to the model with the title prompt and per-call options`() {
@@ -67,6 +77,82 @@ class ChatTitleServiceTest {
         stubModel("  \n ")
 
         assertNull(service.findTitle(chatId, "Tune to drop D?"))
+    }
+
+    @Test
+    fun `a generated title is stored on the chat and then emitted`() {
+        stubModel("# Drop D tuning")
+        Mockito.`when`(chatService.applyGeneratedTitle(userId, chatId, "Drop D tuning")).thenReturn(true)
+
+        val title = service.generateTitle(userId, chatId, "Tune to drop D?").block(Duration.ofSeconds(5))
+
+        assertEquals("Drop D tuning", title)
+        Mockito.verify(chatService).applyGeneratedTitle(userId, chatId, "Drop D tuning")
+    }
+
+    @Test
+    fun `a title that comes after the timeout is neither stored nor emitted`() {
+        val late = CountDownLatch(1)
+        stubModel("unused")
+        Mockito.`when`(callResponseSpec.content()).thenAnswer {
+            late.await(5, TimeUnit.SECONDS)
+            "Late title"
+        }
+
+        val title = service.generateTitle(userId, chatId, "Tune to drop D?").block(Duration.ofSeconds(5))
+        late.countDown()
+
+        assertNull(title)
+        Mockito.verify(chatService, Mockito.after(500).never()).applyGeneratedTitle(anyValue(), anyValue(), anyValue())
+    }
+
+    @Test
+    fun `the title is generated and stored even when nobody listens to the stream`() {
+        stubModel("Drop D tuning")
+        val stored = CountDownLatch(1)
+        Mockito.`when`(chatService.applyGeneratedTitle(userId, chatId, "Drop D tuning")).thenAnswer {
+            stored.countDown()
+            true
+        }
+
+        service.generateTitle(userId, chatId, "Tune to drop D?")
+
+        assertTrue(stored.await(5, TimeUnit.SECONDS))
+    }
+
+    @Test
+    fun `inside a transaction the model is called only after it commits, so the chat row is visible`() {
+        stubModel("Drop D tuning")
+        Mockito.`when`(chatService.applyGeneratedTitle(userId, chatId, "Drop D tuning")).thenReturn(true)
+        TransactionSynchronizationManager.initSynchronization()
+        try {
+            val title = service.generateTitle(userId, chatId, "Tune to drop D?")
+            Mockito.verifyNoInteractions(chatClient)
+
+            TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
+
+            assertEquals("Drop D tuning", title.block(Duration.ofSeconds(5)))
+            Mockito.verify(chatClient, Mockito.times(1)).prompt()
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization()
+        }
+    }
+
+    @Test
+    fun `a title that cannot be stored ends the title empty instead of failing the reply stream`() {
+        stubModel("Drop D tuning")
+        Mockito.`when`(chatService.applyGeneratedTitle(userId, chatId, "Drop D tuning"))
+            .thenThrow(IllegalStateException("database down"))
+
+        assertNull(service.generateTitle(userId, chatId, "Tune to drop D?").block(Duration.ofSeconds(5)))
+    }
+
+    @Test
+    fun `a chat the user renamed meanwhile keeps its title and nothing is emitted`() {
+        stubModel("Drop D tuning")
+        Mockito.`when`(chatService.applyGeneratedTitle(userId, chatId, "Drop D tuning")).thenReturn(false)
+
+        assertNull(service.generateTitle(userId, chatId, "Tune to drop D?").block(Duration.ofSeconds(5)))
     }
 
     private fun stubModel(answer: String?) {

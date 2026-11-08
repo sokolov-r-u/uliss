@@ -1,6 +1,7 @@
 package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
@@ -13,6 +14,7 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTitleService
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.NoteService
 import io.uliss.note_service.service.NoteSummaryService
@@ -24,6 +26,7 @@ import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import reactor.core.publisher.Flux
 import java.util.UUID
 
 @Service
@@ -35,6 +38,7 @@ class ChatFacade(
     private val chatTurnService: ChatTurnService,
     private val ragService: RagService,
     private val userProfileService: UserProfileService,
+    private val chatTitleService: ChatTitleService,
 ) {
 
     fun getChats(userId: UUID, cursor: ListCursor?, limit: Int): KeysetPage<ChatWithNoteCount> {
@@ -78,6 +82,10 @@ class ChatFacade(
         return page.copy(summary = noteSummaryService.findCurrentChatSummary(chatId))
     }
 
+    /**
+     * A new chat (not a replayed request) is also named by the model from [prompt]: the title starts after commit,
+     * in parallel with the reply, and its event joins the reply's stream, which then ends once both are done.
+     */
     @Transactional
     fun streamReply(
         userId: UUID,
@@ -85,14 +93,15 @@ class ChatFacade(
         idempotencyKey: UUID,
         prompt: String,
     ): AssistantReplyStream {
-        val chat = if (chatId == null) {
-            chatService.createChat(userId, idempotencyKey, prompt)
-        } else {
-            chatService.getOwnedChat(userId, chatId)
-        }
-        return assistantService.streamReply(
+        val creation = if (chatId == null) chatService.createChat(userId, idempotencyKey, prompt) else null
+        val chat = creation?.chat ?: chatService.getOwnedChat(userId, checkNotNull(chatId))
+        val reply = assistantService.streamReply(
             userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userBackground(userId),
         )
+        if (creation?.created != true) return reply
+        val title = chatTitleService.generateTitle(userId, chat.id, prompt)
+            .map<AssistantStreamEvent> { AssistantStreamEvent.TitleGenerated(it) }
+        return reply.copy(events = Flux.merge(reply.events, title))
     }
 
     /** A summary note that covered the replaced reply now ends before it, in the turn's restart transaction. */

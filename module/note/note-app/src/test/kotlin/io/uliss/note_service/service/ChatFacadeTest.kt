@@ -6,6 +6,8 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.eqValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
+import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ChatCreation
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
@@ -25,6 +27,7 @@ import io.uliss.note_service.service.tool.NoteSearch
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
 import reactor.core.publisher.Flux
+import reactor.core.publisher.Mono
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -41,20 +44,25 @@ class ChatFacadeTest {
     private val chatTurnService = Mockito.mock(ChatTurnService::class.java)
     private val ragService = Mockito.mock(RagService::class.java)
     private val userProfileService = Mockito.mock(UserProfileService::class.java)
+    private val chatTitleService = Mockito.mock(ChatTitleService::class.java)
     private val chatFacade = ChatFacade(
         chatService, assistantService, noteService, noteSummaryService, chatTurnService, ragService, userProfileService,
+        chatTitleService,
     )
 
     @Test
-    fun `streamReply creates a missing chat and exposes its backend identity`() {
+    fun `streamReply creates a missing chat, exposes its identity and streams the generated title with the reply`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val turnId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
-        val assistantReply = AssistantReplyStream(turnId, Flux.empty(), chatId)
+        val assistantReply = AssistantReplyStream(
+            turnId, Flux.just(AssistantStreamEvent.AppendText("Hi"), AssistantStreamEvent.GenerationCompleted), chatId,
+        )
         Mockito.`when`(chatService.createChat(userId, idempotencyKey, "hello"))
-            .thenReturn(chat)
+            .thenReturn(ChatCreation(chat, created = true))
+        Mockito.`when`(chatTitleService.generateTitle(userId, chatId, "hello")).thenReturn(Mono.just("Greeting"))
         Mockito.`when`(
             assistantService.streamReply(
                 eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
@@ -65,7 +73,35 @@ class ChatFacadeTest {
 
         assertEquals(chatId, result.chatId)
         assertEquals(turnId, result.turnId)
-        assertSame(assistantReply.events, result.events)
+        assertEquals(
+            setOf(
+                AssistantStreamEvent.AppendText("Hi"),
+                AssistantStreamEvent.GenerationCompleted,
+                AssistantStreamEvent.TitleGenerated("Greeting"),
+            ),
+            result.events.collectList().block()!!.toSet(),
+        )
+    }
+
+    @Test
+    fun `a replayed initial request reuses its chat without generating a title again`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        val chat = ChatEntity(userId, "hello").apply { id = chatId }
+        val assistantReply = AssistantReplyStream(UUID.randomUUID(), Flux.empty(), chatId)
+        Mockito.`when`(chatService.createChat(userId, idempotencyKey, "hello"))
+            .thenReturn(ChatCreation(chat, created = false))
+        Mockito.`when`(
+            assistantService.streamReply(
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+            ),
+        ).thenReturn(assistantReply)
+
+        val result = chatFacade.streamReply(userId, null, idempotencyKey, "hello")
+
+        assertSame(assistantReply, result)
+        Mockito.verifyNoInteractions(chatTitleService)
     }
 
     @Test
@@ -87,6 +123,7 @@ class ChatFacadeTest {
 
         assertSame(assistantReply, result)
         Mockito.verify(chatService, Mockito.never()).createChat(userId, idempotencyKey, "hello")
+        Mockito.verifyNoInteractions(chatTitleService)
     }
 
     @Test

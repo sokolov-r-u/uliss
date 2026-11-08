@@ -381,6 +381,37 @@ class ChatControllerTest {
     }
 
     @Test
+    fun `streamInitialMessage sends the generated chat title as a JSON title event, also after done`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val idempotencyKey = UUID.randomUUID()
+        Mockito.`when`(chatFacade.streamReply(userId, null, idempotencyKey, "hi"))
+            .thenReturn(
+                AssistantReplyStream(
+                    UUID.randomUUID(),
+                    Flux.just(
+                        AssistantStreamEvent.AppendText("Hi"),
+                        AssistantStreamEvent.GenerationCompleted,
+                        AssistantStreamEvent.TitleGenerated("Say \"hi\""),
+                    ),
+                    chatId,
+                )
+            )
+
+        mockMvc.post("/note/chats") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+            header("Idempotency-Key", idempotencyKey)
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"content":"hi"}"""
+        }.asyncDispatch().andExpect {
+            status { isOk() }
+            content {
+                string(Matchers.containsString("event:done\ndata:\n\nevent:title\ndata:{\"title\":\"Say \\\"hi\\\"\"}\n\n"))
+            }
+        }
+    }
+
+    @Test
     fun `streamInitialMessage returns the backend-created chat and streams its first turn`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
