@@ -1,6 +1,6 @@
 import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
-import {MemoryRouter} from 'react-router-dom'
+import {createMemoryRouter, RouterProvider} from 'react-router-dom'
 import '@uliss/design-system/styles.css'
 import '../src/app.css'
 import '../src/ui/AppShell.css'
@@ -21,9 +21,14 @@ root.dataset.read = params.get('read') ?? 'regular'
 const route = params.get('route')
 if (route) setTokens({accessToken: 'visual', refreshToken: null, expiresAt: Date.now() + 3_600_000})
 
+// A data router, as in the app: the note forms hold navigation with `useBlocker`.
+const router = createMemoryRouter([{
+    path: '*',
+    element: route
+        ? <AuthProvider><App/></AuthProvider>
+        : <VisualHarness scenario={params.get('scenario') ?? 'dialog'}/>,
+}], {initialEntries: [route ?? '/']})
+
 createRoot(document.getElementById('root')!).render(<StrictMode>
-    {route
-        ? <MemoryRouter initialEntries={[route]}><AuthProvider><App/>
-        </AuthProvider></MemoryRouter>
-        : <MemoryRouter><VisualHarness scenario={params.get('scenario') ?? 'dialog'}/></MemoryRouter>}
+    <RouterProvider router={router}/>
 </StrictMode>)

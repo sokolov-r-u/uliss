@@ -2,12 +2,15 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.database.utils.generateId
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.NoteListPage
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.toResponse
+import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
+import io.uliss.note_service.model.projection.RequestFingerprint
 import io.uliss.note_service.exception.NoteUpdatingException
 import io.uliss.note_service.exception.NoteVersionConflictException
 import io.uliss.note_service.exception.PinLimitReachedException
@@ -18,6 +21,7 @@ import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteListStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
+import io.uliss.note_service.util.ManualNoteFingerprint
 import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.getOwnedNote
@@ -150,12 +154,7 @@ class NoteService(
         version: Long,
         rawIcon: String? = null,
     ): NoteResponse {
-        val title = TitleNormalizer.normalizeUserTitle(rawTitle)
-            ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
-        val content = NoteContentNormalizer.normalizeUserContent(rawContent)
-            ?: throw BadRequestException(NoteContentNormalizer.USER_CONTENT_RULE)
-        val icon = rawIcon?.takeIf { it.isNotBlank() }
-            ?.let { NoteIconNormalizer.normalize(it) ?: throw BadRequestException(NoteIconNormalizer.USER_ICON_RULE) }
+        val (title, content, icon) = normalizeUserNote(rawTitle, rawContent, rawIcon)
         val note = noteRepository.getOwnedNote(userId, noteId)
         if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
         if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
@@ -177,6 +176,48 @@ class NoteService(
             noteIndexRequestService.requestLater(userId, listOf(note.id))
         }
         return note.toResponse(updating = false)
+    }
+
+    /**
+     * Creates the user's hand-written READY note without a place and requests its index. A retry under the same
+     * [idempotencyKey] returns that note; another body under it is an [IdempotencyKeyReusedException] naming the note.
+     */
+    @Transactional
+    fun createNote(
+        userId: UUID,
+        idempotencyKey: UUID,
+        rawTitle: String,
+        rawContent: String,
+        rawIcon: String?,
+    ): NoteResponse {
+        val (title, content, icon) = normalizeUserNote(rawTitle, rawContent, rawIcon)
+        val fingerprint = ManualNoteFingerprint.of(title, content, icon)
+        val inserted = noteRepository.insertManualNote(
+            generateId(), userId, idempotencyKey, fingerprint.toByteArray(), title, content, icon,
+        )
+        if (inserted != null) {
+            noteIndexRequestService.requestNow(userId, inserted.id)
+            return inserted.toResponse(updating = false)
+        }
+        // a retry: the key already holds a note
+        val stored = checkNotNull(noteRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)) {
+            "manual note under a conflicting key could not be loaded"
+        }
+        if (stored.requestFingerprint?.let(RequestFingerprint::from) != fingerprint) {
+            throw IdempotencyKeyReusedException(mapOf("noteId" to stored.id.toString()))
+        }
+        return stored.toResponse(updating = false)
+    }
+
+    /** The user's title, content and icon under the note rules; a blank icon is none. Breaking a rule is a 400. */
+    private fun normalizeUserNote(rawTitle: String, rawContent: String, rawIcon: String?): Triple<String, String, String?> {
+        val title = TitleNormalizer.normalizeUserTitle(rawTitle)
+            ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
+        val content = NoteContentNormalizer.normalizeUserContent(rawContent)
+            ?: throw BadRequestException(NoteContentNormalizer.USER_CONTENT_RULE)
+        val icon = rawIcon?.takeIf { it.isNotBlank() }
+            ?.let { NoteIconNormalizer.normalize(it) ?: throw BadRequestException(NoteIconNormalizer.USER_ICON_RULE) }
+        return Triple(title, content, icon)
     }
 
     /** Throws unless the user's note is READY without a pending summary update, as [updateNote] requires. */

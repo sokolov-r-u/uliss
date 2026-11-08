@@ -9,6 +9,7 @@ const en = {
     noNotesBody: 'Talk to Uliss for a while. When a thought is worth keeping, it writes the note for you — you never '
         + 'have to.',
     startChat: 'Start a chat',
+    newNote: 'New note',
     unread: (count: number) => `${count} new`,
     readyNote: 'Ready note',
     generating: 'Generating note…',
@@ -39,6 +40,7 @@ export const notesMessages: Dictionaries<typeof en> = {
         noNotesBody: 'Поговорите с Uliss. Когда появится мысль, которую стоит сохранить, он сам напишет заметку — '
             + 'вам ничего делать не нужно.',
         startChat: 'Начать чат',
+        newNote: 'Новая заметка',
         unread: (count) => `${count} ${plural('ru', count, {one: 'новая', few: 'новые', many: 'новых', other: 'новых'})}`,
         readyNote: 'Готовая заметка',
         generating: 'Заметка пишется…',

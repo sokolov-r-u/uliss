@@ -391,6 +391,53 @@ export async function updateNote(noteId: string, edit: NoteEdit): Promise<Note> 
     return note
 }
 
+/** A new note's icon, title and text. */
+export interface NoteDraft {
+    title: string
+    content: string
+    /** The note's emoji; null for none. */
+    icon: string | null
+}
+
+/** The create request's key was already used with another body: the note it made is [noteId]. */
+export class NoteAlreadyCreatedError extends NoteApiError {
+    constructor(public readonly noteId: string) {
+        super('http', 'note was already created under this key', 409, undefined, 'IDEMPOTENCY_KEY_REUSED')
+        this.name = 'NoteAlreadyCreatedError'
+    }
+}
+
+/**
+ * Creates a hand-written note. A retry must send the same [idempotencyKey]: the same draft returns the same note, and
+ * a changed draft fails with [NoteAlreadyCreatedError] naming the note the first request made.
+ */
+export async function createNote(idempotencyKey: string, draft: NoteDraft): Promise<Note> {
+    const response = await fetchNotes('/note/notes', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json', 'Idempotency-Key': idempotencyKey},
+        body: JSON.stringify({title: draft.title, content: draft.content, icon: draft.icon}),
+    })
+    if (response.status === 409) {
+        const noteId = await reusedKeyNoteId(response)
+        if (noteId !== undefined) throw new NoteAlreadyCreatedError(noteId)
+    }
+    await requireOk(response, 'note create')
+    const note = parseNote(await responseJson(response))
+    if (note.version === undefined) throw new NoteApiError('protocol', 'created note has no version')
+    return note
+}
+
+async function reusedKeyNoteId(response: Response): Promise<string | undefined> {
+    try {
+        const body: unknown = await response.clone().json()
+        if (!isRecord(body) || body.code !== 'IDEMPOTENCY_KEY_REUSED' || !isRecord(body.details)) return undefined
+        const noteId = body.details.noteId
+        return typeof noteId === 'string' && noteId !== '' ? noteId : undefined
+    } catch {
+        return undefined
+    }
+}
+
 /**
  * Deletes the note. A note with sub-notes needs [subNotes]: `KEEP` gives them its place, `DELETE` takes them too;
  * without it such a note fails with code `NOTE_HAS_SUB_NOTES`.

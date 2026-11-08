@@ -24,6 +24,8 @@ export interface NotesViewProps {
     notes: NoteViewModel[]
     onOpen?: (note: NoteViewModel) => void
     onStartChat?: () => void
+    /** Adds the "New note" button to the header's right corner. */
+    onCreate?: () => void
     /** Enables Rename · Delete; omitted for fixture-only renders. */
     actions?: { onRenamed: (id: string, title: string) => void; onDeleted: (id: string) => void }
     /** Fixture-only: render with this row's menu open. */
@@ -51,7 +53,7 @@ export interface NotesFilterSlots {
     onClear?: () => void
 }
 
-export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, total, footer, filter, pinned = [],
+export function NotesView({notes, onOpen, onStartChat, onCreate, actions, initialMenuId, total, footer, filter, pinned = [],
                               notice}: NotesViewProps) {
     const locale = useLocale()
     const t = useMessages(notesMessages)
@@ -59,9 +61,10 @@ export function NotesView({notes, onOpen, onStartChat, actions, initialMenuId, t
     const unread = [...pinned, ...notes].filter((note) => note.unread).length
     const filtered = filter?.onClear !== undefined
     const count = (filtered ? filter?.count : undefined) ?? total ?? pinned.length + notes.length
+    const create = onCreate && <IconButton title={t.newNote} onClick={onCreate}><Icon name="plus" size={16}/></IconButton>
     const header = (right?: ReactNode) => <ScreenHeader kicker={common.notes} count={count}
-                                                        right={right || filter?.button ? <span className="notes-head-actions">
-                                                            {right}{filter?.button}
+                                                        right={right || filter?.button || create ? <span className="notes-head-actions">
+                                                            {right}{filter?.button}{create}
                                                         </span> : undefined}/>
 
     if (notes.length === 0 && pinned.length === 0 && !notice) {
@@ -257,12 +260,16 @@ export function NotesPage() {
     const items = state.status === 'ready'
         ? withoutPinned(state.items, sharedPinned) : []
     // "Nothing written down yet" waits for the pinned list: every note may be pinned
+    // writing a note by hand needs no list: the button is there while it loads or after it fails
+    const createOnly = <span className="notes-head-actions">
+        <IconButton title={t.newNote} onClick={() => navigate('/notes/new')}><Icon name="plus" size={16}/></IconButton>
+    </span>
     if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
-        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
+        return <div className="product-view"><ScreenHeader kicker={common.notes} right={createOnly}/>{filterSlots.bar}
             <p className="notes-state">{common.loading}</p></div>
     }
     if (state.status === 'error') {
-        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
+        return <div className="product-view"><ScreenHeader kicker={common.notes} right={createOnly}/>{filterSlots.bar}
             <div className="notes-state notes-state-error">
                 <p>{describeError(state.error, locale)}</p><Button size="sm" variant="quiet"
                                                            onClick={() => setRevision((value) => value + 1)}>{common.retry}</Button>
@@ -279,6 +286,7 @@ export function NotesPage() {
                           : undefined}
                       onOpen={(note) => navigate(`/notes/${note.id}`)}
                       onStartChat={() => navigate('/chats')}
+                      onCreate={() => navigate('/notes/new')}
                       filter={filterSlots}
                       footer={<ListMore hasMore={state.hasMore} state={state.more} onMore={loadMore}/>}
                       actions={{

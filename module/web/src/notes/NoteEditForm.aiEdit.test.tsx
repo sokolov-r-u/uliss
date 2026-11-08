@@ -2,6 +2,7 @@ import {act, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {type EditableNote, NoteEditForm} from './NoteEditForm'
+import {dataRouter} from '../test/dataRouter'
 import {type NoteAiEditRequest, NoteApiError, streamNoteAiEdit, updateNote} from './noteApi'
 
 vi.mock('./noteApi', async (importOriginal) => {
@@ -35,7 +36,7 @@ function holdRewrites(): RunningRewrite[] {
 
 function renderForm() {
     const onSaved = vi.fn()
-    const view = render(<NoteEditForm note={saved} onSaved={onSaved} onClose={vi.fn()}/>)
+    const view = render(dataRouter(<NoteEditForm note={saved} onSaved={onSaved} onClose={vi.fn()}/>).ui)
     return {
         ...view,
         onSaved,
@@ -185,7 +186,7 @@ describe('NoteEditForm rewrite with the model', () => {
 
     it('does not send a note over the length limit', async () => {
         const long = {...saved, content: 'a'.repeat(30_001)}
-        render(<NoteEditForm note={long} onSaved={vi.fn()} onClose={vi.fn()}/>)
+        render(dataRouter(<NoteEditForm note={long} onSaved={vi.fn()} onClose={vi.fn()}/>).ui)
 
         await sendCommand(screen.getByRole('textbox', {name: 'Message'}), 'Fix')
 

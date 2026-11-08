@@ -2,7 +2,7 @@
 import {useEffect, useState} from 'react'
 import {describeError} from '../lib/apiHelpers'
 import {useNavigate} from 'react-router-dom'
-import {Button, EmptyState, Icon, Kicker, ListRow, useLocale, useMessages} from '@uliss/design-system'
+import {EmptyState, Icon, IconButton, Kicker, ListRow, useLocale, useMessages} from '@uliss/design-system'
 import {ItemActions} from '../ui/actions/ItemActions'
 import {ListMore} from '../ui/list/ListMore'
 import {useKeysetList} from '../ui/list/useKeysetList'
@@ -40,9 +40,7 @@ export function ChatListPage() {
             <ScreenHeader
                 kicker={common.chats}
                 right={
-                    <Button variant="quiet" size="sm" onClick={onNewChat}>
-                        {t.newChat}
-                    </Button>
+                    <IconButton title={t.newChat} onClick={onNewChat}><Icon name="plus" size={16}/></IconButton>
                 }
             />
 

@@ -34,6 +34,10 @@ class NoteEntity(
     @Column(name = "pinned_at", insertable = false, updatable = false)
     var pinnedAt: Instant? = null
 
+    /** The create request's body fingerprint of a manual note (`ManualNoteFingerprint`); written only on insert. */
+    @Column(name = "request_fingerprint", insertable = false, updatable = false)
+    var requestFingerprint: ByteArray? = null
+
     override fun toString(): String {
         return "NoteEntity(id=$id, userId=$userId, source=$source, status=$status" + auditFields()
     }

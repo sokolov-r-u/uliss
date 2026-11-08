@@ -17,6 +17,7 @@ const mockedListNotes = vi.mocked(listNotes)
 function renderPage() {
     render(<MemoryRouter initialEntries={['/notes']}><Routes>
         <Route path="/notes" element={<NotesPage/>}/>
+        <Route path="/notes/new" element={<p>New note screen</p>}/>
         <Route path="/notes/:noteId" element={<p>Opened note</p>}/>
     </Routes></MemoryRouter>)
 }
@@ -30,7 +31,7 @@ describe('NotesPage runtime states', () => {
 
     it('renders and opens persisted notes in backend order', async () => {
         mockedListNotes.mockResolvedValue({items: [
-            {id: 'new', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
+            {id: 'fresh', source: 'CHAT_SUMMARY', status: 'GENERATING', content: null},
             {id: 'old', source: 'CHAT_SUMMARY', status: 'FAILED', content: null},
         ], nextCursor: null, total: 2, allTotal: 2})
         renderPage()
@@ -46,6 +47,17 @@ describe('NotesPage runtime states', () => {
         await userEvent.click(await screen.findByRole('button', {name: 'Retry'}))
         expect(await screen.findByText('Nothing written down yet')).toBeInTheDocument()
         expect(mockedListNotes).toHaveBeenCalledTimes(2)
+    })
+
+    it('offers a new note while the list loads and after it fails', async () => {
+        mockedListNotes.mockRejectedValueOnce(new Error('offline'))
+        renderPage()
+        expect(screen.getByRole('button', {name: 'New note'})).toBeInTheDocument()
+        await screen.findByRole('button', {name: 'Retry'})
+
+        await userEvent.click(screen.getByRole('button', {name: 'New note'}))
+
+        expect(await screen.findByText('New note screen')).toBeInTheDocument()
     })
 
     it('renames a ready note in place and removes a deleted one', async () => {

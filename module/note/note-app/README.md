@@ -230,6 +230,11 @@ A finished rebuild clears a stamp made before it started and the batch shrink.
   status changes, and closes on `READY` or `FAILED`; a `READY` note with a running summary update (`updating: true`)
   stays open until the update finishes. A `:keepalive` comment every 15 s keeps proxies from cutting
   a quiet stream; the stream closes after 10 minutes without a terminal status.
+- `POST /note/notes` with `{"title", "content", "icon"}` and a client UUID in `Idempotency-Key` creates a hand-written
+  note (`source = MANUAL`, `READY`, no parent, no constellation) under the same rules as `PUT` below and returns `201`
+  with the note; its index is requested at once. A retry under the same key with the same normalized body returns the
+  same note (`201`); another body returns `409 IDEMPOTENCY_KEY_REUSED` with `details.noteId` of the created note.
+  A missing or non-UUID key is `400`.
 - `PATCH /note/notes/{noteId}` with `{"title"}` renames a `READY` note (same title rule as chats; other statuses →
   `409`) and queues reindexing, because the indexed text includes the title.
 - `PUT /note/notes/{noteId}` with `{"title", "content", "icon", "version"}` saves a user edit of a `READY` note: trailing

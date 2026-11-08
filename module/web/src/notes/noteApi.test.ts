@@ -1,12 +1,14 @@
 import {beforeEach, describe, expect, it, vi} from 'vitest'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {
+    createNote,
     deleteNote,
     getNote,
     listChatNotes,
     listNotes,
     listPinnedNotes,
     listSubNotes,
+    NoteAlreadyCreatedError,
     renameNote,
     requestChatSummary,
     resummarizeNote,
@@ -358,6 +360,44 @@ describe('noteApi', () => {
 
         await expect(deleteNote('n1')).rejects.toMatchObject({kind: 'http', status: 404})
         expect(mockedFetch).toHaveBeenCalledWith('/note/notes/n1', {method: 'DELETE'})
+    })
+
+    it('creates a note under the idempotency key and returns it', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse({
+            id: 'n9', source: 'MANUAL', status: 'READY', title: 'Mine', content: 'body', icon: '🎷', version: 0,
+        }, 201))
+
+        await expect(createNote('key-1', {title: 'Mine', content: 'body', icon: '🎷'}))
+            .resolves.toMatchObject({id: 'n9', source: 'MANUAL', version: 0})
+        expect(mockedFetch).toHaveBeenCalledWith('/note/notes', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json', 'Idempotency-Key': 'key-1'},
+            body: JSON.stringify({title: 'Mine', content: 'body', icon: '🎷'}),
+        })
+    })
+
+    it('names the note a reused key already created', async () => {
+        mockedFetch.mockResolvedValue(jsonResponse(
+            {status: 409, code: 'IDEMPOTENCY_KEY_REUSED', details: {noteId: 'n9'}}, 409))
+
+        const error = await createNote('key-1', {title: 'T', content: 'other', icon: null}).catch((e: unknown) => e)
+
+        expect(error).toBeInstanceOf(NoteAlreadyCreatedError)
+        expect(error).toMatchObject({noteId: 'n9', status: 409, code: 'IDEMPOTENCY_KEY_REUSED'})
+    })
+
+    it('reports another refusal of a create as a plain http error', async () => {
+        for (const response of [
+            jsonResponse({status: 409, code: 'IDEMPOTENCY_KEY_REUSED', details: {}}, 409),
+            jsonResponse({status: 400, code: 'BAD_REQUEST'}, 400),
+        ]) {
+            mockedFetch.mockResolvedValue(response)
+
+            const error = await createNote('key-1', {title: 'T', content: 'c', icon: null}).catch((e: unknown) => e)
+
+            expect(error).not.toBeInstanceOf(NoteAlreadyCreatedError)
+            expect(error).toMatchObject({kind: 'http', status: response.status})
+        }
     })
 
     it('saves an edit with its version and returns the note with the new version', async () => {

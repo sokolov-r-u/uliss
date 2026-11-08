@@ -294,6 +294,7 @@ Agreed 2026-10-11 (`docs/tasks/2026-10-11-prot-alignment.md`, item 9). The desig
 action (header button on desktop/tablet, top-bar button on the phone). Notes are currently created only by chat
 summarization (`source = CHAT_SUMMARY`; the schema already distinguishes manual notes), and there is no create
 endpoint. Add `POST /notes` in `note-service`, then the "New note" action and an editor surface in `web`.
+**Fixed 2026-11-08:** `POST /notes` and the `/notes/new` screen (`docs/tasks/2026-11-08-manual-note-create.md`).
 
 ## Persist note thoughts as structured data (`note-service`)
 

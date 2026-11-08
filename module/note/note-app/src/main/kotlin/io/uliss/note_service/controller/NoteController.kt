@@ -7,6 +7,7 @@ import io.uliss.note_service.util.NoteListFilter
 import io.uliss.note_service.dto.internal.NoteAiEditEvent
 import io.uliss.note_service.dto.request.AddNoteConstellationRequest
 import io.uliss.note_service.dto.request.AiEditNoteRequest
+import io.uliss.note_service.dto.request.CreateNoteRequest
 import io.uliss.note_service.dto.request.MainNoteConstellationRequest
 import io.uliss.note_service.dto.request.MoveUnderNoteRequest
 import io.uliss.note_service.dto.request.RenameRequest
@@ -77,6 +78,21 @@ class NoteController(
         val filter = NoteListFilter.of(constellationIds)
         return noteService.getNotes(jwt.getUserId(), cursor?.let(ListCursor::decode), limit, filter).toResponse()
     }
+
+    /** Creates a hand-written note without a place; a retry under the same `Idempotency-Key` returns the same note. */
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createNote(
+        @AuthenticationPrincipal jwt: Jwt,
+        @RequestHeader(name = IDEMPOTENCY_KEY_HEADER) idempotencyKeyHeader: String,
+        @Valid @RequestBody request: CreateNoteRequest,
+    ): NoteResponse = noteService.createNote(
+        jwt.getUserId(),
+        parseIdempotencyKey(idempotencyKeyHeader),
+        request.title,
+        request.content,
+        request.icon,
+    )
 
     /**
      * The pinned notes, last pinned first, under the same constellation filter as [getNotes], whose pages leave them
