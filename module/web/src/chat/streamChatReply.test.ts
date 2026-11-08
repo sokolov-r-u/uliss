@@ -300,9 +300,12 @@ describe('streamInitialAssistantReply title', () => {
         mockedFetch.mockResolvedValue(stream.response)
         const screen = new AbortController()
 
-        const outcome = streamInitialAssistantReply('Hi', 'key-1', {...callbacks(), onTitle: vi.fn(), signal: screen.signal})
+        const onAppendText = vi.fn()
+        const outcome = streamInitialAssistantReply('Hi', 'key-1',
+            {...callbacks(), onAppendText, onTitle: vi.fn(), signal: screen.signal})
         stream.send('event:append\ndata:{"text":"Hi"}\n\n')
-        await vi.waitFor(() => expect(mockedFetch).toHaveBeenCalled())
+        // the reply is being read: the abort now cuts the open stream, not the request
+        await vi.waitFor(() => expect(onAppendText).toHaveBeenCalledWith('Hi'))
         screen.abort()
 
         await expect(outcome).resolves.toBe('error')
