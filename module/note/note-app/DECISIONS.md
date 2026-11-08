@@ -833,6 +833,7 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   second index request); another body is `409 IDEMPOTENCY_KEY_REUSED` with `details.noteId`, so the client can link
   to what was already saved instead of silently showing the first version.
 - **Consequences:** the fingerprint is the body at creation; later edits do not change it, so a retry after an edit
-  still returns the note as it is now.
+  still returns the note as it is now. Deleting a note deletes its row and key, so a retry after a delete creates the
+  note again (the user pressed Save on that text; accepted after the code review).
 - **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, block 1.
 

@@ -260,12 +260,16 @@ export function NotesPage() {
     const items = state.status === 'ready'
         ? withoutPinned(state.items, sharedPinned) : []
     // "Nothing written down yet" waits for the pinned list: every note may be pinned
+    // writing a note by hand needs no list: the button is there while it loads or after it fails
+    const createOnly = <span className="notes-head-actions">
+        <IconButton title={t.newNote} onClick={() => navigate('/notes/new')}><Icon name="plus" size={16}/></IconButton>
+    </span>
     if (state.status === 'loading' || (state.status === 'ready' && pinned.status === 'loading' && items.length === 0)) {
-        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
+        return <div className="product-view"><ScreenHeader kicker={common.notes} right={createOnly}/>{filterSlots.bar}
             <p className="notes-state">{common.loading}</p></div>
     }
     if (state.status === 'error') {
-        return <div className="product-view"><ScreenHeader kicker={common.notes}/>{filterSlots.bar}
+        return <div className="product-view"><ScreenHeader kicker={common.notes} right={createOnly}/>{filterSlots.bar}
             <div className="notes-state notes-state-error">
                 <p>{describeError(state.error, locale)}</p><Button size="sm" variant="quiet"
                                                            onClick={() => setRevision((value) => value + 1)}>{common.retry}</Button>

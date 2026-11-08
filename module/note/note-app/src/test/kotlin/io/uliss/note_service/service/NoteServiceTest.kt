@@ -648,4 +648,20 @@ class NoteServiceTest {
         }
         Mockito.verifyNoInteractions(noteRepository, indexRequests)
     }
+
+    @Test
+    fun `createNote rejects a blank or too long title and blank or too long content without inserting`() {
+        val bodies = listOf(
+            "   " to "body",
+            "a".repeat(51) to "body",
+            "Title" to " \n\t",
+            "Title" to "a".repeat(100_001),
+        )
+        bodies.forEach { (title, content) ->
+            assertFailsWith<BadRequestException>("$title / ${content.take(10)}") {
+                noteService.createNote(UUID.randomUUID(), UUID.randomUUID(), title, content, null)
+            }
+        }
+        Mockito.verifyNoInteractions(noteRepository, indexRequests)
+    }
 }

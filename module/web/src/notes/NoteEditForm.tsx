@@ -96,14 +96,20 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
 
     const normalizedTitle = normalizeTitle(title)
     const dirty = text.changed || title !== initialTitle || icon !== initialIcon
-    const canSave = dirty && !saving && !generating && normalizedTitle !== null && text.markdown.trim() !== ''
+    // after a 409 the key belongs to the saved note: another Save could only be refused again
+    const canSave = dirty && !saving && !generating && savedElsewhere === null && normalizedTitle !== null
+        && text.markdown.trim() !== ''
     const busy = saving || generating
 
     // Leaving the screen stops the model; the server cancels the provider call with the connection.
     useEffect(() => () => rewriteRef.current?.abort(), [])
 
     const {blocker, release} = useLeaveGuard(dirty)
-    const leaving = blocker.state === 'blocked'
+    // a save in flight decides where the form goes: leaving now would drop a note the server still creates
+    const leaving = blocker.state === 'blocked' && !saving
+    useEffect(() => {
+        if (saving && blocker.state === 'blocked') blocker.reset?.()
+    }, [saving, blocker])
 
     async function save() {
         if (!canSave || normalizedTitle === null || savingRef.current) return
@@ -205,7 +211,7 @@ export function NoteEditForm({note, onSaved, onClose}: NoteEditFormProps) {
             <div className="note-edit-actions">
                 {error && <p className="note-edit-error" role="alert">{error}</p>}
                 {savedElsewhere && <p className="note-edit-error" role="alert">
-                    {t.alreadySaved} <Link to={`/notes/${encodeURIComponent(savedElsewhere)}`}>{t.openSaved}</Link>
+                    {t.alreadySaved} <Link to={`/notes/${encodeURIComponent(savedElsewhere)}`} onClick={release}>{t.openSaved}</Link>
                 </p>}
                 <Button variant="ghost" disabled={busy}
                         onClick={() => (dirty ? setConfirmingDiscard(true) : onClose())}>{t.cancel}</Button>

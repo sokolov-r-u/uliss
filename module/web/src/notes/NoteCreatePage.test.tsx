@@ -92,17 +92,55 @@ describe('NoteCreatePage', () => {
         expect(second).toBe(first)
     })
 
-    it('links to the note a lost response already saved and keeps the text', async () => {
+    it('links to the note a lost response already saved, keeps the text and opens the note without asking', async () => {
         mockedCreate.mockRejectedValue(new NoteAlreadyCreatedError('new-1'))
-        const {title, text, save} = renderPage()
+        const {router, title, text, save} = renderPage()
         await userEvent.type(title, 'Mine')
         await userEvent.type(text, 'body, edited')
 
         await userEvent.click(save)
 
         expect(await screen.findByRole('alert')).toHaveTextContent('This note was already saved')
-        expect(screen.getByRole('link', {name: 'Open the saved note'})).toHaveAttribute('href', '/notes/new-1')
         expect(text).toHaveValue('body, edited')
+        // the key belongs to the saved note: Save could only be refused again
+        await userEvent.type(text, '!')
+        expect(save).toBeDisabled()
+        await userEvent.click(screen.getByRole('link', {name: 'Open the saved note'}))
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(router.state.location.pathname).toBe('/notes/new-1')
+    })
+
+    it('keeps the form and says why when the service refuses the note', async () => {
+        mockedCreate.mockRejectedValue(new NoteApiError('http', 'bad', 400))
+        const {title, text, save} = renderPage()
+        await userEvent.type(title, 'Mine')
+        await userEvent.type(text, 'body')
+
+        await userEvent.click(save)
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Use a title of 1 to 50 characters')
+        expect(title).toHaveValue('Mine')
+        expect(save).toBeEnabled()
+    })
+
+    it('sends one request while a save is in flight and stays put until it lands', async () => {
+        let finish: (note: Note) => void = () => undefined
+        mockedCreate.mockImplementation(() => new Promise((resolve) => {
+            finish = resolve
+        }))
+        const {router, title, text, save} = renderPage()
+        await userEvent.type(title, 'Mine')
+        await userEvent.type(text, 'body')
+
+        await userEvent.click(save)
+        expect(save).toBeDisabled()
+        await act(() => router.navigate(-1))
+
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(router.state.location.pathname).toBe('/notes/new')
+        expect(mockedCreate).toHaveBeenCalledOnce()
+        await act(async () => finish(created))
+        expect(router.state.location.pathname).toBe('/notes/new-1')
     })
 
     it('asks before Cancel drops what was written, and keeps it when the user stays', async () => {
