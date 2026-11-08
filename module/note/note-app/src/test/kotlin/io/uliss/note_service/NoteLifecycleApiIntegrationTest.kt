@@ -336,7 +336,8 @@ class NoteLifecycleApiIntegrationTest : NoteIntegrationTest() {
         val messages = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
         assertEquals(listOf(ChatMessageRole.USER, ChatMessageRole.ASSISTANT), messages.map { it.role })
         assertTrue(messages.all { it.turnId == turnId })
-        Mockito.verify(chatClient, Mockito.times(1)).prompt()
+        // one reply generation; the new chat's title is a separate, non-streaming call
+        Mockito.verify(requestSpec, Mockito.times(1)).stream()
     }
 
     @Test
