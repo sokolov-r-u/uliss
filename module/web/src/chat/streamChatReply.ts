@@ -7,7 +7,7 @@
  */
 import {authFetch} from '../auth/apiClient'
 import {segment} from '../lib/apiHelpers'
-import {parseSseStream} from '../lib/sse'
+import {parseSseStream, type SseEvent} from '../lib/sse'
 
 export type StreamOutcome = 'done' | 'error' | 'pending'
 
@@ -57,12 +57,51 @@ export async function streamRetriedReply(
     return streamReply(`/note/chats/${segment(chatId)}/turns/${segment(turnId)}/retry?${query}`, {}, opts)
 }
 
+type InitialStreamOptions = StreamOptions & {
+    onChatId: (chatId: string) => void
+    /**
+     * `title` event: the chat's generated title, already stored. It may come after `done`/`error`: the rest of the
+     * stream is then read on its own, past `signal` (the server ends it within its title timeout), so the title still
+     * lands when the screen has moved on.
+     */
+    onTitle?: (title: string) => void
+}
+
 export async function streamInitialAssistantReply(
     content: string,
     idempotencyKey: string,
-    opts: StreamOptions & { onChatId: (chatId: string) => void },
+    opts: InitialStreamOptions,
 ): Promise<StreamOutcome> {
     return streamReply('/note/chats', {content, idempotencyKey}, opts)
+}
+
+/** `title` data is `{"title": "..."}`; anything else is ignored. */
+function titleOf(data: string): string | null {
+    try {
+        const value: unknown = JSON.parse(data)
+        if (typeof value === 'object' && value !== null && typeof (value as { title?: unknown }).title === 'string') {
+            return (value as { title: string }).title
+        }
+    } catch {
+        // not JSON: ignored
+    }
+    return null
+}
+
+/** Reads the stream after its terminal event for a late `title`; a broken tail just ends. */
+async function readTail(events: AsyncIterator<SseEvent>, onTitle: (title: string) => void) {
+    try {
+        while (true) {
+            const next = await events.next()
+            if (next.done) return
+            if (next.value.event === 'title') {
+                const title = titleOf(next.value.data)
+                if (title !== null) onTitle(title)
+            }
+        }
+    } catch {
+        // the connection dropped: the stored title shows on the next refresh
+    }
 }
 
 /**
@@ -86,50 +125,82 @@ function appendText(data: string): string {
 async function streamReply(
     path: string,
     send: { content?: string, idempotencyKey?: string },
-    opts: StreamOptions & { onChatId?: (chatId: string) => void },
+    opts: StreamOptions & Partial<Pick<InitialStreamOptions, 'onChatId' | 'onTitle'>>,
 ): Promise<StreamOutcome> {
     // `Accept: text/event-stream` — the handler's `produces` is SSE-only, and `authFetch`
     // otherwise defaults to `application/json`, which Spring's content negotiation 406s on.
     const headers: Record<string, string> = {'Accept': 'text/event-stream'}
     if (send.content !== undefined) headers['Content-Type'] = 'application/json'
     if (send.idempotencyKey !== undefined) headers['Idempotency-Key'] = send.idempotencyKey
-    const res = await authFetch(path, {
-        method: 'POST',
-        headers,
-        body: send.content === undefined ? undefined : JSON.stringify({content: send.content}),
-        signal: opts.signal,
-    })
-    if (!res.ok) throw new ChatStreamHttpError(res.status)
-    let chatId: string | undefined
-    if (opts.onChatId) {
-        const responseChatId = res.headers.get('Chat-Id')
-        if (!responseChatId) throw new Error('initial chat stream response is missing Chat-Id')
-        chatId = responseChatId
+    // An initial stream's connection follows `opts.signal` only until the terminal event: a stream that may still
+    // carry a `title` then detaches from it, so the screen's abort no longer cuts the tail.
+    const connection = opts.onTitle ? new AbortController() : null
+    const abortConnection = () => connection?.abort(opts.signal?.reason)
+    if (connection) {
+        if (opts.signal?.aborted) abortConnection()
+        else opts.signal?.addEventListener('abort', abortConnection)
     }
-    const turnId = res.headers.get('Chat-Turn-Id')
-    if (!turnId) throw new Error('chat stream response is missing Chat-Turn-Id')
-    if (opts.onChatId && chatId) opts.onChatId(chatId)
-    opts.onTurnId(turnId)
-    if (opts.signal?.aborted) {
-        await res.body?.cancel()
-        throw new DOMException('The operation was aborted.', 'AbortError')
-    }
-    if (!res.body) return 'error'
+    const signal = connection ? connection.signal : opts.signal
+    let tail = false
+    try {
+        const res = await authFetch(path, {
+            method: 'POST',
+            headers,
+            body: send.content === undefined ? undefined : JSON.stringify({content: send.content}),
+            signal,
+        })
+        if (!res.ok) throw new ChatStreamHttpError(res.status)
+        let chatId: string | undefined
+        if (opts.onChatId) {
+            const responseChatId = res.headers.get('Chat-Id')
+            if (!responseChatId) throw new Error('initial chat stream response is missing Chat-Id')
+            chatId = responseChatId
+        }
+        const turnId = res.headers.get('Chat-Turn-Id')
+        if (!turnId) throw new Error('chat stream response is missing Chat-Turn-Id')
+        if (opts.onChatId && chatId) opts.onChatId(chatId)
+        opts.onTurnId(turnId)
+        if (opts.signal?.aborted) {
+            await res.body?.cancel()
+            throw new DOMException('The operation was aborted.', 'AbortError')
+        }
+        if (!res.body) return 'error'
 
-    for await (const evt of parseSseStream(res.body, opts.signal)) {
-        if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
-        else if (evt.event === 'activity') {
-            if (isChatActivity(evt.data)) opts.onActivity?.(evt.data)
+        const events = parseSseStream(res.body, signal)
+        const finish = (outcome: StreamOutcome): StreamOutcome => {
+            if (opts.onTitle) {
+                tail = true
+                opts.signal?.removeEventListener('abort', abortConnection)
+                void readTail(events, opts.onTitle)
+            } else {
+                void events.return(undefined)
+            }
+            return outcome
         }
-        else if (evt.event === 'done') return 'done'
-        else if (evt.event === 'error') return 'error'
-        else if (evt.event === 'pending') {
-            opts.onPending?.(Number(evt.data))
-            return 'pending'
+        while (true) {
+            const next = await events.next()
+            if (next.done) break
+            const evt = next.value
+            if (evt.event === 'append') opts.onAppendText(appendText(evt.data))
+            else if (evt.event === 'activity') {
+                if (isChatActivity(evt.data)) opts.onActivity?.(evt.data)
+            }
+            else if (evt.event === 'title') {
+                const title = titleOf(evt.data)
+                if (title !== null) opts.onTitle?.(title)
+            }
+            else if (evt.event === 'done') return finish('done')
+            else if (evt.event === 'error') return finish('error')
+            else if (evt.event === 'pending') {
+                opts.onPending?.(Number(evt.data))
+                return finish('pending')
+            }
         }
+        // Connection dropped without an explicit done/error terminal event.
+        return 'error'
+    } finally {
+        if (!tail) opts.signal?.removeEventListener('abort', abortConnection)
     }
-    // Connection dropped without an explicit done/error terminal event.
-    return 'error'
 }
 
 export async function cancelChatTurn(chatId: string, turnId: string, signal?: AbortSignal): Promise<void> {
