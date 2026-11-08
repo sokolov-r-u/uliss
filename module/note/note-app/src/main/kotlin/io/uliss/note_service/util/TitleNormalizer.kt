@@ -23,9 +23,10 @@ object TitleNormalizer {
 
     /** Cleans the model's title, else derives one from the content; null if neither yields text. */
     fun normalizeNoteTitle(title: String?, content: String): String? =
-        cleanModelTitle(title) ?: cleanModelTitle(content)
+        normalizeModelTitle(title) ?: normalizeModelTitle(content)
 
-    private fun cleanModelTitle(raw: String?): String? {
+    /** First line of a model's title without heading marker or surrounding quotes, truncated; null if no text. */
+    fun normalizeModelTitle(raw: String?): String? {
         if (raw == null) return null
         return truncate(stripDecoration(firstLine(raw))).takeIf { it.isNotEmpty() }
     }
