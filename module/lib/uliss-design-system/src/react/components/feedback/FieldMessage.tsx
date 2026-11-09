@@ -28,11 +28,14 @@ const MARKS: Partial<Record<FieldMessageTone, string>> = {error: '!', ok: '✓'}
 export function FieldMessage({text, tone = 'hint', lines = 2, id, style}: FieldMessageProps) {
     const height = lines * 16
     const mark = MARKS[tone]
+    const role = tone === 'error' ? 'alert' : 'status'
     return (
+        // a new element for a new role: screen readers announce an alert as it appears, not when a role changes
         <p
+            key={role}
             id={id}
-            role={tone === 'error' ? 'alert' : 'status'}
-            aria-live="polite"
+            role={role}
+            aria-live={tone === 'error' ? 'assertive' : 'polite'}
             style={{
                 margin: 0,
                 width: '100%',

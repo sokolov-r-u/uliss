@@ -1,5 +1,6 @@
 import {act, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import {useState} from 'react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import {NoteApiError, removeNotePoster, setNotePoster} from '../noteApi'
 import {NotePosterSection} from './NotePosterSection'
@@ -29,6 +30,13 @@ class FakeImage {
         FakeImage.made.push(this)
     }
 
+    /** A probe given up on stops its download. */
+    removeAttribute(name: string) {
+        if (name === 'src') this.cancelled = true
+    }
+
+    cancelled = false
+
     load(width: number, height: number) {
         this.naturalWidth = width
         this.naturalHeight = height
@@ -49,8 +57,17 @@ async function probed(src: string): Promise<FakeImage> {
     return image!
 }
 
+/** The panel's owner: it keeps the note and shows it with the poster the section reports. */
+function Owner({initial, onChanged}: { initial?: string; onChanged: (posterUrl: string | undefined) => void }) {
+    const [posterUrl, setPosterUrl] = useState(initial)
+    return <NotePosterSection note={{id: 'note-1', title: 'Tokyo Story', posterUrl}} onChanged={(next) => {
+        onChanged(next)
+        setPosterUrl(next)
+    }}/>
+}
+
 function renderSection(posterUrl?: string, onChanged = vi.fn()) {
-    render(<NotePosterSection note={{id: 'note-1', title: 'Tokyo Story', posterUrl}} onChanged={onChanged}/>)
+    render(<Owner initial={posterUrl} onChanged={onChanged}/>)
     return onChanged
 }
 
@@ -100,6 +117,22 @@ describe('NotePosterSection', () => {
         expect(screen.getByRole('alert')).toHaveTextContent('Only https:// links')
         expect(screen.getByRole('button', {name: 'Save'})).toBeDisabled()
         expect(FakeImage.made).toHaveLength(0)
+    })
+
+    it('stops loading a link the user has moved on from', async () => {
+        const user = userEvent.setup()
+        renderSection()
+
+        await user.click(screen.getByRole('button', {name: 'Add poster'}))
+        const field = screen.getByRole('textbox', {name: 'Image link'})
+        await user.click(field)
+        await user.paste('https://example.com/first.jpg')
+        const first = await probed('https://example.com/first.jpg')
+        await user.clear(field)
+        await user.paste('https://example.com/second.jpg')
+        await probed('https://example.com/second.jpg')
+
+        expect(first.cancelled).toBe(true)
     })
 
     it('keeps Save off for an image under 300 px and says its size', async () => {
@@ -172,6 +205,32 @@ describe('NotePosterSection', () => {
         expect(screen.getByRole('button', {name: 'Add poster'})).toBeInTheDocument()
     })
 
+    it('keeps the poster and says so when the removal fails', async () => {
+        const user = userEvent.setup()
+        mockedRemove.mockRejectedValue(new NoteApiError('http', 'note poster removal failed', 500))
+        const onChanged = renderSection(LINK)
+
+        await user.click(screen.getByRole('button', {name: 'Remove poster'}))
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', {name: 'Remove'}))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent('Couldn’t remove the poster. Try again.')
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        expect(screen.getByRole('img', {name: 'Tokyo Story poster'})).toHaveAttribute('src', LINK)
+        expect(onChanged).not.toHaveBeenCalled()
+    })
+
+    it('shows the poster of the note it is given when the note is read again', () => {
+        const {rerender} = render(<NotePosterSection note={{id: 'note-1', title: 'Tokyo Story', posterUrl: LINK}}
+                                                     onChanged={vi.fn()}/>)
+
+        rerender(<NotePosterSection note={{id: 'note-1', title: 'Tokyo Story', posterUrl: 'https://example.com/new.jpg'}}
+                                    onChanged={vi.fn()}/>)
+        expect(screen.getByRole('img', {name: 'Tokyo Story poster'})).toHaveAttribute('src', 'https://example.com/new.jpg')
+
+        rerender(<NotePosterSection note={{id: 'note-1', title: 'Tokyo Story'}} onChanged={vi.fn()}/>)
+        expect(screen.getByRole('button', {name: 'Add poster'})).toBeInTheDocument()
+    })
+
     it('keeps the poster when the removal is cancelled', async () => {
         const user = userEvent.setup()
         renderSection(LINK)
@@ -197,12 +256,12 @@ describe('NotePosterSection', () => {
 
     it('stays collapsed for the next note once collapsed', async () => {
         const user = userEvent.setup()
-        const {unmount} = render(<NotePosterSection note={{id: 'note-1', posterUrl: LINK}}/>)
+        const {unmount} = render(<NotePosterSection note={{id: 'note-1', posterUrl: LINK}} onChanged={vi.fn()}/>)
 
         await user.click(screen.getByRole('button', {name: 'Poster'}))
         expect(screen.queryByRole('button', {name: 'Change poster'})).not.toBeInTheDocument()
         unmount()
-        render(<NotePosterSection note={{id: 'note-2'}}/>)
+        render(<NotePosterSection note={{id: 'note-2'}} onChanged={vi.fn()}/>)
 
         expect(screen.getByRole('button', {name: 'Poster'})).toHaveAttribute('aria-expanded', 'false')
     })

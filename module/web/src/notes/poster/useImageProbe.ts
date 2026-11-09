@@ -27,6 +27,8 @@ export function useImageProbe(src: string | null): ImageProbe {
         return () => {
             image.onload = null
             image.onerror = null
+            // a link given up on stops downloading
+            image.removeAttribute('src')
         }
     }, [src])
     return probe

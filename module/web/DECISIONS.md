@@ -345,6 +345,8 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   so a link the browser previews is never refused on save; a 400 is only a fallback with the generic save error. A
   saved poster that stops loading is shown as unavailable by the frame, not reported to the service. The section's
   open/closed choice is one per device (`localStorage`), shared by the note screen and the sky's star panel, and a
-  poster change updates only `posterUrl` of the shown note, so an open text edit keeps its draft and version.
+  poster change updates only `posterUrl` of the shown note, so an open text edit keeps its draft and version. A saved
+  poster is changed and removed from a pencil and a bin in the section header (`Disclosure` `actions`), and removal
+  asks first (PROT Note poster), replacing the task's first plan of a removal without a confirmation.
 - **Consequences:** the browser's HTTP cache is the only cache of posters; a Service Worker cache waits for S3.
 - **Source:** task `docs/tasks/2026-11-09-note-poster.md`, block 3.

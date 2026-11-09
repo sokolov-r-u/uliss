@@ -38,7 +38,7 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function NoteDetailView({state, onRetry, actions, edit, back = true, onPosterChanged}: {
+export function NoteDetailView({state, onRetry, actions, edit, back = true, onPosterChanged = () => {}}: {
     state: DetailState
     onRetry?: () => void
     actions?: ReactNode
