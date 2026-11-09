@@ -49,16 +49,19 @@ editing the SPA.
   then deploy it (`./gradlew buildAllImages`, `docker compose -f infra/docker-compose.yml --profile full up -d`) for
   the user's manual UI check.
 - After the user confirms the result in the UI, write the Vitest and Playwright tests for the changed behavior and run
-  `test` and `build`; then run the code review and fix its confirmed findings, and only after that the Playwright
-  specs of the touched screens and any full visual run (they take minutes in Docker); commit the tests with the code
-  (or as a follow-up commit of the same task). The full visual suite runs in CI on every pull request (`visual-checks` in
-  `.github/workflows/pr-checks.yml`); run it locally only when asked or in an epic's final task.
+  `test` and `build`; then run the code review and fix its confirmed findings, and only after that run locally the
+  Playwright specs the task added or changed (`visual:test -- <spec file>`); commit the tests with the code (or as a
+  follow-up commit of the same task).
+- Never run the full visual suite or the specs of other touched screens locally (Docker emulates `linux/amd64` on
+  Apple Silicon and takes many minutes), even in an epic's final task, unless the user asks. It runs in CI on every pull
+  request (`visual-checks` in `.github/workflows/pr-checks.yml`): after the PR is opened, watch that job, and when it
+  fails, download its `playwright-report` artifact (`gh run download`) and handle it as a failed visual test below.
 - Inside an epic, a Playwright/visual test that fails because the task changes a screen that a later task of the same
   epic changes again may be skipped instead of updated:
   `test.skip(true, 'epic <epic-name>: re-enable in the final task')`. A screen changed only by the current task gets
   its tests and screenshots updated in that task. List every skipped test in the epic file with the task that skipped
   it. The epic's final task re-enables them all (no marker of the epic is left in `visual/tests`), updates screenshots
-  with the user's approval, adds the deferred Playwright tests, and runs the full visual suite.
+  with the user's approval, adds the deferred Playwright tests, and leaves the full visual run to CI.
 
 ## Verification
 
@@ -69,5 +72,5 @@ editing the SPA.
 - When a frontend visual/snapshot test fails, inspect the expected, actual, and diff artifacts and identify the
   affected source and snapshot files. Tell the user which screens changed and what to review; wait for the user's
   explicit approval before changing expected screenshots. After approval, update only the approved failing titles with
-  `visual:update -- --grep <title>`, rerun those exact titles with `visual:test -- --grep <title>`, then run the
-  complete visual suite. Never change component geometry solely to match an outdated snapshot.
+  `visual:update -- --grep <title>`, rerun those exact titles with `visual:test -- --grep <title>`, then push and let
+  CI run the complete visual suite. Never change component geometry solely to match an outdated snapshot.
