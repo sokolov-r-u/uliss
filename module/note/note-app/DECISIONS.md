@@ -837,3 +837,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   note again (the user pressed Save on that text; accepted after the code review).
 - **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, block 1.
 
+## 2026-11-08 — A new chat is named by the model, in parallel with its first reply
+
+- **Context:** the first-message title (a truncated first line) is often long and unspecific. This replaces "no
+  provider call for chat titles" from the initial-chat rules.
+- **Decision:** when `POST /chats` creates a chat (not a replayed key), `ChatTitleService` calls the chat model once,
+  without tools (`note.chat-title`: `reasoningEffort`/`verbosity` low, first 2,000 code points of the message), after
+  the creating transaction commits and independent of the client's subscription. The answer is cleaned by
+  `TitleNormalizer.normalizeModelTitle` and stored only while `chat.title_source = 'FIRST_MESSAGE'` (a plain UPDATE
+  that leaves `updated_at` and `version` alone), so a rename (`USER`) always wins and a concurrent rename does not
+  fail. The stored title goes to the first turn's SSE stream as `title` (`{"title"}`), merged with the reply's
+  events: it may come before or after `done`/`error`, and the stream stays open until it comes or
+  `note.chat-title.timeout` (10 s, counted from the start of the title call) passes. A late, blank or failed title is dropped (WARN with the chat id only); the
+  first-message title stays and no event is sent.
+- **Consequences:** the title runs in memory, not through the outbox: a restart loses it, and the first-message title
+  stays. Old chats are not renamed. The first turn's stream can outlive its `done` by up to the timeout.
+- **Source:** task `docs/tasks/2026-11-08-auto-chat-title.md`, blocks 1–3.

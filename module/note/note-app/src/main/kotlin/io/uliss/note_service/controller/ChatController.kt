@@ -11,6 +11,7 @@ import io.uliss.note_service.dto.response.AssistantTextChunkResponse
 import io.uliss.note_service.dto.response.ChatMessagePageResponse
 import io.uliss.note_service.dto.response.ChatResponse
 import io.uliss.note_service.dto.response.ChatSummaryResponse
+import io.uliss.note_service.dto.response.ChatTitleEventResponse
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.toChatSummaryResponse
 import io.uliss.note_service.dto.response.toResponse
@@ -212,6 +213,9 @@ class ChatController(
         AssistantStreamEvent.GenerationCompleted -> ServerSentEvent.builder<Any>("").event("done").build()
         is AssistantStreamEvent.GenerationFailed ->
             ServerSentEvent.builder<Any>(event.status.name).event("error").build()
+
+        is AssistantStreamEvent.TitleGenerated ->
+            ServerSentEvent.builder<Any>(ChatTitleEventResponse(event.title)).event("title").build()
     }
 
     private companion object {

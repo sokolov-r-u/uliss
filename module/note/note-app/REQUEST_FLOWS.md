@@ -75,7 +75,7 @@ application services or outbox handlers.
 
 | Request                                           | Synchronous call path                                                               | Result                                             |
 |---------------------------------------------------|-------------------------------------------------------------------------------------|----------------------------------------------------|
-| `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService + AssistantService -> ChatTurnService` | Creates the chat and reserves its first turn       |
+| `POST /note/chats`                                | `ChatController -> ChatFacade -> ChatService + AssistantService -> ChatTurnService`; after commit `ChatTitleService -> ChatService` | Creates the chat and reserves its first turn; streams the generated title |
 | `GET /note/chats`                                 | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Keyset page of the user's chats by last activity, with note counts |
 | `GET /note/chats/{chatId}`                        | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Returns one owned chat with its note count         |
 | `PATCH /note/chats/{chatId}`                      | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Renames the chat                                   |

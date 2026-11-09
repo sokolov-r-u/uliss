@@ -34,3 +34,15 @@ test('Retry regenerates a failed latest reply in place', async ({page}) => {
     await expect(page.getByText('Why does the second attempt feel easier?')).toHaveCount(1)
     await expect(page.getByRole('textbox', {name: 'Message'})).toBeEnabled()
 })
+
+test('a new chat takes its generated title in the header and the side navigation, even after the reply ends', async ({page}) => {
+    await openRoute(page, '/chats/new')
+    await page.getByRole('textbox', {name: 'Message'}).fill('Ideas for a week in Lisbon\nwith two kids')
+    await page.getByRole('button', {name: 'Send'}).click()
+
+    await expect(page.getByText('Start with the dates, then the places.')).toBeVisible()
+    const recentChats = page.getByRole('tabpanel', {name: 'Recent chats'})
+    await expect(page.getByRole('heading', {name: 'Trip planning'})).toBeVisible()
+    await expect(recentChats).toContainText('Trip planning')
+    await expect(recentChats).not.toContainText('Ideas for a week in Lisbon')
+})

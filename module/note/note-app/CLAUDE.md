@@ -13,13 +13,13 @@ note-service.
   a turn fails before producing content.
 - Streaming must derive `COMPLETE`, `PARTIAL`, or `FAILED` from the terminal signal and buffered content, and run
   blocking JPA persistence off the reactive event-loop thread.
-- Preserve the SSE contract (`activity`, `append`, `pending`, `done`, `error`) and the `/note` prefix supplied by
-  `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
+- Preserve the SSE contract (`activity`, `append`, `pending`, `done`, `error`, and `title` in a new chat's first
+  turn) and the `/note` prefix supplied by `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
   Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService`,
   `NoteSummaryRequestedHandler`, `NoteSummaryUpdateRequestedHandler`, `NoteResummarizeRequestedHandler`,
-  `NoteAiEditService`, and `UserProfileRefreshRequestedHandler`, with values from
-  `note.assistant` / `note.summary` / `note.ai-edit` / `note.profile` properties.
+  `NoteAiEditService`, `UserProfileRefreshRequestedHandler`, and `ChatTitleService`, with values from
+  `note.assistant` / `note.summary` / `note.ai-edit` / `note.profile` / `note.chat-title` properties.
 
 ## Implementation rules
 
@@ -31,9 +31,10 @@ note-service.
 - Flyway migrations are append-only. Add a new versioned migration for every schema change; never edit an existing
   migration. Preserve the service-owned `note` schema and pgvector compatibility.
 - Message pagination is limited to the existing browser-history contract.
-- Initial chat creation and first-turn reservation happen in one transaction, deriving the title from the first user
-  message there. The frontend must not generate chat IDs or titles; no provider call may be added for title
-  generation without explicit scope.
+- Initial chat creation and first-turn reservation happen in one transaction, deriving the first-message title there.
+  The frontend must not generate chat IDs or titles. A newly created chat (not a replayed key) is then named by one
+  `ChatTitleService` call after commit, stored only over a `FIRST_MESSAGE` title, never over a user's rename; it must
+  never fail or delay the reply's `done`/`error`.
 - A `CHAT_SUMMARY` note title comes from the user (`SummarizeRequest.title`, then the call asks for a `NoteBodyDraft`)
   or from the same structured-output call as its content (`NoteDraft`); never add a second provider call for it. Keep
   per-field output rules in the draft schema descriptions, not the system prompt.

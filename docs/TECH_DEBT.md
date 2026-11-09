@@ -173,20 +173,6 @@ onboarding may not have set a display name yet — so any prompt text must fall 
 Recorded while narrowing an unrelated summary-prompt-length change (`module/note/note-app/.../util/ChatPrompts.kt`). No
 code changed for this item.
 
-## AI-generated semantic chat title (`note-service`)
-
-**Status:** optional enhancement, not implemented. The backend initial-turn transaction creates the
-chat with the whitespace-normalized first non-blank line of the first user message, truncated to 50
-Unicode code points with `...` when needed (`TitleNormalizer`). Generated `CHAT_SUMMARY` notes already
-get a model title from their structured summary call; this item covers chat titles only. The frontend sends only the
-prompt and a request `Idempotency-Key`; it
-does not derive or submit a title or chat ID. This is deterministic and adds no provider latency or
-failure mode. The request key lets the backend recover both generated identities.
-
-Generating a shorter semantic title with the configured chat provider would require a separate product
-decision covering provider cost, failure fallback, and whether the title update is synchronous or
-asynchronous. Do not add that provider call incidentally.
-
 ## Design system — deferred items (`:uliss-design-system`)
 
 Opened 2026-08-31 during the design-system integration refresh

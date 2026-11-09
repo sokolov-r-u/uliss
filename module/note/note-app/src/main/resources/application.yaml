@@ -88,6 +88,12 @@ note:
     reasoning-effort: medium
     # medium verbosity bloats notes from long chats
     verbosity: low
+  chat-title:
+    reasoning-effort: low
+    verbosity: low
+    max-input-chars: 2000
+    # counted from the start of the title call; a later title is dropped, the first turn's stream waits at most this long
+    timeout: 10s
   ai-edit:
     reasoning-effort: low
     # low verbosity invites the model to shorten a note it should only edit

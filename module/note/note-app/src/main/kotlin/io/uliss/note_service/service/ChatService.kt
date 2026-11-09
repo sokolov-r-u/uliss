@@ -3,12 +3,14 @@ package io.uliss.note_service.service
 import io.uliss.database.utils.generateId
 import io.uliss.exception.common.BadRequestException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.note_service.dto.internal.ChatCreation
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.exception.PinLimitReachedException
 import io.uliss.note_service.model.ChatEntity
+import io.uliss.note_service.model.ChatTitleSource
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.util.PinLimit
@@ -27,15 +29,16 @@ class ChatService(
 ) {
 
     @Transactional(propagation = Propagation.MANDATORY)
-    fun createChat(userId: UUID, idempotencyKey: UUID, content: String): ChatEntity {
-        chatRepository.insertChatOnConflictDoNothing(
+    fun createChat(userId: UUID, idempotencyKey: UUID, content: String): ChatCreation {
+        val inserted = chatRepository.insertChatOnConflictDoNothing(
             id = generateId(),
             userId = userId,
             idempotencyKey = idempotencyKey,
             title = TitleNormalizer.normalizeChatTitle(content),
         )
-        return chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
+        val chat = chatRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)
             ?: error("initial chat could not be loaded after insert")
+        return ChatCreation(chat, created = inserted == 1)
     }
 
     /** A page of the user's chats by last activity, starting strictly after [cursor] (from the top when null). */
@@ -91,8 +94,14 @@ class ChatService(
             ?: throw BadRequestException(TitleNormalizer.USER_TITLE_RULE)
         val chat = getOwnedChat(userId, chatId)
         chat.title = title
+        chat.titleSource = ChatTitleSource.USER
         return chatRepository.save(chat)
     }
+
+    /** Stores the model's [title] while the chat still has its first-message title; false when it did not apply. */
+    @Transactional
+    fun applyGeneratedTitle(userId: UUID, chatId: UUID, title: String): Boolean =
+        chatRepository.applyGeneratedTitle(chatId, userId, title) == 1
 
     /**
      * FK cascades remove the chat's turns, messages, summary requests and note links; linked notes

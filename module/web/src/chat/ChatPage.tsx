@@ -172,6 +172,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [draft, setDraft] = useState('')
     const [panelOpen, togglePanel, closePanel] = usePanelOpen()
     const [chatMeta, setChatMeta] = useState<Chat | null>(null)
+    // The chat a first message created while the route is still /chats/new, so the header shows its title at once.
+    const [createdChatId, setCreatedChatId] = useState<string | null>(null)
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
@@ -336,6 +338,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     }, [])
 
     useEffect(() => {
+        setCreatedChatId(null)
         if (newChat) {
             activeChatIdRef.current = null
             replacePersistedWindow([])
@@ -542,9 +545,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             || pendingChatRequestRef.current !== request) return
                         resolvedChatId = createdChatId
                         activeChatIdRef.current = createdChatId
+                        setCreatedChatId(createdChatId)
                         request.initial = false
                         persistPendingChatRequest(request, createdChatId)
                     },
+                    // The title is stored before it is sent; lists and the header re-read it, wherever the user is.
+                    onTitle: () => notifyChatListChanged(),
                 })
                 : request.retryOf && request.turnId
                 ? await streamRetriedReply(resolvedChatId!, request.turnId, request.retryOf, callbacks)
@@ -841,7 +847,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     return (
         <div className="detail-layout">
         <div className="chat-page">
-            <ChatPageHeader chatId={chatId} generationActive={generationPhase !== 'idle'}
+            <ChatPageHeader chatId={chatId ?? createdChatId ?? undefined} generationActive={generationPhase !== 'idle'}
                             panelOpen={panelOpen} onTogglePanel={togglePanel}
                             onChat={setChatMeta}/>
             <MessageThread messages={messages} hasMore={hasMore} isLoadingOlder={isLoadingOlder}

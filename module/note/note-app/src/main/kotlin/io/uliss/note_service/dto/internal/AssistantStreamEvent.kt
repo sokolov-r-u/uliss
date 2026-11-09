@@ -8,4 +8,7 @@ sealed interface AssistantStreamEvent {
     data class GenerationPending(val retryAfterMs: Long) : AssistantStreamEvent
     data object GenerationCompleted : AssistantStreamEvent
     data class GenerationFailed(val status: ChatTurnStatus) : AssistantStreamEvent
+
+    /** The chat's generated title, stored; sent once, in a new chat's first turn, before or after the reply ends. */
+    data class TitleGenerated(val title: String) : AssistantStreamEvent
 }

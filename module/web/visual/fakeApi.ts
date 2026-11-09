@@ -276,6 +276,38 @@ function openReplyStream(chatId: string, records: string[]): Response {
     })
 }
 
+/**
+ * Like the server, a first message creates a chat titled by its first line; the reply ends at once and the generated
+ * title follows a moment after `done`, the late case the client has to keep reading for.
+ */
+function initialReply(body: string): Response {
+    const {content} = JSON.parse(body) as { content: string }
+    const chatId = `c-new-${CHATS.length + 1}`
+    const now = new Date().toISOString()
+    const chat = {id: chatId, title: content.split('\n')[0].trim(), noteCount: 0, createdAt: now, updatedAt: now}
+    CHATS.unshift(chat)
+    const text = 'Start with the dates, then the places.'
+    CHAT_MESSAGES[chatId] = [
+        {id: `${chatId}-u`, turnId: 'turn-new', role: 'USER', status: 'COMPLETE', content},
+        {id: `${chatId}-a`, turnId: 'turn-new', role: 'ASSISTANT', status: 'COMPLETE', content: text},
+    ]
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+            controller.enqueue(encoder.encode(`event:append\ndata:${JSON.stringify({text})}\n\nevent:done\ndata:\n\n`))
+            setTimeout(() => {
+                chat.title = 'Trip planning'
+                controller.enqueue(encoder.encode(`event:title\ndata:${JSON.stringify({title: chat.title})}\n\n`))
+                controller.close()
+            }, 500)
+        },
+    })
+    return new Response(stream, {
+        status: 200,
+        headers: {'Content-Type': 'text/event-stream', 'Chat-Id': chatId, 'Chat-Turn-Id': 'turn-new'},
+    })
+}
+
 /** Like the server, a retry replaces the failed latest reply of the turn with a new one in the same turn. */
 function retryReply(chatId: string, turnId: string, messageId: string | null): Response {
     const messages = CHAT_MESSAGES[chatId] ?? []
@@ -359,6 +391,7 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     }
     const pinned = pinResponse(url.pathname, method, chats, notes, url.searchParams)
     if (pinned) return pinned
+    if (url.pathname === '/note/chats' && method === 'POST') return initialReply(String(init?.body))
     if (url.pathname === '/note/chats') {
         return listPage(chats.filter((item) => !pins.chats.includes(item.id)), url.searchParams.get('cursor'))
     }

@@ -90,6 +90,21 @@ interface ChatRepository : CrudRepository<ChatEntity, UUID> {
     )
     fun touchActivity(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
 
+    /**
+     * Replaces the owned chat's first-message title with a generated one; 0 when the chat is missing, not theirs, or
+     * already titled by the model or the user. Leaves `updated_at` and `version` alone, so a concurrent rename wins.
+     */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.chat
+            SET title = :title, title_source = 'GENERATED'
+            WHERE id = :id AND user_id = :userId AND title_source = 'FIRST_MESSAGE'
+        """,
+    )
+    fun applyGeneratedTitle(@Param("id") id: UUID, @Param("userId") userId: UUID, @Param("title") title: String): Int
+
     /** Serializes one user's chat pins until the transaction ends, so two pins checked apart cannot pass the limit. */
     @Transactional(propagation = Propagation.MANDATORY)
     @Query(

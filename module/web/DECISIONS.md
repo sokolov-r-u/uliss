@@ -323,3 +323,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   tab still gets only the browser's own prompt.
 - **Source:** task `docs/tasks/2026-11-08-manual-note-create.md`, blocks 2–3.
 
+## 2026-11-08 — A first turn's stream outlives its screen until the chat title arrives
+
+- **Context:** note-service sends a new chat's generated title as an SSE `title` event, possibly after `done`, while
+  the page navigates from `/chats/new` to `/chats/{id}` right after `done` and aborts its stream on a route change.
+- **Decision:** `streamInitialAssistantReply` gives the fetch its own `AbortController` that follows the screen's
+  signal only until the terminal event; with `onTitle` set, the rest of the stream is then read on its own and a
+  `title` calls `notifyChatListChanged()`, wherever the user is. This is a deliberate exception to "abort an in-flight
+  chat stream when its owning screen unmounts": the tail is bounded by the server's title timeout (10 s). Other
+  streams keep the screen's signal. On `/chats/new` the header loads the chat from `Chat-Id` at once, so it shows the
+  first-message title and then the generated one during the first reply.
+- **Source:** task `docs/tasks/2026-11-08-auto-chat-title.md`, block 4.
