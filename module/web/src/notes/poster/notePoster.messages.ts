@@ -1,0 +1,61 @@
+import type {Dictionaries} from '@uliss/design-system'
+
+/** The Poster section of the note panel. */
+const en = {
+    poster: 'Poster',
+    addPoster: 'Add poster',
+    imageLink: 'Image link',
+    hint: 'JPG, PNG, WebP or GIF, at least 300 px',
+    loading: 'Loading preview…',
+    fits: (width: number, height: number) => `${width} × ${height} px — shown exactly like this`,
+    httpsOnly: 'Only https:// links',
+    credentials: 'Links with a user name or password don’t work',
+    couldNotLoad: 'Couldn’t load the image',
+    tooSmall: (width: number, height: number, min: number) =>
+        `Too small: ${width} × ${height} px, needs at least ${min} px`,
+    tooLong: 'Link is too long',
+    save: 'Save',
+    saving: 'Saving…',
+    cancel: 'Cancel',
+    saveFailed: 'Couldn’t save the poster. Try again.',
+    changePoster: 'Change poster',
+    remove: 'Remove',
+    removePoster: 'Remove poster',
+    removeTitle: 'Remove the poster?',
+    removeBody: 'Only the link goes: the note and the image on its site stay.',
+    keep: 'Keep',
+    removeFailed: 'Couldn’t remove the poster. Try again.',
+    alt: (title: string) => `${title} poster`,
+    untitledAlt: 'Note poster',
+}
+
+export const notePosterMessages: Dictionaries<typeof en> = {
+    en,
+    ru: {
+        poster: 'Постер',
+        addPoster: 'Добавить постер',
+        imageLink: 'Ссылка на картинку',
+        hint: 'JPG, PNG, WebP или GIF, не меньше 300 px',
+        loading: 'Загружаем превью…',
+        fits: (width: number, height: number) => `${width} × ${height} px — так и будет показано`,
+        httpsOnly: 'Только ссылки https://',
+        credentials: 'Ссылки с логином или паролем не подходят',
+        couldNotLoad: 'Не удалось загрузить картинку',
+        tooSmall: (width: number, height: number, min: number) =>
+            `Слишком маленькая: ${width} × ${height} px, нужно не меньше ${min} px`,
+        tooLong: 'Слишком длинная ссылка',
+        save: 'Сохранить',
+        saving: 'Сохраняем…',
+        cancel: 'Отмена',
+        saveFailed: 'Не удалось сохранить постер. Попробуйте ещё раз.',
+        changePoster: 'Изменить постер',
+        remove: 'Убрать',
+        removePoster: 'Убрать постер',
+        removeTitle: 'Убрать постер?',
+        removeBody: 'Удаляется только ссылка: заметка и картинка на сайте остаются.',
+        keep: 'Оставить',
+        removeFailed: 'Не удалось убрать постер. Попробуйте ещё раз.',
+        alt: (title: string) => `Постер: ${title}`,
+        untitledAlt: 'Постер заметки',
+    },
+}

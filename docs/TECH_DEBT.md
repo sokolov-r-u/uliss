@@ -810,3 +810,11 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   so a Russian query («кот») finds nothing. Russian search needs the `ru` data file served next to the English one, a
   `locale`-aware `dataSource`, and a separate IndexedDB store per locale (favorites would not carry over). Agreed with
   the user to defer (task `docs/tasks/2026-11-04-russian-localization.md`).
+
+## Note posters are cached only by the browser's HTTP cache (`web`)
+
+- A poster is a third-party https image (task `docs/tasks/2026-11-09-note-poster.md`); how long the browser keeps it is
+  up to the image's host (`Cache-Control`, else heuristics). A Service Worker with the Cache API could guarantee it, but
+  third-party images without CORS are opaque responses that Chrome counts as about 7 MB of quota each, so a sky full of
+  avatars would evict itself. Agreed with the user to wait for posters on our own storage (S3), where we set the cache
+  headers ourselves.

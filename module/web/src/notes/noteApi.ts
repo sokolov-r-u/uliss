@@ -23,6 +23,14 @@ export interface Note {
     icon?: string
     /** When the user pinned it; absent for an unpinned note. */
     pinnedAt?: string
+    /** The https link of the note's poster, loaded by the browser; absent for none. */
+    posterUrl?: string
+}
+
+/** [note] with [posterUrl] as its poster; none removes it. */
+export function withPoster<T extends Note>(note: T, posterUrl: string | undefined): T {
+    const {posterUrl: _previous, ...rest} = note
+    return (posterUrl ? {...rest, posterUrl} : rest) as T
 }
 
 /** What happens to the sub-notes of a deleted note. */
@@ -116,6 +124,7 @@ function parseNote(value: unknown): Note {
     const parentNoteId = optionalString(value.parentNoteId, 'parentNoteId')
     const icon = optionalString(value.icon, 'icon')
     const pinnedAt = optionalString(value.pinnedAt, 'pinnedAt')
+    const posterUrl = optionalString(value.posterUrl, 'posterUrl')
     return {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
@@ -129,6 +138,7 @@ function parseNote(value: unknown): Note {
         ...(parentNoteId ? {parentNoteId} : {}),
         ...(icon ? {icon} : {}),
         ...(pinnedAt ? {pinnedAt} : {}),
+        ...(posterUrl ? {posterUrl} : {}),
     }
 }
 
@@ -375,6 +385,24 @@ export async function pinNote(noteId: string): Promise<Note> {
 export async function unpinNote(noteId: string): Promise<void> {
     const response = await fetchNotes(`/note/notes/${segment(noteId)}/pin`, {method: 'DELETE'})
     await requireOk(response, 'note unpin')
+}
+
+/** Sets the note's poster link; the note's version stays, so an open edit still saves. */
+export async function setNotePoster(noteId: string, url: string): Promise<Note> {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/poster`, {
+        method: 'PUT',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url}),
+    })
+    await requireOk(response, 'note poster save')
+    const note = parseNote(await responseJson(response))
+    if (note.id !== noteId) throw new NoteApiError('protocol', 'note response does not match the request')
+    return note
+}
+
+export async function removeNotePoster(noteId: string): Promise<void> {
+    const response = await fetchNotes(`/note/notes/${segment(noteId)}/poster`, {method: 'DELETE'})
+    await requireOk(response, 'note poster removal')
 }
 
 /** Saves a user edit made against [edit.version]; a newer stored note fails with code `NOTE_VERSION_CONFLICT`. */

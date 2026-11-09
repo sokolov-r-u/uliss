@@ -184,3 +184,16 @@
     overflow-y: auto;
     background: var(--bg-panel);
 }
+
+/* Poster section of the note panel (PROT Note poster): the editing states share one height. */
+.note-poster-body,
+.note-poster-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.note-poster-editor-actions {
+    display: flex;
+    gap: 8px;
+}

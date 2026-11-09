@@ -11,7 +11,7 @@ import {ScreenHeader} from '../ui/ScreenHeader'
 import {listNoteChats, subscribeToChatListChanges} from '../chat/chatApi'
 import {useFeatureFlag} from '../lib/featureFlags'
 import {useLinkedItems} from '../ui/links/useLinkedItems'
-import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus} from './noteApi'
+import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus, withPoster} from './noteApi'
 import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
 import {ResummarizeDialog} from './ResummarizeDialog'
@@ -38,7 +38,7 @@ function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
 }
 
-export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
+export function NoteDetailView({state, onRetry, actions, edit, back = true, onPosterChanged}: {
     state: DetailState
     onRetry?: () => void
     actions?: ReactNode
@@ -46,6 +46,8 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
     back?: boolean
     /** The edit form of a ready note; it replaces the note's text while it is open. */
     edit?: ReactNode
+    /** The note's poster link was stored or removed in its details panel. */
+    onPosterChanged?: (posterUrl: string | undefined) => void
 }) {
     // The note title is the page heading (a generating note has one when the user named it); other states name
     // themselves in the body.
@@ -85,7 +87,8 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true}: {
     </div>
         {note && <ContextPanel label={t.thisNote} open={panelOpen} onClose={closePanel}>
             <NoteDetailsSections note={note} onOpenNote={(noteId) => navigate(`/notes/${noteId}`)}
-                                 onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}/>
+                                 onOpenChat={(chatId) => navigate(`/chats/${chatId}`)}
+                                 onPosterChanged={onPosterChanged}/>
         </ContextPanel>}
     </div>
 }
@@ -201,6 +204,11 @@ export function NoteDetailPage() {
         return () => controllerRef.current?.abort()
     }, [load])
 
+    // the poster is stored apart from the text: an open edit keeps its draft and version
+    const posterChanged = useCallback((posterUrl: string | undefined) => setState((shown) => 'note' in shown
+        ? {...shown, note: withPoster(shown.note, posterUrl)} as DetailState
+        : shown), [])
+
     const note = 'note' in state ? state.note : null
     const noteTitle = note?.title ?? common.untitledNote
     const editable = state.status === 'ready' ? asEditable(state.note) : null
@@ -240,6 +248,7 @@ export function NoteDetailPage() {
 
     return <>
         <NoteDetailView state={state} onRetry={() => void load()} edit={edit} back={!backToDeleteDialog}
+                        onPosterChanged={posterChanged}
                         actions={edit ? undefined : <>{backButton}{editButton}{actions}</>}/>
         {resummarizing && note && <ResummarizeDialog noteId={note.id} onClose={() => setResummarizing(false)}
                                                      onQueued={(queued) => {
