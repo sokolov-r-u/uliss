@@ -68,6 +68,17 @@ class NotePosterIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `a link as a browser writes it, with a pipe in the query and an underscore in the host, is saved as sent`() {
+        val note = note("Note")
+        val link = "https://my_bucket.cdn.example.com/img[1].jpg?fit=crop|center"
+
+        putPoster(note.id, link).andExpect {
+            status { isOk() }
+            jsonPath("$.posterUrl") { value(link) }
+        }
+    }
+
+    @Test
     fun `removing the poster clears it, and removing it again still succeeds`() {
         val note = note("Note")
         putPoster(note.id, "https://example.com/p.jpg").andExpect { status { isOk() } }

@@ -88,7 +88,7 @@ class NoteService(
     @Transactional
     fun setPoster(userId: UUID, noteId: UUID, url: String): NoteResponse {
         val poster = PosterUrlNormalizer.normalize(url) ?: throw BadRequestException(PosterUrlNormalizer.RULE)
-        noteRepository.setPoster(noteId, userId, poster)
+        if (noteRepository.setPoster(noteId, userId, poster) == 0) throw NotFoundException("note id=$noteId not found")
         return getNote(userId, noteId)
     }
 
