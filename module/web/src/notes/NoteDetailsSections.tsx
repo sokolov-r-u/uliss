@@ -24,7 +24,7 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
     const locale = useLocale()
     const t = useMessages(notesMessages)
     return <>
-        <NotePosterSection key={note.id} note={note} onChanged={onPosterChanged}/>
+        <NotePosterSection key={`poster-${note.id}`} note={note} onChanged={onPosterChanged}/>
         <PanelSection label={t.constellation}>
             <NoteConstellationSection key={note.id} noteId={note.id} noteTitle={note.title} noteIcon={note.icon}
                                       onChanged={onPlaceChanged}/>

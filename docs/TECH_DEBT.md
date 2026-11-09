@@ -818,3 +818,12 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   third-party images without CORS are opaque responses that Chrome counts as about 7 MB of quota each, so a sky full of
   avatars would evict itself. Agreed with the user to wait for posters on our own storage (S3), where we set the cache
   headers ourselves.
+
+## Flaky panel specs in the Playwright container (`web`)
+
+- `sub-notes.spec.ts` and `note-places.spec.ts` fail 1–2 of 10 tests per run on the base commit `4bed268` too
+  (checked three times on a clean `git archive`, 2026-11-09): a click or fill on the place picker times out after
+  "element was detached from the DOM", or an earlier screen's element is not found. Seen on Apple Silicon, where the
+  container runs as `linux/amd64` under emulation; `visual.spec.ts` screenshots of `chat · desktop` and
+  `reduced-motion` failed once and passed on the next run. Find what re-renders the place picker after a move, or wait
+  for the panel to settle in those specs, before the next panel task (found in `docs/tasks/2026-11-09-note-poster.md`).
