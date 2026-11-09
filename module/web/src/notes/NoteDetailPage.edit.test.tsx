@@ -1,4 +1,4 @@
-import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {act, fireEvent, render, screen, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {Route, Routes} from 'react-router-dom'
 import {dataRouter} from '../test/dataRouter'
@@ -8,6 +8,7 @@ import {
     type Note,
     NoteApiError,
     notifyNotesChanged,
+    removeNotePoster,
     renameNote,
     streamNoteStatus,
     updateNote,
@@ -23,6 +24,8 @@ vi.mock('./noteApi', async (importOriginal) => {
         updateNote: vi.fn(),
         renameNote: vi.fn(),
         notifyNotesChanged: vi.fn(),
+        removeNotePoster: vi.fn(),
+        listSubNotes: vi.fn(() => Promise.resolve([])),
     }
 })
 
@@ -281,5 +284,24 @@ describe('NoteDetailPage editing', () => {
         renderPage()
 
         expect(await screen.findAllByRole('listitem')).toHaveLength(2)
+    })
+
+    it('keeps an open edit and its version when the poster is removed in the panel', async () => {
+        const user = userEvent.setup()
+        vi.mocked(removeNotePoster).mockResolvedValue()
+        mockedUpdate.mockResolvedValue({...saved, title: 'Draft title', version: 4})
+        const {title, save} = await startEditing({...saved, posterUrl: 'https://example.com/p.jpg'})
+        await user.clear(title)
+        await user.type(title, 'Draft title')
+
+        await user.click(screen.getByRole('button', {name: 'Note details'}))
+        await user.click(screen.getByRole('button', {name: 'Remove poster'}))
+        await user.click(within(screen.getByRole('dialog', {name: 'Remove the poster?'})).getByRole('button', {name: 'Remove'}))
+
+        expect(await screen.findByRole('button', {name: 'Add poster'})).toBeInTheDocument()
+        expect(screen.getByRole('textbox', {name: 'Title'})).toHaveValue('Draft title')
+        await user.click(save)
+        await waitFor(() => expect(mockedUpdate).toHaveBeenCalledWith('note-1',
+            expect.objectContaining({title: 'Draft title', version: 3})))
     })
 })

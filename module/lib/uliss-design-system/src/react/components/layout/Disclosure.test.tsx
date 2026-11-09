@@ -1,6 +1,6 @@
 import {fireEvent, render, screen} from '@testing-library/react'
 import {useState} from 'react'
-import {describe, expect, it} from 'vitest'
+import {describe, expect, it, vi} from 'vitest'
 import {Disclosure} from './Disclosure'
 
 function Section({initial = false}: { initial?: boolean }) {
@@ -34,5 +34,28 @@ describe('Disclosure', () => {
         fireEvent.click(header)
 
         expect(screen.getByRole('textbox', {name: 'Draft'})).toHaveValue('half a thought')
+    })
+
+    it('shows a section’s actions only while open, and they act without folding it', () => {
+        const onEdit = vi.fn()
+
+        function Poster() {
+            const [open, setOpen] = useState(true)
+            return <Disclosure variant="section" title="Poster" open={open} onToggle={setOpen}
+                               actions={<button type="button" onClick={onEdit}>Change poster</button>}>
+                <p>poster</p>
+            </Disclosure>
+        }
+
+        render(<Poster/>)
+        const header = screen.getByRole('button', {name: 'Poster'})
+
+        fireEvent.click(screen.getByRole('button', {name: 'Change poster'}))
+        expect(onEdit).toHaveBeenCalledOnce()
+        expect(header).toHaveAttribute('aria-expanded', 'true')
+
+        fireEvent.click(header)
+        expect(header).toHaveAttribute('aria-expanded', 'false')
+        expect(screen.queryByRole('button', {name: 'Change poster'})).not.toBeInTheDocument()
     })
 })

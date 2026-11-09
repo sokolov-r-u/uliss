@@ -2,7 +2,7 @@ import {useEffect, useState} from 'react'
 import {Button, Icon, IconButton, Kicker, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteDetailsSections} from '../notes/NoteDetailsSections'
-import {getNote, type Note} from '../notes/noteApi'
+import {getNote, type Note, withPoster} from '../notes/noteApi'
 import type {SkyGraph} from './skyModel'
 import {commonMessages} from '../i18n/common.messages'
 import {skyMessages} from './sky.messages'
@@ -72,7 +72,9 @@ export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpen
             <Button variant="outline" onClick={() => onOpen(star.id)}>{t.openNote}</Button>
             {note && <div className="sky-panel-details">
                 <NoteDetailsSections note={note} onOpenNote={(id) => graph.byId.has(id) ? onPickStar(id) : onOpen(id)}
-                                     onOpenChat={onOpenChat} onPlaceChanged={onChanged}/>
+                                     onOpenChat={onOpenChat} onPlaceChanged={onChanged}
+                                     onPosterChanged={(posterUrl) => setLoaded((shown) => shown?.note
+                                         ? {...shown, note: withPoster(shown.note, posterUrl)} : shown)}/>
             </div>}
         </div>
     </aside>

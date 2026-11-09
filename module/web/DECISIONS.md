@@ -334,3 +334,19 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   streams keep the screen's signal. On `/chats/new` the header loads the chat from `Chat-Id` at once, so it shows the
   first-message title and then the generated one during the first reply.
 - **Source:** task `docs/tasks/2026-11-08-auto-chat-title.md`, block 4.
+
+## 2026-11-09 — The browser checks a note poster before it is saved
+
+- **Context:** a note poster is a third-party https link the note service stores but never fetches
+  (`module/note/note-app/DECISIONS.md`).
+- **Decision:** the Poster section loads the link itself (`useImageProbe`, `referrerPolicy="no-referrer"`) after a
+  400 ms pause and enables Save only for an image whose shorter side is at least 300 px. It applies the service's link
+  rules first (`checkPosterLink`: https, a host, no credentials, at most 2048 characters) and sends `new URL(…).href`,
+  so a link the browser previews is never refused on save; a 400 is only a fallback with the generic save error. A
+  saved poster that stops loading is shown as unavailable by the frame, not reported to the service. The section's
+  open/closed choice is one per device (`localStorage`), shared by the note screen and the sky's star panel, and a
+  poster change updates only `posterUrl` of the shown note, so an open text edit keeps its draft and version. A saved
+  poster is changed and removed from a pencil and a bin in the section header (`Disclosure` `actions`), and removal
+  asks first (PROT Note poster), replacing the task's first plan of a removal without a confirmation.
+- **Consequences:** the browser's HTTP cache is the only cache of posters; a Service Worker cache waits for S3.
+- **Source:** task `docs/tasks/2026-11-09-note-poster.md`, block 3.

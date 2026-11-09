@@ -49,6 +49,9 @@
   --glow-accent-strong: 0 0 16px 3px var(--accent-edge);
   --shadow-modal: 0 34px 90px -24px rgba(0, 0, 0, 0.8);
 
+  /* ── Note poster ── */
+  --poster-empty: var(--bg-panel); /* ground of an empty, loading or unavailable frame */
+
   /* ── Overlay — derived from the live ground / sky (sky.css) ── */
   --scrim: color-mix(in srgb, var(--bg-deep) 62%, transparent);
   --amb-wash: radial-gradient(120% 90% at 50% 0%, var(--sky-glow-b), transparent 60%);

@@ -566,7 +566,8 @@ email verification in place, answer "check your inbox" in both cases and mail th
 `frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
 Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
 Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with
-`Content-Security-Policy-Report-Only`, check fonts, SSE and the auth redirects in a browser, then enforce.
+`Content-Security-Policy-Report-Only`, check fonts, SSE and the auth redirects in a browser, then enforce. Note posters
+are third-party https images, so the policy needs `img-src 'self' https:`.
 
 ## Signing key encryption and rotation (`auth`)
 
@@ -809,3 +810,20 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   so a Russian query («кот») finds nothing. Russian search needs the `ru` data file served next to the English one, a
   `locale`-aware `dataSource`, and a separate IndexedDB store per locale (favorites would not carry over). Agreed with
   the user to defer (task `docs/tasks/2026-11-04-russian-localization.md`).
+
+## Note posters are cached only by the browser's HTTP cache (`web`)
+
+- A poster is a third-party https image (task `docs/tasks/2026-11-09-note-poster.md`); how long the browser keeps it is
+  up to the image's host (`Cache-Control`, else heuristics). A Service Worker with the Cache API could guarantee it, but
+  third-party images without CORS are opaque responses that Chrome counts as about 7 MB of quota each, so a sky full of
+  avatars would evict itself. Agreed with the user to wait for posters on our own storage (S3), where we set the cache
+  headers ourselves.
+
+## Flaky panel specs in the Playwright container (`web`)
+
+- `sub-notes.spec.ts` and `note-places.spec.ts` fail 1–2 of 10 tests per run on the base commit `4bed268` too
+  (checked three times on a clean `git archive`, 2026-11-09): a click or fill on the place picker times out after
+  "element was detached from the DOM", or an earlier screen's element is not found. Seen on Apple Silicon, where the
+  container runs as `linux/amd64` under emulation; `visual.spec.ts` screenshots of `chat · desktop` and
+  `reduced-motion` failed once and passed on the next run. Find what re-renders the place picker after a move, or wait
+  for the panel to settle in those specs, before the next panel task (found in `docs/tasks/2026-11-09-note-poster.md`).

@@ -10,6 +10,7 @@ import io.uliss.note_service.dto.request.AiEditNoteRequest
 import io.uliss.note_service.dto.request.CreateNoteRequest
 import io.uliss.note_service.dto.request.MainNoteConstellationRequest
 import io.uliss.note_service.dto.request.MoveUnderNoteRequest
+import io.uliss.note_service.dto.request.SetNotePosterRequest
 import io.uliss.note_service.dto.request.RenameRequest
 import io.uliss.note_service.dto.request.UpdateNoteRequest
 import io.uliss.note_service.dto.response.AssistantTextChunkResponse
@@ -112,6 +113,22 @@ class NoteController(
     @ResponseStatus(HttpStatus.NO_CONTENT)
     fun unpinNote(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID) {
         noteService.unpinNote(jwt.getUserId(), noteId)
+    }
+
+    /** Sets the note's poster link; the note's version and change time stay. */
+    @PutMapping("/{noteId}/poster")
+    fun setNotePoster(
+        @AuthenticationPrincipal jwt: Jwt,
+        @PathVariable noteId: UUID,
+        @Valid @RequestBody request: SetNotePosterRequest,
+    ): NoteResponse =
+        // Validated as @NotBlank before the call.
+        noteService.setPoster(jwt.getUserId(), noteId, checkNotNull(request.url))
+
+    @DeleteMapping("/{noteId}/poster")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun removeNotePoster(@AuthenticationPrincipal jwt: Jwt, @PathVariable noteId: UUID) {
+        noteService.removePoster(jwt.getUserId(), noteId)
     }
 
     /** Notes with no constellation and no parent note, newest first. */

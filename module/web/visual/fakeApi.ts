@@ -13,6 +13,7 @@
  * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
  * Chats and notes can be pinned (nothing is pinned at first): the pages leave pinned items out, as in the service;
  * `?pins=refuse` answers every pin with the limit refusal, as when another tab filled the list.
+ * Note posters are links kept in memory (none at first); `?poster=<link>` gives note n1 that poster.
  */
 import {CHAT_MESSAGES, CHATS, K, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -72,7 +73,11 @@ const ancestorsOf = (noteId: string): string[] => {
     return parent ? [...ancestorsOf(parent), parent] : []
 }
 const rootOf = (noteId: string) => ancestorsOf(noteId)[0] ?? noteId
-const withParent = <T extends { id: string }>(note: T) => ({...note, parentNoteId: parents.get(note.id) ?? null})
+/** Note → poster link, as the note service stores it. */
+const posters = new Map<string, string>(params.get('poster') ? [['n1', params.get('poster') as string]] : [])
+const withParent = <T extends { id: string }>(note: T) => ({
+    ...note, parentNoteId: parents.get(note.id) ?? null, posterUrl: posters.get(note.id) ?? null,
+})
 const ref = (noteId: string) => {
     const note = NOTES.find((item) => item.id === noteId)
     return {id: noteId, title: note?.title ?? null, ...(note?.icon ? {icon: note.icon} : {})}
@@ -388,6 +393,20 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
         // the worker is instant here: the next read already has the new text
         found.content = 'Written again from the whole chat.'
         return json(withParent(found), 202)
+    }
+    const poster = url.pathname.match(/^\/note\/notes\/([^/]+)\/poster$/)
+    if (poster) {
+        const found = NOTES.find((item) => item.id === poster[1])
+        if (!found) return json({}, 404)
+        if (method === 'DELETE') {
+            posters.delete(found.id)
+            return json(null, 204)
+        }
+        if (method !== 'PUT') return json({}, 405)
+        const link = String(JSON.parse(String(init?.body)).url ?? '')
+        if (!link.startsWith('https://')) return json({}, 400)
+        posters.set(found.id, link)
+        return json(withParent(found))
     }
     const pinned = pinResponse(url.pathname, method, chats, notes, url.searchParams)
     if (pinned) return pinned

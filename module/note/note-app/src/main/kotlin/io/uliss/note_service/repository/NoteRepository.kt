@@ -128,6 +128,18 @@ interface NoteRepository : JpaRepository<NoteEntity, UUID> {
     )
     fun unpin(@Param("id") id: UUID, @Param("userId") userId: UUID): Int
 
+    /** Sets the owned note's poster link; 0 when the note is not theirs. Leaves `updated_at` and `version` alone. */
+    @Modifying(clearAutomatically = true)
+    @Query(
+        nativeQuery = true,
+        value = """
+            UPDATE note.notes
+            SET poster_url = :url
+            WHERE id = :id AND user_id = :userId
+        """,
+    )
+    fun setPoster(@Param("id") id: UUID, @Param("userId") userId: UUID, @Param("url") url: String?): Int
+
     /** The user's pinned notes, last pinned first. */
     @Query(
         nativeQuery = true,

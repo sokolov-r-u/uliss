@@ -26,6 +26,7 @@ import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.getOwnedNote
 import io.uliss.note_service.util.PinLimit
+import io.uliss.note_service.util.PosterUrlNormalizer
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.orm.ObjectOptimisticLockingFailureException
 import org.springframework.stereotype.Service
@@ -81,6 +82,20 @@ class NoteService(
         val note = noteRepository.getOwnedNote(userId, noteId)
         if (!pinned && note.pinnedAt == null) throw PinLimitReachedException("note")
         return getNote(userId, noteId)
+    }
+
+    /** Sets the owned note's poster link; the version and change time stay, so an open edit still saves. */
+    @Transactional
+    fun setPoster(userId: UUID, noteId: UUID, url: String): NoteResponse {
+        val poster = PosterUrlNormalizer.normalize(url) ?: throw BadRequestException(PosterUrlNormalizer.RULE)
+        if (noteRepository.setPoster(noteId, userId, poster) == 0) throw NotFoundException("note id=$noteId not found")
+        return getNote(userId, noteId)
+    }
+
+    /** Removes the owned note's poster; removing a missing poster succeeds. */
+    @Transactional
+    fun removePoster(userId: UUID, noteId: UUID) {
+        if (noteRepository.setPoster(noteId, userId, null) == 0) throw NotFoundException("note id=$noteId not found")
     }
 
     @Transactional

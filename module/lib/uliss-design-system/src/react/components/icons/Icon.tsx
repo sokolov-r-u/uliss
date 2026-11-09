@@ -10,7 +10,7 @@ export type IconName =
     | 'plus' | 'star' | 'pulse' | 'noteDoc' | 'chatBubble' | 'filter' | 'tick'
     | 'chevron' | 'caret' | 'search' | 'summary' | 'cal' | 'gear' | 'collapse'
     | 'panelRight' | 'dots' | 'node' | 'constellation' | 'mic' | 'tag'
-    | 'edit' | 'listBullet' | 'listNumbered' | 'undo' | 'redo' | 'retry'
+    | 'edit' | 'listBullet' | 'listNumbered' | 'undo' | 'redo' | 'retry' | 'trash'
 
 interface Glyph {
     d?: string
@@ -72,6 +72,7 @@ const GLYPHS: Record<IconName, Glyph> = {
     undo: {d: 'M8 13L4 9l4-4 M4 9h10a5 5 0 0 1 0 10h-4', sw: 1.6},
     redo: {d: 'M16 13l4-4-4-4 M20 9H10a5 5 0 0 0 0 10h4', sw: 1.6},
     retry: {d: 'M19.5 12a7.5 7.5 0 1 1-2.2-5.3 M18 3v4h-4', sw: 1.6},
+    trash: {d: 'M4 7h16 M9 7V4h6v3 M6 7l1 13h10l1-13 M10 11v6 M14 11v6', sw: 1.5, join: 'miter'},
 }
 
 export interface IconProps {

@@ -19,6 +19,12 @@
   --cta-h: 50px; /* full-width primary button */
   --bar-h: 46px; /* TopBar min-height */
 
+  /* ── Note poster (PosterFrame, FieldMessage) ──────── */
+  --poster-aspect: 2 / 3; /* fixed frame, image fills it (cover) */
+  --poster-max-h: 440px; /* wider rails centre a narrower frame */
+  --poster-max-w: calc(var(--poster-max-h) * 2 / 3);
+  --poster-message-lines: 2; /* lines reserved under the poster for a hint or an error */
+
   /* ── Shape — zero everywhere. The three licensed circles (mic button,
      radio dot, accent swatch) use border-radius:50% locally. */
   --radius: 0px;

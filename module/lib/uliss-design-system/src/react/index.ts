@@ -38,6 +38,7 @@ export * from './components/journal/ListHeader'
 export * from './components/journal/ListRow'
 export * from './components/journal/EmptyState'
 export * from './components/journal/NoteTitle'
+export * from './components/journal/PosterFrame'
 
 export * from './components/navigation/NavRow'
 export * from './components/navigation/SettingsRow'
@@ -47,6 +48,7 @@ export * from './components/feedback/PendingStatus'
 export * from './components/feedback/Dialog'
 export * from './components/feedback/ItemMenu'
 export * from './components/feedback/ProgressDots'
+export * from './components/feedback/FieldMessage'
 
 export * from './components/editor/EditorToolbar'
 
