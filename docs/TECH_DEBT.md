@@ -566,7 +566,8 @@ email verification in place, answer "check your inbox" in both cases and mail th
 `frame-ancestors`, although access and refresh tokens live in `sessionStorage`, where an injected script can read them.
 Development serves the SPA from Vite, so only the `web` container (Compose profile `full`, production) is affected.
 Do it together with the edge reverse proxy (see "Rate limiting and brute-force protection"). Start with
-`Content-Security-Policy-Report-Only`, check fonts, SSE and the auth redirects in a browser, then enforce.
+`Content-Security-Policy-Report-Only`, check fonts, SSE and the auth redirects in a browser, then enforce. Note posters
+are third-party https images, so the policy needs `img-src 'self' https:`.
 
 ## Signing key encryption and rotation (`auth`)
 

@@ -853,3 +853,15 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the title runs in memory, not through the outbox: a restart loses it, and the first-message title
   stays. Old chats are not renamed. The first turn's stream can outlive its `done` by up to the timeout.
 - **Source:** task `docs/tasks/2026-11-08-auto-chat-title.md`, blocks 1–3.
+
+## 2026-11-09 — A note poster is a link the server never fetches
+
+- **Context:** notes get a poster image before there is object storage (S3).
+- **Decision:** `note.notes.poster_url` holds an https link that only the browser loads. The server checks its shape
+  (`PosterUrlNormalizer`: https, a host, no credentials, at most 2048 characters) and never downloads it, so there is no
+  SSRF and nothing to store; whether it loads and is big enough is the SPA's check. `PUT/DELETE /notes/{id}/poster`
+  write it through JDBC without touching `version` or `updated_at` (as pins do), so saving a poster never conflicts
+  with an open text edit.
+- **Consequences:** a dead link is the SPA's "image unavailable" state; the server cannot tell. Moving to S3 needs new
+  columns and a data migration.
+- **Source:** task `docs/tasks/2026-11-09-note-poster.md`, blocks 1–2.

@@ -24,6 +24,8 @@ data class NoteResponse(
     val icon: String? = null,
     /** When the user pinned it; null for an unpinned note. */
     val pinnedAt: Instant? = null,
+    /** The https link of the note's poster; the browser loads it. Null when the note has none. */
+    val posterUrl: String? = null,
 )
 
 data class NoteStatusResponse(
@@ -46,5 +48,6 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     parentNoteId = parentNoteId,
     icon = icon,
     pinnedAt = pinnedAt,
+    posterUrl = posterUrl,
 )
 

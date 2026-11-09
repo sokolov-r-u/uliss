@@ -8,6 +8,7 @@ import java.net.URISyntaxException
  * enough image is the browser's check.
  */
 object PosterUrlNormalizer {
+    const val RULE = "poster must be an https link with a host, no credentials, at most 2048 characters"
     const val MAX_CHARS = 2048
 
     /** The trimmed link; null when it is not an absolute https link with a host and no credentials. */
