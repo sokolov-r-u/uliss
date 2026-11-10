@@ -10,18 +10,36 @@ const IMAGE = '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800"
     + '<rect width="1200" height="800" fill="#1b2433"/><rect x="0" width="600" height="800" fill="#e8d3a8"/>'
     + '<circle cx="300" cy="400" r="160" fill="#c8643c"/><circle cx="900" cy="400" r="160" fill="#6c8cbf"/></svg>'
 
-/** Opens the crop dialog of note n1's [poster]; the image is served once [loaded] settles. */
-async function openCrop(page: Page, poster = POSTER, loaded: Promise<void> = Promise.resolve()): Promise<Locator> {
+type Serving = 'image' | 'held'
+
+/**
+ * Opens the crop dialog of note n1's [poster]. [serving] says how the image is answered when the dialog asks for it;
+ * until then the page gets it at once (`held` answers 404 meanwhile, so nothing cached spares the dialog's request
+ * and the page still settles), and `release` serves the held image.
+ */
+async function openCrop(page: Page, poster = POSTER, serving: Serving = 'image') {
+    let held = false
+    let release: () => void = () => undefined
+    const released = new Promise<void>((resolve) => {
+        release = resolve
+    })
     await page.route('https://posters.example/**', async (route) => {
-        if (route.request().url() === GONE) return route.fulfill({status: 404, body: 'gone'})
-        await loaded
+        if (route.request().url() === GONE || (serving === 'held' && !held)) {
+            return route.fulfill({status: 404, body: 'gone'})
+        }
+        if (held) await released
         return route.fulfill({status: 200, contentType: 'image/svg+xml', body: IMAGE})
     })
     await openRoute(page, '/notes/n1', `poster=${encodeURIComponent(poster)}`)
     const toggle = page.getByRole('button', {name: 'Note details'})
     if (await toggle.getAttribute('aria-pressed') !== 'true') await toggle.click()
-    await page.getByRole('region', {name: 'Poster'}).getByRole('button', {name: 'Crop poster'}).click()
-    return page.getByRole('dialog', {name: 'Crop poster'})
+    const section = page.getByRole('region', {name: 'Poster'})
+    if (serving === 'held') {
+        await expect(section.getByText('Image unavailable')).toBeVisible()
+        held = true
+    }
+    await section.getByRole('button', {name: 'Crop poster'}).click()
+    return {dialog: page.getByRole('dialog', {name: 'Crop poster'}), release}
 }
 
 async function boxOf(locator: Locator) {
@@ -31,7 +49,7 @@ async function boxOf(locator: Locator) {
 }
 
 test('a cropped poster is saved and the panel shows the frame', async ({page}) => {
-    const dialog = await openCrop(page)
+    const {dialog} = await openCrop(page)
     await expect(dialog.getByRole('button', {name: 'Save'})).toBeEnabled()
 
     await dialog.getByRole('button', {name: 'Zoom in'}).click()
@@ -52,11 +70,9 @@ test('a cropped poster is saved and the panel shows the frame', async ({page}) =
 })
 
 test('the crop dialog keeps its size through loading, modes, zoom, reset, saving, a failed save and an unavailable image', async ({page}) => {
-    let release: () => void = () => undefined
-    const loaded = new Promise<void>((resolve) => {
-        release = resolve
-    })
-    const dialog = await openCrop(page, POSTER, loaded)
+    // two page loads and every state of the dialog
+    test.slow()
+    const {dialog, release} = await openCrop(page, POSTER, 'held')
     await expect(dialog.getByText('Loading the image…')).toBeVisible()
     const size = await boxOf(dialog)
     release()
@@ -82,7 +98,7 @@ test('the crop dialog keeps its size through loading, modes, zoom, reset, saving
     expect(await boxOf(dialog)).toEqual(size)
     await dialog.getByRole('button', {name: 'Cancel'}).click()
 
-    const gone = await openCrop(page, GONE)
+    const {dialog: gone} = await openCrop(page, GONE)
     await expect(gone.getByText('Image unavailable')).toBeVisible()
     await expect(gone.getByRole('button', {name: 'Save'})).toBeDisabled()
     expect(await boxOf(gone)).toEqual(size)
@@ -91,7 +107,7 @@ test('the crop dialog keeps its size through loading, modes, zoom, reset, saving
 for (const viewport of [{name: 'desktop', width: 1280, height: 800}, {name: 'phone', width: 360, height: 748}]) {
     test(`the crop dialog on the ${viewport.name}`, async ({page}) => {
         await page.setViewportSize(viewport)
-        const dialog = await openCrop(page)
+        const {dialog} = await openCrop(page)
         await expect(dialog.getByRole('button', {name: 'Save'})).toBeEnabled()
         const box = await dialog.boundingBox()
         // the whole dialog, its actions included, fits the screen
