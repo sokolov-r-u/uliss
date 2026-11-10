@@ -9,4 +9,6 @@ import java.time.Duration
 data class SpeechProperties(
     val maxDuration: Duration = Duration.ofMinutes(5),
     val maxFileSize: DataSize = DataSize.ofMegabytes(10),
+    /** Transcriptions in flight per instance; each holds its recording in memory, so this bounds the heap they take. */
+    val maxConcurrent: Int = 4,
 )

@@ -114,6 +114,8 @@ note:
     # the browser stops recording here; gpt-4o-transcribe truncation on longer files is unverified
     max-duration: 5m
     max-file-size: 10MB
+    # recordings held in memory at once, per instance; one more answers 429
+    max-concurrent: ${NOTE_SPEECH_MAX_CONCURRENT:4}
   outbox:
     poll-interval-ms: 1000
     max-attempts: 3

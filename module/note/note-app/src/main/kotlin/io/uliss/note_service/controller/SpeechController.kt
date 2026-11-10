@@ -24,5 +24,6 @@ class SpeechController(
     /** A missing part is the service's refusal too, so every bad recording answers `UNSUPPORTED_AUDIO`. */
     @PostMapping("/transcriptions", consumes = [MediaType.MULTIPART_FORM_DATA_VALUE])
     fun transcribe(@RequestPart("audio", required = false) audio: MultipartFile?): TranscriptionResponse =
-        TranscriptionResponse(speechTranscriptionService.transcribe(audio?.bytes ?: ByteArray(0), audio?.contentType))
+        // the part itself, not its bytes: the service reads them only once it has accepted the recording
+        TranscriptionResponse(speechTranscriptionService.transcribe(audio?.resource, audio?.contentType))
 }
