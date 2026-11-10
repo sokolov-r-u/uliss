@@ -39,6 +39,8 @@ export * from './components/journal/ListRow'
 export * from './components/journal/EmptyState'
 export * from './components/journal/NoteTitle'
 export * from './components/journal/PosterFrame'
+export * from './components/journal/PosterCropper'
+export * from './components/journal/posterCrop'
 
 export * from './components/navigation/NavRow'
 export * from './components/navigation/SettingsRow'

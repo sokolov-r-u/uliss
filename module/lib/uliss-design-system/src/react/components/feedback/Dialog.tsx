@@ -23,6 +23,8 @@ export interface DialogProps {
     onCancel?: () => void
     /** Greys the confirm action, e.g. a blank title. */
     confirmDisabled?: boolean
+    /** Greys the cancel action and ignores Escape and the backdrop, e.g. while a save runs. */
+    cancelDisabled?: boolean
     /** Exposes `aria-busy` while the confirmed action runs. */
     busy?: boolean
     width?: number
@@ -38,6 +40,7 @@ export function Dialog({
                            onConfirm,
                            onCancel,
                            confirmDisabled = false,
+                           cancelDisabled = false,
                            busy = false,
                            width = 280,
                        }: DialogProps) {
@@ -47,7 +50,8 @@ export function Dialog({
     const titleId = useId()
     const dialogRef = useRef<HTMLDivElement>(null)
 
-    useFocusTrap(dialogRef, {onEscape: onCancel})
+    const cancelNow = cancelDisabled ? undefined : onCancel
+    useFocusTrap(dialogRef, {onEscape: cancelNow})
 
     return (
         <div
@@ -62,7 +66,7 @@ export function Dialog({
                 padding: 28,
             }}
         >
-            {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={onCancel} style={{
+            {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={cancelNow} style={{
                 position: 'absolute',
                 inset: 0,
                 width: '100%',
@@ -119,7 +123,7 @@ export function Dialog({
                 )}
                 {children}
                 <div style={{display: 'flex', justifyContent: 'flex-end', gap: 18, marginTop: 4}}>
-                    <Button variant="ghost" onClick={onCancel}>
+                    <Button variant="ghost" onClick={onCancel} disabled={cancelDisabled}>
                         {cancel}
                     </Button>
                     <Button

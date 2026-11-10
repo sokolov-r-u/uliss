@@ -16,4 +16,5 @@ Every icon in Uliss — one component, a name, a size; inherits `currentColor`.
 - `stop` is the square generation-stop glyph used when an active chat request replaces the send action.
 - `edit` opens a note for editing; `listBullet`, `listNumbered`, `undo` and `redo` belong to `EditorToolbar`.
 - `trash` removes a thing that belongs to the item (a note's poster) behind a confirmation `Dialog`.
+- `crop` opens the poster's `PosterCropper`.
 - `retry` repeats a failed action on the same input — the chat dock offers it after a failed transcription.
