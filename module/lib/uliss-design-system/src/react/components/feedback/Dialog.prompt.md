@@ -30,3 +30,5 @@ Confirmation before anything irreversible.
   focuses its `[autofocus]` element or the first focusable one (a field in `children` comes before the buttons), traps Tab/Shift+Tab, closes on Escape or
   backdrop activation, and restores the previously focused control on unmount (`useFocusTrap`). A parent re-render
   with a new `onCancel` does not move focus.
+- A dialog taller than the screen (a cropper on a short phone) scrolls inside the overlay; its title and actions
+  stay reachable.

@@ -103,16 +103,28 @@ export function PosterCropper({
     // screen px per image px
     const scale = active ? (poster ? frameWidth : circle) / active.size : 1
 
+    // the crop last sent up: several pointer or wheel events can arrive before the host renders it
+    const latest = useRef(value)
+    latest.current = value
+    const current = () => fromFractions(mode, latest.current[mode], imageWidth, imageHeight)
+
     const set = (frame: PixelFrame) => {
         if (!live) return
         const kept = clampFrame(mode, frame, imageWidth, imageHeight)
-        onChange({...value, [mode]: toFractions(mode, kept, imageWidth, imageHeight)})
+        const next = {...latest.current, [mode]: toFractions(mode, kept, imageWidth, imageHeight)}
+        latest.current = next
+        onChange(next)
     }
     const moveBy = (dx: number, dy: number) => {
-        if (active) set({...active, cx: active.cx - dx / scale, cy: active.cy - dy / scale})
+        if (!live) return
+        const now = current()
+        const nowScale = (poster ? frameWidth : circle) / now.size
+        set({...now, cx: now.cx - dx / nowScale, cy: now.cy - dy / nowScale})
     }
     const zoomBy = (factor: number) => {
-        if (active) set({...active, size: active.size / factor})
+        if (!live) return
+        const now = current()
+        set({...now, size: now.size / factor})
     }
 
     // React's wheel listener is passive, so the page would scroll too
@@ -123,7 +135,8 @@ export function PosterCropper({
         if (!element) return
         const listener = (event: WheelEvent) => {
             event.preventDefault()
-            wheel.current(event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP)
+            // a sideways swipe is not a zoom
+            if (event.deltaY !== 0) wheel.current(event.deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP)
         }
         element.addEventListener('wheel', listener, {passive: false})
         return () => element.removeEventListener('wheel', listener)

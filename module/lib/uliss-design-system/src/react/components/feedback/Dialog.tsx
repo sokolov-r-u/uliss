@@ -60,8 +60,8 @@ export function Dialog({
                 inset: 0,
                 zIndex: 1100,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                // a dialog taller than the screen scrolls; margin: auto centres it without cutting its top off
+                overflowY: 'auto',
                 background: 'var(--scrim)',
                 padding: 28,
             }}
@@ -84,6 +84,7 @@ export function Dialog({
                 aria-busy={busy || undefined}
                 style={{
                     position: 'relative',
+                    margin: 'auto',
                     width: '100%',
                     maxWidth: width,
                     background: 'var(--bg-panel)',

@@ -1,4 +1,4 @@
-import {render, screen} from '@testing-library/react'
+import {fireEvent, render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {useState} from 'react'
 import {describe, expect, it, vi} from 'vitest'
@@ -42,6 +42,56 @@ describe('PosterCropper', () => {
         expect(screen.getByText('115%')).toBeInTheDocument()
         await user.keyboard('-')
         expect(screen.getByText('100%')).toBeInTheDocument()
+    })
+
+    it('moves the frame against a drag, so the image follows the pointer, and zooms with the wheel', () => {
+        const onChange = vi.fn()
+        render(<Harness onChange={onChange}/>)
+        const stage = screen.getByRole('group', {name: /Panel frame 2:3/})
+
+        // the 400 px frame is 216 screen px: 54 screen px are 100 image px
+        fireEvent.pointerDown(stage, {pointerId: 1, clientX: 100, clientY: 100})
+        fireEvent.pointerMove(stage, {pointerId: 1, clientX: 154, clientY: 100})
+        fireEvent.pointerUp(stage, {pointerId: 1, clientX: 154, clientY: 100})
+        expect(last(onChange).poster.x).toBeCloseTo(0.2, 6)
+
+        fireEvent.pointerMove(stage, {pointerId: 1, clientX: 300, clientY: 100})
+        expect(onChange).toHaveBeenCalledTimes(1)
+
+        fireEvent.wheel(stage, {deltaY: -100})
+        expect(last(onChange).poster.w).toBeCloseTo(0.4 / 1.08, 5)
+        fireEvent.wheel(stage, {deltaY: 100})
+        expect(last(onChange).poster.w).toBeCloseTo(0.4, 5)
+    })
+
+    it('keeps every step of a burst of events that arrive before the next render', () => {
+        const onChange = vi.fn()
+        // the value does not change: the host has not rendered the first step yet
+        render(<PosterCropper src="https://example.com/p.jpg" imageWidth={W} imageHeight={H} mode="poster"
+                              onModeChange={vi.fn()} value={defaultCrop(W, H)} onChange={onChange}/>)
+        const stage = screen.getByRole('group', {name: /Panel frame 2:3/})
+
+        fireEvent.wheel(stage, {deltaY: -100})
+        fireEvent.wheel(stage, {deltaY: -100})
+        expect(last(onChange).poster.w).toBeCloseTo(0.4 / 1.08 / 1.08, 5)
+    })
+
+    it('ignores a sideways wheel', () => {
+        const onChange = vi.fn()
+        render(<Harness onChange={onChange}/>)
+
+        fireEvent.wheel(screen.getByRole('group', {name: /Panel frame 2:3/}), {deltaX: 40, deltaY: 0})
+        expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it('moves four times further with Shift held', async () => {
+        const user = userEvent.setup()
+        const onChange = vi.fn()
+        render(<Harness onChange={onChange}/>)
+        screen.getByRole('group', {name: /Panel frame 2:3/}).focus()
+
+        await user.keyboard('{Shift>}{ArrowLeft}{/Shift}')
+        expect(last(onChange).poster.x).toBeCloseTo(0.3 - 32 / 0.54 / 1000, 5)
     })
 
     it('zooms with the buttons only within the limits and resets the active frame', async () => {

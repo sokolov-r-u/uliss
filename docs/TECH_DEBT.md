@@ -827,3 +827,11 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   container runs as `linux/amd64` under emulation; `visual.spec.ts` screenshots of `chat · desktop` and
   `reduced-motion` failed once and passed on the next run. Find what re-renders the place picker after a move, or wait
   for the panel to settle in those specs, before the next panel task (found in `docs/tasks/2026-11-09-note-poster.md`).
+
+## A poster save racing the note's deletion answers 500 (`note`)
+
+- `NotePosterStore.save` inserts `INSERT … SELECT … FROM note.notes WHERE id AND user_id ON CONFLICT DO UPDATE`
+  (task `docs/tasks/2026-11-10-note-poster-crop.md`). If the note is deleted and committed between that `SELECT` and
+  the insert, the foreign key fails and the `DataIntegrityViolationException` surfaces as 500 instead of 404. Needs a
+  delete and a `PUT …/poster` of the same note at the same moment; map the violation to "not found" in the store when
+  it is seen in practice (found by the code review).

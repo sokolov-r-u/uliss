@@ -12,6 +12,7 @@ import {
     renameNote,
     requestChatSummary,
     resummarizeNote,
+    setNotePoster,
     streamNoteStatus,
     updateNote,
     noteChangedAt,
@@ -192,6 +193,40 @@ describe('noteApi', () => {
 
         mockedFetch.mockRejectedValueOnce(new TypeError('offline'))
         await expect(listNotes()).rejects.toMatchObject({kind: 'transport'})
+    })
+
+    it('reads a poster with its crop, without one, and none at all', async () => {
+        const crop = {poster: {x: 0.1, y: 0, w: 0.4, h: 1}, avatar: {x: 0.2, y: 0.1, w: 0.5, h: 0.75}}
+        const note = {id: 'n-1', source: 'MANUAL', status: 'READY', content: 'x'}
+        mockedFetch.mockResolvedValueOnce(jsonResponse({...note, poster: {url: 'https://p.example/a.jpg', crop}}))
+        mockedFetch.mockResolvedValueOnce(jsonResponse({...note, poster: {url: 'https://p.example/a.jpg', crop: null}}))
+        mockedFetch.mockResolvedValueOnce(jsonResponse({...note, poster: null}))
+
+        expect((await getNote('n-1')).poster).toEqual({url: 'https://p.example/a.jpg', crop})
+        expect((await getNote('n-1')).poster).toEqual({url: 'https://p.example/a.jpg'})
+        expect((await getNote('n-1')).poster).toBeUndefined()
+    })
+
+    it('rejects a poster crop that is not two frames of finite numbers', async () => {
+        const note = {id: 'n-1', source: 'MANUAL', status: 'READY', content: 'x'}
+        const frame = {x: 0, y: 0, w: 0.5, h: 0.5}
+        for (const crop of [{poster: frame}, {poster: frame, avatar: {...frame, w: '0.5'}}, 'frames']) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse({...note, poster: {url: 'https://p.example/a.jpg', crop}}))
+            await expect(getNote('n-1')).rejects.toMatchObject({kind: 'protocol'})
+        }
+    })
+
+    it('sends the crop with the poster link only when there is one', async () => {
+        const crop = {poster: {x: 0.1, y: 0, w: 0.4, h: 1}, avatar: {x: 0.2, y: 0, w: 0.6, h: 1}}
+        const note = {id: 'n-1', source: 'MANUAL', status: 'READY', content: 'x', poster: {url: 'https://p.example/a.jpg'}}
+        mockedFetch.mockImplementation(async () => jsonResponse(note))
+
+        await setNotePoster('n-1', 'https://p.example/a.jpg', crop)
+        await setNotePoster('n-1', 'https://p.example/a.jpg')
+
+        const bodies = mockedFetch.mock.calls.map(([, init]) => JSON.parse(String(init?.body)))
+        expect(bodies).toEqual([{url: 'https://p.example/a.jpg', crop}, {url: 'https://p.example/a.jpg'}])
+        expect(mockedFetch.mock.calls[0]).toEqual(['/note/notes/n-1/poster', expect.objectContaining({method: 'PUT'})])
     })
 
     it('rejects malformed note payloads', async () => {
