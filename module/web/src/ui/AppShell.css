@@ -816,7 +816,6 @@
 }
 
 .list-month {
-    display: none;
     padding: 14px 0 10px;
 }
 
@@ -1097,10 +1096,6 @@
     .context-panel-resize:focus-visible {
         outline: none;
         background: var(--line-strong);
-    }
-
-    .list-month {
-        display: block;
     }
 
     .product-list {
