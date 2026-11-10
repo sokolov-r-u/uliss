@@ -1,6 +1,7 @@
 import fc from 'fast-check'
 import {describe, expect, it} from 'vitest'
 import {
+    avatarImageBox,
     clampFrame,
     CROP_MIN_PX,
     type CropFrame,
@@ -82,5 +83,22 @@ describe('posterCrop', () => {
         })
         expect(fitCrop(null, 1000, 600)).toEqual(defaultCrop(1000, 600))
         expect(zoomPercent('avatar', {cx: 500, cy: 300, size: 300}, 1000, 600)).toBe(200)
+    })
+
+    it('places the image so the avatar frame fills exactly the circle\'s square, or its centre without a frame', () => {
+        const frame = fc.record({x: fraction, y: fraction, w: fc.double({min: 0.01, max: 1, noNaN: true}),
+            h: fc.double({min: 0.01, max: 1, noNaN: true})})
+            .filter((f) => f.x + f.w <= 1 && f.y + f.h <= 1)
+        const at = fc.double({min: -1000, max: 1000, noNaN: true})
+        const radius = fc.double({min: 1, max: 40, noNaN: true})
+        fc.assert(fc.property(frame, at, at, radius, (crop, cx, cy, r) => {
+            const box = avatarImageBox(crop, cx, cy, r)
+
+            expect(box.x + crop.x * box.width).toBeCloseTo(cx - r, 6)
+            expect(box.x + (crop.x + crop.w) * box.width).toBeCloseTo(cx + r, 6)
+            expect(box.y + crop.y * box.height).toBeCloseTo(cy - r, 6)
+            expect(box.y + (crop.y + crop.h) * box.height).toBeCloseTo(cy + r, 6)
+        }))
+        expect(avatarImageBox(null, 50, 40, 10)).toEqual({x: 40, y: 30, width: 20, height: 20})
     })
 })

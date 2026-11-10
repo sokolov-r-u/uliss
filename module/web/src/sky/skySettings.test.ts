@@ -20,6 +20,13 @@ describe('sky settings', () => {
         expect(parseSkySettings({labels: 'loud', glow: 'yes', starSize: 7, extra: true})).toEqual(DEFAULT_SKY_SETTINGS)
     })
 
+    it('shows posters by default at the regular size, and keeps their own size apart from the stars\'', () => {
+        expect(DEFAULT_SKY_SETTINGS).toMatchObject({posters: true, posterSize: 'regular'})
+        expect(parseSkySettings({posters: false, posterSize: 'beacon', starSize: 'fine'}))
+            .toMatchObject({posters: false, posterSize: 'beacon', starSize: 'fine'})
+        expect(parseSkySettings({posters: 'no', posterSize: 'huge'})).toMatchObject({posters: true, posterSize: 'regular'})
+    })
+
     it('keeps every valid value and clamps the dials', () => {
         const parsed = parseSkySettings({
             labels: 'always', colour: 'mono', mixColours: true, secondaryStyle: 'solid', centerMark: 'star',

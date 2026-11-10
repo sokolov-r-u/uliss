@@ -1,6 +1,8 @@
-import {act, fireEvent, render, screen} from '@testing-library/react'
-import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {AVATAR_RADIUS} from '@uliss/design-system'
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react'
+import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
 import type {Sky} from '../constellations/constellationApi'
+import {resetAvatarsForTest} from './posterAvatars'
 import {SkyCanvas} from './SkyCanvas'
 import {skyMemory} from './skyMemory'
 import {buildSkyGraph, subgraph} from './skyModel'
@@ -209,5 +211,98 @@ describe('SkyCanvas keyboard', () => {
 
         fireEvent.keyDown(bowie, {key: 'Escape'})
         expect(bowie).not.toHaveFocus()
+    })
+})
+
+describe('SkyCanvas poster avatars', () => {
+    const POSTER = 'https://images.example.com/low.jpg'
+    const POSTER_SKY: Sky = {...SKY, notes: SKY.notes.map((note) => note.id === 'low'
+        ? {...note, poster: {url: POSTER, avatar: {x: 0.25, y: 0, w: 0.5, h: 0.5}}} : note)}
+
+    class FakeImage {
+        static made: FakeImage[] = []
+        onload: (() => void) | null = null
+        onerror: (() => void) | null = null
+        src = ''
+
+        constructor() {
+            FakeImage.made.push(this)
+        }
+    }
+
+    beforeEach(() => {
+        skyMemory.canvas = null
+        FakeImage.made = []
+        vi.stubGlobal('Image', FakeImage)
+        resetAvatarsForTest()
+    })
+    afterEach(() => vi.unstubAllGlobals())
+
+    function renderPosterSky(settings: Partial<SkySettings> = {}, selectedId: string | null = null) {
+        const graph = buildSkyGraph(POSTER_SKY)
+        const all = {...DEFAULT_SKY_SETTINGS, ...settings}
+        return render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null} settings={all}
+                                 physics={skyPhysics(all)} selectedId={selectedId} onPickStar={vi.fn()} onFocus={vi.fn()}
+                                 onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
+    }
+
+    const low = () => screen.getByRole('button', {name: 'Low'})
+    const settle = async (ok: boolean) => {
+        await waitFor(() => expect(FakeImage.made.map((image) => image.src)).toEqual([POSTER]))
+        act(() => ok ? FakeImage.made[0].onload?.() : FakeImage.made[0].onerror?.())
+    }
+    const clipRadius = () => low().querySelector('clipPath circle')?.getAttribute('r')
+
+    it('draws the plain star while the poster loads, then the avatar sized by Poster size alone', async () => {
+        const {rerender} = renderPosterSky({posterSize: 'beacon', starSize: 'fine'})
+        expect(low().querySelector('image')).toBeNull()
+
+        await settle(true)
+
+        const image = low().querySelector('image')!
+        expect(image.getAttribute('href')).toBe(POSTER)
+        expect(clipRadius()).toBe(String(AVATAR_RADIUS.beacon))
+        // the ring takes the star's own colour, the one its parent's constellation gives the plain star
+        const bowieFill = screen.getByRole('button', {name: 'Bowie'}).querySelectorAll('circle')[3].getAttribute('fill')
+        expect(low().querySelector(`circle[stroke="${bowieFill}"]`)).not.toBeNull()
+
+        const graph = buildSkyGraph(POSTER_SKY)
+        const bigStars = {...DEFAULT_SKY_SETTINGS, posterSize: 'beacon' as const, starSize: 'beacon' as const}
+        rerender(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null} settings={bigStars}
+                            physics={skyPhysics(bigStars)} selectedId={null} onPickStar={vi.fn()} onFocus={vi.fn()}
+                            onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
+        expect(clipRadius()).toBe(String(AVATAR_RADIUS.beacon))
+    })
+
+    it('keeps the plain star when the poster fails to load', async () => {
+        renderPosterSky()
+        await settle(false)
+
+        expect(low().querySelector('image')).toBeNull()
+        expect(low().querySelector('circle[r="3.2"]')).not.toBeNull()
+    })
+
+    it('requests no image and draws stars while Posters in the sky is off', async () => {
+        renderPosterSky({posters: false})
+        await act(() => new Promise((resolve) => setTimeout(resolve, 30)))
+
+        expect(FakeImage.made).toEqual([])
+        expect(document.querySelector('.sky-svg image')).toBeNull()
+    })
+
+    it('rings a picked avatar closer than a star, and picks it from its own larger hit area', async () => {
+        renderPosterSky({nearCount: 0, posterSize: 'beacon'}, 'low')
+        await settle(true)
+
+        const r = AVATAR_RADIUS.beacon
+        expect(low().querySelector('circle[stroke="var(--accent)"]')!.getAttribute('r')).toBe(String(r + 5))
+        const hit = low().querySelector('circle[fill="transparent"]')!
+        expect(hit.getAttribute('r')).toBe(String(r + 3))
+
+        // 15 px off the centre: outside a star's 13 px, inside the beacon avatar's 17 px
+        const x = Number(hit.getAttribute('cx'))
+        const y = Number(hit.getAttribute('cy'))
+        fireEvent.pointerMove(frame(), {clientX: x + 15, clientY: y, pointerType: 'mouse'})
+        expect(document.querySelector('text.sky-name.hovered')?.textContent).toBe('Low')
     })
 })

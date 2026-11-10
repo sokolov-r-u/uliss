@@ -182,6 +182,27 @@ describe('constellationApi', () => {
         await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
     })
 
+    it('reads a star\'s poster with its avatar frame, without one, or none, and rejects a broken frame', async () => {
+        const star = (poster: unknown) => ({id: 'low', title: 'Low', parentNoteId: null,
+            createdAt: '2026-10-20T10:00:00Z', memberships: [], poster})
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [
+            star({url: 'https://example.com/a.jpg', avatar: {x: 0.25, y: 0.5, w: 0.5, h: 0.3333}}),
+            star({url: 'https://example.com/b.jpg', avatar: null}),
+            star(null),
+        ]}))
+        const notes = (await getSky()).notes
+        expect(notes[0].poster).toEqual({url: 'https://example.com/a.jpg', avatar: {x: 0.25, y: 0.5, w: 0.5, h: 0.3333}})
+        expect(notes[1].poster).toEqual({url: 'https://example.com/b.jpg'})
+        expect(notes[2]).not.toHaveProperty('poster')
+
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [
+            star({url: 'https://example.com/a.jpg', avatar: {x: 0, y: 0, w: 'wide', h: 1}}),
+        ]}))
+        await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [star({url: ''})]}))
+        await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
+    })
+
     it('carries the code of a refused move', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({code: 'NOTE_MOVE_CYCLE'}, 409))
 
