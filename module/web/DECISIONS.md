@@ -386,3 +386,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   "Constellation size", shown while "Posters in the sky" is on; "Star size" no longer changes avatars. Replaces "radius by Star size" in the design system's entry
   "The sky avatar is an SVG group sized by numbers…" and the PROT.
 - **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, manual check 1.
+
+## 2026-11-10 — Only a change of forces re-heats the sky; a click picks the nearest node at its point
+
+- **Context:** the code review and the task's layout check: every sky setting re-ran `applyPhysics`, which restarts
+  the simulation, so turning posters off, Glow or a size nudged the sky; and with avatars' larger hit areas the node
+  painted on top took clicks meant for a nearer one.
+- **Decision:** `SkyCanvas` re-applies physics only when `skyForceKey` (link distance, tension, repulsion, gravity,
+  alpha decay, secondary pull) changes; sizes, colours, names and posters redraw without moving the layout. A click
+  with a point resolves to the nearest pickable node whose own hit area holds it (from the positions at that moment,
+  not the last render); a click without one (keyboard) keeps its node.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, code review rounds 1–2.
