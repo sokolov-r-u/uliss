@@ -78,8 +78,13 @@ object SchemaSnapshotRenderer {
     /** PK and FK marks of a column; the full definitions are in the constraint list. */
     private fun keys(table: TableSchema, column: String): String {
         val primary = table.constraints.any { it.type == 'p' && column in it.columns }
+        // a composite key pairs columns by position, so each column shows the column it really references
         val targets = table.constraints.filter { it.type == 'f' && column in it.columns }
-            .mapNotNull { it.references }.distinct().sorted()
+            .map { fk ->
+                val target = fk.referencedColumns.getOrNull(fk.columns.indexOf(column))
+                listOfNotNull(fk.references, target).joinToString(".")
+            }
+            .distinct().sorted()
         return (listOfNotNull("PK".takeIf { primary }) + targets.map { "FK → $it" }).joinToString(", ")
     }
 

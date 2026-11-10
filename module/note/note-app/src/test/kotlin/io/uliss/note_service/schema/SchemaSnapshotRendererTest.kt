@@ -19,7 +19,7 @@ class SchemaSnapshotRendererTest {
             TableConstraint("note_posters_pkey", 'p', "PRIMARY KEY (note_id)", listOf("note_id")),
             TableConstraint(
                 "note_posters_note_id_fkey", 'f',
-                "FOREIGN KEY (note_id) REFERENCES note.notes(id) ON DELETE CASCADE", listOf("note_id"), "notes",
+                "FOREIGN KEY (note_id) REFERENCES note.notes(id) ON DELETE CASCADE", listOf("note_id"), "notes", listOf("id"),
             ),
         ),
         indexes = emptyList(),
@@ -76,7 +76,7 @@ class SchemaSnapshotRendererTest {
             |
             || Column | Type | Null | Default | Key |
             ||---|---|---|---|---|
-            || `note_id` | `uuid` | no |  | PK, FK → notes |
+            || `note_id` | `uuid` | no |  | PK, FK → notes.id |
             || `url` | `character varying(2048)` | no |  |  |
             || `crop` | `jsonb` | yes |  |  |
             |

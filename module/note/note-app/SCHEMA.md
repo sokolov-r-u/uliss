@@ -28,7 +28,7 @@ User notes and their posters.
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
 | `id` | `uuid` | no |  | PK |
-| `user_id` | `uuid` | no |  | FK → notes |
+| `user_id` | `uuid` | no |  | FK → notes.user_id |
 | `content` | `text` | yes |  |  |
 | `status` | `character varying(16)` | no | `'READY'::character varying` |  |
 | `created_at` | `timestamp with time zone` | no |  |  |
@@ -38,7 +38,7 @@ User notes and their posters.
 | `updated_by` | `character varying(64)` | no |  |  |
 | `source` | `character varying(16)` | no | `'MANUAL'::character varying` |  |
 | `title` | `character varying(50)` | yes |  |  |
-| `parent_note_id` | `uuid` | yes |  | FK → notes |
+| `parent_note_id` | `uuid` | yes |  | FK → notes.id |
 | `icon` | `character varying(32)` | yes |  |  |
 | `pinned_at` | `timestamp with time zone` | yes |  |  |
 | `idempotency_key` | `uuid` | yes |  |  |
@@ -65,7 +65,7 @@ Indexes:
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `note_id` | `uuid` | no |  | PK, FK → notes |
+| `note_id` | `uuid` | no |  | PK, FK → notes.id |
 | `url` | `character varying(2048)` | no |  |  |
 | `crop` | `jsonb` | yes |  |  |
 
@@ -83,8 +83,8 @@ A user's tree of constellations and the notes placed in them.
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
 | `id` | `uuid` | no |  | PK |
-| `user_id` | `uuid` | no |  | FK → constellations |
-| `parent_id` | `uuid` | yes |  | FK → constellations |
+| `user_id` | `uuid` | no |  | FK → constellations.user_id |
+| `parent_id` | `uuid` | yes |  | FK → constellations.id |
 | `name` | `character varying(40)` | no |  |  |
 | `hue` | `smallint` | yes |  |  |
 | `lightness` | `character varying(8)` | yes |  |  |
@@ -111,9 +111,9 @@ Indexes:
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `note_id` | `uuid` | no |  | PK, FK → notes |
-| `constellation_id` | `uuid` | no |  | PK, FK → constellations |
-| `user_id` | `uuid` | no |  | FK → constellations, FK → notes |
+| `note_id` | `uuid` | no |  | PK, FK → notes.id |
+| `constellation_id` | `uuid` | no |  | PK, FK → constellations.id |
+| `user_id` | `uuid` | no |  | FK → constellations.user_id, FK → notes.user_id |
 | `is_main` | `boolean` | no |  |  |
 | `added_at` | `timestamp with time zone` | no |  |  |
 
@@ -164,8 +164,8 @@ Indexes:
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
 | `id` | `uuid` | no |  | PK |
-| `user_id` | `uuid` | no |  | FK → chat |
-| `chat_id` | `uuid` | no |  | FK → chat |
+| `user_id` | `uuid` | no |  | FK → chat.user_id |
+| `chat_id` | `uuid` | no |  | FK → chat.id |
 | `idempotency_key` | `uuid` | no |  |  |
 | `request_fingerprint` | `bytea` | no |  |  |
 | `status` | `character varying(16)` | no |  |  |
@@ -194,8 +194,8 @@ Indexes:
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
 | `id` | `uuid` | no |  | PK |
-| `chat_id` | `uuid` | no |  | FK → chat, FK → chat_turn |
-| `turn_id` | `uuid` | yes |  | FK → chat_turn |
+| `chat_id` | `uuid` | no |  | FK → chat.id, FK → chat_turn.chat_id |
+| `turn_id` | `uuid` | yes |  | FK → chat_turn.id |
 | `role` | `character varying(16)` | no |  |  |
 | `status` | `character varying(16)` | no |  |  |
 | `content` | `text` | no |  |  |
@@ -222,13 +222,13 @@ Indexes:
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `chat_id` | `uuid` | no |  | PK, FK → chat, FK → chat_message |
-| `note_id` | `uuid` | no |  | PK, FK → notes |
+| `chat_id` | `uuid` | no |  | PK, FK → chat.id, FK → chat_message.chat_id |
+| `note_id` | `uuid` | no |  | PK, FK → notes.id |
 | `created_at` | `timestamp with time zone` | no |  |  |
 | `updated_at` | `timestamp with time zone` | no |  |  |
 | `version` | `bigint` | yes |  |  |
-| `summarized_through_message_id` | `uuid` | yes |  | FK → chat_message |
-| `user_id` | `uuid` | no |  | FK → chat, FK → notes |
+| `summarized_through_message_id` | `uuid` | yes |  | FK → chat_message.id |
+| `user_id` | `uuid` | no |  | FK → chat.user_id, FK → notes.user_id |
 
 Constraints:
 
@@ -251,11 +251,11 @@ Idempotency and in-flight state of chat summarize requests.
 
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
-| `user_id` | `uuid` | no |  | PK, FK → chat, FK → notes |
+| `user_id` | `uuid` | no |  | PK, FK → chat.user_id, FK → notes.user_id |
 | `idempotency_key` | `uuid` | no |  | PK |
-| `chat_id` | `uuid` | no |  | FK → chat, FK → chat_message |
-| `through_message_id` | `uuid` | no |  | FK → chat_message |
-| `note_id` | `uuid` | no |  | FK → notes |
+| `chat_id` | `uuid` | no |  | FK → chat.id, FK → chat_message.chat_id |
+| `through_message_id` | `uuid` | no |  | FK → chat_message.id |
+| `note_id` | `uuid` | no |  | FK → notes.id |
 | `created_at` | `timestamp with time zone` | no |  |  |
 | `updated_at` | `timestamp with time zone` | no |  |  |
 | `version` | `bigint` | yes |  |  |
@@ -283,8 +283,8 @@ Embedded note chunks for retrieval, owned per user and note.
 | Column | Type | Null | Default | Key |
 |---|---|---|---|---|
 | `id` | `uuid` | no | `gen_random_uuid()` | PK |
-| `user_id` | `uuid` | no |  | FK → notes |
-| `note_id` | `uuid` | no |  | FK → notes |
+| `user_id` | `uuid` | no |  | FK → notes.user_id |
+| `note_id` | `uuid` | no |  | FK → notes.id |
 | `chunk_index` | `integer` | no |  |  |
 | `content` | `text` | no |  |  |
 | `metadata` | `jsonb` | no | `'{}'::jsonb` |  |

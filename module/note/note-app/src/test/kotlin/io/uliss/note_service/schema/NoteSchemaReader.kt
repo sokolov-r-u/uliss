@@ -21,10 +21,11 @@ class NoteSchemaReader(private val jdbcTemplate: JdbcTemplate) {
     ) { rs, _ -> SchemaExtension(rs.getString(1), rs.getString(2), rs.getString(3)) }
 
     /** Objects of the schema that the table view and the extension list do not show, as "kind name". */
-    fun strayObjects(): List<String> = jdbcTemplate.queryForList(STRAY_OBJECTS_SQL, String::class.java).filterNotNull()
+    fun strayObjects(): List<String> =
+        jdbcTemplate.queryForList(STRAY_OBJECTS_SQL, String::class.java).filterNotNull().sorted()
 
     fun table(table: String): TableSchema {
-        val relation = "$SCHEMA.$table"
+        val relation = "\"$SCHEMA\".\"${table.replace("\"", "\"\"")}\""
         val comment = jdbcTemplate.queryForObject(
             "SELECT obj_description(?::regclass, 'pg_class')", String::class.java, relation,
         )
@@ -44,7 +45,7 @@ class NoteSchemaReader(private val jdbcTemplate: JdbcTemplate) {
         val constraints = jdbcTemplate.query(CONSTRAINTS_SQL, { rs, _ ->
             TableConstraint(
                 rs.getString("conname"), rs.getString("contype").single(), rs.getString("definition"),
-                rs.getString("columns").split(','), rs.getString("references"),
+                names(rs.getArray("columns")), rs.getString("references"), names(rs.getArray("referenced_columns")),
             )
         }, relation)
         val indexes = jdbcTemplate.query(INDEXES_SQL, { rs, _ ->
@@ -54,13 +55,22 @@ class NoteSchemaReader(private val jdbcTemplate: JdbcTemplate) {
         return TableSchema(table, comment, columns, constraints, indexes)
     }
 
+    private fun names(array: java.sql.Array): List<String> = (array.array as Array<*>).map { it.toString() }
+
     private companion object {
         const val SCHEMA = "note"
 
         val COLUMNS_SQL = """
-            SELECT a.attname, format_type(a.atttypid, a.atttypmod) AS type, a.attnotnull, a.attidentity,
-                   a.attgenerated, pg_get_expr(d.adbin, d.adrelid) AS expr, col_description(a.attrelid, a.attnum) AS comment
-            FROM pg_attribute a LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
+            SELECT a.attname,
+                   format_type(a.atttypid, a.atttypmod) ||
+                       CASE WHEN a.attcollation <> t.typcollation THEN ' COLLATE ' || quote_ident(co.collname) ELSE '' END
+                       AS type,
+                   a.attnotnull, a.attidentity, a.attgenerated, pg_get_expr(d.adbin, d.adrelid) AS expr,
+                   col_description(a.attrelid, a.attnum) AS comment
+            FROM pg_attribute a
+                JOIN pg_type t ON t.oid = a.atttypid
+                LEFT JOIN pg_collation co ON co.oid = a.attcollation
+                LEFT JOIN pg_attrdef d ON d.adrelid = a.attrelid AND d.adnum = a.attnum
             WHERE a.attrelid = ?::regclass AND a.attnum > 0 AND NOT a.attisdropped
             ORDER BY a.attnum
         """.trimIndent()
@@ -68,9 +78,12 @@ class NoteSchemaReader(private val jdbcTemplate: JdbcTemplate) {
         // NOT NULL constraints (contype 'n', PG 18) are already the Null column
         val CONSTRAINTS_SQL = """
             SELECT c.conname, c.contype, pg_get_constraintdef(c.oid, true) AS definition,
-                   (SELECT string_agg(a.attname, ',' ORDER BY k.ord) FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
-                    JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum) AS columns,
-                   (SELECT r.relname FROM pg_class r WHERE r.oid = c.confrelid) AS references
+                   ARRAY(SELECT a.attname::text FROM unnest(c.conkey) WITH ORDINALITY k(attnum, ord)
+                         JOIN pg_attribute a ON a.attrelid = c.conrelid AND a.attnum = k.attnum ORDER BY k.ord) AS columns,
+                   (SELECT r.relname FROM pg_class r WHERE r.oid = c.confrelid) AS references,
+                   ARRAY(SELECT a.attname::text FROM unnest(c.confkey) WITH ORDINALITY k(attnum, ord)
+                         JOIN pg_attribute a ON a.attrelid = c.confrelid AND a.attnum = k.attnum ORDER BY k.ord)
+                       AS referenced_columns
             FROM pg_constraint c
             WHERE c.conrelid = ?::regclass AND c.contype IN ('p', 'u', 'f', 'c', 'x')
             ORDER BY array_position(ARRAY['p', 'u', 'x', 'f', 'c'], c.contype::text), c.conname
@@ -115,6 +128,14 @@ class NoteSchemaReader(private val jdbcTemplate: JdbcTemplate) {
                 UNION ALL
                 SELECT 'policy', p.polname || ' on ' || c.relname, 'pg_policy'::regclass, p.oid
                 FROM pg_policy p JOIN pg_class c ON c.oid = p.polrelid JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = '$SCHEMA'
+                UNION ALL
+                SELECT 'rule', r.rulename || ' on ' || c.relname, 'pg_rewrite'::regclass, r.oid
+                FROM pg_rewrite r JOIN pg_class c ON c.oid = r.ev_class JOIN pg_namespace n ON n.oid = c.relnamespace
+                WHERE n.nspname = '$SCHEMA' AND r.rulename <> '_RETURN'
+                UNION ALL
+                SELECT 'statistics', s.stxname, 'pg_statistic_ext'::regclass, s.oid
+                FROM pg_statistic_ext s JOIN pg_namespace n ON n.oid = s.stxnamespace
                 WHERE n.nspname = '$SCHEMA'
             ) o
             WHERE NOT EXISTS (SELECT 1 FROM pg_depend d
