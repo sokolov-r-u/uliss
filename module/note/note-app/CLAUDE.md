@@ -30,6 +30,8 @@ note-service.
   synchronized web tests/changes.
 - Flyway migrations are append-only. Add a new versioned migration for every schema change; never edit an existing
   migration. Preserve the service-owned `note` schema and pgvector compatibility.
+- After a schema change run `./gradlew :note:updateSchemaSnapshot` and commit the regenerated `SCHEMA.md` with the
+  migration; a new table first needs a section in `NoteSchemaSections` (test code).
 - Message pagination is limited to the existing browser-history contract.
 - Initial chat creation and first-turn reservation happen in one transaction, deriving the first-message title there.
   The frontend must not generate chat IDs or titles. A newly created chat (not a replayed key) is then named by one

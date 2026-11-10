@@ -38,3 +38,22 @@ dependencies {
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
+
+// SCHEMA.md: NoteSchemaSnapshotIntegrationTest compares it, updateSchemaSnapshot rewrites it
+val schemaSnapshot = layout.projectDirectory.file("SCHEMA.md")
+
+tasks.withType<Test>().configureEach {
+    systemProperty("note.schema.file", schemaSnapshot.asFile.absolutePath)
+    inputs.files(schemaSnapshot).withPropertyName("schemaSnapshot").optional()
+}
+
+tasks.register<Test>("updateSchemaSnapshot") {
+    description = "Rewrites SCHEMA.md from the note schema after all migrations (Docker/Testcontainers)."
+    group = "verification"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    useJUnitPlatform { includeTags("integration") }
+    filter { includeTestsMatching("io.uliss.note_service.schema.NoteSchemaSnapshotIntegrationTest") }
+    systemProperty("note.schema.update", "true")
+    outputs.upToDateWhen { false }
+}
