@@ -1,6 +1,7 @@
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {parseSseStream} from '../lib/sse'
 import {errorCode, isRecord, segment} from '../lib/apiHelpers'
+import type {CropFrame, PosterCrop} from '@uliss/design-system'
 
 export type NoteStatus = 'GENERATING' | 'READY' | 'FAILED'
 export type NoteSource = 'MANUAL' | 'CHAT_SUMMARY'
@@ -23,14 +24,20 @@ export interface Note {
     icon?: string
     /** When the user pinned it; absent for an unpinned note. */
     pinnedAt?: string
-    /** The https link of the note's poster, loaded by the browser; absent for none. */
-    posterUrl?: string
+    /** The note's poster; absent for none. Only single-note responses carry it, never the lists. */
+    poster?: NotePoster
 }
 
-/** [note] with [posterUrl] as its poster; none removes it. */
-export function withPoster<T extends Note>(note: T, posterUrl: string | undefined): T {
-    const {posterUrl: _previous, ...rest} = note
-    return (posterUrl ? {...rest, posterUrl} : rest) as T
+/** A note poster: an https link the browser loads, and where its two crop frames sit (absent: centred defaults). */
+export interface NotePoster {
+    url: string
+    crop?: PosterCrop
+}
+
+/** [note] with [poster] as its poster; none removes it. */
+export function withPoster<T extends Note>(note: T, poster: NotePoster | undefined): T {
+    const {poster: _previous, ...rest} = note
+    return (poster ? {...rest, poster} : rest) as T
 }
 
 /** What happens to the sub-notes of a deleted note. */
@@ -124,7 +131,7 @@ function parseNote(value: unknown): Note {
     const parentNoteId = optionalString(value.parentNoteId, 'parentNoteId')
     const icon = optionalString(value.icon, 'icon')
     const pinnedAt = optionalString(value.pinnedAt, 'pinnedAt')
-    const posterUrl = optionalString(value.posterUrl, 'posterUrl')
+    const poster = parsePoster(value.poster)
     return {
         id: requiredString(value.id, 'id'),
         source: parseSource(value.source),
@@ -138,8 +145,29 @@ function parseNote(value: unknown): Note {
         ...(parentNoteId ? {parentNoteId} : {}),
         ...(icon ? {icon} : {}),
         ...(pinnedAt ? {pinnedAt} : {}),
-        ...(posterUrl ? {posterUrl} : {}),
+        ...(poster ? {poster} : {}),
     }
+}
+
+function parseCropFrame(value: unknown): CropFrame {
+    if (!isRecord(value)) throw new NoteApiError('protocol', 'invalid poster crop in note response')
+    const number = (field: string) => {
+        const n = value[field]
+        if (typeof n !== 'number' || !Number.isFinite(n)) {
+            throw new NoteApiError('protocol', `invalid poster crop ${field} in note response`)
+        }
+        return n
+    }
+    return {x: number('x'), y: number('y'), w: number('w'), h: number('h')}
+}
+
+function parsePoster(value: unknown): NotePoster | undefined {
+    if (value == null) return undefined
+    if (!isRecord(value)) throw new NoteApiError('protocol', 'invalid poster in note response')
+    const url = requiredString(value.url, 'poster.url')
+    if (value.crop == null) return {url}
+    if (!isRecord(value.crop)) throw new NoteApiError('protocol', 'invalid poster crop in note response')
+    return {url, crop: {poster: parseCropFrame(value.crop.poster), avatar: parseCropFrame(value.crop.avatar)}}
 }
 
 function parseSummary(value: unknown): ChatSummaryResponse {
@@ -388,11 +416,12 @@ export async function unpinNote(noteId: string): Promise<void> {
 }
 
 /** Sets the note's poster link; the note's version stays, so an open edit still saves. */
-export async function setNotePoster(noteId: string, url: string): Promise<Note> {
+/** Sets the note's poster link and crop frames together; no [crop] stores the centred defaults. */
+export async function setNotePoster(noteId: string, url: string, crop?: PosterCrop): Promise<Note> {
     const response = await fetchNotes(`/note/notes/${segment(noteId)}/poster`, {
         method: 'PUT',
         headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({url}),
+        body: JSON.stringify(crop ? {url, crop} : {url}),
     })
     await requireOk(response, 'note poster save')
     const note = parseNote(await responseJson(response))

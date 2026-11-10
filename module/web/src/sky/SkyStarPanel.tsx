@@ -73,8 +73,8 @@ export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpen
             {note && <div className="sky-panel-details">
                 <NoteDetailsSections note={note} onOpenNote={(id) => graph.byId.has(id) ? onPickStar(id) : onOpen(id)}
                                      onOpenChat={onOpenChat} onPlaceChanged={onChanged}
-                                     onPosterChanged={(posterUrl) => setLoaded((shown) => shown?.note
-                                         ? {...shown, note: withPoster(shown.note, posterUrl)} : shown)}/>
+                                     onPosterChanged={(poster) => setLoaded((shown) => shown?.note
+                                         ? {...shown, note: withPoster(shown.note, poster)} : shown)}/>
             </div>}
         </div>
     </aside>

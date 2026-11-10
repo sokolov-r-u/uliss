@@ -1,7 +1,7 @@
 import {type ChangeEvent, useEffect, useId, useState} from 'react'
 import {Button, FieldMessage, type FieldMessageTone, PosterFrame, TextField, useMessages} from '@uliss/design-system'
 import {AuthRequiredError} from '../../auth/apiClient'
-import {setNotePoster} from '../noteApi'
+import {type NotePoster, setNotePoster} from '../noteApi'
 import {checkPosterLink, POSTER_LINK_MAX} from './posterLink'
 import {posterEditorView} from './posterEditorView'
 import {type ImageProbe, useImageProbe} from './useImageProbe'
@@ -14,17 +14,18 @@ type Saving = 'idle' | 'saving' | 'failed'
 
 /**
  * The poster link editor: the 2:3 frame previews the link as it will show, the field under it holds the link, and Save
- * waits for an image the browser loaded and measured. [initial] is the stored link when changing one.
+ * waits for an image the browser loaded and measured. [initial] is the stored poster when changing one: saving its
+ * link again keeps its crop, another link starts from the centred defaults.
  */
 export function PosterEditor({noteId, initial, onSaved, onCancel}: {
     noteId: string
-    initial: string
-    onSaved: (posterUrl: string) => void
+    initial?: NotePoster
+    onSaved: (poster: NotePoster) => void
     onCancel: () => void
 }) {
     const t = useMessages(notePosterMessages)
     const messageId = useId()
-    const [typed, setTyped] = useState(initial)
+    const [typed, setTyped] = useState(initial?.url ?? '')
     const [saving, setSaving] = useState<Saving>('idle')
     const check = checkPosterLink(typed)
     const href = check.kind === 'ok' ? check.href : null
@@ -53,8 +54,9 @@ export function PosterEditor({noteId, initial, onSaved, onCancel}: {
         if (!href || !fits) return
         setSaving('saving')
         try {
-            const note = await setNotePoster(noteId, href)
-            onSaved(note.posterUrl ?? href)
+            const crop = href === initial?.url ? initial.crop : undefined
+            const note = await setNotePoster(noteId, href, crop)
+            onSaved(note.poster ?? {url: href, ...(crop ? {crop} : {})})
         } catch (error) {
             if (error instanceof AuthRequiredError) return
             setSaving('failed')

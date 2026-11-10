@@ -350,3 +350,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   asks first (PROT Note poster), replacing the task's first plan of a removal without a confirmation.
 - **Consequences:** the browser's HTTP cache is the only cache of posters; a Service Worker cache waits for S3.
 - **Source:** task `docs/tasks/2026-11-09-note-poster.md`, block 3.
+
+## 2026-11-10 — A poster crop is two frames in fractions, shown by CSS
+
+- **Context:** the poster is a third-party image the service never fetches; without CORS the browser cannot read its
+  pixels either, so nothing can be cut out of it.
+- **Decision:** a crop is where two frames sit on the image (`PosterCrop`: the panel's 2:3 `poster` and the sky
+  `avatar`'s circle as its square), `x, y, w, h` in fractions of the image. `cropImageStyle` places an `<img>` in
+  percent of its box so the frame fills it, without knowing the image's size (the sky can draw an avatar before the
+  image is measured). `PosterCropper` (design system) moves and scales the image under a fixed frame in image pixels
+  and hands back fractions rounded to 6 digits with `x + w <= 1`; `fitCrop` fits a stored crop to the loaded image and
+  ignores a height that no longer matches its proportions. `CropPosterDialog` saves link and crop together; a new link
+  in the editor starts from the centred defaults, the same link keeps its crop. The cropper switches to its phone
+  layout by its own width (it measures itself for the geometry anyway), not by a JavaScript media query.
+- **Source:** task `docs/tasks/2026-11-10-note-poster-crop.md`, blocks 3–4.

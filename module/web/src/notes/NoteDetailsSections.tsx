@@ -3,7 +3,7 @@ import {SubNotesSection} from '../constellations/SubNotesSection'
 import {PanelFact, PanelSection} from '../ui/ContextPanel'
 import {formatFullDate} from '../ui/format'
 import {NoteChatsList} from '../ui/links/NoteChatsList'
-import type {Note} from './noteApi'
+import type {Note, NotePoster} from './noteApi'
 import {useLocale, useMessages} from '@uliss/design-system'
 import {notesMessages} from './notes.messages'
 import {NotePosterSection} from './poster/NotePosterSection'
@@ -18,8 +18,8 @@ export function NoteDetailsSections({note, onOpenNote, onOpenChat, onPlaceChange
     onOpenChat: (chatId: string) => void
     /** A change of the note's place or of the tree was stored. */
     onPlaceChanged?: () => void
-    /** The note's poster link was stored or removed: the owner shows [note] with it. */
-    onPosterChanged: (posterUrl: string | undefined) => void
+    /** The note's poster was stored or removed: the owner shows [note] with it. */
+    onPosterChanged: (poster: NotePoster | undefined) => void
 }) {
     const locale = useLocale()
     const t = useMessages(notesMessages)

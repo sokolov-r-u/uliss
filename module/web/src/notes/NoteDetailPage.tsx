@@ -11,7 +11,7 @@ import {ScreenHeader} from '../ui/ScreenHeader'
 import {listNoteChats, subscribeToChatListChanges} from '../chat/chatApi'
 import {useFeatureFlag} from '../lib/featureFlags'
 import {useLinkedItems} from '../ui/links/useLinkedItems'
-import {getNote, type Note, NoteApiError, notifyNotesChanged, streamNoteStatus, withPoster} from './noteApi'
+import {getNote, type Note, NoteApiError, type NotePoster, notifyNotesChanged, streamNoteStatus, withPoster} from './noteApi'
 import {NoteDetailsSections} from './NoteDetailsSections'
 import {asEditable, NoteEditForm} from './NoteEditForm'
 import {ResummarizeDialog} from './ResummarizeDialog'
@@ -46,8 +46,8 @@ export function NoteDetailView({state, onRetry, actions, edit, back = true, onPo
     back?: boolean
     /** The edit form of a ready note; it replaces the note's text while it is open. */
     edit?: ReactNode
-    /** The note's poster link was stored or removed in its details panel. */
-    onPosterChanged?: (posterUrl: string | undefined) => void
+    /** The note's poster was stored or removed in its details panel. */
+    onPosterChanged?: (poster: NotePoster | undefined) => void
 }) {
     // The note title is the page heading (a generating note has one when the user named it); other states name
     // themselves in the body.
@@ -205,8 +205,8 @@ export function NoteDetailPage() {
     }, [load])
 
     // the poster is stored apart from the text: an open edit keeps its draft and version
-    const posterChanged = useCallback((posterUrl: string | undefined) => setState((shown) => 'note' in shown
-        ? {...shown, note: withPoster(shown.note, posterUrl)} as DetailState
+    const posterChanged = useCallback((poster: NotePoster | undefined) => setState((shown) => 'note' in shown
+        ? {...shown, note: withPoster(shown.note, poster)} as DetailState
         : shown), [])
 
     const note = 'note' in state ? state.note : null
