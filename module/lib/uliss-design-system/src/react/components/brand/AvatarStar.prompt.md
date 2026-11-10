@@ -3,13 +3,14 @@ A note's poster in the sky: a round avatar ringed in its main constellation colo
 ```jsx
 <svg viewBox={`0 0 ${w} ${h}`}>
   {loaded
-    ? <AvatarStar x={sx} y={sy} r={AVATAR_RADIUS[settings.starSize]} src={poster.url} crop={poster.avatar}
+    ? <AvatarStar x={sx} y={sy} r={AVATAR_RADIUS[settings.posterSize]} src={poster.url} crop={poster.avatar}
                   color={mainColour} glow={settings.glow}/>
     : <circle cx={sx} cy={sy} r={3.2} fill={mainColour}/>}
 </svg>
 ```
 
-- `r` comes from `AVATAR_RADIUS` by the sky's Star size: fine 8, regular 10, bold 12, beacon 14 px. Its size stays the
+- `r` comes from `AVATAR_RADIUS` by the sky's own Poster size (apart from Star size): fine 8, regular 10, bold 12,
+  beacon 14 px. Its size stays the
   same at any zoom, like a star.
 - `crop` is the avatar frame (`PosterCrop.avatar`, fractions of the image); without it the image's centre fills the
   circle. The image is never stretched (`preserveAspectRatio="xMidYMid slice"`, see `avatarImageBox`).

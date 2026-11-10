@@ -110,6 +110,7 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
             {toggle('mixColours', t.mixColours, t.mixColoursHint)}
             {toggle('glow', t.glow, t.glowHint)}
             {toggle('posters', t.posters, t.postersHint)}
+            {settings.posters && steps('posterSize', t.posterSize, MARK_SIZE)}
         </>)}
         {section('center', t.center, steps('centerMark', t.startingPoint, CENTER, t.startingPointHint))}
         {section('connections', t.connections, <>

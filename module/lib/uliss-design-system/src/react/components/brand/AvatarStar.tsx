@@ -6,7 +6,7 @@ import {avatarImageBox, type CropFrame} from '../journal/posterCrop'
 // follows the sky's zoom). The host draws the plain star instead while the
 // image loads or after it failed, and draws the name and selection rings.
 
-/** Avatar radius in px for each sky "Star size". */
+/** Avatar radius in px for each sky "Poster size" (apart from the stars' size). */
 export const AVATAR_RADIUS = {fine: 8, regular: 10, bold: 12, beacon: 14} as const
 
 export type AvatarStarSize = keyof typeof AVATAR_RADIUS
@@ -15,7 +15,7 @@ export interface AvatarStarProps {
     /** Centre, in the SVG's own px. */
     x: number
     y: number
-    /** `AVATAR_RADIUS[size]`. */
+    /** `AVATAR_RADIUS[posterSize]`. */
     r: number
     /** The poster image (https), already loaded by the host. */
     src: string

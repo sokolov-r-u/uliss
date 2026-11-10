@@ -378,3 +378,11 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   keeps our own requests' `Origin`/`Referer` as they were (the builder check flagged `Origin: null` on non-GET
   requests under `no-referrer`). Changing a poster in the star panel reloads the sky.
 - **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, block 3.
+
+## 2026-11-10 — Poster avatars have their own size setting
+
+- **Decision:** the user's UI check: avatars and stars are sized apart. Settings › Sky › Stars gets "Poster size"
+  (fine / regular / bold / beacon → `AVATAR_RADIUS` 8 / 10 / 12 / 14 px, default regular), shown while "Posters in the
+  sky" is on; "Star size" no longer changes avatars. Replaces "radius by Star size" in the design system's entry
+  "The sky avatar is an SVG group sized by numbers…" and the PROT.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, manual check 1.

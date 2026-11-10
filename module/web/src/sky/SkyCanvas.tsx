@@ -392,7 +392,7 @@ export function SkyCanvas(props: SkyCanvasProps) {
     /** The star's poster when it is drawn as an avatar: posters on and its image loaded. */
     const avatarOf = (node: SkyNode) =>
         settings.posters && node.poster && avatarStatus(node.poster.url) === 'ready' ? node.poster : undefined
-    const avatarRadius = AVATAR_RADIUS[settings.starSize]
+    const avatarRadius = AVATAR_RADIUS[settings.posterSize]
     const radiusOf = (node: SkyNode) => node.kind === 'constellation'
         ? (node.depth === 1 ? 5.6 : node.depth === 2 ? 4.6 : 3.9) * physics.constellationScale
         : avatarOf(node) ? avatarRadius : 3.2 * physics.starScale
