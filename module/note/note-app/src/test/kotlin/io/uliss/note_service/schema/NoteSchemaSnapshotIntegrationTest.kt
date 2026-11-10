@@ -9,7 +9,6 @@ import org.testcontainers.postgresql.PostgreSQLContainer
 import java.nio.file.Files
 import java.nio.file.Path
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.fail
 
 /**
@@ -55,12 +54,31 @@ class NoteSchemaSnapshotIntegrationTest : NoteIntegrationTest() {
     fun `an object outside any table is reported as stray`() {
         transactionTemplate.executeWithoutResult { transaction ->
             jdbcTemplate.execute("CREATE VIEW note.snapshot_probe AS SELECT 1 AS one")
+            jdbcTemplate.execute("CREATE MATERIALIZED VIEW note.snapshot_probe_mv AS SELECT 1 AS one")
             jdbcTemplate.execute("CREATE FUNCTION note.snapshot_probe_fn() RETURNS int LANGUAGE sql AS 'SELECT 1'")
+            jdbcTemplate.execute("CREATE PROCEDURE note.snapshot_probe_proc() LANGUAGE sql AS 'SELECT 1'")
+            jdbcTemplate.execute("CREATE TYPE note.snapshot_probe_enum AS ENUM ('A')")
+            jdbcTemplate.execute("CREATE TYPE note.snapshot_probe_row AS (one int)")
+            jdbcTemplate.execute("CREATE SEQUENCE note.snapshot_probe_seq")
+            // a table's own sequences and row type belong to its dump, not to the stray list
+            jdbcTemplate.execute(
+                "CREATE TABLE note.snapshot_probe_table (id bigint GENERATED ALWAYS AS IDENTITY, n bigserial)",
+            )
 
             val stray = reader.strayObjects()
 
-            assertTrue("view snapshot_probe" in stray, "stray objects: $stray")
-            assertTrue("function snapshot_probe_fn" in stray, "stray objects: $stray")
+            assertEquals(
+                listOf(
+                    "function snapshot_probe_fn",
+                    "materialized view snapshot_probe_mv",
+                    "procedure snapshot_probe_proc",
+                    "sequence snapshot_probe_seq",
+                    "type snapshot_probe_enum",
+                    "type snapshot_probe_row",
+                    "view snapshot_probe",
+                ),
+                stray,
+            )
             transaction.setRollbackOnly()
         }
     }

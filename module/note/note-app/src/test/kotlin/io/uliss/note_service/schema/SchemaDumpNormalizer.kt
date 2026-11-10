@@ -10,13 +10,23 @@ object SchemaDumpNormalizer {
         "\\unrestrict",
     )
 
-    fun normalize(dump: String): String = dump.lines()
-        .map { it.trimEnd() }
-        .filterNot { line -> NOISE_PREFIXES.any { line.trimStart().startsWith(it) } }
-        .fold(mutableListOf<String>()) { kept, line ->
-            if (line.isNotEmpty() || kept.lastOrNull()?.isNotEmpty() == true) kept += line
-            kept
+    fun normalize(dump: String): String {
+        val kept = mutableListOf<String>()
+        var inLiteral = false
+        dump.lines().forEach { raw ->
+            // a line inside a multi-line string literal (e.g. a COMMENT ON text) is content, kept verbatim
+            if (inLiteral) {
+                kept += raw
+            } else {
+                val line = raw.trimEnd()
+                val noise = NOISE_PREFIXES.any { line.trimStart().startsWith(it) }
+                val repeatedBlank = line.isEmpty() && kept.lastOrNull()?.isNotEmpty() != true
+                if (noise || repeatedBlank) return@forEach
+                kept += line
+            }
+            // pg_dump writes standard strings: a quote is escaped by doubling, so an odd count toggles the state
+            if (raw.count { it == '\'' } % 2 == 1) inLiteral = !inLiteral
         }
-        .joinToString("\n")
-        .trimEnd('\n')
+        return kept.joinToString("\n").trimEnd('\n')
+    }
 }

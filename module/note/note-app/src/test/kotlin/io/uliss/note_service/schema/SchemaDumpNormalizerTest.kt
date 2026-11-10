@@ -90,6 +90,25 @@ class SchemaDumpNormalizerTest {
         val once = SchemaDumpNormalizer.normalize(text)
 
         assertEquals(once, SchemaDumpNormalizer.normalize(once))
+    }
+
+    @Property(tries = 200)
+    fun `text without string literals never keeps two blank lines in a row`(@ForAll text: String) {
+        val once = SchemaDumpNormalizer.normalize(text.replace("'", ""))
+
         assertFalse("\n\n\n" in once, once)
+    }
+
+    @Test
+    fun `lines inside a multi-line string literal are content, not noise`() {
+        val comment = """
+            |COMMENT ON COLUMN note.notes.status IS 'Lifecycle:
+            |-- set by the outbox
+            |
+            |
+            |SET only by the summary handler; it''s never null';
+        """.trimMargin()
+
+        assertEquals(comment, SchemaDumpNormalizer.normalize("SET x = 0;\n\n$comment\n\n-- Name: trailer\n"))
     }
 }
