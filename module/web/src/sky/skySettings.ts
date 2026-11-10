@@ -35,6 +35,8 @@ export interface SkySettings {
     /** A star in several constellations is split into sectors of their colours instead of its main one's. */
     mixColours: boolean
     glow: boolean
+    /** A note with a poster shows it as a round avatar instead of its star. */
+    posters: boolean
     centerMark: Of<typeof CENTER_MARKS>
     linkDist: Of<typeof LINK_DISTANCES>
     tension: Of<typeof TENSIONS>
@@ -57,6 +59,7 @@ export const DEFAULT_SKY_SETTINGS: SkySettings = {
     colour: 'constellation',
     mixColours: false,
     glow: true,
+    posters: true,
     centerMark: 'ship',
     linkDist: 'comfortable',
     tension: 'balanced',
@@ -102,6 +105,7 @@ export function parseSkySettings(raw: unknown): SkySettings {
         colour: oneOf(COLOURS, p.colour, d.colour),
         mixColours: flag(p.mixColours, d.mixColours),
         glow: flag(p.glow, d.glow),
+        posters: flag(p.posters, d.posters),
         centerMark: oneOf(CENTER_MARKS, p.centerMark, d.centerMark),
         linkDist: oneOf(LINK_DISTANCES, p.linkDist, d.linkDist),
         tension: oneOf(TENSIONS, p.tension, d.tension),

@@ -6,6 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Anti-cache belt #2 (alongside the no-store header): Safari honours this for the entry document. -->
     <meta http-equiv="Cache-Control" content="no-store" />
+    <!-- Poster images on other hosts are never told which page shows them; our own requests keep their referrer. -->
+    <meta name="referrer" content="same-origin" />
     <title>Uliss</title>
   </head>
   <body>

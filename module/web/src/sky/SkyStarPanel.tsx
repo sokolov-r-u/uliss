@@ -22,7 +22,7 @@ export function plainExcerpt(markdown: string | null): string {
 /**
  * The picked star's panel: the note's title, the start of its text and Open note, then everything the open note's
  * details panel holds — where it lives (with all of its place actions), its sub-notes, the chats it came from and its
- * dates. A change of place redraws the sky; a sub-note opens its own panel here.
+ * dates. A change of place or of the poster redraws the sky; a sub-note opens its own panel here.
  */
 export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpenChat, onChanged}: {
     graph: SkyGraph
@@ -73,8 +73,12 @@ export function SkyStarPanel({graph, starId, onClose, onOpen, onPickStar, onOpen
             {note && <div className="sky-panel-details">
                 <NoteDetailsSections note={note} onOpenNote={(id) => graph.byId.has(id) ? onPickStar(id) : onOpen(id)}
                                      onOpenChat={onOpenChat} onPlaceChanged={onChanged}
-                                     onPosterChanged={(poster) => setLoaded((shown) => shown?.note
-                                         ? {...shown, note: withPoster(shown.note, poster)} : shown)}/>
+                                     onPosterChanged={(poster) => {
+                                         setLoaded((shown) => shown?.note
+                                             ? {...shown, note: withPoster(shown.note, poster)} : shown)
+                                         // the sky redraws the star's avatar from the new poster
+                                         onChanged()
+                                     }}/>
             </div>}
         </div>
     </aside>

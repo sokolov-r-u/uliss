@@ -364,3 +364,17 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   in the editor starts from the centred defaults, the same link keeps its crop. The cropper switches to its phone
   layout by its own width (it measures itself for the geometry anyway), not by a JavaScript media query.
 - **Source:** task `docs/tasks/2026-11-10-note-poster-crop.md`, blocks 3–4.
+
+## 2026-11-10 — Sky avatars load through a low-priority queue, and the SPA sends no referrer to other hosts
+
+- **Context:** a note's poster replaces its star in the sky (PROT Note poster, `S3-*`). An SVG `<image>` has no
+  `referrerPolicy`, `fetchpriority` or `loading`.
+- **Decision:** `sky/posterAvatars.ts` loads every poster of the sky with `new Image()` (`referrerPolicy =
+  no-referrer`, `fetchPriority = low`), three at a time, starting a frame after the sky is drawn; the canvas draws the
+  DS `AvatarStar` only once its image loaded, so the SVG `<image>` takes it from the browser's cache, and the plain star
+  until then or after a failure. Each link's status lives for the tab: a failed one is not retried before a reload.
+  Turning "Posters in the sky" off drops the queue. `index.html` sets `<meta name="referrer" content="same-origin">`,
+  so even an `<image>` that misses the cache tells the poster's host nothing; `same-origin` rather than `no-referrer`
+  keeps our own requests' `Origin`/`Referer` as they were (the builder check flagged `Origin: null` on non-GET
+  requests under `no-referrer`). Changing a poster in the star panel reloads the sky.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, block 3.

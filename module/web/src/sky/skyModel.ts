@@ -1,5 +1,5 @@
 import {constellationColor, noteTitleText} from '@uliss/design-system'
-import type {Sky} from '../constellations/constellationApi'
+import type {Sky, SkyStarPoster} from '../constellations/constellationApi'
 import {buildConstellationTree, type ConstellationTree} from '../constellations/constellationTree'
 
 /**
@@ -29,6 +29,8 @@ export interface SkyNode {
     unplaced: boolean
     /** Order of growth for the replay: constellations first, stars oldest first. */
     order: number
+    /** A star's own poster, drawn as its avatar; absent without one. */
+    poster?: SkyStarPoster
 }
 
 export interface SkyEdge {
@@ -90,6 +92,7 @@ export function buildSkyGraph(sky: Sky): SkyGraph {
             constellationIds: parent.constellationIds,
             unplaced: parent.unplaced,
             order: 0,
+            ...(note.poster ? {poster: note.poster} : {}),
         } : {
             id: note.id,
             kind: 'star',
@@ -103,6 +106,7 @@ export function buildSkyGraph(sky: Sky): SkyGraph {
             constellationIds: places.map((m) => m.constellationId),
             unplaced: !main,
             order: 0,
+            ...(note.poster ? {poster: note.poster} : {}),
         }
         stars.set(id, node)
         return node
