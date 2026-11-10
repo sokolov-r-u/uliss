@@ -122,6 +122,22 @@ export function fitCrop(crop: PosterCrop | null | undefined, imageWidth: number,
 }
 
 /**
+ * The SVG `<image>` box that shows the [crop] of an image in a circle of radius [r] at ([cx], [cy]), drawn with
+ * `preserveAspectRatio="xMidYMid slice"`: the image is scaled so the frame fills the circle's square, without knowing
+ * the image's size. Without a crop the square itself is the box, so `slice` shows the image's centre.
+ */
+export function avatarImageBox(crop: CropFrame | null | undefined, cx: number, cy: number, r: number) {
+    const d = 2 * r
+    if (!crop) return {x: cx - r, y: cy - r, width: d, height: d}
+    return {
+        x: cx - r - crop.x / crop.w * d,
+        y: cy - r - crop.y / crop.h * d,
+        width: d / crop.w,
+        height: d / crop.h,
+    }
+}
+
+/**
  * The style of an `<img>` inside a box (position: relative; overflow: hidden) that shows [crop] of it: the image is
  * scaled so the frame fills the box, in percent of the box, without knowing the image's size. `object-fit: cover`
  * keeps a frame whose proportions no longer match the image from stretching it.
