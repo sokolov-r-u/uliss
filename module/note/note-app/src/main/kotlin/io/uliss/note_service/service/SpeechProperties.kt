@@ -11,4 +11,9 @@ data class SpeechProperties(
     val maxFileSize: DataSize = DataSize.ofMegabytes(10),
     /** Transcriptions in flight per instance; each holds its recording in memory, so this bounds the heap they take. */
     val maxConcurrent: Int = 4,
-)
+) {
+    init {
+        // zero would start fine and then refuse every recording
+        require(maxConcurrent >= 1) { "note.speech.max-concurrent must be at least 1: $maxConcurrent" }
+    }
+}

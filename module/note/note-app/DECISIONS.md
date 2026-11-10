@@ -916,3 +916,14 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the cap is per instance, not per user: one user can hold every place (per-user quotas are tech
   debt). The 429 arrives after nginx and Tomcat have received the body to disk; it bounds memory, not traffic.
 - **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 3.
+
+## 2026-11-10 — A note status stream takes its slot when it is subscribed
+
+- **Context:** the slot was taken when `streamNoteStatus` was called and freed in the stream's `doFinally`; a returned
+  stream that was never subscribed (the response failed first) kept its slot until restart (2026-11-10 review).
+- **Decision:** the call only checks the limit and still answers 429 `TOO_MANY_STATUS_STREAMS` as JSON; the slot is
+  taken in `Flux.defer` at subscription. This refines the 2026-10-21 entry "Note status streams read a projection and
+  are limited per user".
+- **Consequences:** of streams opened at the same moment, the one over the limit ends with an error inside the
+  already open SSE response (after the first keepalive) instead of a JSON 429; the client reconnects and gets the 429.
+- **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 2.

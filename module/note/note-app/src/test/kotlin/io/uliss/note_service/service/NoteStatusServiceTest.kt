@@ -100,6 +100,21 @@ class NoteStatusServiceTest {
     }
 
     @Test
+    fun `of streams opened at once the one over the limit fails when subscribed and holds no slot`() {
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findStatusByIdAndUserId(noteId, userId)).thenReturn(row(noteId, NoteStatus.GENERATING))
+        // all three pass the check at the call: none is subscribed yet
+        val streams = List(3) { service.streamNoteStatus(userId, noteId) }
+        val first = streams[0].subscribe()
+        streams[1].subscribe()
+
+        StepVerifier.create(streams[2]).verifyError(TooManyStatusStreamsException::class.java)
+
+        first.dispose()
+        service.streamNoteStatus(userId, noteId).subscribe().dispose()
+    }
+
+    @Test
     fun `another user's streams do not count`() {
         val noteId = UUID.randomUUID()
         val otherUser = UUID.randomUUID()

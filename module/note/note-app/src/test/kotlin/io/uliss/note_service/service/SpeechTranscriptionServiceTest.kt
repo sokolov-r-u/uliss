@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class SpeechTranscriptionServiceTest {
 
@@ -108,19 +109,22 @@ class SpeechTranscriptionServiceTest {
         val providerMayAnswer = CountDownLatch(1)
         Mockito.`when`(model.call(anyValue<AudioTranscriptionPrompt>())).thenAnswer {
             providerEntered.countDown()
-            providerMayAnswer.await()
+            providerMayAnswer.await(5, TimeUnit.SECONDS)
             AudioTranscriptionResponse(AudioTranscription("first"))
         }
         val first = CompletableFuture.supplyAsync { single.transcribe(recording(WEBM_HEAD), "audio/webm") }
-        providerEntered.await()
         val unreadable = object : ByteArrayResource(ByteArray(0)) {
             override fun contentLength(): Long = 4
             override fun getContentAsByteArray(): ByteArray = error("must not be read into memory")
         }
 
-        assertFailsWith<TooManyTranscriptionsException> { single.transcribe(unreadable, "audio/webm") }
-
-        providerMayAnswer.countDown()
+        try {
+            assertTrue(providerEntered.await(5, TimeUnit.SECONDS), "the first recording never reached the provider")
+            assertFailsWith<TooManyTranscriptionsException> { single.transcribe(unreadable, "audio/webm") }
+        } finally {
+            // a failed assertion must not leave the first call blocked
+            providerMayAnswer.countDown()
+        }
         assertEquals("first", first.get(5, TimeUnit.SECONDS))
         Mockito.verify(model, Mockito.times(1)).call(anyValue<AudioTranscriptionPrompt>())
     }
@@ -145,6 +149,11 @@ class SpeechTranscriptionServiceTest {
 
         val ex = assertFailsWith<TranscriptionFailedException> { service.transcribe(recording(WEBM_HEAD), "audio/webm") }
         assertEquals("503", ex.cause?.message)
+    }
+
+    @Test
+    fun `a concurrent limit below one is refused at startup instead of refusing every recording`() {
+        assertFailsWith<IllegalArgumentException> { SpeechProperties(maxConcurrent = 0) }
     }
 
     @Test
