@@ -885,8 +885,10 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 
 - **Context:** 27 append-only migrations make the current `note` schema hard to read.
 - **Decision:** `module/note/note-app/SCHEMA.md` holds the schema after all migrations, grouped into sections by
-  `NoteSchemaSections` (test code). `NoteSchemaSnapshotIntegrationTest` runs `pg_dump --schema-only` per table inside
-  the test container, strips per-run noise, renders Markdown and compares it with the file;
+  `NoteSchemaSections` (test code). Each table is a Markdown table of columns (type, null, default, PK/FK marks)
+  followed by its constraints and indexes, read from `pg_catalog` (`format_type`, `pg_get_constraintdef`,
+  `pg_get_indexdef`) rather than `pg_dump`, whose output is a sequence of `ALTER` statements, not a readable table.
+  `NoteSchemaSnapshotIntegrationTest` renders it and compares it with the file;
   `./gradlew :note:updateSchemaSnapshot` rewrites it. A table without a section, a mapped table that is gone, or a
   schema object that is neither a table's nor an extension's fails the test.
 - **Consequences:** every migration commit also carries the regenerated `SCHEMA.md`; CI's `integrationTest` catches a
@@ -896,7 +898,7 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 ## 2026-11-10 — The test Postgres image is pinned by digest
 
 - **Context:** the `pgvector/pgvector:0.8.2-pg18-trixie` tag is rebuilt for new Postgres 18.x releases, and a newer
-  `pg_dump` can print the same schema differently.
+  Postgres can print the same definitions differently.
 - **Decision:** `TestContainersConfiguration` uses that tag's index digest (multi-arch). An image update is deliberate
   and comes with `updateSchemaSnapshot`.
 - **Source:** task `docs/tasks/2026-11-10-note-schema-snapshot.md`, block 1.
