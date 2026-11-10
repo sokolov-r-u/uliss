@@ -4,6 +4,7 @@ import {
     parseSkySettings,
     readSkySettings,
     SKY_SETTINGS_EVENT,
+    skyForceKey,
     skyPhysics,
     writeSkySettings,
 } from './skySettings'
@@ -78,5 +79,16 @@ describe('sky settings', () => {
         // more names lowers the zoom threshold
         expect(at({labelDensity: 100}).labelGain).toBeLessThan(at({labelDensity: 0}).labelGain)
         expect(at({}).nearRadius).toBe(120)
+    })
+
+    it('keys the layout forces only: a setting that changes how marks look never re-heats the sky', () => {
+        const base = skyForceKey(skyPhysics(DEFAULT_SKY_SETTINGS))
+        const look = {...DEFAULT_SKY_SETTINGS, starSize: 'beacon', constellationSize: 'fine', labelSize: 'largest',
+            labelDensity: 90, nearReach: 'vast', posters: false, posterSize: 'beacon', glow: false, colour: 'mono'} as const
+        expect(skyForceKey(skyPhysics(look))).toBe(base)
+        for (const force of [{spread: 'vast'}, {linkDist: 'spacious'}, {tension: 'rigid'}, {pull: 'tight'},
+            {motion: 'lively'}, {secondary: 'strong'}] as const) {
+            expect(skyForceKey(skyPhysics({...DEFAULT_SKY_SETTINGS, ...force}))).not.toBe(base)
+        }
     })
 })

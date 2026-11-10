@@ -8,11 +8,11 @@ import {subscribeToNotesChanges} from '../notes/noteApi'
 import {ScreenHeader} from '../ui/ScreenHeader'
 import {SkyCanvas} from './SkyCanvas'
 import {buildSkyGraph, defaultView, inBranch, type SkyView, subgraph} from './skyModel'
-import {DEFAULT_SKY_SETTINGS} from './skySettings'
+import {DEFAULT_SKY_SETTINGS, skyPhysics} from './skySettings'
 import {SkySettingsPanel} from './SkySettingsPanel'
 import {SkyStarPanel} from './SkyStarPanel'
 import {skyMemory} from './skyMemory'
-import {useSkyPhysics, useSkySettings} from './useSkySettings'
+import {useSkySettings} from './useSkySettings'
 import './sky.css'
 import {commonMessages} from '../i18n/common.messages'
 import {skyMessages} from './sky.messages'
@@ -32,7 +32,7 @@ export function SkyPage() {
     const common = useMessages(commonMessages)
     const [load, setLoad] = useState<Load>({status: 'loading'})
     const [settings, patchSettings, replaceSettings] = useSkySettings()
-    const physics = useSkyPhysics(settings)
+    const physics = useMemo(() => skyPhysics(settings), [settings])
     const memory = skyMemory.screen
     const [view, setView] = useState<SkyView | null>(memory?.view ?? null)
     const [focusId, setFocusId] = useState<string | null>(memory?.focusId ?? null)

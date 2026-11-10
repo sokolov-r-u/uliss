@@ -177,6 +177,12 @@ const LABEL_SCALE: Record<SkySettings['labelSize'], number> = {small: 0.85, regu
 const NEAR_RADIUS: Record<SkySettings['nearReach'], number> = {close: 60, medium: 120, wide: 200, vast: 300}
 const MARK_SCALE: Record<SkySettings['starSize'], number> = {fine: 0.7, regular: 1, bold: 1.35, beacon: 1.75}
 
+/** What the layout's forces read from [physics]; the rest only changes how the sky is drawn. */
+export function skyForceKey(physics: SkyPhysics): string {
+    const {linkDist, tension, repulsion, gravity, alphaDecay, secondaryPull} = physics
+    return [linkDist, tension, repulsion, gravity, alphaDecay, secondaryPull].join(' ')
+}
+
 export function skyPhysics(settings: SkySettings): SkyPhysics {
     return {
         linkDist: LINK_DIST[settings.linkDist],

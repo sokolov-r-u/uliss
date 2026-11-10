@@ -306,7 +306,7 @@ describe('SkyCanvas poster avatars', () => {
         expect(document.querySelector('text.sky-name.hovered')?.textContent).toBe('Low')
     })
 
-    it('a click opens the star the mouse names, even when it lands on a neighbour\'s larger avatar', async () => {
+    it('a click opens the nearest star at its point, even when it lands on a neighbour\'s larger avatar', async () => {
         const onPick = vi.fn()
         const graph = buildSkyGraph(POSTER_SKY)
         const all = {...DEFAULT_SKY_SETTINGS, nearCount: 0}
@@ -315,9 +315,8 @@ describe('SkyCanvas poster avatars', () => {
                           onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
         await settle(true)
 
-        // the mouse names Bowie; the click event still lands on Low's avatar painted over it
-        fireEvent.pointerMove(frame(), {...at('Bowie'), pointerType: 'mouse'})
-        fireEvent.click(low())
+        // a click at Bowie's point still lands on Low's avatar painted over it
+        fireEvent.click(low(), {...at('Bowie'), detail: 1})
 
         expect(onPick).toHaveBeenCalledWith('bowie')
         expect(onPick).not.toHaveBeenCalledWith('low')
@@ -355,5 +354,24 @@ describe('SkyCanvas poster avatars', () => {
 
         expect(low().querySelector('image')).toBeNull()
         expect(low().querySelector('circle[r="3.2"]')).not.toBeNull()
+    })
+
+    it('a tap opens the star at its point, whatever the mouse named before', async () => {
+        const onPick = vi.fn()
+        const graph = buildSkyGraph(POSTER_SKY)
+        const all = {...DEFAULT_SKY_SETTINGS, nearCount: 0}
+        render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null} settings={all}
+                          physics={skyPhysics(all)} selectedId={null} onPickStar={onPick} onFocus={vi.fn()}
+                          onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
+        await settle(true)
+
+        // the mouse was last over Bowie; the tap lands on Low
+        fireEvent.pointerMove(frame(), {...at('Bowie'), pointerType: 'mouse'})
+        fireEvent.pointerDown(low(), {pointerId: 7, pointerType: 'touch', ...at('Low')})
+        fireEvent.pointerUp(low(), {pointerId: 7, pointerType: 'touch', ...at('Low')})
+        fireEvent.click(low(), {...at('Low'), detail: 1})
+
+        expect(onPick).toHaveBeenCalledWith('low')
+        expect(onPick).not.toHaveBeenCalledWith('bowie')
     })
 })

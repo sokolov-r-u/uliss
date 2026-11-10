@@ -1,7 +1,7 @@
 import {type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
 import {type ArrowKey, labelLines, nearestStars, nextInDirection, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
-import type {SkyPhysics, SkySettings} from './skySettings'
+import {skyForceKey, type SkyPhysics, type SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
 import {skyMessages} from './sky.messages'
@@ -179,7 +179,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
             return
         }
         if (layoutRef.current) applyPhysics(layoutRef.current, physics)
-    }, [physics])
+        // only a change of the forces re-heats the layout; sizes, colours and posters leave the sky where it is
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [skyForceKey(physics)])
 
     // On the sky screen Tab always lands on the graph, never on the nav or the controls around it; inside the graph
     // arrows move and Escape leaves. Open panels and dialogs keep their own Tab order.
@@ -427,6 +429,14 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const hovered = pointer ? nearestStars(nodes.filter((n) => n.node.kind !== 'you'
         && Math.hypot(sx(n) - pointer.x, sy(n) - pointer.y) <= hitOf(n.node))
         .map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, 1, Infinity)[0] : undefined
+    /** The nearest pickable node whose hit area holds [p], read from where the nodes are now. */
+    const pickAt = (p: { x: number; y: number }): SkyNode | undefined => {
+        const now = viewRef.current
+        const id = nearestStars(nodes.filter((n) => pickableIds.includes(n.id))
+            .map((n) => ({id: n.id, x: n.x * now.s + now.tx, y: n.y * now.s + now.ty, hit: hitOf(n.node)}))
+            .filter((n) => Math.hypot(n.x - p.x, n.y - p.y) <= n.hit), p, 1, Infinity)[0]
+        return id ? layoutRef.current?.byId.get(id)?.node : undefined
+    }
     // the mouse on an edge (and not on a node) lights up the two nodes it joins
     const edgeEnds = new Set<string>()
     if (pointer && !hovered && layout) {
@@ -515,12 +525,12 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               } : undefined}
                               onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
                               aria-label={pickable ? isConstellation ? t.focusOn(node.label) : node.label : undefined}
-                              onClick={pickable ? () => {
-                                  // the mouse picks the star it names: hit areas of different sizes overlap, and the
-                                  // one painted on top is not always the nearest
-                                  const named = hovered && pickableIds.includes(hovered)
-                                      ? layout?.byId.get(hovered)?.node : undefined
-                                  activate(named ?? node)
+                              onClick={pickable ? (event) => {
+                                  // a click picks the nearest pickable node at its own point: hit areas of different
+                                  // sizes overlap, and the one painted on top is not always the nearest; a click
+                                  // without a point (keyboard, assistive tech) keeps the node it was sent to
+                                  const at = event.detail > 0 ? pickAt(local(event)) : undefined
+                                  activate(at ?? node)
                               } : undefined}
                               onKeyDown={pickable ? (event) => {
                                   if (moveRoving(event, n.id)) return
