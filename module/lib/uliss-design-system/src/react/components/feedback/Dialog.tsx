@@ -62,12 +62,14 @@ export function Dialog({
                 display: 'flex',
                 // a dialog taller than the screen scrolls; margin: auto centres it without cutting its top off
                 overflowY: 'auto',
+                overscrollBehavior: 'contain',
                 background: 'var(--scrim)',
                 padding: 28,
             }}
         >
+            {/* fixed, so the backdrop covers the screen however far a tall dialog is scrolled */}
             {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={cancelNow} style={{
-                position: 'absolute',
+                position: 'fixed',
                 inset: 0,
                 width: '100%',
                 height: '100%',

@@ -76,6 +76,24 @@ describe('PosterCropper', () => {
         expect(last(onChange).poster.w).toBeCloseTo(0.4 / 1.08 / 1.08, 5)
     })
 
+    it('starts a pinch from the frame a pan before it already sent', () => {
+        const onChange = vi.fn()
+        // the value does not change: the host has not rendered the pan yet
+        render(<PosterCropper src="https://example.com/p.jpg" imageWidth={W} imageHeight={H} mode="poster"
+                              onModeChange={vi.fn()} value={defaultCrop(W, H)} onChange={onChange}/>)
+        const stage = screen.getByRole('group', {name: /Panel frame 2:3/})
+
+        fireEvent.pointerDown(stage, {pointerId: 1, clientX: 100, clientY: 100})
+        fireEvent.pointerMove(stage, {pointerId: 1, clientX: 154, clientY: 100})
+        fireEvent.pointerDown(stage, {pointerId: 2, clientX: 254, clientY: 100})
+        fireEvent.pointerMove(stage, {pointerId: 2, clientX: 304, clientY: 100})
+
+        const {poster} = last(onChange)
+        // the pan moved the centre to 400 image px; the pinch keeps it there
+        expect((poster.x + poster.w / 2) * W).toBeCloseTo(400, 3)
+        expect(poster.w).toBeLessThan(0.4)
+    })
+
     it('ignores a sideways wheel', () => {
         const onChange = vi.fn()
         render(<Harness onChange={onChange}/>)

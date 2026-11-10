@@ -19,5 +19,6 @@ Two crops of one poster image: the 2:3 frame the note panel shows and the round 
   Reset returns the active frame to its default: the largest 2:3 frame or circle in the middle.
 - Fixed sizes: the stage, previews and controls never change between modes or `status` (`loading`, `ready`,
   `unavailable`), so the Dialog keeps its size. Under 560px of its own width (or `compact`) it switches to the
-  phone layout: a 280px stage, previews in a row, 44px controls.
+  phone layout: a 280px stage, previews in a row (the avatar circle beside the sky, wrapping under it on a
+  narrow screen), 44px controls, a one-line hint.
 - `disabled` locks everything while the crop is saved. Images load with `referrerPolicy="no-referrer"`.

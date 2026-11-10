@@ -104,8 +104,14 @@ export function PosterCropper({
     const scale = active ? (poster ? frameWidth : circle) / active.size : 1
 
     // the crop last sent up: several pointer or wheel events can arrive before the host renders it
+    // a render of its own (a drag starting) must not undo it: take the host's value only when that value changes
     const latest = useRef(value)
-    latest.current = value
+    const hosted = useRef(JSON.stringify(value))
+    const valueKey = JSON.stringify(value)
+    if (hosted.current !== valueKey) {
+        hosted.current = valueKey
+        latest.current = value
+    }
     const current = () => fromFractions(mode, latest.current[mode], imageWidth, imageHeight)
 
     const set = (frame: PixelFrame) => {
@@ -148,7 +154,7 @@ export function PosterCropper({
         event.currentTarget.setPointerCapture?.(event.pointerId)
         if (pointers.current.size === 2) {
             const [a, b] = [...pointers.current.values()]
-            pinch.current = {distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, size: active.size}
+            pinch.current = {distance: Math.hypot(a.x - b.x, a.y - b.y) || 1, size: current().size}
         }
         setDragging(true)
     }
@@ -159,7 +165,7 @@ export function PosterCropper({
         if (pointers.current.size >= 2 && pinch.current) {
             const [a, b] = [...pointers.current.values()]
             const factor = (Math.hypot(a.x - b.x, a.y - b.y) || 1) / pinch.current.distance
-            set({...active, size: pinch.current.size / factor})
+            set({...current(), size: pinch.current.size / factor})
             return
         }
         moveBy(event.clientX - previous.x, event.clientY - previous.y)
@@ -392,7 +398,7 @@ export function PosterCropper({
                 <Button variant="ghost" size={compact ? 'lg' : 'md'} disabled={!live}
                         onClick={() => set(defaultFrame(mode, imageWidth, imageHeight))}>{t.reset}</Button>
             </div>
-            {/* the phone's hint is one line; the desktop's may wrap to two */}
+            {/* the phone's hint is one line on a 360px screen (it may wrap on narrower ones); the desktop's two */}
             <p style={{margin: 0, fontSize: 11, lineHeight: '16px', minHeight: compact ? 16 : 32, color: 'var(--text-faint)'}}>
                 {compact ? t.helpTouch : t.help}
             </p>
