@@ -105,12 +105,12 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
         </>)}
         {section('stars', t.stars, <>
             {steps('starSize', t.starSize, MARK_SIZE)}
+            {settings.posters && steps('posterSize', t.posterSize, MARK_SIZE)}
             {steps('constellationSize', t.constellationSize, MARK_SIZE, t.constellationSizeHint)}
             {steps('colour', t.colour, COLOUR, t.colourHint)}
             {toggle('mixColours', t.mixColours, t.mixColoursHint)}
             {toggle('glow', t.glow, t.glowHint)}
             {toggle('posters', t.posters, t.postersHint)}
-            {settings.posters && steps('posterSize', t.posterSize, MARK_SIZE)}
         </>)}
         {section('center', t.center, steps('centerMark', t.startingPoint, CENTER, t.startingPointHint))}
         {section('connections', t.connections, <>
