@@ -6,7 +6,7 @@ import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
 import {skyMessages} from './sky.messages'
 import {AVATAR_RADIUS, AvatarStar, useMessages} from '@uliss/design-system'
-import {avatarStatus, useAvatars} from './posterAvatars'
+import {avatarStatus, failAvatar, useAvatars} from './posterAvatars'
 
 /**
  * The live sky: one SVG over the measured frame, drawn in screen space from the layout's world positions, so marks and
@@ -515,7 +515,13 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               } : undefined}
                               onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
                               aria-label={pickable ? isConstellation ? t.focusOn(node.label) : node.label : undefined}
-                              onClick={pickable ? () => activate(node) : undefined}
+                              onClick={pickable ? () => {
+                                  // the mouse picks the star it names: hit areas of different sizes overlap, and the
+                                  // one painted on top is not always the nearest
+                                  const named = hovered && pickableIds.includes(hovered)
+                                      ? layout?.byId.get(hovered)?.node : undefined
+                                  activate(named ?? node)
+                              } : undefined}
                               onKeyDown={pickable ? (event) => {
                                   if (moveRoving(event, n.id)) return
                                   if (event.key === 'Escape') {
@@ -541,7 +547,8 @@ export function SkyCanvas(props: SkyCanvasProps) {
                             ? <circle cx={x} cy={y} r={r} fill="none" stroke={colour}
                                       strokeWidth={node.depth === 1 ? 1.3 : 1}/>
                             : avatar ? <AvatarStar x={x} y={y} r={r} src={avatar.url} crop={avatar.avatar}
-                                                   color={colour} glow={settings.glow}/>
+                                                   color={colour} glow={settings.glow}
+                                                   onImageError={() => failAvatar(avatar.url)}/>
                                 : sectors ? <StarSectors x={x} y={y} r={r} colors={sectors}/>
                                     : <circle cx={x} cy={y} r={r} fill={colour}/>}
                         {name > 0.001 && (() => {

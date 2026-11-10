@@ -25,9 +25,11 @@ export interface AvatarStarProps {
     color: string
     /** A soft halo of r × 1.6 behind the avatar (the sky's Glow setting). */
     glow?: boolean
+    /** The image failed after all (e.g. not cached and its host now refuses it): the host draws its star again. */
+    onImageError?: () => void
 }
 
-export function AvatarStar({x, y, r, src, crop, color, glow = false}: AvatarStarProps) {
+export function AvatarStar({x, y, r, src, crop, color, glow = false, onImageError}: AvatarStarProps) {
     // useId may hold characters that are awkward inside url(#…)
     const clipId = `avatar-${useId().replace(/[^a-zA-Z0-9_-]/g, '')}`
     const box = avatarImageBox(crop, x, y, r)
@@ -37,7 +39,7 @@ export function AvatarStar({x, y, r, src, crop, color, glow = false}: AvatarStar
             <clipPath id={clipId}><circle cx={x} cy={y} r={r}/></clipPath>
             <circle cx={x} cy={y} r={r} fill="var(--bg-deep)"/>
             <image href={src} x={box.x} y={box.y} width={box.width} height={box.height}
-                   preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`}/>
+                   preserveAspectRatio="xMidYMid slice" clipPath={`url(#${clipId})`} onError={onImageError}/>
             <circle cx={x} cy={y} r={r} fill="none" stroke={color} style={{strokeWidth: 'var(--avatar-ring-width)'}}/>
         </g>
     )

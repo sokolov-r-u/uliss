@@ -199,6 +199,10 @@ describe('constellationApi', () => {
             star({url: 'https://example.com/a.jpg', avatar: {x: 0, y: 0, w: 'wide', h: 1}}),
         ]}))
         await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
+        mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [
+            star({url: 'https://example.com/a.jpg', avatar: {x: 0, y: 0, w: 0, h: 0.5}}),
+        ]}))
+        await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
         mockedFetch.mockResolvedValueOnce(jsonResponse({constellations: [], notes: [star({url: ''})]}))
         await expect(getSky()).rejects.toMatchObject({kind: 'protocol'})
     })

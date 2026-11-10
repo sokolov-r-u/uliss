@@ -17,5 +17,6 @@ A note's poster in the sky: a round avatar ringed in its main constellation colo
 - The ring is `--avatar-ring-width` in `color`; `glow` adds a halo of r × 1.6 at 14 % (a star's is r × 2.9).
 - The host loads the image first (low priority, `referrerPolicy="no-referrer"`) and draws its plain star while the
   image loads or after it failed; no spinner in the sky. The host also draws the name (r + 5 outward), the selection
-  and focus rings (r + 5) and the hit area (max(13, r + 3) px).
+  and focus rings (r + 5) and the hit area (max(13, r + 3) px). `onImageError` reports an `<image>` that failed after
+  all (not cached, host refuses it now), so the host can draw its star again.
 - The one round exception in the kit besides stars: avatars and their rings are circles.

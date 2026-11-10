@@ -305,4 +305,55 @@ describe('SkyCanvas poster avatars', () => {
         fireEvent.pointerMove(frame(), {clientX: x + 15, clientY: y, pointerType: 'mouse'})
         expect(document.querySelector('text.sky-name.hovered')?.textContent).toBe('Low')
     })
+
+    it('a click opens the star the mouse names, even when it lands on a neighbour\'s larger avatar', async () => {
+        const onPick = vi.fn()
+        const graph = buildSkyGraph(POSTER_SKY)
+        const all = {...DEFAULT_SKY_SETTINGS, nearCount: 0}
+        render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter={null} settings={all}
+                          physics={skyPhysics(all)} selectedId={null} onPickStar={onPick} onFocus={vi.fn()}
+                          onExitFocus={vi.fn()} onSettings={vi.fn()} panelOpen={false} footer={null}/>)
+        await settle(true)
+
+        // the mouse names Bowie; the click event still lands on Low's avatar painted over it
+        fireEvent.pointerMove(frame(), {...at('Bowie'), pointerType: 'mouse'})
+        fireEvent.click(low())
+
+        expect(onPick).toHaveBeenCalledWith('bowie')
+        expect(onPick).not.toHaveBeenCalledWith('low')
+    })
+
+    it('rings an avatar in the sky\'s neutral colour in Mono', async () => {
+        renderPosterSky({colour: 'mono'})
+        await settle(true)
+
+        expect(low().querySelector('circle[stroke="var(--accent-2)"]')).not.toBeNull()
+    })
+
+    it('dims an avatar outside the filtered branch and leaves it unpickable', async () => {
+        const looseSky: Sky = {...SKY, notes: SKY.notes.map((note) => note.id === 'loose'
+            ? {...note, poster: {url: POSTER}} : note)}
+        const graph = buildSkyGraph(looseSky)
+        render(<SkyCanvas graph={graph} sub={subgraph(graph, 'full')} view="full" filter="music"
+                          settings={DEFAULT_SKY_SETTINGS} physics={skyPhysics(DEFAULT_SKY_SETTINGS)} selectedId={null}
+                          onPickStar={vi.fn()} onFocus={vi.fn()} onExitFocus={vi.fn()} onSettings={vi.fn()}
+                          panelOpen={false} footer={null}/>)
+        await settle(true)
+
+        const loose = document.querySelector('[data-node-id="loose"]')!
+        expect(loose.querySelector('image')).not.toBeNull()
+        expect(loose.getAttribute('opacity')).toBe('0.14')
+        expect(loose).not.toHaveAttribute('role')
+        expect(screen.queryByRole('button', {name: 'Loose thought'})).toBeNull()
+    })
+
+    it('draws the star again when the drawn avatar image fails after all', async () => {
+        renderPosterSky()
+        await settle(true)
+
+        fireEvent.error(low().querySelector('image')!)
+
+        expect(low().querySelector('image')).toBeNull()
+        expect(low().querySelector('circle[r="3.2"]')).not.toBeNull()
+    })
 })

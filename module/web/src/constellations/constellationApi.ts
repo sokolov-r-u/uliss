@@ -153,7 +153,10 @@ function parseStarPoster(value: unknown): SkyStarPoster {
         if (typeof n !== 'number' || !Number.isFinite(n)) throw protocolError(`star poster avatar ${field}`)
         return n
     }
-    return {url: value.url, avatar: {x: number('x'), y: number('y'), w: number('w'), h: number('h')}}
+    const avatar = {x: number('x'), y: number('y'), w: number('w'), h: number('h')}
+    // the frame divides the image's box: an empty one would draw nothing
+    if (avatar.w <= 0 || avatar.h <= 0) throw protocolError('star poster avatar size')
+    return {url: value.url, avatar}
 }
 
 function parseNoteRef(value: unknown): NoteRef {

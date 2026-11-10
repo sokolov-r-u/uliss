@@ -1,5 +1,5 @@
-import {render} from '@testing-library/react'
-import {describe, expect, it} from 'vitest'
+import {fireEvent, render} from '@testing-library/react'
+import {describe, expect, it, vi} from 'vitest'
 import {AVATAR_RADIUS, AvatarStar} from './AvatarStar'
 
 const SRC = 'https://images.example.com/dune.jpg'
@@ -45,5 +45,14 @@ describe('AvatarStar', () => {
         const ids = [...svg.querySelectorAll('clipPath')].map((clip) => clip.id)
         expect(new Set(ids).size).toBe(2)
         ids.forEach((id) => expect(id).toMatch(/^[a-zA-Z0-9_-]+$/))
+    })
+
+    it('reports an image that fails to draw', () => {
+        const onImageError = vi.fn()
+        const svg = draw(<AvatarStar x={0} y={0} r={10} src={SRC} color="gold" onImageError={onImageError}/>)
+
+        fireEvent.error(svg.querySelector('image')!)
+
+        expect(onImageError).toHaveBeenCalledOnce()
     })
 })

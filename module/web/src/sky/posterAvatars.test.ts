@@ -1,6 +1,6 @@
 import {act, renderHook, waitFor} from '@testing-library/react'
 import {afterEach, beforeEach, describe, expect, it, vi} from 'vitest'
-import {AVATAR_CONCURRENCY, avatarStatus, loadAvatars, resetAvatarsForTest, stopAvatars, useAvatars} from './posterAvatars'
+import {AVATAR_CONCURRENCY, avatarStatus, failAvatar, loadAvatars, resetAvatarsForTest, stopAvatars, useAvatars} from './posterAvatars'
 
 /** A browser image that loads only when the test says so. */
 class FakeImage {
@@ -94,5 +94,28 @@ describe('poster avatars', () => {
         finish(urls(1)[0])
 
         expect(result.current).not.toBe(before)
+    })
+
+    it('an image started before a reset never counts against the new queue', () => {
+        loadAvatars(urls(3))
+        const old = FakeImage.made[0]
+        resetAvatarsForTest()
+        loadAvatars(urls(6).slice(3))
+        act(() => old.onload?.())
+        loadAvatars(urls(7).slice(6))
+
+        expect(started().slice(3)).toEqual(urls(6).slice(3))
+        expect(avatarStatus(urls(7)[6])).toBe('loading')
+        expect(avatarStatus(urls(3)[0])).toBeUndefined()
+    })
+
+    it('an avatar whose drawn image fails turns back into a star and stays one', () => {
+        loadAvatars(urls(1))
+        finish(urls(1)[0])
+        failAvatar(urls(1)[0])
+        loadAvatars(urls(1))
+
+        expect(avatarStatus(urls(1)[0])).toBe('failed')
+        expect(started()).toEqual(urls(1))
     })
 })

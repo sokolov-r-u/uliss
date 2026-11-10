@@ -18,6 +18,8 @@ const queue: string[] = []
 const listeners = new Set<() => void>()
 let active = 0
 let version = 0
+/** Bumped by a reset, so an image started before it never counts against the new queue. */
+let generation = 0
 
 function notify() {
     version++
@@ -26,11 +28,13 @@ function notify() {
 
 function start(url: string) {
     active++
+    const started = generation
     const image = new Image()
     image.referrerPolicy = 'no-referrer'
     image.fetchPriority = 'low'
     image.decoding = 'async'
     const done = (status: AvatarStatus) => {
+        if (started !== generation) return
         active--
         statuses.set(url, status)
         if (status === 'ready') loaded.set(url, image)
@@ -63,6 +67,14 @@ export function loadAvatars(urls: Iterable<string>): void {
 export function stopAvatars(): void {
     if (queue.length === 0) return
     queue.splice(0).forEach((url) => statuses.delete(url))
+    notify()
+}
+
+/** A drawn avatar whose image did not come from the cache after all: the sky draws its star again. */
+export function failAvatar(url: string): void {
+    if (statuses.get(url) === 'failed') return
+    statuses.set(url, 'failed')
+    loaded.delete(url)
     notify()
 }
 
@@ -105,5 +117,6 @@ export function resetAvatarsForTest(): void {
     loaded.clear()
     queue.length = 0
     active = 0
+    generation++
     notify()
 }

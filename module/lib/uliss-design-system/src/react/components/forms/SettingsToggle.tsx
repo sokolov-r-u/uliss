@@ -3,7 +3,7 @@ import type {ButtonHTMLAttributes} from 'react'
 // An on/off settings row: an uppercase name, one line of what it does, and a
 // square switch on the right. The whole row is the switch (role="switch").
 
-export interface SettingsToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'onChange'> {
+export interface SettingsToggleProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'onChange' | 'onClick' | 'role'> {
     label: string
     /** One line of what the setting does. */
     hint?: string
