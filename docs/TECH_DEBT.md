@@ -352,12 +352,15 @@ Procedure:
 1. Squash on a branch where no one else changes the schema.
 2. Reference snapshot: apply the current migrations to a throwaway database on the same image
    (`pgvector/pgvector:0.8.2-pg18`) and run `pg_dump --schema-only --no-owner --no-privileges -n <schema>
-   -T '*.flyway_schema_history'` for `auth`, `profile`, and `note`.
+   -T '*.flyway_schema_history'` for `auth` and `profile`. For `note` the committed `module/note/note-app/SCHEMA.md`
+   is the snapshot.
 3. Rewrite by hand, not from a dump: fold every `ALTER` into its `CREATE TABLE`, drop data fixups, keep seed DML in a
    separate `dml_` file, refresh comments, restart numbering at `V1`. Keep folded columns at the end of `CREATE` and
-   give constraints explicit names so the diff stays clean.
+   give constraints explicit names so the diff stays clean; for `note` the explicit names must equal the current
+   generated ones (`*_pkey`, `*_fkey`, `*_check`) shown in `SCHEMA.md`.
 4. Apply the new migrations to a fresh database, dump the same way, and `diff`. The result must be empty or contain
-   only consciously accepted differences.
+   only consciously accepted differences. For `note`, run `./gradlew :note:updateSchemaSnapshot`: `git diff SCHEMA.md`
+   must be empty or contain only consciously accepted differences (comments).
 5. Run `:auth:integrationTest`, `:user:integrationTest`, `:note:integrationTest`.
 6. Reset every database that has the old history applied (local `infra/volumes/postgres/data`, minikube, any
    staging): Flyway validation fails on checksum mismatch otherwise.
@@ -835,3 +838,11 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   the insert, the foreign key fails and the `DataIntegrityViolationException` surfaces as 500 instead of 404. Needs a
   delete and a `PUT …/poster` of the same note at the same moment; map the violation to "not found" in the store when
   it is seen in practice (found by the code review).
+
+## Schema snapshots for `auth` and `user` (`auth`, `user`)
+
+- `note` has a generated `SCHEMA.md` checked by `NoteSchemaSnapshotIntegrationTest` (task
+  `docs/tasks/2026-11-10-note-schema-snapshot.md`); `auth` (schema `auth`) and `user` (schema `profile`) have none yet.
+  When their migrations grow, move the generator (`NoteSchemaReader`, `SchemaDumpNormalizer`, `SchemaSnapshotRenderer`,
+  `SchemaCoverage`) into the `:database` test fixtures with the schema name as a parameter, and give each service a
+  section map, a test and an `updateSchemaSnapshot` task.

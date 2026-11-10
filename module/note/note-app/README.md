@@ -6,6 +6,8 @@ asynchronous chat summaries, notes, and per-user retrieval-augmented generation 
 
 See [REQUEST_FLOWS.md](REQUEST_FLOWS.md) for endpoint call order, transaction boundaries, chat-turn
 states, and asynchronous summary/indexing diagrams.
+See [SCHEMA.md](SCHEMA.md) for the current `note` database schema grouped by area; it is generated from the
+migrations, never edited by hand.
 
 ## AI providers and configuration
 
