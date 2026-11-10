@@ -35,6 +35,10 @@ export interface SkySettings {
     /** A star in several constellations is split into sectors of their colours instead of its main one's. */
     mixColours: boolean
     glow: boolean
+    /** A note with a poster shows it as a round avatar instead of its star. */
+    posters: boolean
+    /** The avatar's size, apart from the stars'. */
+    posterSize: Of<typeof MARK_SIZES>
     centerMark: Of<typeof CENTER_MARKS>
     linkDist: Of<typeof LINK_DISTANCES>
     tension: Of<typeof TENSIONS>
@@ -57,6 +61,8 @@ export const DEFAULT_SKY_SETTINGS: SkySettings = {
     colour: 'constellation',
     mixColours: false,
     glow: true,
+    posters: true,
+    posterSize: 'regular',
     centerMark: 'ship',
     linkDist: 'comfortable',
     tension: 'balanced',
@@ -102,6 +108,8 @@ export function parseSkySettings(raw: unknown): SkySettings {
         colour: oneOf(COLOURS, p.colour, d.colour),
         mixColours: flag(p.mixColours, d.mixColours),
         glow: flag(p.glow, d.glow),
+        posters: flag(p.posters, d.posters),
+        posterSize: oneOf(MARK_SIZES, p.posterSize, d.posterSize),
         centerMark: oneOf(CENTER_MARKS, p.centerMark, d.centerMark),
         linkDist: oneOf(LINK_DISTANCES, p.linkDist, d.linkDist),
         tension: oneOf(TENSIONS, p.tension, d.tension),
@@ -168,6 +176,12 @@ const SECONDARY_PULL: Record<SkySettings['secondary'], number> = {faint: 0.12, g
 const LABEL_SCALE: Record<SkySettings['labelSize'], number> = {small: 0.85, regular: 1, large: 1.2, largest: 1.45}
 const NEAR_RADIUS: Record<SkySettings['nearReach'], number> = {close: 60, medium: 120, wide: 200, vast: 300}
 const MARK_SCALE: Record<SkySettings['starSize'], number> = {fine: 0.7, regular: 1, bold: 1.35, beacon: 1.75}
+
+/** What the layout's forces read from [physics]; the rest only changes how the sky is drawn. */
+export function skyForceKey(physics: SkyPhysics): string {
+    const {linkDist, tension, repulsion, gravity, alphaDecay, secondaryPull} = physics
+    return [linkDist, tension, repulsion, gravity, alphaDecay, secondaryPull].join(' ')
+}
 
 export function skyPhysics(settings: SkySettings): SkyPhysics {
     return {

@@ -85,6 +85,14 @@ const ref = (noteId: string) => {
     return {id: noteId, title: note?.title ?? null, ...(note?.icon ? {icon: note.icon} : {})}
 }
 
+/** A star's poster as the sky sends it: the link and only the avatar frame. */
+function skyPoster(noteId: string) {
+    const poster = posters.get(noteId)
+    if (!poster) return null
+    const crop = poster.crop as { avatar?: unknown } | null
+    return {url: poster.url, avatar: crop?.avatar ?? null}
+}
+
 const constellations = createConstellationStore(empty, subtreeOf)
 // `?places=on` places n1 in Jazz (under Music) and n2 in Films, for the Notes constellation filter
 if (params.get('places') === 'on' && !empty) {
@@ -219,6 +227,7 @@ function constellationResponse(path: string, method: string, body: string, searc
                 id: note.id, title: note.title, ...(note.icon ? {icon: note.icon} : {}),
                 parentNoteId: parents.get(note.id) ?? null, createdAt: note.createdAt,
                 memberships: parents.has(note.id) ? [] : constellations.placesOf(note.id).body,
+                poster: skyPoster(note.id),
             }))
         return json({constellations: constellations.list().body, notes: stars})
     }

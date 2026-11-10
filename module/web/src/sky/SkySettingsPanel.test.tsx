@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from '@testing-library/react'
+import {fireEvent, render, screen, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {useState} from 'react'
 import {describe, expect, it, vi} from 'vitest'
@@ -52,5 +52,27 @@ describe('SkySettingsPanel', () => {
         expect(screen.getByRole('switch', {name: /Mix colours/})).toHaveAttribute('aria-checked', 'false')
         expect(screen.getByRole('radio', {name: 'Dashed'})).toHaveAttribute('aria-checked', 'true')
         expect(screen.getByRole('status')).toHaveTextContent('Defaults restored')
+    })
+
+    it('sizes posters beside the stars while they are shown, and hides the size when posters are off', async () => {
+        render(<Host/>)
+        const groups = () => screen.getAllByRole('radiogroup').map((group) => group.getAttribute('aria-label'))
+        const posters = screen.getByRole('switch', {name: /Posters in the sky/})
+        expect(posters).toHaveAttribute('aria-checked', 'true')
+        expect(groups().slice(groups().indexOf('Star size'), groups().indexOf('Star size') + 3))
+            .toEqual(['Star size', 'Poster size', 'Constellation size'])
+
+        await userEvent.click(within(screen.getByRole('radiogroup', {name: 'Poster size'})).getByRole('radio', {name: 'Beacon'}))
+        expect(within(screen.getByRole('radiogroup', {name: 'Poster size'})).getByRole('radio', {name: 'Beacon'}))
+            .toHaveAttribute('aria-checked', 'true')
+        expect(within(screen.getByRole('radiogroup', {name: 'Star size'})).getByRole('radio', {name: 'Regular'}))
+            .toHaveAttribute('aria-checked', 'true')
+
+        await userEvent.click(posters)
+        expect(posters).toHaveAttribute('aria-checked', 'false')
+        expect(screen.queryByRole('radiogroup', {name: 'Poster size'})).not.toBeInTheDocument()
+
+        await userEvent.click(screen.getByRole('button', {name: 'Reset to defaults'}))
+        expect(screen.getByRole('switch', {name: /Posters in the sky/})).toHaveAttribute('aria-checked', 'true')
     })
 })

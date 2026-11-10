@@ -179,3 +179,21 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** the public surface grew (exports, translated defaults), so the next `/design-sync` should carry it.
   The emoji picker's data and search stay English (`docs/TECH_DEBT.md`).
 - **Source:** task `docs/tasks/2026-11-04-russian-localization.md`, block 1.
+
+## 2026-11-10 — The sky avatar is an SVG group sized by numbers, and draws a crop without the image's size
+
+- **Decision:** `AvatarStar` is an SVG `<g>` (glow, clipped `<image>`, ring) that the sky draws in screen space; the
+  host keeps the plain star for loading and failed images, the name, rings and hit area. Its radii are numbers
+  (`AVATAR_RADIUS`, 8/10/12/14 px by Star size), not the PROT's `--avatar-r-*` tokens: the sky's geometry and hit
+  testing are computed in JS. `avatarImageBox` places the image like `cropImageStyle` (box `D / w` × `D / h`, shifted
+  by the frame) with `preserveAspectRatio="xMidYMid slice"`, so a frame whose proportions no longer match the image
+  never stretches it. `SettingsToggle` moves the sky's private on/off row into the kit unchanged (PROT CL-6).
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, block 2.
+
+## 2026-11-10 — Avatar radius follows its own Poster size; a failed image reports back
+
+- **Decision:** `AVATAR_RADIUS` is picked by the sky's own "Poster size" setting, not by "Star size" (the user's UI
+  check); replaces "by Star size" in "The sky avatar is an SVG group sized by numbers…". `AvatarStar.onImageError`
+  reports an `<image>` that failed after the host's preload, so the host can draw the plain star again.
+  `SettingsToggle` owns `onClick` and `role`; its props type no longer accepts them.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, manual check 1 and the code review.

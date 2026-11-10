@@ -17,14 +17,16 @@ vi.mock('../notes/noteApi', async (importOriginal) => ({
 }))
 // The note's sections have their own tests; here only what the sky hands them matters.
 vi.mock('../notes/NoteDetailsSections', () => ({
-    NoteDetailsSections: ({note, onOpenNote, onPlaceChanged}: {
+    NoteDetailsSections: ({note, onOpenNote, onPlaceChanged, onPosterChanged}: {
         note: { id: string }
         onOpenNote: (id: string) => void
         onPlaceChanged: () => void
+        onPosterChanged: (poster: { url: string } | undefined) => void
     }) => <div data-testid="note-sections">
         <span>Sections of {note.id}</span>
         <button type="button" onClick={() => onOpenNote('low')}>Open sub-note</button>
         <button type="button" onClick={onPlaceChanged}>Change place</button>
+        <button type="button" onClick={() => onPosterChanged({url: 'https://example.com/new.jpg'})}>Change poster</button>
     </div>,
 }))
 
@@ -114,6 +116,15 @@ describe('SkyPage', () => {
         expect(await within(panel).findByRole('heading', {name: 'Low'})).toBeInTheDocument()
 
         await userEvent.click(await within(panel).findByRole('button', {name: 'Change place'}))
+        expect(mockedSky).toHaveBeenCalledTimes(2)
+    })
+
+    it('redraws the sky after the star\'s poster changes in its panel, so the avatar follows', async () => {
+        renderSky()
+        await userEvent.click(await star('Bowie'))
+        const panel = screen.getByRole('complementary', {name: 'Note'})
+
+        await userEvent.click(await within(panel).findByRole('button', {name: 'Change poster'}))
         expect(mockedSky).toHaveBeenCalledTimes(2)
     })
 

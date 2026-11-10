@@ -104,6 +104,51 @@ class SkyApiIntegrationTest : NoteIntegrationTest() {
     }
 
     @Test
+    fun `a star with a poster carries its link and only the avatar frame, a star without one carries none`() {
+        val cropped = note("Cropped")
+        val centred = note("Centred")
+        val plain = note("Plain")
+        putPoster(cropped, """{"url":"https://example.com/c.jpg","crop":{
+            "poster":{"x":0.1,"y":0.0,"w":0.6,"h":0.6},"avatar":{"x":0.25,"y":0.5,"w":0.5,"h":0.3333}}}""")
+        putPoster(centred, """{"url":"https://example.com/d.jpg"}""")
+
+        mockMvc.get("/note/sky") { auth() }.andExpect {
+            status { isOk() }
+            jsonPath("$.notes[0].id") { value(cropped.toString()) }
+            jsonPath("$.notes[0].poster.url") { value("https://example.com/c.jpg") }
+            jsonPath("$.notes[0].poster.avatar.x") { value(0.25) }
+            jsonPath("$.notes[0].poster.avatar.y") { value(0.5) }
+            jsonPath("$.notes[0].poster.avatar.w") { value(0.5) }
+            jsonPath("$.notes[0].poster.avatar.h") { value(0.3333) }
+            jsonPath("$.notes[0].poster.crop") { doesNotExist() }
+            jsonPath("$.notes[0].poster.poster") { doesNotExist() }
+            jsonPath("$.notes[1].poster.url") { value("https://example.com/d.jpg") }
+            jsonPath("$.notes[1].poster.avatar") { value(null) }
+            jsonPath("$.notes[2].id") { value(plain.toString()) }
+            jsonPath("$.notes[2].poster") { value(null) }
+        }
+    }
+
+    @Test
+    fun `a poster of a note that is not a star, or of someone else's note, never reaches the sky`() {
+        val draft = note("Draft", NoteStatus.GENERATING)
+        val star = note("Star")
+        putPoster(draft, """{"url":"https://example.com/draft.jpg"}""")
+        val theirs = noteRepository.saveAndFlush(NoteEntity(otherUserId, "body", title = "Foreign")).id
+        mockMvc.put("/note/notes/$theirs/poster") {
+            with(jwt().jwt { it.claim("userId", otherUserId.toString()) })
+            contentType = MediaType.APPLICATION_JSON
+            content = """{"url":"https://example.com/theirs.jpg"}"""
+        }.andExpect { status { isOk() } }
+
+        mockMvc.get("/note/sky") { auth() }.andExpect {
+            jsonPath("$.notes.length()") { value(1) }
+            jsonPath("$.notes[0].id") { value(star.toString()) }
+            jsonPath("$.notes[0].poster") { value(null) }
+        }
+    }
+
+    @Test
     fun `the sky needs a signed-in user`() {
         mockMvc.get("/note/sky").andExpect { status { isUnauthorized() } }
     }
@@ -133,6 +178,14 @@ class SkyApiIntegrationTest : NoteIntegrationTest() {
             auth()
             contentType = MediaType.APPLICATION_JSON
             content = """{"parentNoteId":"$parentId"}"""
+        }.andExpect { status { isOk() } }
+    }
+
+    private fun putPoster(noteId: UUID, body: String) {
+        mockMvc.put("/note/notes/$noteId/poster") {
+            auth()
+            contentType = MediaType.APPLICATION_JSON
+            content = body
         }.andExpect { status { isOk() } }
     }
 

@@ -1,4 +1,4 @@
-import type {ConstellationLightness} from '@uliss/design-system'
+import type {ConstellationLightness, CropFrame} from '@uliss/design-system'
 import {authFetch, AuthRequiredError} from '../auth/apiClient'
 import {errorCode, isRecord, segment} from '../lib/apiHelpers'
 
@@ -36,6 +36,12 @@ export interface NotePlace {
     constellations: NoteMembership[]
 }
 
+/** A star's poster as the sky draws it: the link and the avatar frame (absent: the image's centre). */
+export interface SkyStarPoster {
+    url: string
+    avatar?: CropFrame
+}
+
 /** A star of the sky; [memberships] are set only on a star with no parent star, main first. */
 export interface SkyStar {
     id: string
@@ -45,6 +51,8 @@ export interface SkyStar {
     parentNoteId: string | null
     createdAt: string
     memberships: NoteMembership[]
+    /** Absent for a note without a poster. */
+    poster?: SkyStarPoster
 }
 
 /** The whole sky read at one moment: the constellation tree and the stars, oldest first. */
@@ -122,7 +130,7 @@ function parseMemberships(value: unknown): NoteMembership[] {
 
 function parseStar(value: unknown): SkyStar {
     if (!isRecord(value)) throw protocolError('star')
-    const {id, title, icon, parentNoteId, createdAt, memberships} = value
+    const {id, title, icon, parentNoteId, createdAt, memberships, poster} = value
     if (typeof id !== 'string' || id === '') throw protocolError('star id')
     if (typeof title !== 'string' || title === '') throw protocolError('star title')
     if (parentNoteId != null && typeof parentNoteId !== 'string') throw protocolError('star parentNoteId')
@@ -131,7 +139,24 @@ function parseStar(value: unknown): SkyStar {
     return {
         id, title, ...(icon ? {icon} : {}), parentNoteId: parentNoteId ?? null, createdAt,
         memberships: parseMemberships(memberships),
+        ...(poster != null ? {poster: parseStarPoster(poster)} : {}),
     }
+}
+
+function parseStarPoster(value: unknown): SkyStarPoster {
+    if (!isRecord(value) || typeof value.url !== 'string' || value.url === '') throw protocolError('star poster')
+    if (value.avatar == null) return {url: value.url}
+    const frame = value.avatar
+    if (!isRecord(frame)) throw protocolError('star poster avatar')
+    const number = (field: string) => {
+        const n = frame[field]
+        if (typeof n !== 'number' || !Number.isFinite(n)) throw protocolError(`star poster avatar ${field}`)
+        return n
+    }
+    const avatar = {x: number('x'), y: number('y'), w: number('w'), h: number('h')}
+    // the frame divides the image's box: an empty one would draw nothing
+    if (avatar.w <= 0 || avatar.h <= 0) throw protocolError('star poster avatar size')
+    return {url: value.url, avatar}
 }
 
 function parseNoteRef(value: unknown): NoteRef {

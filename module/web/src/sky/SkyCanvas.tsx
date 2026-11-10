@@ -1,11 +1,12 @@
 import {type KeyboardEvent, type PointerEvent as ReactPointerEvent, useEffect, useMemo, useReducer, useRef, useState} from 'react'
 import {applyPhysics, createLayout, type SimNode, type SkyLayout} from './skyLayout'
 import {type ArrowKey, labelLines, nearestStars, nextInDirection, segmentDistance, type SkyGraph, type SkyNode, type SkySubgraph, type SkyView, inBranch, subgraph, YOU_ID} from './skyModel'
-import type {SkyPhysics, SkySettings} from './skySettings'
+import {skyForceKey, type SkyPhysics, type SkySettings} from './skySettings'
 import {skyMemory} from './skyMemory'
 import {SkyNamesMenu} from './SkyNamesMenu'
 import {skyMessages} from './sky.messages'
-import {useMessages} from '@uliss/design-system'
+import {AVATAR_RADIUS, AvatarStar, useMessages} from '@uliss/design-system'
+import {avatarStatus, failAvatar, useAvatars} from './posterAvatars'
 
 /**
  * The live sky: one SVG over the measured frame, drawn in screen space from the layout's world positions, so marks and
@@ -89,6 +90,10 @@ export function SkyCanvas(props: SkyCanvasProps) {
     const all = useMemo(() => subgraph(graph, 'full'), [graph])
     const visible = useMemo(() => new Set(sub.nodes.map((n) => n.id)), [sub])
     const visibleEdges = useMemo(() => new Set(sub.edges.map((e) => `${e.source}>${e.target}>${e.kind}`)), [sub])
+    // every poster of the sky loads, a few at a time, after the stars are drawn
+    const posterUrls = useMemo(() => [...new Set(graph.nodes.flatMap((n) => n.poster ? [n.poster.url] : []))],
+        [graph])
+    useAvatars(posterUrls, settings.posters)
 
     // measured frame → the SVG's own pixel box
     useEffect(() => {
@@ -174,7 +179,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
             return
         }
         if (layoutRef.current) applyPhysics(layoutRef.current, physics)
-    }, [physics])
+        // only a change of the forces re-heats the layout; sizes, colours and posters leave the sky where it is
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [skyForceKey(physics)])
 
     // On the sky screen Tab always lands on the graph, never on the nav or the controls around it; inside the graph
     // arrows move and Escape leaves. Open panels and dialogs keep their own Tab order.
@@ -384,9 +391,15 @@ export function SkyCanvas(props: SkyCanvasProps) {
         const threshold = (1 + room) * physics.labelGain
         return Math.max(0, Math.min(1, (zoom - threshold) / 0.5 + 0.05))
     }
+    /** The star's poster when it is drawn as an avatar: posters on and its image loaded. */
+    const avatarOf = (node: SkyNode) =>
+        settings.posters && node.poster && avatarStatus(node.poster.url) === 'ready' ? node.poster : undefined
+    const avatarRadius = AVATAR_RADIUS[settings.posterSize]
     const radiusOf = (node: SkyNode) => node.kind === 'constellation'
         ? (node.depth === 1 ? 5.6 : node.depth === 2 ? 4.6 : 3.9) * physics.constellationScale
-        : 3.2 * physics.starScale
+        : avatarOf(node) ? avatarRadius : 3.2 * physics.starScale
+    /** Screen px around a node that pick it: an avatar is larger than a star. */
+    const hitOf = (node: SkyNode) => avatarOf(node) ? Math.max(HIT_RADIUS, avatarRadius + 3) : HIT_RADIUS
     const you = layout?.byId.get(YOU_ID)
     const cx = you ? sx(you) : w / 2
     const nodes = (layout?.nodes ?? []).filter((n) => visible.has(n.id) && shown(n.id))
@@ -412,8 +425,18 @@ export function SkyCanvas(props: SkyCanvasProps) {
         ? new Set(nearestStars(stars.map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, settings.nearCount,
             physics.nearRadius))
         : new Set<string>()
-    const hovered = pointer ? nearestStars(nodes.filter((n) => n.node.kind !== 'you')
-        .map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, 1, HIT_RADIUS)[0] : undefined
+    // nearest node whose own hit area holds the mouse
+    const hovered = pointer ? nearestStars(nodes.filter((n) => n.node.kind !== 'you'
+        && Math.hypot(sx(n) - pointer.x, sy(n) - pointer.y) <= hitOf(n.node))
+        .map((n) => ({id: n.id, x: sx(n), y: sy(n)})), pointer, 1, Infinity)[0] : undefined
+    /** The nearest pickable node whose hit area holds [p], read from where the nodes are now. */
+    const pickAt = (p: { x: number; y: number }): SkyNode | undefined => {
+        const now = viewRef.current
+        const id = nearestStars(nodes.filter((n) => pickableIds.includes(n.id))
+            .map((n) => ({id: n.id, x: n.x * now.s + now.tx, y: n.y * now.s + now.ty, hit: hitOf(n.node)}))
+            .filter((n) => Math.hypot(n.x - p.x, n.y - p.y) <= n.hit), p, 1, Infinity)[0]
+        return id ? layoutRef.current?.byId.get(id)?.node : undefined
+    }
     // the mouse on an edge (and not on a node) lights up the two nodes it joins
     const edgeEnds = new Set<string>()
     if (pointer && !hovered && layout) {
@@ -488,6 +511,9 @@ export function SkyCanvas(props: SkyCanvasProps) {
                     const outward = x >= cx ? 1 : -1
                     const colour = tint(node)
                     const sectors = !mono && settings.mixColours && node.colors.length > 1 ? node.colors : null
+                    const avatar = avatarOf(node)
+                    // rings sit closer around an avatar than around a star
+                    const ring = r + (avatar ? 5 : 8)
                     return <g key={n.id} data-node-id={n.id} className={pickable ? 'sky-node pickable' : 'sky-node'}
                               opacity={dimmed ? isConstellation ? 0.16 : 0.14 : 1}
                               role={pickable ? 'button' : undefined}
@@ -499,7 +525,13 @@ export function SkyCanvas(props: SkyCanvasProps) {
                               } : undefined}
                               onBlur={pickable ? () => setFocusedId((id) => id === n.id ? null : id) : undefined}
                               aria-label={pickable ? isConstellation ? t.focusOn(node.label) : node.label : undefined}
-                              onClick={pickable ? () => activate(node) : undefined}
+                              onClick={pickable ? (event) => {
+                                  // a click picks the nearest pickable node at its own point: hit areas of different
+                                  // sizes overlap, and the one painted on top is not always the nearest; a click
+                                  // without a point (keyboard, assistive tech) keeps the node it was sent to
+                                  const at = event.detail > 0 ? pickAt(local(event)) : undefined
+                                  activate(at ?? node)
+                              } : undefined}
                               onKeyDown={pickable ? (event) => {
                                   if (moveRoving(event, n.id)) return
                                   if (event.key === 'Escape') {
@@ -514,18 +546,21 @@ export function SkyCanvas(props: SkyCanvasProps) {
                                       activate(node)
                                   }
                               } : undefined}>
-                        {pickable && <circle cx={x} cy={y} r={HIT_RADIUS} fill="transparent"/>}
-                        {pickable && <circle className="sky-focus-ring" cx={x} cy={y} r={r + 8}/>}
+                        {pickable && <circle cx={x} cy={y} r={hitOf(node)} fill="transparent"/>}
+                        {pickable && <circle className="sky-focus-ring" cx={x} cy={y} r={ring}/>}
                         {(n.id === selectedId || edgeEnds.has(n.id)) &&
-                            <circle cx={x} cy={y} r={r + 8} fill="none" stroke="var(--accent)"
+                            <circle cx={x} cy={y} r={ring} fill="none" stroke="var(--accent)"
                                     strokeWidth={1} opacity={n.id === selectedId ? 1 : 0.7}/>}
-                        {settings.glow && <circle cx={x} cy={y} r={r * (isConstellation ? 2 : 2.9)} fill={colour}
-                                                  opacity={isConstellation ? 0.09 : 0.14}/>}
+                        {settings.glow && !avatar && <circle cx={x} cy={y} r={r * (isConstellation ? 2 : 2.9)}
+                                                             fill={colour} opacity={isConstellation ? 0.09 : 0.14}/>}
                         {isConstellation
                             ? <circle cx={x} cy={y} r={r} fill="none" stroke={colour}
                                       strokeWidth={node.depth === 1 ? 1.3 : 1}/>
-                            : sectors ? <StarSectors x={x} y={y} r={r} colors={sectors}/>
-                                : <circle cx={x} cy={y} r={r} fill={colour}/>}
+                            : avatar ? <AvatarStar x={x} y={y} r={r} src={avatar.url} crop={avatar.avatar}
+                                                   color={colour} glow={settings.glow}
+                                                   onImageError={() => failAvatar(avatar.url)}/>
+                                : sectors ? <StarSectors x={x} y={y} r={r} colors={sectors}/>
+                                    : <circle cx={x} cy={y} r={r} fill={colour}/>}
                         {name > 0.001 && (() => {
                             const size = (isConstellation ? node.depth === 1 ? 10 : 9 : 9.5) * physics.labelScale
                             const lines = isConstellation ? [node.label] : labelLines(node.label)

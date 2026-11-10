@@ -13,3 +13,4 @@ export function useSkySettings(): [SkySettings, (patch: Partial<SkySettings>) =>
     const patch = useCallback((change: Partial<SkySettings>) => writeSkySettings({...readSkySettings(), ...change}), [])
     return [settings, patch, replace]
 }
+

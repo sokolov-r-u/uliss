@@ -3,6 +3,7 @@ package io.uliss.note_service.util
 import io.uliss.note_service.dto.internal.SkyNote
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.NoteMembership
+import io.uliss.note_service.model.projection.NotePoster
 import io.uliss.note_service.model.projection.SkyNoteRow
 import java.util.UUID
 
@@ -13,7 +14,11 @@ import java.util.UUID
  */
 object SkyNotes {
 
-    fun stars(rows: List<SkyNoteRow>, memberships: Map<UUID, List<NoteMembership>>): List<SkyNote> {
+    fun stars(
+        rows: List<SkyNoteRow>,
+        memberships: Map<UUID, List<NoteMembership>>,
+        posters: Map<UUID, NotePoster> = emptyMap(),
+    ): List<SkyNote> {
         val byId = rows.associateBy { it.id }
         return rows
             .filter { isStar(it) }
@@ -28,6 +33,7 @@ object SkyNotes {
                     parentNoteId = parent?.id,
                     createdAt = row.createdAt,
                     icon = row.icon,
+                    poster = posters[row.id],
                     memberships = if (parent == null) {
                         NotePlacement.ordered(memberships[(ancestors.lastOrNull() ?: row).id].orEmpty())
                     } else {

@@ -11,7 +11,7 @@ data class SkyResponse(
     val notes: List<SkyNoteResponse>,
 )
 
-/** A star without its text; [memberships] are set only on a star with no parent star, main first. */
+/** A star without its text and with its poster's avatar (null without a poster); [memberships] are set only on a star with no parent star, main first. */
 data class SkyNoteResponse(
     val id: UUID,
     val title: String,
@@ -19,9 +19,10 @@ data class SkyNoteResponse(
     val createdAt: Instant,
     val memberships: List<NoteConstellationResponse>,
     val icon: String? = null,
+    val poster: SkyPosterResponse? = null,
 )
 
 fun SkyView.toResponse() = SkyResponse(constellations.map { it.toResponse() }, notes.map { it.toResponse() })
 
 fun SkyNote.toResponse() =
-    SkyNoteResponse(id, title, parentNoteId, createdAt, memberships.map { it.toResponse() }, icon)
+    SkyNoteResponse(id, title, parentNoteId, createdAt, memberships.map { it.toResponse() }, icon, poster?.toSkyResponse())

@@ -1,5 +1,5 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
-import {Kicker, StepControl, useMessages} from '@uliss/design-system'
+import {Kicker, SettingsToggle, StepControl, useMessages} from '@uliss/design-system'
 import type {SkySettings} from './skySettings'
 import {type SkyStepWord, skySettingsMessages} from './skySettings.messages'
 import './sky.css'
@@ -86,12 +86,9 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
                          onPick={(id) => onSettings({[key]: id} as Partial<SkySettings>)}/>
         </Row>
 
-    const toggle = (key: 'mixColours' | 'glow' | 'midStars', label: string, hint: string) =>
-        <button type="button" role="switch" aria-checked={settings[key]} className="sky-settings-toggle"
-                onClick={() => onSettings({[key]: !settings[key]})}>
-            <span className="sky-settings-toggle-text"><span>{label}</span><small>{hint}</small></span>
-            <span className={settings[key] ? 'sky-settings-switch on' : 'sky-settings-switch'} aria-hidden><i/></span>
-        </button>
+    const toggle = (key: 'mixColours' | 'glow' | 'posters' | 'midStars', label: string, hint: string) =>
+        <SettingsToggle className="sky-settings-toggle" label={label} hint={hint} on={settings[key]} divider
+                        onChange={(on) => onSettings({[key]: on})}/>
 
     return <div className="sky-settings">
         {section('labels', t.labels, <>
@@ -108,10 +105,12 @@ export function SkySettingsPanel({settings, onSettings, onReset}: {
         </>)}
         {section('stars', t.stars, <>
             {steps('starSize', t.starSize, MARK_SIZE)}
+            {settings.posters && steps('posterSize', t.posterSize, MARK_SIZE)}
             {steps('constellationSize', t.constellationSize, MARK_SIZE, t.constellationSizeHint)}
             {steps('colour', t.colour, COLOUR, t.colourHint)}
             {toggle('mixColours', t.mixColours, t.mixColoursHint)}
             {toggle('glow', t.glow, t.glowHint)}
+            {toggle('posters', t.posters, t.postersHint)}
         </>)}
         {section('center', t.center, steps('centerMark', t.startingPoint, CENTER, t.startingPointHint))}
         {section('connections', t.connections, <>

@@ -364,3 +364,36 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   in the editor starts from the centred defaults, the same link keeps its crop. The cropper switches to its phone
   layout by its own width (it measures itself for the geometry anyway), not by a JavaScript media query.
 - **Source:** task `docs/tasks/2026-11-10-note-poster-crop.md`, blocks 3–4.
+
+## 2026-11-10 — Sky avatars load through a low-priority queue, and the SPA sends no referrer to other hosts
+
+- **Context:** a note's poster replaces its star in the sky (PROT Note poster, `S3-*`). An SVG `<image>` has no
+  `referrerPolicy`, `fetchpriority` or `loading`.
+- **Decision:** `sky/posterAvatars.ts` loads every poster of the sky with `new Image()` (`referrerPolicy =
+  no-referrer`, `fetchPriority = low`), three at a time, starting a frame after the sky is drawn; the canvas draws the
+  DS `AvatarStar` only once its image loaded, so the SVG `<image>` takes it from the browser's cache, and the plain star
+  until then or after a failure. Each link's status lives for the tab: a failed one is not retried before a reload.
+  Turning "Posters in the sky" off drops the queue. `index.html` sets `<meta name="referrer" content="same-origin">`,
+  so even an `<image>` that misses the cache tells the poster's host nothing; `same-origin` rather than `no-referrer`
+  keeps our own requests' `Origin`/`Referer` as they were (the builder check flagged `Origin: null` on non-GET
+  requests under `no-referrer`). Changing a poster in the star panel reloads the sky.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, block 3.
+
+## 2026-11-10 — Poster avatars have their own size setting
+
+- **Decision:** the user's UI check: avatars and stars are sized apart. Settings › Sky › Stars gets "Poster size"
+  (fine / regular / bold / beacon → `AVATAR_RADIUS` 8 / 10 / 12 / 14 px, default regular) between "Star size" and
+  "Constellation size", shown while "Posters in the sky" is on; "Star size" no longer changes avatars. Replaces "radius by Star size" in the design system's entry
+  "The sky avatar is an SVG group sized by numbers…" and the PROT.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, manual check 1.
+
+## 2026-11-10 — Only a change of forces re-heats the sky; a click picks the nearest node at its point
+
+- **Context:** the code review and the task's layout check: every sky setting re-ran `applyPhysics`, which restarts
+  the simulation, so turning posters off, Glow or a size nudged the sky; and with avatars' larger hit areas the node
+  painted on top took clicks meant for a nearer one.
+- **Decision:** `SkyCanvas` re-applies physics only when `skyForceKey` (link distance, tension, repulsion, gravity,
+  alpha decay, secondary pull) changes; sizes, colours, names and posters redraw without moving the layout. A click
+  with a point resolves to the nearest pickable node whose own hit area holds it (from the positions at that moment,
+  not the last render); a click without one (keyboard) keeps its node.
+- **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, code review rounds 1–2.

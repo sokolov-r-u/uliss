@@ -1,7 +1,10 @@
 package io.uliss.note_service.util
 
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.payload.CropFrame
+import io.uliss.note_service.model.payload.PosterCrop
 import io.uliss.note_service.model.projection.NoteMembership
+import io.uliss.note_service.model.projection.NotePoster
 import io.uliss.note_service.model.projection.SkyNoteRow
 import org.junit.jupiter.api.Test
 import java.time.Instant
@@ -84,6 +87,19 @@ class SkyNotesTest {
         assertEquals(setOf(orphan.id, c.id), stars.keys)
         assertEquals(null, stars.getValue(orphan.id).parentNoteId)
         assertEquals(null, stars.getValue(c.id).parentNoteId)
+    }
+
+    @Test
+    fun `a star carries its own poster, a star without one carries none`() {
+        val bowie = row("Bowie", order = 0)
+        val low = row("Low", order = 1, parent = bowie.id)
+        val frame = CropFrame(0.25, 0.0, 0.5, 0.75)
+        val poster = NotePoster("https://example.com/low.jpg", PosterCrop(frame, frame))
+
+        val stars = SkyNotes.stars(listOf(bowie, low), emptyMap(), mapOf(low.id to poster)).associateBy { it.id }
+
+        assertEquals(poster, stars.getValue(low.id).poster)
+        assertEquals(null, stars.getValue(bowie.id).poster)
     }
 
     private fun row(
