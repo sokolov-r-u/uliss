@@ -880,3 +880,23 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   about one note carries `poster`; lists leave it out (`NoteResponse.posterUrl` is gone).
 - **Consequences:** one extra primary-key read per single-note response. Moving to S3 changes only `note_posters`.
 - **Source:** task `docs/tasks/2026-11-10-note-poster-crop.md`, blocks 1–2.
+
+## 2026-11-10 — `SCHEMA.md` is generated from the migrated schema
+
+- **Context:** 27 append-only migrations make the current `note` schema hard to read.
+- **Decision:** `module/note/note-app/SCHEMA.md` holds the schema after all migrations, grouped into sections by
+  `NoteSchemaSections` (test code). `NoteSchemaSnapshotIntegrationTest` runs `pg_dump --schema-only` per table inside
+  the test container, strips per-run noise, renders Markdown and compares it with the file;
+  `./gradlew :note:updateSchemaSnapshot` rewrites it. A table without a section, a mapped table that is gone, or a
+  schema object that is neither a table's nor an extension's fails the test.
+- **Consequences:** every migration commit also carries the regenerated `SCHEMA.md`; CI's `integrationTest` catches a
+  forgotten one.
+- **Source:** task `docs/tasks/2026-11-10-note-schema-snapshot.md`, block 1.
+
+## 2026-11-10 — The test Postgres image is pinned by digest
+
+- **Context:** the `pgvector/pgvector:0.8.2-pg18-trixie` tag is rebuilt for new Postgres 18.x releases, and a newer
+  `pg_dump` can print the same schema differently.
+- **Decision:** `TestContainersConfiguration` uses that tag's index digest (multi-arch). An image update is deliberate
+  and comes with `updateSchemaSnapshot`.
+- **Source:** task `docs/tasks/2026-11-10-note-schema-snapshot.md`, block 1.
