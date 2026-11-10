@@ -34,10 +34,6 @@ class NoteEntity(
     @Column(name = "pinned_at", insertable = false, updatable = false)
     var pinnedAt: Instant? = null
 
-    /** The note poster link (`PosterUrlNormalizer`); set and cleared only by `NoteRepository`'s poster queries. */
-    @Column(name = "poster_url", insertable = false, updatable = false)
-    var posterUrl: String? = null
-
     /** The create request's body fingerprint of a manual note (`ManualNoteFingerprint`); written only on insert. */
     @Column(name = "request_fingerprint", insertable = false, updatable = false)
     var requestFingerprint: ByteArray? = null

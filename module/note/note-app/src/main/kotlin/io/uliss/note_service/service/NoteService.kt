@@ -6,6 +6,7 @@ import io.uliss.database.utils.generateId
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.NoteListPage
+import io.uliss.note_service.dto.request.PosterCropRequest
 import io.uliss.note_service.dto.response.NoteResponse
 import io.uliss.note_service.dto.response.toResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
@@ -19,6 +20,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteListStore
+import io.uliss.note_service.repository.NotePosterStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequestStore
 import io.uliss.note_service.util.ManualNoteFingerprint
@@ -26,6 +28,7 @@ import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.NoteIconNormalizer
 import io.uliss.note_service.util.getOwnedNote
 import io.uliss.note_service.util.PinLimit
+import io.uliss.note_service.util.PosterCropValidator
 import io.uliss.note_service.util.PosterUrlNormalizer
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.orm.ObjectOptimisticLockingFailureException
@@ -41,6 +44,7 @@ class NoteService(
     private val noteIndexRequestService: NoteIndexRequestService,
     private val constellationRepository: ConstellationRepository,
     private val noteListStore: NoteListStore,
+    private val notePosterStore: NotePosterStore,
 ) {
 
     /**
@@ -84,18 +88,23 @@ class NoteService(
         return getNote(userId, noteId)
     }
 
-    /** Sets the owned note's poster link; the version and change time stay, so an open edit still saves. */
+    /**
+     * Sets the owned note's poster link and crop frames, replacing both: no [rawCrop] means the centred defaults. The
+     * version and change time stay, so an open edit still saves.
+     */
     @Transactional
-    fun setPoster(userId: UUID, noteId: UUID, url: String): NoteResponse {
+    fun setPoster(userId: UUID, noteId: UUID, url: String, rawCrop: PosterCropRequest? = null): NoteResponse {
         val poster = PosterUrlNormalizer.normalize(url) ?: throw BadRequestException(PosterUrlNormalizer.RULE)
-        if (noteRepository.setPoster(noteId, userId, poster) == 0) throw NotFoundException("note id=$noteId not found")
+        val crop = rawCrop?.let { PosterCropValidator.validate(it) ?: throw BadRequestException(PosterCropValidator.RULE) }
+        if (!notePosterStore.save(userId, noteId, poster, crop)) throw NotFoundException("note id=$noteId not found")
         return getNote(userId, noteId)
     }
 
     /** Removes the owned note's poster; removing a missing poster succeeds. */
     @Transactional
     fun removePoster(userId: UUID, noteId: UUID) {
-        if (noteRepository.setPoster(noteId, userId, null) == 0) throw NotFoundException("note id=$noteId not found")
+        noteRepository.getOwnedNote(userId, noteId)
+        notePosterStore.delete(noteId)
     }
 
     @Transactional
@@ -105,7 +114,7 @@ class NoteService(
 
     fun getNote(userId: UUID, noteId: UUID): NoteResponse {
         val pending = summaryRequestStore.hasPendingForNote(noteId)
-        return noteRepository.getOwnedNote(userId, noteId).let { it.toResponse(isUpdating(it, pending)) }
+        return noteRepository.getOwnedNote(userId, noteId).let { respond(it, isUpdating(it, pending)) }
     }
 
     /** Notes of the user's constellation itself (not of its sub-constellations), newest first. */
@@ -152,7 +161,7 @@ class NoteService(
             throw NoteVersionConflictException(noteId, e)
         }
         noteIndexRequestService.requestLaterWithSubNotes(userId, listOf(note.id))
-        return note.toResponse(updating = false)
+        return respond(note, updating = false)
     }
 
     /**
@@ -174,7 +183,7 @@ class NoteService(
         if (note.status != NoteStatus.READY) throw NoteNotReadyException(noteId)
         if (summaryRequestStore.hasPendingForNote(noteId)) throw NoteUpdatingException(noteId)
         if (note.version != version) throw NoteVersionConflictException(noteId)
-        if (note.title == title && note.content == content && note.icon == icon) return note.toResponse(updating = false)
+        if (note.title == title && note.content == content && note.icon == icon) return respond(note, updating = false)
         val renamed = note.title != title
         note.title = title
         note.content = content
@@ -190,7 +199,7 @@ class NoteService(
         } else {
             noteIndexRequestService.requestLater(userId, listOf(note.id))
         }
-        return note.toResponse(updating = false)
+        return respond(note, updating = false)
     }
 
     /**
@@ -212,7 +221,7 @@ class NoteService(
         )
         if (inserted != null) {
             noteIndexRequestService.requestNow(userId, inserted.id)
-            return inserted.toResponse(updating = false)
+            return respond(inserted, updating = false)
         }
         // a retry: the key already holds a note
         val stored = checkNotNull(noteRepository.findByUserIdAndIdempotencyKey(userId, idempotencyKey)) {
@@ -221,7 +230,7 @@ class NoteService(
         if (stored.requestFingerprint?.let(RequestFingerprint::from) != fingerprint) {
             throw IdempotencyKeyReusedException(mapOf("noteId" to stored.id.toString()))
         }
-        return stored.toResponse(updating = false)
+        return respond(stored, updating = false)
     }
 
     /** The user's title, content and icon under the note rules; a blank icon is none. Breaking a rule is a 400. */
@@ -253,6 +262,10 @@ class NoteService(
         val notes = noteRepository.findAllById(ids).associateBy { it.id }
         return ids.mapNotNull { notes[it] }
     }
+
+    /** One note with its poster; lists leave posters out. */
+    private fun respond(note: NoteEntity, updating: Boolean): NoteResponse =
+        note.toResponse(updating, notePosterStore.find(note.id))
 
     /** Pending requests are read before the notes, as in [isUpdating]. */
     private fun toResponses(userId: UUID, load: () -> List<NoteEntity>): List<NoteResponse> {

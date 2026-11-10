@@ -115,7 +115,7 @@ class NoteController(
         noteService.unpinNote(jwt.getUserId(), noteId)
     }
 
-    /** Sets the note's poster link; the note's version and change time stay. */
+    /** Sets the note's poster link and crop; the note's version and change time stay. */
     @PutMapping("/{noteId}/poster")
     fun setNotePoster(
         @AuthenticationPrincipal jwt: Jwt,
@@ -123,7 +123,7 @@ class NoteController(
         @Valid @RequestBody request: SetNotePosterRequest,
     ): NoteResponse =
         // Validated as @NotBlank before the call.
-        noteService.setPoster(jwt.getUserId(), noteId, checkNotNull(request.url))
+        noteService.setPoster(jwt.getUserId(), noteId, checkNotNull(request.url), request.crop)
 
     @DeleteMapping("/{noteId}/poster")
     @ResponseStatus(HttpStatus.NO_CONTENT)

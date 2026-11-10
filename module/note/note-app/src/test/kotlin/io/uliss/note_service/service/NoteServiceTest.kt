@@ -23,6 +23,7 @@ import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteListStore
+import io.uliss.note_service.repository.NotePosterStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequest
 import io.uliss.note_service.repository.SummaryRequestStore
@@ -51,6 +52,7 @@ class NoteServiceTest {
     private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val noteListStore = Mockito.mock(NoteListStore::class.java)
+    private val notePosterStore = Mockito.mock(NotePosterStore::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val noteService = NoteService(
@@ -60,6 +62,7 @@ class NoteServiceTest {
         indexRequests,
         constellationRepository,
         noteListStore,
+        notePosterStore,
     )
 
     @Test

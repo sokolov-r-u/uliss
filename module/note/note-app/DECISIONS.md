@@ -865,3 +865,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** a dead link is the SPA's "image unavailable" state; the server cannot tell. Moving to S3 needs new
   columns and a data migration.
 - **Source:** task `docs/tasks/2026-11-09-note-poster.md`, blocks 1–2.
+
+## 2026-11-10 — A note poster lives in its own table with its crop frames
+
+- **Context:** the poster gets two crop frames (the panel's 2:3 frame and the sky avatar's circle); object storage
+  will add more poster fields later. Replaces the `note.notes.poster_url` column of "A note poster is a link the server
+  never fetches"; the rest of that entry stands.
+- **Decision:** `note.note_posters` (`note_id` PK, FK `ON DELETE CASCADE`; `url`; `crop jsonb`) holds the poster;
+  V27 moves the old links there and drops the column. `crop` is `PosterCrop` — `poster` and `avatar` rectangles
+  `x, y, w, h` in fractions of the image (the avatar as the square around its circle), null for centred defaults. The
+  server never knows the image's size, so `PosterCropValidator` checks only finite values inside 0..1 with `w, h > 0`;
+  no CHECK constraints, since only this service writes the column. `PUT /notes/{id}/poster {url, crop?}` replaces
+  link and crop together (no crop = defaults); it is an owner-checked upsert in `NotePosterStore`. Every response
+  about one note carries `poster`; lists leave it out (`NoteResponse.posterUrl` is gone).
+- **Consequences:** one extra primary-key read per single-note response. Moving to S3 changes only `note_posters`.
+- **Source:** task `docs/tasks/2026-11-10-note-poster-crop.md`, blocks 1–2.
