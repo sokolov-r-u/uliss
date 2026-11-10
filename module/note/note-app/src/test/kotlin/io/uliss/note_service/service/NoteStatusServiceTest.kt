@@ -89,6 +89,17 @@ class NoteStatusServiceTest {
     }
 
     @Test
+    fun `a stream nobody subscribed to holds no slot`() {
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findStatusByIdAndUserId(noteId, userId)).thenReturn(row(noteId, NoteStatus.GENERATING))
+
+        // the response may fail before Spring subscribes: such a stream never ends, so it must not be counted
+        repeat(3) { service.streamNoteStatus(userId, noteId) }
+
+        service.streamNoteStatus(userId, noteId).subscribe().dispose()
+    }
+
+    @Test
     fun `another user's streams do not count`() {
         val noteId = UUID.randomUUID()
         val otherUser = UUID.randomUUID()

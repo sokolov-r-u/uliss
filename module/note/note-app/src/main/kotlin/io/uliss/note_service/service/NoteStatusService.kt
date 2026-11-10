@@ -28,29 +28,37 @@ class NoteStatusService(
 
     /**
      * Refused with 429 when the user already holds [maxStreamsPerUser] open streams (each polls the database every
-     * second); the slot is freed when the stream ends, fails or is cancelled. Counted per instance.
+     * second). A stream takes its slot when it is subscribed and frees it when it ends, fails or is cancelled, so a
+     * stream nobody subscribed to holds none. Counted per instance.
      */
     fun streamNoteStatus(userId: UUID, noteId: UUID): Flux<NoteStatusResponse> {
         val initialStatus = getStatus(userId, noteId)
         val count = openStreams.computeIfAbsent(userId) { AtomicInteger() }
-        if (count.incrementAndGet() > maxStreamsPerUser) {
-            count.decrementAndGet()
-            throw TooManyStatusStreamsException(maxStreamsPerUser)
-        }
+        // refused here, before the response opens, so the client gets the JSON error; the slot is taken below
+        if (count.get() >= maxStreamsPerUser) throw TooManyStatusStreamsException(maxStreamsPerUser)
         val persistedStatuses = Flux.interval(STATUS_POLL_INTERVAL)
             .concatMap {
                 Mono.fromCallable { getStatus(userId, noteId) }
                     .subscribeOn(Schedulers.boundedElastic())
             }
 
-        return persistedStatuses
+        val statuses = persistedStatuses
             .startWith(initialStatus)
             .distinctUntilChanged { status -> status.status to status.updating }
             // A READY note stays open while its summary update runs, so the reader sees the appended content.
             .takeUntil { status -> status.status.isTerminal() && !status.updating }
             // A note stuck in GENERATING or updating must not hold the connection and its DB polling forever.
             .take(STATUS_STREAM_TIMEOUT)
-            .doFinally { count.decrementAndGet() }
+
+        return Flux.defer {
+            // two streams opened at once may both pass the check above; the one over the limit ends here
+            if (count.incrementAndGet() > maxStreamsPerUser) {
+                count.decrementAndGet()
+                Flux.error(TooManyStatusStreamsException(maxStreamsPerUser))
+            } else {
+                statuses.doFinally { count.decrementAndGet() }
+            }
+        }
     }
 
     /** Pending requests first: an update committing in between reads as updating, never as settled. */
