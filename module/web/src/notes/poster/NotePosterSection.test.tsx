@@ -265,4 +265,116 @@ describe('NotePosterSection', () => {
 
         expect(screen.getByRole('button', {name: 'Poster'})).toHaveAttribute('aria-expanded', 'false')
     })
+    describe('cropping', () => {
+        const CROP = {poster: {x: 0.1, y: 0, w: 0.4, h: 1}, avatar: {x: 0.3, y: 0.1, w: 0.5, h: 0.833333}}
+
+        async function openCrop(user: ReturnType<typeof userEvent.setup>, width = 1000, height = 600) {
+            await user.click(screen.getByRole('button', {name: 'Crop poster'}))
+            const dialog = screen.getByRole('dialog', {name: 'Crop poster'})
+            expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled()
+            ;(await probed(LINK)).load(width, height)
+            return dialog
+        }
+
+        it('saves both frames with the link, cannot be closed meanwhile, and shows the panel by the frame', async () => {
+            const user = userEvent.setup()
+            let answer: (note: Awaited<ReturnType<typeof setNotePoster>>) => void = () => undefined
+            mockedSet.mockReturnValue(new Promise((resolve) => {
+                answer = resolve
+            }))
+            const onChanged = renderSection(LINK)
+
+            const dialog = await openCrop(user)
+            within(dialog).getByRole('group', {name: /Panel frame 2:3/}).focus()
+            await user.keyboard('{ArrowRight}')
+            await user.click(within(dialog).getByRole('button', {name: 'Save'}))
+
+            const [noteId, url, crop] = mockedSet.mock.lastCall!
+            expect([noteId, url]).toEqual(['note-1', LINK])
+            expect(crop!.poster.x).toBeGreaterThan(0.3)
+            expect(crop!.avatar).toEqual({x: 0.2, y: 0, w: 0.6, h: 1})
+            expect(within(dialog).getByText('Saving…')).toBeInTheDocument()
+            expect(within(dialog).getByRole('button', {name: 'Cancel'})).toBeDisabled()
+            await user.keyboard('{Escape}')
+            expect(screen.getByRole('dialog', {name: 'Crop poster'})).toBeInTheDocument()
+
+            await act(async () => answer({id: 'note-1', source: 'MANUAL', status: 'READY', content: 'x',
+                poster: {url: LINK, crop: crop!}}))
+            await waitFor(() => expect(onChanged).toHaveBeenCalledWith({url: LINK, crop}))
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+            expect(screen.getByRole('img', {name: 'Tokyo Story poster'}).style.width).toBe('250%')
+        })
+
+        it('starts from the stored frames fitted to the image', async () => {
+            const user = userEvent.setup()
+            mockedSet.mockResolvedValue({id: 'note-1', source: 'MANUAL', status: 'READY', content: 'x',
+                poster: {url: LINK, crop: CROP}})
+            render(<Owner initial={{url: LINK, crop: CROP}} onChanged={vi.fn()}/>)
+
+            const dialog = await openCrop(user)
+            expect(within(dialog).getByText('100%')).toBeInTheDocument()
+            await user.click(within(dialog).getByRole('button', {name: 'Save'}))
+
+            expect(mockedSet).toHaveBeenCalledWith('note-1', LINK, CROP)
+        })
+
+        it('keeps the frames and says so when saving fails', async () => {
+            const user = userEvent.setup()
+            mockedSet.mockRejectedValue(new NoteApiError('http', 'note poster save failed', 500))
+            const onChanged = renderSection(LINK)
+
+            const dialog = await openCrop(user)
+            await user.click(within(dialog).getByRole('button', {name: 'Zoom in'}))
+            await user.click(within(dialog).getByRole('button', {name: 'Save'}))
+
+            expect(await within(dialog).findByText('Couldn’t save the crop. Try again.')).toBeInTheDocument()
+            expect(within(dialog).getByText('115%')).toBeInTheDocument()
+            expect(within(dialog).getByRole('button', {name: 'Save'})).toBeEnabled()
+            expect(onChanged).not.toHaveBeenCalled()
+        })
+
+        it('closes on Cancel without saving', async () => {
+            const user = userEvent.setup()
+            renderSection(LINK)
+
+            const dialog = await openCrop(user)
+            await user.click(within(dialog).getByRole('button', {name: 'Zoom in'}))
+            await user.click(within(dialog).getByRole('button', {name: 'Cancel'}))
+
+            expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+            expect(mockedSet).not.toHaveBeenCalled()
+        })
+
+        it('cannot save a crop of an image that does not load', async () => {
+            const user = userEvent.setup()
+            renderSection(LINK)
+
+            await user.click(screen.getByRole('button', {name: 'Crop poster'}))
+            ;(await probed(LINK)).fail()
+            const dialog = screen.getByRole('dialog', {name: 'Crop poster'})
+
+            expect(within(dialog).getByText('Image unavailable')).toBeInTheDocument()
+            expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled()
+        })
+
+        it('keeps the frames when the same link is saved again and drops them for another link', async () => {
+            const user = userEvent.setup()
+            mockedSet.mockResolvedValue({id: 'note-1', source: 'MANUAL', status: 'READY', content: 'x',
+                poster: {url: LINK, crop: CROP}})
+            render(<Owner initial={{url: LINK, crop: CROP}} onChanged={vi.fn()}/>)
+
+            await user.click(screen.getByRole('button', {name: 'Change poster'}))
+            ;(await probed(LINK)).load(1000, 600)
+            await user.click(screen.getByRole('button', {name: 'Save'}))
+            expect(mockedSet).toHaveBeenLastCalledWith('note-1', LINK, CROP)
+
+            await user.click(await screen.findByRole('button', {name: 'Change poster'}))
+            const field = screen.getByRole('textbox', {name: 'Image link'})
+            await user.clear(field)
+            await user.paste('https://example.com/other.jpg')
+            ;(await probed('https://example.com/other.jpg')).load(1000, 600)
+            await user.click(screen.getByRole('button', {name: 'Save'}))
+            expect(mockedSet).toHaveBeenLastCalledWith('note-1', 'https://example.com/other.jpg', undefined)
+        })
+    })
 })
