@@ -18,3 +18,9 @@ export const States = () => (
         </div>
     </Ground>
 )
+
+export const Cropped = () => (
+    <Ground width={260}>
+        <PosterFrame state="image" src={POSTER} alt="Dune sea poster" crop={{x: 0.3, y: 0.1, w: 0.6, h: 0.6}}/>
+    </Ground>
+)

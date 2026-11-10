@@ -23,6 +23,8 @@ export interface DialogProps {
     onCancel?: () => void
     /** Greys the confirm action, e.g. a blank title. */
     confirmDisabled?: boolean
+    /** Greys the cancel action and ignores Escape and the backdrop, e.g. while a save runs. */
+    cancelDisabled?: boolean
     /** Exposes `aria-busy` while the confirmed action runs. */
     busy?: boolean
     width?: number
@@ -38,6 +40,7 @@ export function Dialog({
                            onConfirm,
                            onCancel,
                            confirmDisabled = false,
+                           cancelDisabled = false,
                            busy = false,
                            width = 280,
                        }: DialogProps) {
@@ -47,7 +50,8 @@ export function Dialog({
     const titleId = useId()
     const dialogRef = useRef<HTMLDivElement>(null)
 
-    useFocusTrap(dialogRef, {onEscape: onCancel})
+    const cancelNow = cancelDisabled ? undefined : onCancel
+    useFocusTrap(dialogRef, {onEscape: cancelNow})
 
     return (
         <div
@@ -56,14 +60,16 @@ export function Dialog({
                 inset: 0,
                 zIndex: 1100,
                 display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
+                // a dialog taller than the screen scrolls; margin: auto centres it without cutting its top off
+                overflowY: 'auto',
+                overscrollBehavior: 'contain',
                 background: 'var(--scrim)',
                 padding: 28,
             }}
         >
-            {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={onCancel} style={{
-                position: 'absolute',
+            {/* fixed, so the backdrop covers the screen however far a tall dialog is scrolled */}
+            {onCancel && <button type="button" tabIndex={-1} aria-hidden="true" onClick={cancelNow} style={{
+                position: 'fixed',
                 inset: 0,
                 width: '100%',
                 height: '100%',
@@ -80,6 +86,7 @@ export function Dialog({
                 aria-busy={busy || undefined}
                 style={{
                     position: 'relative',
+                    margin: 'auto',
                     width: '100%',
                     maxWidth: width,
                     background: 'var(--bg-panel)',
@@ -119,7 +126,7 @@ export function Dialog({
                 )}
                 {children}
                 <div style={{display: 'flex', justifyContent: 'flex-end', gap: 18, marginTop: 4}}>
-                    <Button variant="ghost" onClick={onCancel}>
+                    <Button variant="ghost" onClick={onCancel} disabled={cancelDisabled}>
                         {cancel}
                     </Button>
                     <Button

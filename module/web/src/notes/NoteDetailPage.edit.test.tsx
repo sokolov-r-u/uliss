@@ -290,7 +290,7 @@ describe('NoteDetailPage editing', () => {
         const user = userEvent.setup()
         vi.mocked(removeNotePoster).mockResolvedValue()
         mockedUpdate.mockResolvedValue({...saved, title: 'Draft title', version: 4})
-        const {title, save} = await startEditing({...saved, posterUrl: 'https://example.com/p.jpg'})
+        const {title, save} = await startEditing({...saved, poster: {url: 'https://example.com/p.jpg'}})
         await user.clear(title)
         await user.type(title, 'Draft title')
 

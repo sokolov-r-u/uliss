@@ -24,8 +24,11 @@ Confirmation before anything irreversible.
 </Dialog>
 ```
 
-- `confirmDisabled` greys the confirm action; `busy` sets `aria-busy` while the action runs.
+- `confirmDisabled` greys the confirm action; `busy` sets `aria-busy` while the action runs; `cancelDisabled` greys
+  Cancel and ignores Escape and the backdrop, so a running save cannot be left behind.
 - The overlay is an `aria-modal` dialog labelled by its title. On mount it keeps focus on a child that took it (`autoFocus`), or
   focuses its `[autofocus]` element or the first focusable one (a field in `children` comes before the buttons), traps Tab/Shift+Tab, closes on Escape or
   backdrop activation, and restores the previously focused control on unmount (`useFocusTrap`). A parent re-render
   with a new `onCancel` does not move focus.
+- A dialog taller than the screen (a cropper on a short phone) scrolls inside the overlay; its title and actions
+  stay reachable.

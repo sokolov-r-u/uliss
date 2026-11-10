@@ -1,5 +1,6 @@
 import type {SyntheticEvent} from 'react'
 import {useMessages} from '../../i18n/LocaleContext'
+import {type CropFrame, cropImageStyle} from './posterCrop'
 import {posterFrameMessages} from './PosterFrame.messages'
 
 // The fixed 2:3 frame of a note poster, full width of its container up to
@@ -20,11 +21,13 @@ export interface PosterFrameProps {
     host?: string
     /** `small`: the real size, e.g. "120 × 180". */
     badge?: string
+    /** `image`: the part of the image to show (`PosterCrop.poster`); none shows it centred (cover). */
+    crop?: CropFrame
     onImageLoad?: (event: SyntheticEvent<HTMLImageElement>) => void
     onImageError?: () => void
 }
 
-export function PosterFrame({state, src, alt = '', hint, host, badge, onImageLoad, onImageError}: PosterFrameProps) {
+export function PosterFrame({state, src, alt = '', hint, host, badge, crop, onImageLoad, onImageError}: PosterFrameProps) {
     const t = useMessages(posterFrameMessages)
     const hasImage = (state === 'image' || state === 'small') && !!src
     const text = state === 'hint' ? (hint ?? t.hint)
@@ -56,7 +59,7 @@ export function PosterFrame({state, src, alt = '', hint, host, badge, onImageLoa
                     decoding="async"
                     onLoad={onImageLoad}
                     onError={onImageError}
-                    style={{
+                    style={crop && state === 'image' ? cropImageStyle(crop) : {
                         position: 'absolute',
                         inset: 0,
                         width: '100%',

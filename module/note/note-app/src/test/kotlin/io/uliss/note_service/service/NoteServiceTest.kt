@@ -8,6 +8,8 @@ import io.uliss.exception.common.NotFoundException
 import io.uliss.note_service.anyValue
 import io.uliss.note_service.eqValue
 import io.uliss.note_service.dto.internal.ListCursor
+import io.uliss.note_service.dto.request.CropFrameRequest
+import io.uliss.note_service.dto.request.PosterCropRequest
 import io.uliss.note_service.dto.response.NoteStatusResponse
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.NoteNotReadyException
@@ -23,6 +25,7 @@ import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ConstellationRepository
 import io.uliss.note_service.repository.NoteListStore
+import io.uliss.note_service.repository.NotePosterStore
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.SummaryRequest
 import io.uliss.note_service.repository.SummaryRequestStore
@@ -51,6 +54,7 @@ class NoteServiceTest {
     private val indexRequests = Mockito.mock(NoteIndexRequestService::class.java)
     private val constellationRepository = Mockito.mock(ConstellationRepository::class.java)
     private val noteListStore = Mockito.mock(NoteListStore::class.java)
+    private val notePosterStore = Mockito.mock(NotePosterStore::class.java)
     private val notePlacementService = Mockito.mock(NotePlacementService::class.java)
     private val noteHierarchyService = Mockito.mock(NoteHierarchyService::class.java)
     private val noteService = NoteService(
@@ -60,6 +64,7 @@ class NoteServiceTest {
         indexRequests,
         constellationRepository,
         noteListStore,
+        notePosterStore,
     )
 
     @Test
@@ -664,5 +669,27 @@ class NoteServiceTest {
             }
         }
         Mockito.verifyNoInteractions(noteRepository, indexRequests)
+    }
+
+    @Test
+    fun `a poster with invalid crop frames is refused before anything is stored`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        val outside = PosterCropRequest(CropFrameRequest(0.6, 0.0, 0.5, 0.5), CropFrameRequest(0.0, 0.0, 0.5, 0.5))
+
+        assertFailsWith<BadRequestException> {
+            noteService.setPoster(userId, noteId, "https://example.com/p.jpg", outside)
+        }
+        Mockito.verifyNoInteractions(notePosterStore)
+    }
+
+    @Test
+    fun `a poster of a foreign or missing note is not removed`() {
+        val userId = UUID.randomUUID()
+        val noteId = UUID.randomUUID()
+        Mockito.`when`(noteRepository.findByIdAndUserId(noteId, userId)).thenReturn(null)
+
+        assertFailsWith<NotFoundException> { noteService.removePoster(userId, noteId) }
+        Mockito.verifyNoInteractions(notePosterStore)
     }
 }

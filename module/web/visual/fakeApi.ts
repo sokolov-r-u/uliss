@@ -13,7 +13,8 @@
  * with sub-notes is deleted with a choice, as in the note service. `/note/sky` draws the same notes and tree.
  * Chats and notes can be pinned (nothing is pinned at first): the pages leave pinned items out, as in the service;
  * `?pins=refuse` answers every pin with the limit refusal, as when another tab filled the list.
- * Note posters are links kept in memory (none at first); `?poster=<link>` gives note n1 that poster.
+ * Note posters (link and crop) are kept in memory (none at first); `?poster=<link>` gives note n1 that poster.
+ * sessionStorage `visual.poster` = `hold` keeps a poster save waiting, `fail-once` fails the next one.
  */
 import {CHAT_MESSAGES, CHATS, K, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -74,9 +75,10 @@ const ancestorsOf = (noteId: string): string[] => {
 }
 const rootOf = (noteId: string) => ancestorsOf(noteId)[0] ?? noteId
 /** Note → poster link, as the note service stores it. */
-const posters = new Map<string, string>(params.get('poster') ? [['n1', params.get('poster') as string]] : [])
+const posters = new Map<string, { url: string; crop: unknown }>(
+    params.get('poster') ? [['n1', {url: params.get('poster') as string, crop: null}]] : [])
 const withParent = <T extends { id: string }>(note: T) => ({
-    ...note, parentNoteId: parents.get(note.id) ?? null, posterUrl: posters.get(note.id) ?? null,
+    ...note, parentNoteId: parents.get(note.id) ?? null, poster: posters.get(note.id) ?? null,
 })
 const ref = (noteId: string) => {
     const note = NOTES.find((item) => item.id === noteId)
@@ -403,9 +405,16 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
             return json(null, 204)
         }
         if (method !== 'PUT') return json({}, 405)
-        const link = String(JSON.parse(String(init?.body)).url ?? '')
+        // a poster save waits while asked to, then may fail once, so the crop dialog's states can be checked
+        while (sessionStorage.getItem('visual.poster') === 'hold') await new Promise((resolve) => setTimeout(resolve, 50))
+        if (sessionStorage.getItem('visual.poster') === 'fail-once') {
+            sessionStorage.removeItem('visual.poster')
+            return json({}, 500)
+        }
+        const body = JSON.parse(String(init?.body))
+        const link = String(body.url ?? '')
         if (!link.startsWith('https://')) return json({}, 400)
-        posters.set(found.id, link)
+        posters.set(found.id, {url: link, crop: body.crop ?? null})
         return json(withParent(found))
     }
     const pinned = pinResponse(url.pathname, method, chats, notes, url.searchParams)

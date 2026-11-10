@@ -50,3 +50,11 @@ export const RenameNote = () => {
         </>
     )
 }
+
+export const Saving = () => (
+    <>
+        <Behind/>
+        <Dialog title="Rename note" confirm="Save" cancel="Cancel" busy confirmDisabled cancelDisabled
+                onConfirm={() => undefined} onCancel={() => undefined}/>
+    </>
+)

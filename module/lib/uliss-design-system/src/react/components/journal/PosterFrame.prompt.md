@@ -14,4 +14,6 @@ The fixed 2:3 frame of a note poster. The image fills it (cover, centred), so a 
   did not load), `unavailable` (a saved poster that stopped loading, with the link's host under the message).
 - The image loads with `referrerPolicy="no-referrer"`: the poster's host is never told which note shows it.
   `onImageLoad` / `onImageError` let the host check the size or mark a saved poster unavailable.
+- `crop` (a `CropFrame` in fractions, from `PosterCropper`) shows that part of the image in the `image` state; without it
+  the image is centred (cover).
 - Square like the rest of the kit; no spinner, no rounded corners.

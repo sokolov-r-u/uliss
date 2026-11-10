@@ -24,8 +24,9 @@
   --poster-max-h: 440px; /* wider rails centre a narrower frame */
   --poster-max-w: calc(var(--poster-max-h) * 2 / 3);
   --poster-message-lines: 2; /* lines reserved under the poster for a hint or an error */
+  --avatar-ring-width: 1.5px; /* ring of a round poster avatar (PosterCropper preview, sky avatars) */
 
-  /* ── Shape — zero everywhere. The three licensed circles (mic button,
-     radio dot, accent swatch) use border-radius:50% locally. */
+  /* ── Shape — zero everywhere. The licensed circles (mic button, radio dot,
+     accent swatch, the poster avatar and sky dots of PosterCropper) use border-radius:50% locally. */
   --radius: 0px;
 }

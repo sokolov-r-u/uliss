@@ -3,6 +3,7 @@ package io.uliss.note_service.dto.response
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.projection.NotePoster
 import java.time.Instant
 import java.util.UUID
 
@@ -24,8 +25,8 @@ data class NoteResponse(
     val icon: String? = null,
     /** When the user pinned it; null for an unpinned note. */
     val pinnedAt: Instant? = null,
-    /** The https link of the note's poster; the browser loads it. Null when the note has none. */
-    val posterUrl: String? = null,
+    /** The note's poster; null when it has none. Only responses about one note carry it, lists never do. */
+    val poster: NotePosterResponse? = null,
 )
 
 data class NoteStatusResponse(
@@ -35,7 +36,7 @@ data class NoteStatusResponse(
     val updating: Boolean,
 )
 
-fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
+fun NoteEntity.toResponse(updating: Boolean, poster: NotePoster? = null) = NoteResponse(
     id = id,
     source = source,
     status = status,
@@ -48,6 +49,6 @@ fun NoteEntity.toResponse(updating: Boolean) = NoteResponse(
     parentNoteId = parentNoteId,
     icon = icon,
     pinnedAt = pinnedAt,
-    posterUrl = posterUrl,
+    poster = poster?.toResponse(),
 )
 

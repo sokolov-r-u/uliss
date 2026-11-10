@@ -31,6 +31,20 @@ describe('Dialog', () => {
         expect(onCancel).toHaveBeenCalledTimes(2)
     })
 
+    it('cannot be cancelled while cancelling is disabled', async () => {
+        const user = userEvent.setup()
+        const onCancel = vi.fn()
+        const {container} = render(<Dialog title="Crop" confirm="Save" cancelDisabled onConfirm={vi.fn()}
+                                           onCancel={onCancel}/>)
+        await nextFrame()
+
+        await user.keyboard('{Escape}')
+        await user.click(container.querySelector<HTMLButtonElement>('button[aria-hidden="true"]')!)
+        await user.click(screen.getByRole('button', {name: 'Not now'}))
+        expect(screen.getByRole('button', {name: 'Not now'})).toBeDisabled()
+        expect(onCancel).not.toHaveBeenCalled()
+    })
+
     it('does not confirm while the confirm action is disabled', async () => {
         const user = userEvent.setup()
         const onConfirm = vi.fn()
