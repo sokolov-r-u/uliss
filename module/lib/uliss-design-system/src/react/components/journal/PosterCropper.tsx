@@ -318,6 +318,14 @@ export function PosterCropper({
                         <Kicker size={9} spacing="2.5px" color={poster ? 'var(--text-muted)' : 'var(--accent-2)'}>
                             {t.avatar}
                         </Kicker>
+                        {/* on a phone the circle sits beside the sky, so the dialog fits the screen's height */}
+                        <div style={{
+                            display: 'flex',
+                            flexDirection: compact ? 'row' : 'column',
+                            flexWrap: 'wrap',
+                            alignItems: compact ? 'center' : 'flex-start',
+                            gap: 8,
+                        }}>
                         <div aria-hidden="true" style={{
                             position: 'relative',
                             width: skyWidth,
@@ -362,6 +370,7 @@ export function PosterCropper({
                             {ready && <img src={src} alt={t.avatarPreview} referrerPolicy="no-referrer"
                                            style={cropImageStyle(value.avatar)}/>}
                         </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -383,7 +392,8 @@ export function PosterCropper({
                 <Button variant="ghost" size={compact ? 'lg' : 'md'} disabled={!live}
                         onClick={() => set(defaultFrame(mode, imageWidth, imageHeight))}>{t.reset}</Button>
             </div>
-            <p style={{margin: 0, fontSize: 11, lineHeight: '16px', minHeight: 32, color: 'var(--text-faint)'}}>
+            {/* the phone's hint is one line; the desktop's may wrap to two */}
+            <p style={{margin: 0, fontSize: 11, lineHeight: '16px', minHeight: compact ? 16 : 32, color: 'var(--text-faint)'}}>
                 {compact ? t.helpTouch : t.help}
             </p>
         </div>

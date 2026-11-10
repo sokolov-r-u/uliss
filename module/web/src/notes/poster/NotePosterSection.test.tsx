@@ -273,6 +273,8 @@ describe('NotePosterSection', () => {
             const dialog = screen.getByRole('dialog', {name: 'Crop poster'})
             expect(within(dialog).getByRole('button', {name: 'Save'})).toBeDisabled()
             ;(await probed(LINK)).load(width, height)
+            // nothing has failed yet: no error line
+            expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
             return dialog
         }
 

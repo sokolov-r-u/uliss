@@ -61,6 +61,6 @@ export function CropPosterDialog({noteId, title, poster, onSaved, onClose}: {
                            if (saving === 'failed') setSaving('idle')
                        }}/>
         <FieldMessage lines={1} text={saving === 'saving' ? t.saving : saving === 'failed' ? t.cropSaveFailed : ''}
-                      tone={saving === 'saving' ? 'busy' : 'error'}/>
+                      tone={saving === 'failed' ? 'error' : 'busy'}/>
     </Dialog>
 }
