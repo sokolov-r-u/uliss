@@ -11,6 +11,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteResummarizeRequestedPayload
+import io.uliss.note_service.model.payload.NoteSummaryBranchRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.model.projection.CurrentChatSummary
@@ -85,6 +86,56 @@ class NoteSummaryService(
         title: String? = null,
         icon: String? = null,
     ): NoteEntity {
+        val note = reservePlaceholder(
+            userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = true,
+        ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryRequestedPayload(note.id, userId, chatId, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
+        return note
+    }
+
+    /**
+     * Reserves a new note for the messages after [afterMessageId], branched from the chat's main note [mainNoteId].
+     * The placeholder takes its place, [title] and [icon] like a first summary; the main note and the chat's boundary
+     * change only when the branch is written.
+     */
+    @Transactional
+    fun requestChatSummaryBranch(
+        userId: UUID,
+        chatId: UUID,
+        mainNoteId: UUID,
+        afterMessageId: UUID?,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+        constellationId: UUID? = null,
+        parentNoteId: UUID? = null,
+        title: String? = null,
+        icon: String? = null,
+    ): NoteEntity {
+        val note = reservePlaceholder(
+            userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = false,
+        ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryBranchRequestedPayload(note.id, userId, chatId, mainNoteId, afterMessageId, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED, payload)
+        return note
+    }
+
+    /** The GENERATING note of a new summary request with its chat link and place; null when the key is a replay. */
+    private fun reservePlaceholder(
+        userId: UUID,
+        chatId: UUID,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+        constellationId: UUID?,
+        parentNoteId: UUID?,
+        title: String?,
+        icon: String?,
+        main: Boolean,
+    ): NoteEntity? {
         val candidateNote = NoteEntity(
             userId = userId,
             content = null,
@@ -93,30 +144,24 @@ class NoteSummaryService(
             title = title,
             icon = icon,
         )
-        val reservation = summaryRequestStore.reserve(
+        summaryRequestStore.reserve(
             userId = userId,
             idempotencyKey = idempotencyKey,
             chatId = chatId,
             throughMessageId = throughMessageId,
             noteId = candidateNote.id,
-        )
-
-        if (reservation == null) return getReplayedSummary(userId, chatId, idempotencyKey)
+        ) ?: return null
 
         noteRepository.saveAndFlush(candidateNote)
         // a failed first attempt may still hold the mark
-        chatNoteRepository.clearMain(chatId)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId, main = true))
+        if (main) chatNoteRepository.clearMain(chatId)
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId, main = main))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
         parentNoteId?.let {
             noteHierarchyService.moveUnder(userId, candidateNote.id, it)
             // Stored through JDBC; the returned entity shows it too.
             candidateNote.parentNoteId = it
         }
-        val payload = objectMapper.writeValueAsString(
-            NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
-        )
-        outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
         return candidateNote
     }
 

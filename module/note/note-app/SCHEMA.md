@@ -408,7 +408,7 @@ Constraints:
 
 - `outbox_event_pkey` — `PRIMARY KEY (id)`
 - `outbox_event_status_check` — `CHECK (status::text = ANY (ARRAY['PENDING'::character varying, 'PROCESSING'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying]::text[]))`
-- `outbox_event_type_check` — `CHECK (type::text = ANY (ARRAY['NOTE_SUMMARY_REQUESTED'::character varying, 'NOTE_SUMMARY_UPDATE_REQUESTED'::character varying, 'NOTE_INDEX_REQUESTED'::character varying, 'NOTE_RESUMMARIZE_REQUESTED'::character varying, 'USER_PROFILE_REFRESH_REQUESTED'::character varying]::text[]))`
+- `outbox_event_type_check` — `CHECK (type::text = ANY (ARRAY['NOTE_SUMMARY_REQUESTED'::character varying, 'NOTE_SUMMARY_UPDATE_REQUESTED'::character varying, 'NOTE_INDEX_REQUESTED'::character varying, 'NOTE_RESUMMARIZE_REQUESTED'::character varying, 'USER_PROFILE_REFRESH_REQUESTED'::character varying, 'NOTE_SUMMARY_BRANCH_REQUESTED'::character varying]::text[]))`
 
 Indexes:
 

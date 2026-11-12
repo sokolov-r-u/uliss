@@ -47,9 +47,11 @@ class OutboxLeasePolicy(
 
     fun leaseFor(type: OutboxEventType): Duration = when (type) {
         OutboxEventType.NOTE_INDEX_REQUESTED -> indexLease
-        // An update or a resummarize makes the same calls as a new summary: one embedding and one chat completion.
+        // An update, a branch or a resummarize makes the same calls as a new summary: one embedding and one chat
+        // completion.
         OutboxEventType.NOTE_SUMMARY_REQUESTED,
         OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED,
+        OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED,
         OutboxEventType.NOTE_RESUMMARIZE_REQUESTED,
         -> summaryLease
         // An update of the profile and, when it grew over its limit, a compact.
