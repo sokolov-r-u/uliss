@@ -902,3 +902,28 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Decision:** `TestContainersConfiguration` uses that tag's index digest (multi-arch). An image update is deliberate
   and comes with `updateSchemaSnapshot`.
 - **Source:** task `docs/tasks/2026-11-10-note-schema-snapshot.md`, block 1.
+
+## 2026-11-10 — Transcriptions in flight are capped per instance; only their path takes large bodies
+
+- **Context:** with virtual threads nothing bounds concurrent requests, a recording (up to 10 MB) is held in memory
+  for the provider call, and nginx let any `/note/` path send 12 MB, so parallel large requests could exhaust the heap
+  (2026-11-10 review).
+- **Decision:** `SpeechTranscriptionService` holds a semaphore of `note.speech.max-concurrent` (4) and answers one more
+  recording with `429 TOO_MANY_TRANSCRIPTIONS` at once, without queueing. Emptiness and size are checked from the
+  part's length before the place is taken and before the bytes are read, so a recording no retry can help is never
+  told to try again. In the `web` nginx only `/note/speech/transcriptions` accepts 12 MB; the rest of `/note/` accepts
+  2 MB. This replaces "nginx allows 12 MB bodies under `/note/`" of the 2026-10-17 dictation entry.
+- **Consequences:** the cap is per instance, not per user: one user can hold every place (per-user quotas are tech
+  debt). The 429 arrives after nginx and Tomcat have received the body to disk; it bounds memory, not traffic.
+- **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 3.
+
+## 2026-11-10 — A note status stream takes its slot when it is subscribed
+
+- **Context:** the slot was taken when `streamNoteStatus` was called and freed in the stream's `doFinally`; a returned
+  stream that was never subscribed (the response failed first) kept its slot until restart (2026-11-10 review).
+- **Decision:** the call only checks the limit and still answers 429 `TOO_MANY_STATUS_STREAMS` as JSON; the slot is
+  taken in `Flux.defer` at subscription. This refines the 2026-10-21 entry "Note status streams read a projection and
+  are limited per user".
+- **Consequences:** of streams opened at the same moment, the one over the limit ends with an error inside the
+  already open SSE response (after the first keepalive) instead of a JSON 429; the client reconnects and gets the 429.
+- **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 2.

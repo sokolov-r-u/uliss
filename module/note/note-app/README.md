@@ -348,8 +348,11 @@ carries its top note's memberships, main first, and every other star has none (i
   for silence). The part's type must be `audio/webm`, `audio/ogg` or `audio/mp4` (codec parameters allowed) and its
   first bytes the same container's signature, otherwise `400 UNSUPPORTED_AUDIO`; a missing part is the same refusal.
   Over `note.speech.max-file-size` (10 MB) → `413 AUDIO_TOO_LARGE`; a body over the multipart backstop (11 MB) is
-  refused by Spring with `413` before the controller. A provider failure is `502 TRANSCRIPTION_FAILED`; the client
-  keeps the recording and offers a manual retry. Audio is not stored or logged.
+  refused by Spring with `413` before the controller. Both size and emptiness are checked from the part's length,
+  before its bytes are read into memory. At most `note.speech.max-concurrent` (4) recordings are transcribed at once
+  per instance; one more is `429 TOO_MANY_TRANSCRIPTIONS`, not queued. A provider failure is
+  `502 TRANSCRIPTION_FAILED`; for both the client keeps the recording and offers a manual retry. Audio is not stored
+  or logged.
 
 ## Outbox and RAG storage
 
