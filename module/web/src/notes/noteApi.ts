@@ -242,12 +242,16 @@ export async function requestChatSummary(
     title?: string,
     /** The user's emoji for a new note; the model never picks one. */
     icon?: string | null,
+    /** The chat's main note: the new note is branched from it and covers only the messages after its boundary. */
+    branchFromNoteId?: string,
 ): Promise<ChatSummaryResponse> {
     const name = {...(title?.trim() ? {title: title.trim()} : {}), ...(icon ? {icon} : {})}
     const place = constellationId ? {constellationId} : parentNoteId ? {parentNoteId} : {}
     const body = updateNoteId
         ? {mode: 'UPDATE', targetNoteId: updateNoteId}
-        : Object.keys(name).length + Object.keys(place).length > 0 ? {mode: 'CREATE', ...place, ...name} : null
+        : branchFromNoteId
+            ? {mode: 'BRANCH', targetNoteId: branchFromNoteId, ...place, ...name}
+            : Object.keys(name).length + Object.keys(place).length > 0 ? {mode: 'CREATE', ...place, ...name} : null
     const init: RequestInit = body
         ? {
             method: 'POST',

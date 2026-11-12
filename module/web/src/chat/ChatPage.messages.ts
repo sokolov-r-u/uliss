@@ -26,6 +26,11 @@ const en = {
     updating: 'Updating…',
     updateNoteAction: 'Update note',
     cancel: 'Cancel',
+    saveAsNewNote: 'Save as a new note',
+    newNoteTitle: 'Save as a new note?',
+    newNoteBody: 'Uliss writes a separate note from the messages after the last summary. Name it if you like and '
+        + 'choose where it will live.',
+    back: 'Back',
     startingSummary: 'Starting the summary…',
     summaryBody: 'Name the note if you like and choose where it will live. Uliss writes it in the background from the '
         + 'conversation saved so far.',
@@ -69,6 +74,11 @@ export const chatPageMessages: Dictionaries<typeof en> = {
         updating: 'Обновление…',
         updateNoteAction: 'Обновить заметку',
         cancel: 'Отмена',
+        saveAsNewNote: 'Сохранить как новую заметку',
+        newNoteTitle: 'Сохранить как новую заметку?',
+        newNoteBody: 'Uliss напишет отдельную заметку по сообщениям после последнего итога. Дайте ей название, если '
+            + 'хотите, и выберите, где она будет жить.',
+        back: 'Назад',
         startingSummary: 'Начинаю писать заметку…',
         summaryBody: 'Дайте заметке название, если хотите, и выберите, где она будет жить. Uliss напишет её в фоне по '
             + 'уже сохранённому разговору.',

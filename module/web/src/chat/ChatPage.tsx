@@ -177,6 +177,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
+    /** The step of the update dialog that saves the new messages as a separate note instead. */
+    const [branching, setBranching] = useState(false)
     /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
     const [summaryName, setSummaryName] = useState('')
     const [summaryNameDictating, setSummaryNameDictating] = useState(false)
@@ -191,8 +193,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
     /** Bumped when a picked place turned out deleted, so the place field reloads the tree. */
     const [placeRevision, setPlaceRevision] = useState(0)
-    // read only while a first summary is being set up; an update keeps the note's place
-    const summaryPlaces = useSummaryPlaces(summaryDialog && summaryState == null, placeRevision, setSummaryError)
+    // read only while a new note is being set up; an update keeps the note's place
+    const summaryPlaces = useSummaryPlaces(summaryDialog && (summaryState == null || branching), placeRevision,
+        setSummaryError)
     // a place gone from a fresh tree is emptied, so the line never hides a stale choice
     const summaryPlaceGone = summaryPlace != null && summaryPlaces.load.status === 'ready'
         && summaryPlaces.pathOf(summaryPlace) == null
@@ -399,6 +402,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setAcceptedSummary(null)
         setSummaryState(null)
         setSummaryDialog(false)
+        setBranching(false)
         setSummaryPending(false)
         summaryPendingRef.current = false
         summaryRequestIdRef.current += 1
@@ -725,16 +729,23 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         void executeChatRequest(pendingRequest, target, placeholderId)
     }
 
-    /** [place] puts a new note in a constellation or under a note; an update keeps the note's place. */
-    async function confirmSummary(place?: SummaryPlace) {
+    /**
+     * [place] puts a new note in a constellation or under a note; an update keeps the note's place. With [branch] the
+     * messages after the main note's boundary become a separate note and the main note stays as it is.
+     */
+    async function confirmSummary(place?: SummaryPlace, branch = false) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
-        const target = summaryState
+        const main = summaryState
+        if (branch && !main) return
+        // the note an update appends to; null while a new note (the first one or a branch) is requested
+        const target = branch ? null : main
         if (!target && (isSummaryNameTooLong(summaryName) || summaryNameDictating)) return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
         // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
-        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId,
+        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id,
+            branch ? `branch:${main?.noteId}` : target?.noteId,
             target ? undefined : place, target ? '' : summaryName, target ? null : summaryIcon)
         const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
         const idempotencyKey = storedKey ?? generateClientUuid()
@@ -747,12 +758,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setSummaryPending(true)
         setSummaryError(null)
         try {
+            const constellationId = place && 'constellationId' in place ? place.constellationId : undefined
+            const parentNoteId = place && 'parentNoteId' in place ? place.parentNoteId : undefined
+            const name = summaryName.trim() || undefined
             const summary = target
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
-                : await requestChatSummary(chatId, idempotencyKey, undefined,
-                    place && 'constellationId' in place ? place.constellationId : undefined,
-                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined,
-                    summaryIcon)
+                : branch && main
+                    ? await requestChatSummary(chatId, idempotencyKey, undefined, constellationId, parentNoteId, name,
+                        summaryIcon, main.noteId)
+                    : await requestChatSummary(chatId, idempotencyKey, undefined, constellationId, parentNoteId, name,
+                        summaryIcon)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -765,12 +780,14 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             // Hide Summarize until a new message arrives; the next latest page confirms the boundary.
             setSummaryState({
                 throughMessageId: persistedMessagesRef.current.at(-1)?.id ?? null,
-                noteId: summary.noteId,
-                noteTitle: target?.noteTitle ?? null,
-                noteIcon: target?.noteIcon ?? null,
+                // a branch leaves the main note the one that the next update appends to
+                noteId: main?.noteId ?? summary.noteId,
+                noteTitle: main?.noteTitle ?? null,
+                noteIcon: main?.noteIcon ?? null,
             })
             setAcceptedSummary({noteId: summary.noteId, update: target != null})
             setSummaryDialog(false)
+            setBranching(false)
         } catch (error) {
             if (error instanceof NoteApiError && error.kind === 'http'
                 && (error.status === 400 || error.status === 404 || error.status === 409)) {
@@ -802,6 +819,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     .then((page) => {
                         if (mountedRef.current && summaryRequestIdRef.current === requestId) {
                             setSummaryState(page.summary ?? null)
+                            // without a main note the typed fields would start a summary of the whole chat
+                            if (branch && !page.summary) {
+                                setBranching(false)
+                                setSummaryDialog(false)
+                            }
                         }
                     })
                     .catch(() => undefined)
@@ -890,12 +912,13 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                       setSummaryPlace(null)
                                       setPickingPlace(false)
                                       setSummaryIcon(null)
+                                      setBranching(false)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
             {summaryDialog && <NoticeOverlay blocking={summaryPending}
                                              onBackdropClick={() => setSummaryDialog(false)}>
-                {updateTarget ? <Notice
+                {updateTarget && !branching ? <Notice
                     title={summaryTitle}
                     body={<SummaryDialogText error={summaryError}>
                         {t.updateBody}
@@ -906,23 +929,38 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     busy={summaryPending}
                     primaryDisabled={summaryPending}
                     onPrimary={() => void confirmSummary()}
-                    onSecondary={() => setSummaryDialog(false)}/>
+                    onSecondary={() => setSummaryDialog(false)}>
+                    <Button size="sm" variant="quiet" disabled={summaryPending}
+                            onClick={() => {
+                                setSummaryError(null)
+                                // the default place: under the chat's main note
+                                setSummaryPlace({parentNoteId: updateTarget.noteId})
+                                setBranching(true)
+                            }}>{t.saveAsNewNote}</Button>
+                </Notice>
                     : <Notice
-                        title={summaryTitle}
+                        title={updateTarget ? t.newNoteTitle : summaryTitle}
                         width={360}
                         body={<SummaryDialogText error={summaryError}>
                             {summaryPending
                                 ? t.startingSummary
-                                : t.summaryBody}
+                                : updateTarget ? t.newNoteBody : t.summaryBody}
                         </SummaryDialogText>}
                         primary={t.summarize}
                         primaryDisabled={summaryHeld}
                         busy={summaryPending}
+                        secondary={updateTarget ? t.back : undefined}
+                        secondaryDisabled={summaryPending}
+                        onSecondary={updateTarget ? () => {
+                            setSummaryError(null)
+                            setPickingPlace(false)
+                            setBranching(false)
+                        } : undefined}
                         showClose
                         onClose={() => {
                             if (!summaryPendingRef.current) setSummaryDialog(false)
                         }}
-                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}
+                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined, updateTarget != null)}
                         step={pickingPlace ? {
                             title: t.choosePlace,
                             onBack: () => setPickingPlace(false),
