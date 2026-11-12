@@ -333,9 +333,17 @@ class NoteSummaryService(
                         "but the request created by the winning transaction could not be loaded"
             )
 
+    /**
+     * The note now covers the chat through [throughMessageId]. A note branched from the main note moves the main
+     * note's boundary too, since that one is the chat's: the next update reads only what came after the branch.
+     */
     private fun moveSummaryBoundary(chatId: UUID, noteId: UUID, throughMessageId: UUID) {
         val link = chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) ?: return
         link.summarizedThroughMessageId = throughMessageId
         chatNoteRepository.save(link)
+        if (link.main) return
+        val mainLink = chatNoteRepository.findMainLink(chatId) ?: return
+        mainLink.summarizedThroughMessageId = throughMessageId
+        chatNoteRepository.save(mainLink)
     }
 }

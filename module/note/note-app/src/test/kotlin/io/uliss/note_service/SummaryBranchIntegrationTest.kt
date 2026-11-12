@@ -10,12 +10,16 @@ import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.payload.NoteSummaryBranchRequestedPayload
+import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
+import io.uliss.note_service.service.NoteHierarchyService
+import io.uliss.note_service.service.NoteSummaryService
+import io.uliss.note_service.service.handler.NoteSummaryBranchTerminalFailureHandler
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
@@ -30,6 +34,8 @@ import java.util.UUID
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
+import kotlin.test.assertTrue
 
 class SummaryBranchIntegrationTest : NoteIntegrationTest() {
 
@@ -53,6 +59,15 @@ class SummaryBranchIntegrationTest : NoteIntegrationTest() {
 
     @Autowired
     lateinit var outboxEventRepository: OutboxEventRepository
+
+    @Autowired
+    lateinit var noteSummaryService: NoteSummaryService
+
+    @Autowired
+    lateinit var noteHierarchyService: NoteHierarchyService
+
+    @Autowired
+    lateinit var branchTerminalFailureHandler: NoteSummaryBranchTerminalFailureHandler
 
     private val userId = UUID.randomUUID()
 
@@ -177,6 +192,66 @@ class SummaryBranchIntegrationTest : NoteIntegrationTest() {
         assertEquals(0, branchPayloads(chat.id).size)
         // nothing stays reserved: the next request is accepted
         branch(chat.id, """{"mode":"BRANCH","targetNoteId":"${chat.mainId}"}""").andExpect { status { isAccepted() } }
+    }
+
+    @Test
+    fun `a written branch moves the chat's boundary, so the next update reads only later messages`() {
+        val chat = summarizedChat()
+        val tail = message(chat.id, "A new album")
+        val branchId = noteIdOf(branch(chat.id, """{"mode":"BRANCH","targetNoteId":"${chat.mainId}"}"""))
+
+        assertTrue(noteSummaryService.completeChatSummary(userId, branchId, "Blackstar", "branch body"))
+        // a redelivered event changes nothing
+        assertFalse(noteSummaryService.completeChatSummary(userId, branchId, "Again", "again"))
+
+        val branchNote = noteRepository.findById(branchId).orElseThrow()
+        assertEquals(NoteStatus.READY, branchNote.status)
+        assertEquals("branch body", branchNote.content)
+        assertEquals(tail, chatNoteRepository.findById(ChatNoteId(chat.id, branchId)).orElseThrow().summarizedThroughMessageId)
+        val current = noteSummaryService.findCurrentChatSummary(chat.id)
+        assertEquals(chat.mainId, current?.noteId)
+        assertEquals(tail, current?.throughMessageId)
+        assertEquals("main body", noteRepository.findById(chat.mainId).orElseThrow().content)
+
+        val later = message(chat.id, "Back to Low")
+        branch(chat.id, """{"mode":"UPDATE","targetNoteId":"${chat.mainId}"}""").andExpect { status { isAccepted() } }
+        val update = outboxEventRepository.findAll()
+            .filter { it.type == OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED }
+            .map { objectMapper.readValue(it.payload, NoteSummaryUpdateRequestedPayload::class.java) }
+            .single { it.chatId == chat.id }
+        assertEquals(tail, update.afterMessageId)
+        assertEquals(later, update.throughMessageId)
+    }
+
+    @Test
+    fun `a branch is still written when the main note was deleted meanwhile`() {
+        val chat = summarizedChat()
+        message(chat.id, "A new album")
+        val branchId = noteIdOf(branch(chat.id, """{"mode":"BRANCH","targetNoteId":"${chat.mainId}"}"""))
+        noteHierarchyService.delete(userId, chat.mainId, null)
+
+        assertTrue(noteSummaryService.completeChatSummary(userId, branchId, "Blackstar", "branch body"))
+
+        assertEquals(NoteStatus.READY, noteRepository.findById(branchId).orElseThrow().status)
+        // a branch never becomes the main note: the chat is unsummarized again
+        assertNull(noteSummaryService.findCurrentChatSummary(chat.id))
+    }
+
+    @Test
+    fun `a branch that cannot be written fails alone and frees the chat for a new request`() {
+        val chat = summarizedChat()
+        message(chat.id, "A new album")
+        val body = """{"mode":"BRANCH","targetNoteId":"${chat.mainId}"}"""
+        val branchId = noteIdOf(branch(chat.id, body))
+        val event = outboxEventRepository.findAll().single {
+            it.type == OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED && it.payload.contains(branchId.toString())
+        }
+
+        branchTerminalFailureHandler.handleTerminalFailure(event)
+
+        assertEquals(NoteStatus.FAILED, noteRepository.findById(branchId).orElseThrow().status)
+        assertEquals(chat.boundaryId, noteSummaryService.findCurrentChatSummary(chat.id)?.throughMessageId)
+        branch(chat.id, body).andExpect { status { isAccepted() } }
     }
 
     private class SummarizedChat(val id: UUID, val mainId: UUID, val boundaryId: UUID)

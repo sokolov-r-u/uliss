@@ -87,6 +87,9 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
         @Param("status") status: NoteStatus,
     ): CurrentChatSummary?
 
+    @Query("SELECT cn FROM ChatNoteEntity cn WHERE cn.chatNoteId.chatId = :chatId AND cn.main = TRUE")
+    fun findMainLink(@Param("chatId") chatId: UUID): ChatNoteEntity?
+
     /** Takes the main mark from the chat's links, before another note becomes the main one. */
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("UPDATE ChatNoteEntity cn SET cn.main = FALSE WHERE cn.chatNoteId.chatId = :chatId AND cn.main = TRUE")

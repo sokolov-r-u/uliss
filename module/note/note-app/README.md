@@ -114,8 +114,9 @@ is the user's emoji for the new note: exactly one emoji grapheme (ZWJ sequences,
 as one), `400` otherwise, blank means none; the model never chooses one. A replayed key returns the original note with
 its original place, title and icon, whatever the retry sends.
 
-A chat grows one summary note. Its current note is the latest `READY` `CHAT_SUMMARY` note linked to it;
-`chat_note.summarized_through_message_id` records the last message the note covers, and the latest message page
+A chat has one main summary note and any number of notes branched from it. Its current note is the link marked
+`chat_note.main` when that note is a `READY` `CHAT_SUMMARY` note; the main link's
+`chat_note.summarized_through_message_id` is the chat's boundary, the last message its notes cover, and the latest message page
 (`GET /messages` without `before`) returns it as `summary` (`{throughMessageId, noteId, noteTitle, noteIcon}`). A later summarize sends
 `{"mode":"UPDATE","targetNoteId":...}`: the request is reserved without touching the note and publishes
 `NOTE_SUMMARY_UPDATE_REQUESTED`. The update worker reads only the messages after the boundary, searches related notes
@@ -123,6 +124,15 @@ excluding the updated one, and asks for a `NoteAddendumDraft`; the backend appen
 heading, reindexes the note, and moves the boundary. Each request ends `APPLIED`, `NOTHING_NEW` (boundary moves, note
 unchanged), or `FAILED`; at most one request per chat is `PENDING` (409 `SUMMARY_IN_PROGRESS`). `CREATE` with a
 current note or `UPDATE` of a note that is not current is 409 `SUMMARY_NOTE_CONFLICT`.
+
+`{"mode":"BRANCH","targetNoteId":<main note>}` writes the messages after the boundary into a new note instead; it
+takes `constellationId` or `parentNoteId`, `title` and `icon` like `CREATE`, and the same `400`/`404`/`409` answers as
+`UPDATE` and the place rules. The placeholder is linked to the chat without the `main` mark and
+`NOTE_SUMMARY_BRANCH_REQUESTED` is published. The branch worker reads only the messages after the boundary, gives the
+model the main note's text as already recorded (nothing, when it was deleted meanwhile), and completes the note like
+a first summary; completing a branch moves the main link's boundary too, so the next `UPDATE` reads only later
+messages. A branch that fails becomes `FAILED` and leaves the boundary. Deleting the main note drops the boundary with
+its link: the chat has no current note again, and the next `CREATE` covers the whole chat.
 
 The summary worker loads only messages through that boundary, builds a deterministic retrieval
 query, embeds it, and performs exact cosine search only within the requesting user's chunks. The

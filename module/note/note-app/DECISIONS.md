@@ -942,3 +942,23 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   Deleting the main note drops the link with the boundary, so the next Summarize creates a new main note from the
   whole chat; an older READY note of the same chat no longer takes over. The backfill has no automated test.
 - **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 1.
+
+## 2026-11-12 — Summarize can branch a new note from the chat's unsummarized tail
+
+- **Context:** a new topic inside a chat (a new album in a chat about an artist) blurred the chat's note; creating a
+  second note was deferred on 2026-10-15 because the model could not tell a new topic from a duplicate. Now the user
+  decides and names the note.
+- **Decision:** `SummaryMode.BRANCH` (target = the main note, place, title and icon like `CREATE`) reserves a
+  `GENERATING` note linked without the `main` mark and publishes `NOTE_SUMMARY_BRANCH_REQUESTED`, a new event type so
+  that an instance claims it only once it can handle it. The worker sends the messages after the boundary and the
+  main note's text as already recorded, with the create schema (`NoteDraft` / `NoteBodyDraft`). The chat has one
+  boundary: completing a branch moves the main link's boundary too. The branch therefore keeps every thought of those
+  messages; a thought of the main note that they refine or reverse is kept, only a plain repeat is dropped. A branch
+  never becomes the main note. Rejected: a boundary per note (duplicates between notes would depend on the prompt
+  alone, and Summarize would stay available right after a branch).
+- **Consequences:** a thought about the main note's subject can end up only in a branch. A main note deleted while
+  the branch waits leaves it written from the messages alone, and the chat without a boundary. "Summarize again" is
+  unchanged: on a branch it rewrites the note from the whole chat and moves only that link's boundary
+  (`docs/TECH_DEBT.md`). A terminal failure handler reads the stores directly, like the others: `OutboxService`
+  depends on them, so they cannot depend on `NoteSummaryService`.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, blocks 2–3.

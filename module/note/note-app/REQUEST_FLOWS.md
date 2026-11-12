@@ -85,7 +85,7 @@ application services or outbox handlers.
 | `POST /note/chats/{chatId}/messages`              | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Reserves or replays a turn, then returns SSE       |
 | `POST /note/chats/{chatId}/turns/{turnId}/cancel` | `ChatController -> ChatFacade -> AssistantService -> ChatTurnService`               | Cancels an active turn                             |
 | `POST /note/chats/{chatId}/turns/{turnId}/retry`  | `ChatController -> ChatFacade -> NoteSummaryService + AssistantService -> ChatTurnService` | Regenerates a failed latest reply, then SSE  |
-| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates or updates the current note asynchronously, or replays |
+| `POST /note/chats/{chatId}/summarize`             | `ChatController -> ChatFacade -> ChatService + NoteService`                         | Creates, updates or branches a note asynchronously, or replays |
 | `GET /note/notes`                                 | `NoteController -> NoteService -> NoteListStore`                                    | Keyset page of the user's notes by last change, with their total |
 | `GET /note/notes/{noteId}`                        | `NoteController -> NoteService`                                                     | Returns an ownership-filtered note                 |
 | `GET /note/notes/{noteId}/chats`                  | `NoteController -> NoteFacade -> NoteService + ChatService`                         | Lists the chats the note was written from          |
@@ -362,7 +362,10 @@ with the same `(userId, Idempotency-Key)` converge on the winning transaction's 
 `ChatFacade.requestSummary` replays a known key first, then applies the mode rules against the chat's current note
 (`NoteService.findCurrentChatSummary`). `UPDATE` follows the same reservation, but references the existing note and
 publishes `NOTE_SUMMARY_UPDATE_REQUESTED` with `afterMessageId` (the note's boundary) and `throughMessageId` (the latest
-message); the note is not changed. A second request of the chat while one is `PENDING` violates
+message); the note is not changed. `BRANCH` reserves a new `GENERATING` note like `CREATE`, links it without the
+`main` mark and publishes `NOTE_SUMMARY_BRANCH_REQUESTED` with the main note's id and the same two message ids;
+`NoteSummaryBranchRequestedHandler` writes it from those messages and `completeChatSummary` moves the boundary of
+both links. A second request of the chat while one is `PENDING` violates
 `uq_summary_request_pending_chat` and returns 409.
 
 ```mermaid
