@@ -23,7 +23,6 @@ import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.getOwnedNote
 import java.time.LocalDate
 import java.util.UUID
-import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -48,10 +47,12 @@ class NoteSummaryService(
 
     private val log = AppLogger.of(NoteSummaryService::class)
 
-    /** The chat's latest READY summary note; null when there is none. Callers pass an owned chat id. */
-    fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
-        .findSummaries(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, PageRequest.of(0, 1))
-        .firstOrNull()
+    /**
+     * The chat's main summary note once it is READY; null when there is none, also when the chat only has notes
+     * branched from it. Callers pass an owned chat id.
+     */
+    fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? =
+        chatNoteRepository.findMainSummary(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY)
 
     /**
      * Prepares the chat's notes for chat message [messageId] (a failed reply) being replaced by a retry: a summary
@@ -103,7 +104,9 @@ class NoteSummaryService(
         if (reservation == null) return getReplayedSummary(userId, chatId, idempotencyKey)
 
         noteRepository.saveAndFlush(candidateNote)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId))
+        // a failed first attempt may still hold the mark
+        chatNoteRepository.clearMain(chatId)
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId, main = true))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
         parentNoteId?.let {
             noteHierarchyService.moveUnder(userId, candidateNote.id, it)

@@ -229,6 +229,7 @@ Indexes:
 | `version` | `bigint` | yes |  |  |
 | `summarized_through_message_id` | `uuid` | yes |  | FK → chat_message.id |
 | `user_id` | `uuid` | no |  | FK → chat.user_id, FK → notes.user_id |
+| `main` | `boolean` | no | `false` |  |
 
 Constraints:
 
@@ -242,6 +243,7 @@ Constraints:
 Indexes:
 
 - `idx_chat_note_note_id` — `btree (note_id)`
+- `uq_chat_note_main` — unique `btree (chat_id) WHERE main`
 
 ## Summaries
 

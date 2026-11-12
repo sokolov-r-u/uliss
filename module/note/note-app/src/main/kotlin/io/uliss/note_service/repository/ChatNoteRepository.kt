@@ -7,7 +7,6 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.model.projection.CurrentChatSummary
-import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.CrudRepository
@@ -69,6 +68,7 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
     )
     fun findChatIdsByNoteId(@Param("userId") userId: UUID, @Param("noteId") noteId: UUID): List<UUID>
 
+    /** The chat's main note when it is a [status] note of [source]; null when the chat has no such main note. */
     @Query(
         """
         SELECT new io.uliss.note_service.model.projection.CurrentChatSummary(
@@ -76,15 +76,19 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
         FROM ChatNoteEntity cn, NoteEntity n
         WHERE n.id = cn.chatNoteId.noteId
           AND cn.chatNoteId.chatId = :chatId
+          AND cn.main = TRUE
           AND n.source = :source
           AND n.status = :status
-        ORDER BY n.createdAt DESC, n.id DESC
         """
     )
-    fun findSummaries(
+    fun findMainSummary(
         @Param("chatId") chatId: UUID,
         @Param("source") source: NoteSource,
         @Param("status") status: NoteStatus,
-        pageable: Pageable,
-    ): List<CurrentChatSummary>
+    ): CurrentChatSummary?
+
+    /** Takes the main mark from the chat's links, before another note becomes the main one. */
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query("UPDATE ChatNoteEntity cn SET cn.main = FALSE WHERE cn.chatNoteId.chatId = :chatId AND cn.main = TRUE")
+    fun clearMain(@Param("chatId") chatId: UUID): Int
 }

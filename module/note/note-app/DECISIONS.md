@@ -927,3 +927,18 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** of streams opened at the same moment, the one over the limit ends with an error inside the
   already open SSE response (after the first keepalive) instead of a JSON 429; the client reconnects and gets the 429.
 - **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 2.
+
+## 2026-11-12 — A chat has one main summary note, marked on its link
+
+- **Context:** a chat may now produce notes branched from its unsummarized tail (`docs/tasks/2026-11-12-summary-new-note.md`),
+  so "the latest READY summary note" no longer names the note that Summarize updates.
+- **Decision:** `chat_note.main` marks the chat's main note, one per chat by a partial unique index (V28). The current
+  summary is the main link's note when it is a READY `CHAT_SUMMARY` note, and that link's
+  `summarized_through_message_id` is the chat's boundary. A first Summarize marks its placeholder and takes the mark
+  from a failed earlier attempt in the same transaction. The migration marks the latest READY summary of each chat,
+  else the one still being written. Rejected: columns on `chat` (every boundary reader changes, and deleting the note
+  must reset them by hand) and deriving "the oldest READY note" (a branch would silently become the main note).
+- **Consequences:** this replaces "the current note is the chat's latest READY `CHAT_SUMMARY` note" (2026-10-15).
+  Deleting the main note drops the link with the boundary, so the next Summarize creates a new main note from the
+  whole chat; an older READY note of the same chat no longer takes over. The backfill has no automated test.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 1.
