@@ -209,14 +209,16 @@ Opened 2026-08-31 during the design-system integration refresh
 ## Summarize updates the chat's existing note (`note-service`, `web`)
 
 **Status:** implemented 2026-10-15 (see `module/note/note-app/DECISIONS.md`). The update appends a dated addendum to
-the chat's latest READY note; RAG retrieval embeds only the new messages and excludes that note.
+the chat's main note (since 2026-11-12; before, its latest READY note); RAG retrieval embeds only the new messages and excludes that note.
 
 Deferred follow-ups agreed during that design:
 
-- **Create a new note on a new topic.** A third Summarize choice next to "Update note": send the messages after the
-  boundary plus the current note and ask for a note on the main topic discussed after it. Dropped from the MVP because
-  a new chat is the natural path for a new topic and the model cannot reliably avoid near-duplicates. The schema
-  allows it later as one more outbox event type and prompt.
+- **Create a new note on a new topic.** Done 2026-11-12 as "Save as a new note" in the update dialog
+  (`module/note/note-app/DECISIONS.md`, "Summarize can branch a new note from the chat's unsummarized tail").
+- **"Summarize again" with branched notes.** It still rewrites a note from the whole chat. For the main note that
+  pulls in what its branches already hold; for a branch it produces a second whole-chat summary and moves only that
+  link's boundary, not the chat's. Left as is by the user's choice (the button is a test tool behind
+  `note-resummarize`). A fix stores the message range each note covers and rewrites from that range.
 - **Notify the user about the outcome of an asynchronous update.** `summary_request.status` records `NOTHING_NEW` and
   `FAILED`, but the chat shows only "Updating the note in the background". Deliver the outcome through the planned
   user notification list.
