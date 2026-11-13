@@ -190,6 +190,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryChoice, setSummaryChoice] = useState<'update' | 'new-note'>('update')
     /** The second step after choosing a separate note: its name, icon and place. */
     const [branching, setBranching] = useState(false)
+    /** The new note's default place (under the main note) was set in this dialog. */
+    const branchPlaceSetRef = useRef(false)
     /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
     const [summaryName, setSummaryName] = useState('')
     const [summaryNameDictating, setSummaryNameDictating] = useState(false)
@@ -918,8 +920,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                   onClick={() => {
                                       setSummaryError(null)
                                       setSummaryName('')
-                                      // a separate note goes under the chat's main note unless the user moves it
-                                      setSummaryPlace(summaryState ? {parentNoteId: summaryState.noteId} : null)
+                                      setSummaryPlace(null)
+                                      branchPlaceSetRef.current = false
                                       setPickingPlace(false)
                                       setSummaryIcon(null)
                                       setSummaryChoice('update')
@@ -952,6 +954,15 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                             return
                         }
                         setSummaryError(null)
+                        // the first time only, so Back and Next keep a place the user changed
+                        if (!branchPlaceSetRef.current) {
+                            branchPlaceSetRef.current = true
+                            const underMain = {parentNoteId: updateTarget.noteId}
+                            // shown only once the tree knows the note: an untitled one or an unread tree leaves none,
+                            // so the request never carries a place the field did not show
+                            setSummaryPlace(summaryPlaces.load.status === 'ready' && summaryPlaces.pathOf(underMain) != null
+                                ? underMain : null)
+                        }
                         setBranching(true)
                     }}>
                     <div className="summary-fields">

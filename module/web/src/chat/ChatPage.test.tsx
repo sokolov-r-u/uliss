@@ -1509,14 +1509,17 @@ describe('ChatPage summary place picker', () => {
     const mainSummary = {throughMessageId: 'a-1', noteId: 'trip', noteTitle: 'Trip'}
 
     /** A summarized chat with new messages, on the new-note step of its Summarize dialog. */
-    async function openNewNoteStep() {
-        skyWith([star('trip', 'Trip', 'music')])
+    async function openNewNoteStep(stars = [star('trip', 'Trip', 'music')]) {
+        skyWith(stars)
         mockedGetMessages.mockReset().mockResolvedValue({...messagePage(summarizedTail), summary: mainSummary})
         renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
         const choice = screen.getByRole('dialog', {name: 'Summarize?'})
         await userEvent.click(within(choice).getByRole('radio', {name: /^New note/}))
         expect(choice).toHaveTextContent('The new messages become a separate note with its own name and place.')
+        // the default place needs the tree, read while the choice is on screen
+        await waitFor(() => expect(getSky).toHaveBeenCalled())
+        await act(async () => undefined)
         await userEvent.click(within(choice).getByRole('button', {name: 'Next'}))
         return screen.findByRole('dialog', {name: 'New note'})
     }
@@ -1543,6 +1546,50 @@ describe('ChatPage summary place picker', () => {
 
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith(
             'chat-1', expect.any(String), undefined, undefined, undefined, undefined, null, 'trip'))
+    })
+
+    it('leaves a new note without a place when the main note is untitled', async () => {
+        const dialog = await openNewNoteStep([])
+
+        expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'})).toBeInTheDocument()
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith(
+            'chat-1', expect.any(String), undefined, undefined, undefined, undefined, null, 'trip'))
+    })
+
+    it('resets the place of a new note whose parent was deleted', async () => {
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
+            'PARENT_NOTE_NOT_FOUND'))
+        const dialog = await openNewNoteStep()
+        await within(dialog).findByRole('button', {name: 'Place: Music › Trip'})
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        expect(await within(dialog).findByText('That note no longer exists. Pick another place or leave it empty.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'}))
+            .toBeInTheDocument())
+    })
+
+    it('never replays the key of an add to the note for a new note', async () => {
+        skyWith([star('trip', 'Trip', 'music')])
+        mockedGetMessages.mockReset().mockResolvedValue({...messagePage(summarizedTail), summary: mainSummary})
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('transport', 'connection lost'))
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        const choice = screen.getByRole('dialog', {name: 'Summarize?'})
+        await userEvent.click(within(choice).getByRole('button', {name: 'Add to note'}))
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(1))
+
+        // the lost update may have been applied; a new note must not come back as its replay
+        await userEvent.click(within(choice).getByRole('radio', {name: /^New note/}))
+        await userEvent.click(within(choice).getByRole('button', {name: 'Next'}))
+        await userEvent.click(within(await screen.findByRole('dialog', {name: 'New note'}))
+            .getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
+        expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(mockedSummary.mock.calls[0]?.[1])
     })
 
     it('goes back from the new note to the choice, keeping the choice', async () => {

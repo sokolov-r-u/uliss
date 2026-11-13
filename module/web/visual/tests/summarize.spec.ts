@@ -105,6 +105,23 @@ test('a repeated summary keeps one card size from the choice to the new note und
     await expect(page.getByRole('status', {name: 'Summary note'})).toContainText('Uliss is writing a note')
 })
 
+test('a new note keeps its card size when the request fails', async ({page}) => {
+    await openRoute(page, '/chats/c1', 'summary=old')
+    await page.getByRole('button', {name: 'Summarize'}).click()
+    const choice = page.getByRole('dialog', {name: 'Summarize?'})
+    await choice.getByRole('radio', {name: /^New note/}).click()
+    await choice.getByRole('button', {name: 'Next'}).click()
+    const newNote = page.getByRole('dialog', {name: 'New note'})
+    await expect(newNote.getByRole('button', {name: /^Place: .*The empty room$/})).toBeVisible()
+    const size = await sizeOf(newNote)
+    await page.evaluate(() => sessionStorage.setItem('visual.summary', 'fail-once'))
+
+    await newNote.getByRole('button', {name: 'Summarize'}).click()
+
+    await expect(newNote.getByText('Something went wrong on our side. Try again in a moment.')).toBeVisible()
+    expect(await sizeOf(newNote)).toEqual(size)
+})
+
 test('choosing a place is a step of the same dialog: same size, Back and Escape return', async ({page}) => {
     await page.setViewportSize({width: 1280, height: 800})
     await openRoute(page, '/chats/c1')

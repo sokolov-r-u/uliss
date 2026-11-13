@@ -189,7 +189,7 @@
 
 /* The field area of both summary steps: one height, so the card keeps its size between them */
 .summary-fields {
-    min-height: 164px;
+    min-height: 174px;
 }
 
 .summary-name-row {
