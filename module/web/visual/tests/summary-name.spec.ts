@@ -81,11 +81,11 @@ test('a long dictated name is never cut and the dialog keeps its size', async ({
 test('an update keeps its size when the request fails', async ({page}) => {
     await openRoute(page, '/chats/c1', 'summary=old')
     await page.getByRole('button', {name: 'Summarize'}).click()
-    const dialog = page.getByRole('dialog', {name: 'Update “The empty room”?'})
+    const dialog = page.getByRole('dialog', {name: 'Summarize?'})
     const initial = await sizeOf(dialog)
     await page.evaluate(() => sessionStorage.setItem('visual.summary', 'fail-once'))
 
-    await dialog.getByRole('button', {name: 'Update note'}).click()
+    await dialog.getByRole('button', {name: 'Add to note'}).click()
 
     await expect(dialog.getByText('Something went wrong on our side. Try again in a moment.')).toBeVisible()
     expect(await sizeOf(dialog)).toEqual(initial)

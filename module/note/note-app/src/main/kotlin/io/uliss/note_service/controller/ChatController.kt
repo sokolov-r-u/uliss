@@ -193,8 +193,8 @@ class ChatController(
             summarize.parentNoteId, summarize.title, summarize.icon,
         )
         val response = note.toChatSummaryResponse(chatId)
-        // A replayed create may already be READY; the client tracks it from GENERATING.
-        val body = if (summarize.mode == SummaryMode.CREATE) response.copy(status = NoteStatus.GENERATING) else response
+        // A replayed request for a new note may already be READY; the client tracks it from GENERATING.
+        val body = if (summarize.mode == SummaryMode.UPDATE) response else response.copy(status = NoteStatus.GENERATING)
         return ResponseEntity.accepted()
             .header(IDEMPOTENCY_KEY_HEADER, idempotencyKey.toString())
             .body(body)

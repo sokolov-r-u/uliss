@@ -229,6 +229,7 @@ Indexes:
 | `version` | `bigint` | yes |  |  |
 | `summarized_through_message_id` | `uuid` | yes |  | FK → chat_message.id |
 | `user_id` | `uuid` | no |  | FK → chat.user_id, FK → notes.user_id |
+| `main` | `boolean` | no | `false` |  |
 
 Constraints:
 
@@ -242,6 +243,7 @@ Constraints:
 Indexes:
 
 - `idx_chat_note_note_id` — `btree (note_id)`
+- `uq_chat_note_main` — unique `btree (chat_id) WHERE main`
 
 ## Summaries
 
@@ -406,7 +408,7 @@ Constraints:
 
 - `outbox_event_pkey` — `PRIMARY KEY (id)`
 - `outbox_event_status_check` — `CHECK (status::text = ANY (ARRAY['PENDING'::character varying, 'PROCESSING'::character varying, 'COMPLETED'::character varying, 'FAILED'::character varying]::text[]))`
-- `outbox_event_type_check` — `CHECK (type::text = ANY (ARRAY['NOTE_SUMMARY_REQUESTED'::character varying, 'NOTE_SUMMARY_UPDATE_REQUESTED'::character varying, 'NOTE_INDEX_REQUESTED'::character varying, 'NOTE_RESUMMARIZE_REQUESTED'::character varying, 'USER_PROFILE_REFRESH_REQUESTED'::character varying]::text[]))`
+- `outbox_event_type_check` — `CHECK (type::text = ANY (ARRAY['NOTE_SUMMARY_REQUESTED'::character varying, 'NOTE_SUMMARY_UPDATE_REQUESTED'::character varying, 'NOTE_INDEX_REQUESTED'::character varying, 'NOTE_RESUMMARIZE_REQUESTED'::character varying, 'USER_PROFILE_REFRESH_REQUESTED'::character varying, 'NOTE_SUMMARY_BRANCH_REQUESTED'::character varying]::text[]))`
 
 Indexes:
 

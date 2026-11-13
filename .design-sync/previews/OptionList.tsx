@@ -23,6 +23,17 @@ export const TickRows = () => {
     )
 }
 
+export const TallRows = () => {
+    const [picked, setPicked] = useState(0)
+    return (
+        <Ground width={340}>
+            <OptionList label="What to do" tall selected={picked} onPick={setPicked}
+                        options={[{label: 'Add to “The empty room”', note: "This chat's main note"},
+                            {label: 'New note', note: 'With its own name and place'}]}/>
+        </Ground>
+    )
+}
+
 export const Disabled = () => (
     <Ground width={320}>
         <OptionList label="Tidy pace" marker="dot" selected={1} disabled

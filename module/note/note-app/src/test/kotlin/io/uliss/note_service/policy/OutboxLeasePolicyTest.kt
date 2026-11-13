@@ -52,6 +52,15 @@ class OutboxLeasePolicyTest {
     }
 
     @Test
+    fun `summary branch lease matches the summary lease`() {
+        val policy = policy()
+        assertEquals(
+            policy.leaseFor(OutboxEventType.NOTE_SUMMARY_REQUESTED),
+            policy.leaseFor(OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED),
+        )
+    }
+
+    @Test
     fun `resummarize lease matches the summary lease`() {
         val policy = policy()
         assertEquals(

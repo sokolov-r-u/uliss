@@ -927,3 +927,48 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** of streams opened at the same moment, the one over the limit ends with an error inside the
   already open SSE response (after the first keepalive) instead of a JSON 429; the client reconnects and gets the 429.
 - **Source:** task `docs/tasks/2026-11-10-review-fixes.md`, block 2.
+
+## 2026-11-12 — A chat has one main summary note, marked on its link
+
+- **Context:** a chat may now produce notes branched from its unsummarized tail (`docs/tasks/2026-11-12-summary-new-note.md`),
+  so "the latest READY summary note" no longer names the note that Summarize updates.
+- **Decision:** `chat_note.main` marks the chat's main note, one per chat by a partial unique index (V28). The current
+  summary is the main link's note when it is a READY `CHAT_SUMMARY` note, and that link's
+  `summarized_through_message_id` is the chat's boundary. A first Summarize marks its placeholder and takes the mark
+  from a failed earlier attempt in the same transaction. The migration marks the latest READY summary of each chat,
+  else the one still being written. Rejected: columns on `chat` (every boundary reader changes, and deleting the note
+  must reset them by hand) and deriving "the oldest READY note" (a branch would silently become the main note).
+- **Consequences:** this replaces "the current note is the chat's latest READY `CHAT_SUMMARY` note" (2026-10-15).
+  Deleting the main note drops the link with the boundary, so the next Summarize creates a new main note from the
+  whole chat; an older READY note of the same chat no longer takes over. The backfill has no automated test.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 1.
+
+## 2026-11-12 — Summarize can branch a new note from the chat's unsummarized tail
+
+- **Context:** a new topic inside a chat (a new album in a chat about an artist) blurred the chat's note; creating a
+  second note was deferred on 2026-10-15 because the model could not tell a new topic from a duplicate. Now the user
+  decides and names the note.
+- **Decision:** `SummaryMode.BRANCH` (target = the main note, place, title and icon like `CREATE`) reserves a
+  `GENERATING` note linked without the `main` mark and publishes `NOTE_SUMMARY_BRANCH_REQUESTED`, a new event type so
+  that an instance claims it only once it can handle it. The worker sends the messages after the boundary and the
+  main note's text as already recorded, with the create schema (`NoteDraft` / `NoteBodyDraft`). The chat has one
+  boundary: completing a branch moves the main link's boundary too. The branch therefore keeps every thought of those
+  messages; a thought of the main note that they refine or reverse is kept, only a plain repeat is dropped. A branch
+  never becomes the main note. Rejected: a boundary per note (duplicates between notes would depend on the prompt
+  alone, and Summarize would stay available right after a branch).
+- **Consequences:** a thought about the main note's subject can end up only in a branch. A main note deleted while
+  the branch waits leaves it written from the messages alone, and the chat without a boundary. "Summarize again" is
+  unchanged: on a branch it rewrites the note from the whole chat and moves only that link's boundary
+  (`docs/TECH_DEBT.md`). A terminal failure handler reads the stores directly, like the others: `OutboxService`
+  depends on them, so they cannot depend on `NoteSummaryService`.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, blocks 2–3.
+
+## 2026-11-13 — A branch re-checks the chat's boundary once it holds the pending slot
+
+- **Context:** the facade reads the main note's boundary before reserving the request; an update that finishes in
+  between moves the boundary, and a branch built on the old one would save the same messages a second time.
+- **Decision:** `requestChatSummaryBranch` reads the current summary again after `reserve` succeeds (the pending slot
+  now blocks every other request of the chat) and rolls the whole request back with `409 SUMMARY_NOTE_CONFLICT` when
+  the main note or its boundary changed. An update needs no such check: `applyChatSummaryUpdate` already fails a
+  request whose boundary moved.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, code review.

@@ -49,3 +49,11 @@ panel. Deleting a constellation never deletes notes.
 
 **Consequences:** the sky colours a star by its main constellation. System proposals of a place stay as decided on
 2026-10-16.
+
+## 2026-11-12 — A chat has a main note and notes branched from it
+
+**Decision:** The first Summarize of a chat creates its main note; every later Update adds to that note. Instead of
+updating, the user may save the messages since the last summary as a separate note with its own name and place, by
+default a sub-note of the main note. Such a note never takes the main note's role. Each message is saved once: what
+went into a separate note is not offered to the main note again. When the main note is deleted, the next Summarize
+creates a new main note from the whole chat.

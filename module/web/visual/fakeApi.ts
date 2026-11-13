@@ -4,7 +4,8 @@
  * `?onboarding=name|profile` serves pending onboarding steps; `?links=on` links a chat with notes; the
  * constellation tree lives in memory (`constellationsFake.ts`) and is empty with `?data=empty`. Sending a chat message opens a reply stream that reports
  * a notes search and then stays open, so the waiting state can be inspected; it also marks the chat as just active.
- * Summarize creates a generating note in the picked place or under a picked note; `?summary=old` gives chat c1 a note
+ * Summarize creates a generating note in the picked place or under a picked note (a branch keeps the chat's main
+ * note); `?summary=old` gives chat c1 a note
  * that covers only its first answer, so Summarize offers an update. `visual.place=fail-once` in `sessionStorage` fails
  * the next change of a note's place; `visual.place=hold` holds such changes until it is removed.
  * `?flags=resummarize` turns on "Summarize again", which rewrites the note at once; `&resummarize=busy` refuses it
@@ -206,8 +207,11 @@ function summarize(chatId: string, body: string): Response {
     NOTES.unshift({id: noteId, source: 'CHAT_SUMMARY', status: 'GENERATING', title, content: null,
         createdAt: '2026-06-24T11:30:00Z', ...(request?.icon ? {icon: request.icon} : {})})
     const messages = CHAT_MESSAGES[chatId] ?? []
-    summaries.set(chatId, {throughMessageId: messages[messages.length - 1]?.id ?? '', noteId, noteTitle: title,
-        ...(request?.icon ? {noteIcon: request.icon} : {})})
+    const throughMessageId = messages[messages.length - 1]?.id ?? ''
+    const main = summaries.get(chatId)
+    // a branch moves the chat's boundary and leaves the main note the one Summarize adds to
+    summaries.set(chatId, request?.mode === 'BRANCH' && main ? {...main, throughMessageId}
+        : {throughMessageId, noteId, noteTitle: title, ...(request?.icon ? {noteIcon: request.icon} : {})})
     return json({noteId, chatId, status: 'GENERATING'}, 202)
 }
 

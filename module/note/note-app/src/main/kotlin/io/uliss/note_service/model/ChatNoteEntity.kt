@@ -18,4 +18,7 @@ class ChatNoteEntity(
     /** Last chat message this summary note covers; null for notes created before boundaries existed. */
     @Column(name = "summarized_through_message_id")
     var summarizedThroughMessageId: UUID? = null,
+    /** The chat's main summary note: Summarize updates it and its boundary is the chat's. One per chat. */
+    @Column(name = "main")
+    var main: Boolean = false,
 ) : AbstractEntity()

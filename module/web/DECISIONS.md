@@ -397,3 +397,21 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   with a point resolves to the nearest pickable node whose own hit area holds it (from the positions at that moment,
   not the last render); a click without one (keyboard) keeps its node.
 - **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, code review rounds 1–2.
+
+## 2026-11-13 — A repeated Summarize is a choice step and a new-note step of one size
+
+- **Context:** a chat with a main note can add the new messages to it or save them as a separate note
+  (`module/note/note-app/DECISIONS.md`, 2026-11-12). The first design, a "Save as a new note" button inside the
+  update dialog, read as a field, and one card holding both choices with locked fields read as clutter; the user
+  approved a two-screen mockup in Claude Design instead.
+- **Decision:** the repeated Summarize opens "Summarize?": a labelled `OptionList tall` (add to the main note, chosen
+  by default, or a new note) whose choice switches the body text and the primary action ("Add to note" / "Next").
+  "Next" opens "New note" with the first Summarize's fields; Back returns with the choice kept. Both steps are 340px
+  wide, like the app's other dialogs (the first Summarize moved from 360 to 340 with them), with a two-line body block
+  and a field area of one minimum height, so the card keeps its size between the steps. The new note's place defaults
+  to under the main note, set once per dialog on "Next" and only when the loaded tree shows that note, so the request
+  never carries a place the field did not show.
+- **Consequences:** this replaces the "button in the update dialog" choice recorded in the task file. The place tree
+  is read whenever the dialog opens, also for an update that never needs it. A body text or error longer than two
+  lines is cut with an ellipsis on these steps.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 4 and UI review 2026-11-13.

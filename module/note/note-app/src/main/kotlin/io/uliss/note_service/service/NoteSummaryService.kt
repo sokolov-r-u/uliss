@@ -4,6 +4,7 @@ import io.uliss.exception.common.InternalException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
+import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -11,6 +12,7 @@ import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.SummaryRequestStatus
 import io.uliss.note_service.model.payload.NoteResummarizeRequestedPayload
+import io.uliss.note_service.model.payload.NoteSummaryBranchRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.model.projection.CurrentChatSummary
@@ -23,7 +25,6 @@ import io.uliss.note_service.util.NoteContentNormalizer
 import io.uliss.note_service.util.getOwnedNote
 import java.time.LocalDate
 import java.util.UUID
-import org.springframework.data.domain.PageRequest
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -48,10 +49,12 @@ class NoteSummaryService(
 
     private val log = AppLogger.of(NoteSummaryService::class)
 
-    /** The chat's latest READY summary note; null when there is none. Callers pass an owned chat id. */
-    fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? = chatNoteRepository
-        .findSummaries(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY, PageRequest.of(0, 1))
-        .firstOrNull()
+    /**
+     * The chat's main summary note once it is READY; null when there is none, also when the chat only has notes
+     * branched from it. Callers pass an owned chat id.
+     */
+    fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? =
+        chatNoteRepository.findMainSummary(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY)
 
     /**
      * Prepares the chat's notes for chat message [messageId] (a failed reply) being replaced by a retry: a summary
@@ -84,6 +87,62 @@ class NoteSummaryService(
         title: String? = null,
         icon: String? = null,
     ): NoteEntity {
+        val note = reservePlaceholder(
+            userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = true,
+        ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryRequestedPayload(note.id, userId, chatId, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
+        return note
+    }
+
+    /**
+     * Reserves a new note for the messages after [afterMessageId], branched from the chat's main note [mainNoteId].
+     * The placeholder takes its place, [title] and [icon] like a first summary; the main note and the chat's boundary
+     * change only when the branch is written.
+     */
+    @Transactional
+    fun requestChatSummaryBranch(
+        userId: UUID,
+        chatId: UUID,
+        mainNoteId: UUID,
+        afterMessageId: UUID?,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+        constellationId: UUID? = null,
+        parentNoteId: UUID? = null,
+        title: String? = null,
+        icon: String? = null,
+    ): NoteEntity {
+        val note = reservePlaceholder(
+            userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = false,
+        ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        // The reservation now holds the chat's one pending slot, so the boundary cannot move any more; an update that
+        // finished after the caller read it already covers these messages, and the branch would save them twice.
+        val main = findCurrentChatSummary(chatId)
+        if (main?.noteId != mainNoteId || main.throughMessageId != afterMessageId) {
+            throw SummaryNoteConflictException("the summary of chat id=$chatId changed before the branch was reserved")
+        }
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryBranchRequestedPayload(note.id, userId, chatId, mainNoteId, afterMessageId, throughMessageId)
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED, payload)
+        return note
+    }
+
+    /** The GENERATING note of a new summary request with its chat link and place; null when the key is a replay. */
+    private fun reservePlaceholder(
+        userId: UUID,
+        chatId: UUID,
+        throughMessageId: UUID,
+        idempotencyKey: UUID,
+        constellationId: UUID?,
+        parentNoteId: UUID?,
+        title: String?,
+        icon: String?,
+        main: Boolean,
+    ): NoteEntity? {
         val candidateNote = NoteEntity(
             userId = userId,
             content = null,
@@ -92,28 +151,24 @@ class NoteSummaryService(
             title = title,
             icon = icon,
         )
-        val reservation = summaryRequestStore.reserve(
+        summaryRequestStore.reserve(
             userId = userId,
             idempotencyKey = idempotencyKey,
             chatId = chatId,
             throughMessageId = throughMessageId,
             noteId = candidateNote.id,
-        )
-
-        if (reservation == null) return getReplayedSummary(userId, chatId, idempotencyKey)
+        ) ?: return null
 
         noteRepository.saveAndFlush(candidateNote)
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId))
+        // a failed first attempt may still hold the mark
+        if (main) chatNoteRepository.clearMain(chatId)
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chatId, candidateNote.id), userId, main = main))
         constellationId?.let { notePlacementService.add(userId, candidateNote.id, it) }
         parentNoteId?.let {
             noteHierarchyService.moveUnder(userId, candidateNote.id, it)
             // Stored through JDBC; the returned entity shows it too.
             candidateNote.parentNoteId = it
         }
-        val payload = objectMapper.writeValueAsString(
-            NoteSummaryRequestedPayload(candidateNote.id, userId, chatId, throughMessageId)
-        )
-        outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
         return candidateNote
     }
 
@@ -285,9 +340,17 @@ class NoteSummaryService(
                         "but the request created by the winning transaction could not be loaded"
             )
 
+    /**
+     * The note now covers the chat through [throughMessageId]. A note branched from the main note moves the main
+     * note's boundary too, since that one is the chat's: the next update reads only what came after the branch.
+     */
     private fun moveSummaryBoundary(chatId: UUID, noteId: UUID, throughMessageId: UUID) {
         val link = chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) ?: return
         link.summarizedThroughMessageId = throughMessageId
         chatNoteRepository.save(link)
+        if (link.main) return
+        val mainLink = chatNoteRepository.findMainLink(chatId) ?: return
+        mainLink.summarizedThroughMessageId = throughMessageId
+        chatNoteRepository.save(mainLink)
     }
 }

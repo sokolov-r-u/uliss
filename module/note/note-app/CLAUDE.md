@@ -17,7 +17,8 @@ note-service.
   turn) and the `/note` prefix supplied by `uliss.web.path-prefix` (`WebMvcPathPrefixConfig` in `:security`).
 - Keep `ChatClientConfig` provider-neutral. Provider selection and model properties belong in configuration.
   Per-purpose OpenAI options (`reasoningEffort`, `verbosity`) are passed per call in `AssistantService`,
-  `NoteSummaryRequestedHandler`, `NoteSummaryUpdateRequestedHandler`, `NoteResummarizeRequestedHandler`,
+  `NoteSummaryRequestedHandler`, `NoteSummaryUpdateRequestedHandler`, `NoteSummaryBranchRequestedHandler`,
+  `NoteResummarizeRequestedHandler`,
   `NoteAiEditService`, `UserProfileRefreshRequestedHandler`, and `ChatTitleService`, with values from
   `note.assistant` / `note.summary` / `note.ai-edit` / `note.profile` / `note.chat-title` properties.
 

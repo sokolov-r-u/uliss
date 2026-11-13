@@ -375,35 +375,39 @@ describe('ChatPage summary flow', () => {
         expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
     })
 
-    it('names the note to update with its emoji', async () => {
+    const tail: ChatMessage[] = [...covered,
+        {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+        {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]
+
+    it('asks what to do with the new messages, naming the main note with its emoji', async () => {
         mockedGetMessages.mockResolvedValueOnce({
-            ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
-                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]),
+            ...messagePage(tail),
             summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip', noteIcon: '✈️'},
         })
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
 
-        expect(screen.getByRole('dialog', {name: 'Update “✈️ Trip”?'})).toBeInTheDocument()
-        expect(screen.queryByRole('button', {name: /^Icon:/})).not.toBeInTheDocument()
+        const dialog = screen.getByRole('dialog', {name: 'Summarize?'})
+        expect(within(dialog).getByRole('radio', {name: /^Add to “✈️ Trip”/})).toHaveAttribute('aria-checked', 'true')
+        expect(within(dialog).getByRole('radio', {name: /^New note/})).toHaveAttribute('aria-checked', 'false')
+        // the name and place of a new note come on the next step only
+        expect(within(dialog).queryByRole('button', {name: /^Icon:/})).not.toBeInTheDocument()
     })
 
-    it('offers to update the current note after new messages', async () => {
+    it('adds the new messages to the main note by default', async () => {
         mockedGetMessages.mockResolvedValueOnce({
-            ...messagePage([...covered, {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
-                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]),
+            ...messagePage(tail),
             summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
         })
         mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'READY'})
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        const dialog = screen.getByRole('dialog', {name: 'Update “Trip”?'})
-        expect(dialog).toHaveTextContent(
-            'New thoughts from this chat will be added at the end with today\'s date. The existing text stays as it is.')
+        expect(screen.getByRole('dialog', {name: 'Summarize?'}))
+            .toHaveTextContent('New thoughts go to the end of the note. Its text stays as it is.')
 
-        await userEvent.click(screen.getByRole('button', {name: 'Update note'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Add to note'}))
 
         await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith('chat-1', expect.any(String), 'note-1'))
         expect(await screen.findByRole('status', {name: 'Summary note'}))
@@ -413,20 +417,17 @@ describe('ChatPage summary flow', () => {
 
     it('explains a conflicting update and refreshes the summary state', async () => {
         // Ends with an assistant reply so the page does not start reconciling a trailing user message.
-        const newer: ChatMessage[] = [...covered,
-            {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
-            {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'}]
         mockedGetMessages
             .mockResolvedValueOnce({
-                ...messagePage(newer),
+                ...messagePage(tail),
                 summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
             })
-            .mockResolvedValueOnce(messagePage(newer))
+            .mockResolvedValueOnce(messagePage(tail))
         mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (409)', 409))
         renderPage()
 
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        await userEvent.click(screen.getByRole('button', {name: 'Update note'}))
+        await userEvent.click(screen.getByRole('button', {name: 'Add to note'}))
 
         expect(await screen.findByText('The note changed or is already being updated. Try again in a moment.'))
             .toBeInTheDocument()
@@ -1499,21 +1500,117 @@ describe('ChatPage summary place picker', () => {
         await waitFor(() => expect(getSky).toHaveBeenCalledTimes(2))
     })
 
-    it('updates a summarized chat without the place picker', async () => {
-        mockedGetMessages.mockResolvedValueOnce({
-            ...messagePage([
-                {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
-                {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
-                {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
-                {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'},
-            ]),
-            summary: {throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip'},
-        })
-        renderPage()
+    const summarizedTail: ChatMessage[] = [
+        {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+        {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+        {id: 'u-2', role: 'USER', status: 'COMPLETE', content: 'More'},
+        {id: 'a-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Reply'},
+    ]
+    const mainSummary = {throughMessageId: 'a-1', noteId: 'trip', noteTitle: 'Trip'}
 
+    /** A summarized chat with new messages, on the new-note step of its Summarize dialog. */
+    async function openNewNoteStep(stars = [star('trip', 'Trip', 'music')]) {
+        skyWith(stars)
+        mockedGetMessages.mockReset().mockResolvedValue({...messagePage(summarizedTail), summary: mainSummary})
+        renderPage()
         await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
-        const dialog = screen.getByRole('dialog', {name: 'Update “Trip”?'})
-        expect(within(dialog).queryByRole('button', {name: /^Place:/})).not.toBeInTheDocument()
-        expect(getSky).not.toHaveBeenCalled()
+        const choice = screen.getByRole('dialog', {name: 'Summarize?'})
+        await userEvent.click(within(choice).getByRole('radio', {name: /^New note/}))
+        expect(choice).toHaveTextContent('The new messages become a separate note with its own name and place.')
+        // the default place needs the tree, read while the choice is on screen
+        await waitFor(() => expect(getSky).toHaveBeenCalled())
+        await act(async () => undefined)
+        await userEvent.click(within(choice).getByRole('button', {name: 'Next'}))
+        return screen.findByRole('dialog', {name: 'New note'})
+    }
+
+    it('saves the new messages as a note under the main one, branched from it', async () => {
+        mockedSummary.mockResolvedValue({noteId: 'note-2', chatId: 'chat-1', status: 'GENERATING'})
+        const dialog = await openNewNoteStep()
+
+        expect(await within(dialog).findByRole('button', {name: 'Place: Music › Trip'})).toBeInTheDocument()
+        await userEvent.type(within(dialog).getByRole('textbox', {name: 'Name'}), 'Blackstar')
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith(
+            'chat-1', expect.any(String), undefined, undefined, 'trip', 'Blackstar', null, 'trip'))
+        expect(await screen.findByRole('link', {name: 'Open note'})).toHaveAttribute('href', '/notes/note-2')
+        expect(screen.queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+    })
+
+    it('saves a new note without a place once the default place is cleared', async () => {
+        const dialog = await openNewNoteStep()
+
+        await userEvent.click(await within(dialog).findByRole('button', {name: /^Clear/}))
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith(
+            'chat-1', expect.any(String), undefined, undefined, undefined, undefined, null, 'trip'))
+    })
+
+    it('leaves a new note without a place when the main note is untitled', async () => {
+        const dialog = await openNewNoteStep([])
+
+        expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'})).toBeInTheDocument()
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledWith(
+            'chat-1', expect.any(String), undefined, undefined, undefined, undefined, null, 'trip'))
+    })
+
+    it('resets the place of a new note whose parent was deleted', async () => {
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (404)', 404, undefined,
+            'PARENT_NOTE_NOT_FOUND'))
+        const dialog = await openNewNoteStep()
+        await within(dialog).findByRole('button', {name: 'Place: Music › Trip'})
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        expect(await within(dialog).findByText('That note no longer exists. Pick another place or leave it empty.'))
+            .toBeInTheDocument()
+        await waitFor(() => expect(within(dialog).getByRole('button', {name: 'Place: Choose a place'}))
+            .toBeInTheDocument())
+    })
+
+    it('never replays the key of an add to the note for a new note', async () => {
+        skyWith([star('trip', 'Trip', 'music')])
+        mockedGetMessages.mockReset().mockResolvedValue({...messagePage(summarizedTail), summary: mainSummary})
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('transport', 'connection lost'))
+        renderPage()
+        await userEvent.click(await screen.findByRole('button', {name: 'Summarize'}))
+        const choice = screen.getByRole('dialog', {name: 'Summarize?'})
+        await userEvent.click(within(choice).getByRole('button', {name: 'Add to note'}))
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(1))
+
+        // the lost update may have been applied; a new note must not come back as its replay
+        await userEvent.click(within(choice).getByRole('radio', {name: /^New note/}))
+        await userEvent.click(within(choice).getByRole('button', {name: 'Next'}))
+        await userEvent.click(within(await screen.findByRole('dialog', {name: 'New note'}))
+            .getByRole('button', {name: 'Summarize'}))
+
+        await waitFor(() => expect(mockedSummary).toHaveBeenCalledTimes(2))
+        expect(mockedSummary.mock.calls[1]?.[1]).not.toBe(mockedSummary.mock.calls[0]?.[1])
+    })
+
+    it('goes back from the new note to the choice, keeping the choice', async () => {
+        const dialog = await openNewNoteStep()
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Back'}))
+
+        const choice = screen.getByRole('dialog', {name: 'Summarize?'})
+        expect(within(choice).getByRole('radio', {name: /^New note/})).toHaveAttribute('aria-checked', 'true')
+        expect(mockedSummary).not.toHaveBeenCalled()
+    })
+
+    it('closes the new note step when the chat has lost its main note', async () => {
+        const dialog = await openNewNoteStep()
+        mockedSummary.mockRejectedValueOnce(new NoteApiError('http', 'summary request failed (409)', 409))
+        mockedGetMessages.mockResolvedValue(messagePage(summarizedTail))
+
+        await userEvent.click(within(dialog).getByRole('button', {name: 'Summarize'}))
+
+        // the typed name and place must not become a summary of the whole chat
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
+        expect(mockedSummary).toHaveBeenCalledTimes(1)
     })
 })

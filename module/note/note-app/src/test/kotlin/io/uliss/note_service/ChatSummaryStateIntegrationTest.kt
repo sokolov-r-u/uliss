@@ -19,9 +19,11 @@ import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteService
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.dao.DataIntegrityViolationException
 import java.time.LocalDate
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -53,34 +55,78 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
     lateinit var chatService: ChatService
 
     @Test
-    fun `current summary is the latest ready chat summary note with its boundary`() {
+    fun `current summary is the main note even when the chat has later ready notes`() {
         val userId = UUID.randomUUID()
         val chat = chatRepository.save(ChatEntity(userId, "State"))
         val first = message(chat, "first")
         val second = message(chat, "second")
-        linkNote(chat, NoteStatus.READY, "Older", first.id)
-        val latest = linkNote(chat, NoteStatus.READY, "Latest", second.id)
+        val main = linkNote(chat, NoteStatus.READY, "Main", first.id, main = true)
+        linkNote(chat, NoteStatus.READY, "Branch", second.id)
         linkNote(chat, NoteStatus.GENERATING, null, null)
         linkNote(chat, NoteStatus.FAILED, null, null)
 
         val current = noteSummaryService.findCurrentChatSummary(chat.id)
 
-        assertEquals(latest.id, current?.noteId)
-        assertEquals("Latest", current?.noteTitle)
-        assertEquals(second.id, current?.throughMessageId)
+        assertEquals(main.id, current?.noteId)
+        assertEquals("Main", current?.noteTitle)
+        assertEquals(first.id, current?.throughMessageId)
     }
 
     @Test
-    fun `deleting the current note falls back to the previous ready note`() {
+    fun `deleting the main note leaves the chat without a current summary`() {
         val userId = UUID.randomUUID()
-        val chat = chatRepository.save(ChatEntity(userId, "Fallback"))
+        val chat = chatRepository.save(ChatEntity(userId, "No fallback"))
+        val main = linkNote(chat, NoteStatus.READY, "Main", message(chat, "first").id, main = true)
+        linkNote(chat, NoteStatus.READY, "Branch", message(chat, "second").id)
+
+        noteHierarchyService.delete(userId, main.id, null)
+
+        assertNull(noteSummaryService.findCurrentChatSummary(chat.id))
+    }
+
+    @Test
+    fun `deleting a branched note keeps the main note and its boundary`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Branch deleted"))
         val first = message(chat, "first")
-        val older = linkNote(chat, NoteStatus.READY, "Older", first.id)
-        val latest = linkNote(chat, NoteStatus.READY, "Latest", message(chat, "second").id)
+        val main = linkNote(chat, NoteStatus.READY, "Main", first.id, main = true)
+        val branch = linkNote(chat, NoteStatus.READY, "Branch", message(chat, "second").id)
 
-        noteHierarchyService.delete(userId, latest.id, null)
+        noteHierarchyService.delete(userId, branch.id, null)
 
-        assertEquals(older.id, noteSummaryService.findCurrentChatSummary(chat.id)?.noteId)
+        val current = noteSummaryService.findCurrentChatSummary(chat.id)
+        assertEquals(main.id, current?.noteId)
+        assertEquals(first.id, current?.throughMessageId)
+    }
+
+    @Test
+    fun `a main note that is not ready is not the current summary`() {
+        val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "Failed main"))
+        linkNote(chat, NoteStatus.FAILED, null, null, main = true)
+        linkNote(chat, NoteStatus.READY, "Branch", message(chat, "first").id)
+
+        assertNull(noteSummaryService.findCurrentChatSummary(chat.id))
+    }
+
+    @Test
+    fun `a chat holds one main note`() {
+        val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "One main"))
+        linkNote(chat, NoteStatus.READY, "Main", null, main = true)
+
+        assertFailsWith<DataIntegrityViolationException> { linkNote(chat, NoteStatus.READY, "Second", null, main = true) }
+    }
+
+    @Test
+    fun `a new summary becomes the main note and takes the mark from a failed one`() {
+        val userId = UUID.randomUUID()
+        val chat = chatRepository.save(ChatEntity(userId, "Create"))
+        val failed = linkNote(chat, NoteStatus.FAILED, null, null, main = true)
+        val through = message(chat, "only")
+
+        val created = noteSummaryService.requestChatSummary(userId, chat.id, through.id, UUID.randomUUID())
+
+        assertTrue(chatNoteRepository.findById(ChatNoteId(chat.id, created.id)).orElseThrow().main)
+        assertFalse(chatNoteRepository.findById(ChatNoteId(chat.id, failed.id)).orElseThrow().main)
     }
 
     @Test
@@ -94,7 +140,7 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
     @Test
     fun `a legacy note without a boundary is current with a null boundary`() {
         val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "Legacy"))
-        val legacy = linkNote(chat, NoteStatus.READY, null, null)
+        val legacy = linkNote(chat, NoteStatus.READY, null, null, main = true)
 
         val current = noteSummaryService.findCurrentChatSummary(chat.id)
 
@@ -106,7 +152,7 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
     fun `deleting the boundary message keeps the note current with a null boundary`() {
         val chat = chatRepository.save(ChatEntity(UUID.randomUUID(), "Boundary deleted"))
         val boundary = message(chat, "boundary")
-        val note = linkNote(chat, NoteStatus.READY, "Kept", boundary.id)
+        val note = linkNote(chat, NoteStatus.READY, "Kept", boundary.id, main = true)
 
         chatMessageRepository.deleteById(boundary.id)
 
@@ -138,7 +184,7 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
         val userId = UUID.randomUUID()
         val chat = chatRepository.save(ChatEntity(userId, "Apply"))
         val covered = message(chat, "covered")
-        val note = linkNote(chat, NoteStatus.READY, "Title", covered.id)
+        val note = linkNote(chat, NoteStatus.READY, "Title", covered.id, main = true)
         val through = message(chat, "new")
         val key = UUID.randomUUID()
         noteSummaryService.requestChatSummaryUpdate(userId, chat.id, note.id, covered.id, through.id, key)
@@ -155,11 +201,17 @@ class ChatSummaryStateIntegrationTest : NoteIntegrationTest() {
         ChatMessageEntity(chat.id, ChatMessageRole.USER, content, ChatMessageStatus.COMPLETE),
     )
 
-    private fun linkNote(chat: ChatEntity, status: NoteStatus, title: String?, throughMessageId: UUID?): NoteEntity {
+    private fun linkNote(
+        chat: ChatEntity,
+        status: NoteStatus,
+        title: String?,
+        throughMessageId: UUID?,
+        main: Boolean = false,
+    ): NoteEntity {
         val note = noteRepository.save(
             NoteEntity(chat.userId, if (status == NoteStatus.READY) "body" else null, NoteSource.CHAT_SUMMARY, status, title),
         )
-        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, throughMessageId))
+        chatNoteRepository.save(ChatNoteEntity(ChatNoteId(chat.id, note.id), chat.userId, throughMessageId, main))
         return note
     }
 }

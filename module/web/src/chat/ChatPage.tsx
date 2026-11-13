@@ -1,7 +1,9 @@
 import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
-import {ActionChip, Button, IconPicker, noteTitleText, Notice, PlaceField, useLocale, useMessages} from '@uliss/design-system'
+import {
+    ActionChip, Button, IconPicker, LabelRow, noteTitleText, Notice, OptionList, PlaceField, useLocale, useMessages,
+} from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
 import {generateClientUuid} from '../lib/clientUuid'
@@ -100,8 +102,15 @@ function summaryRequestTarget(
  * The text block of the summary dialogs: description, progress and errors share it, and it is as tall as the longest
  * of them (three lines), so the dialog keeps its size when the text changes.
  */
-function SummaryDialogText({error, children}: { error: string | null; children: ReactNode }) {
-    return <span className={`chat-summary-text${error ? ' chat-summary-error' : ''}`}>{error ?? children}</span>
+function SummaryDialogText({error, short = false, children}: {
+    error: string | null
+    /** Two lines instead of three: the steps of a repeated Summarize, whose texts and errors all fit two. */
+    short?: boolean
+    children: ReactNode
+}) {
+    return <span className={`chat-summary-text${short ? ' chat-summary-text-short' : ''}${error ? ' chat-summary-error' : ''}`}>
+        {error ?? children}
+    </span>
 }
 
 interface PendingChatRequest {
@@ -177,6 +186,12 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [generationPhase, setGenerationPhase] = useState<GenerationPhase>('idle')
     const [streamNotice, setStreamNotice] = useState<string | null>(null)
     const [summaryDialog, setSummaryDialog] = useState(false)
+    /** What a repeated Summarize does with the new messages: add them to the main note or save a separate note. */
+    const [summaryChoice, setSummaryChoice] = useState<'update' | 'new-note'>('update')
+    /** The second step after choosing a separate note: its name, icon and place. */
+    const [branching, setBranching] = useState(false)
+    /** The new note's default place (under the main note) was set in this dialog. */
+    const branchPlaceSetRef = useRef(false)
     /** The name typed or dictated for a new summary note; blank lets Uliss name it. */
     const [summaryName, setSummaryName] = useState('')
     const [summaryNameDictating, setSummaryNameDictating] = useState(false)
@@ -191,8 +206,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
     /** Bumped when a picked place turned out deleted, so the place field reloads the tree. */
     const [placeRevision, setPlaceRevision] = useState(0)
-    // read only while a first summary is being set up; an update keeps the note's place
-    const summaryPlaces = useSummaryPlaces(summaryDialog && summaryState == null, placeRevision, setSummaryError)
+    // read only while a new note is being set up; an update keeps the note's place
+    const summaryPlaces = useSummaryPlaces(summaryDialog, placeRevision,
+        setSummaryError)
     // a place gone from a fresh tree is emptied, so the line never hides a stale choice
     const summaryPlaceGone = summaryPlace != null && summaryPlaces.load.status === 'ready'
         && summaryPlaces.pathOf(summaryPlace) == null
@@ -399,6 +415,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setAcceptedSummary(null)
         setSummaryState(null)
         setSummaryDialog(false)
+        setSummaryChoice('update')
+        setBranching(false)
         setSummaryPending(false)
         summaryPendingRef.current = false
         summaryRequestIdRef.current += 1
@@ -725,16 +743,23 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         void executeChatRequest(pendingRequest, target, placeholderId)
     }
 
-    /** [place] puts a new note in a constellation or under a note; an update keeps the note's place. */
-    async function confirmSummary(place?: SummaryPlace) {
+    /**
+     * [place] puts a new note in a constellation or under a note; an update keeps the note's place. With [branch] the
+     * messages after the main note's boundary become a separate note and the main note stays as it is.
+     */
+    async function confirmSummary(place?: SummaryPlace, branch = false) {
         if (!chatId || summaryPendingRef.current || generationPhaseRef.current !== 'idle') return
-        const target = summaryState
+        const main = summaryState
+        if (branch && !main) return
+        // the note an update appends to; null while a new note (the first one or a branch) is requested
+        const target = branch ? null : main
         if (!target && (isSummaryNameTooLong(summaryName) || summaryNameDictating)) return
         const requestId = summaryRequestIdRef.current + 1
         const storageKey = summaryKeyStorageKey(chatId)
         const targetStorageKey = summaryKeyTargetStorageKey(chatId)
         // A key left by an ambiguous failure may already be applied; reuse it only for the very same request.
-        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id, target?.noteId,
+        const requestTarget = summaryRequestTarget(persistedMessagesRef.current.at(-1)?.id,
+            branch ? `branch:${main?.noteId}` : target?.noteId,
             target ? undefined : place, target ? '' : summaryName, target ? null : summaryIcon)
         const storedKey = summaryKeyTargetRef.current === requestTarget ? summaryIdempotencyKeyRef.current : null
         const idempotencyKey = storedKey ?? generateClientUuid()
@@ -747,12 +772,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         setSummaryPending(true)
         setSummaryError(null)
         try {
+            const constellationId = place && 'constellationId' in place ? place.constellationId : undefined
+            const parentNoteId = place && 'parentNoteId' in place ? place.parentNoteId : undefined
+            const name = summaryName.trim() || undefined
             const summary = target
                 ? await requestChatSummary(chatId, idempotencyKey, target.noteId)
-                : await requestChatSummary(chatId, idempotencyKey, undefined,
-                    place && 'constellationId' in place ? place.constellationId : undefined,
-                    place && 'parentNoteId' in place ? place.parentNoteId : undefined, summaryName.trim() || undefined,
-                    summaryIcon)
+                : branch && main
+                    ? await requestChatSummary(chatId, idempotencyKey, undefined, constellationId, parentNoteId, name,
+                        summaryIcon, main.noteId)
+                    : await requestChatSummary(chatId, idempotencyKey, undefined, constellationId, parentNoteId, name,
+                        summaryIcon)
             sessionStorage.removeItem(storageKey)
             sessionStorage.removeItem(targetStorageKey)
             if (summaryIdempotencyKeyRef.current === idempotencyKey) {
@@ -765,9 +794,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             // Hide Summarize until a new message arrives; the next latest page confirms the boundary.
             setSummaryState({
                 throughMessageId: persistedMessagesRef.current.at(-1)?.id ?? null,
-                noteId: summary.noteId,
-                noteTitle: target?.noteTitle ?? null,
-                noteIcon: target?.noteIcon ?? null,
+                // a branch leaves the main note the one that the next update appends to
+                noteId: main?.noteId ?? summary.noteId,
+                noteTitle: main?.noteTitle ?? null,
+                noteIcon: main?.noteIcon ?? null,
             })
             setAcceptedSummary({noteId: summary.noteId, update: target != null})
             setSummaryDialog(false)
@@ -802,6 +832,11 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     .then((page) => {
                         if (mountedRef.current && summaryRequestIdRef.current === requestId) {
                             setSummaryState(page.summary ?? null)
+                            // without a main note the typed fields would start a summary of the whole chat
+                            if (branch && !page.summary) {
+                                setBranching(false)
+                                setSummaryDialog(false)
+                            }
                         }
                     })
                     .catch(() => undefined)
@@ -838,11 +873,9 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const showSummarize = latestPersistedId != null && latestPersistedId !== summaryState?.throughMessageId
     const canSummarize = generationPhase === 'idle' && !summaryPending
     const updateTarget = summaryState
-    const summaryTitle = updateTarget
-        ? (updateTarget.noteTitle
-            ? t.updateNamed(noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon))
-            : t.updateNote)
-        : t.createSummary
+    const updateOptionLabel = updateTarget?.noteTitle
+        ? t.updateOptionNamed(noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon))
+        : t.updateOption
 
     return (
         <div className="detail-layout">
@@ -888,41 +921,87 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                       setSummaryError(null)
                                       setSummaryName('')
                                       setSummaryPlace(null)
+                                      branchPlaceSetRef.current = false
                                       setPickingPlace(false)
                                       setSummaryIcon(null)
+                                      setSummaryChoice('update')
+                                      setBranching(false)
                                       setSummaryDialog(true)
                                   }}/>
                     : undefined}/>
             {summaryDialog && <NoticeOverlay blocking={summaryPending}
                                              onBackdropClick={() => setSummaryDialog(false)}>
-                {updateTarget ? <Notice
-                    title={summaryTitle}
-                    body={<SummaryDialogText error={summaryError}>
-                        {t.updateBody}
+                {/* both steps share the width and the field area's height, so the card keeps its size */}
+                {updateTarget && !branching ? <Notice
+                    title={t.summarizeAgain}
+                    width={340}
+                    body={<SummaryDialogText error={summaryError} short>
+                        {summaryChoice === 'update' ? t.updateBody : t.newNoteChoiceBody}
                     </SummaryDialogText>}
-                    primary={summaryPending ? t.updating : t.updateNoteAction}
+                    primary={summaryChoice === 'update' ? (summaryPending ? t.updating : t.updateNoteAction) : t.next}
+                    primaryDisabled={summaryPending}
                     secondary={t.cancel}
                     secondaryDisabled={summaryPending}
                     busy={summaryPending}
-                    primaryDisabled={summaryPending}
-                    onPrimary={() => void confirmSummary()}
-                    onSecondary={() => setSummaryDialog(false)}/>
+                    showClose
+                    onClose={() => {
+                        if (!summaryPendingRef.current) setSummaryDialog(false)
+                    }}
+                    onSecondary={() => setSummaryDialog(false)}
+                    onPrimary={() => {
+                        if (summaryChoice === 'update') {
+                            void confirmSummary()
+                            return
+                        }
+                        setSummaryError(null)
+                        // the first time only, so Back and Next keep a place the user changed
+                        if (!branchPlaceSetRef.current) {
+                            branchPlaceSetRef.current = true
+                            const underMain = {parentNoteId: updateTarget.noteId}
+                            // shown only once the tree knows the note: an untitled one or an unread tree leaves none,
+                            // so the request never carries a place the field did not show
+                            setSummaryPlace(summaryPlaces.load.status === 'ready' && summaryPlaces.pathOf(underMain) != null
+                                ? underMain : null)
+                        }
+                        setBranching(true)
+                    }}>
+                    <div className="summary-fields">
+                        <LabelRow label={t.summaryChoice}/>
+                        <OptionList label={t.summaryChoiceLabel} tall disabled={summaryPending}
+                                    selected={summaryChoice === 'update' ? 0 : 1}
+                                    onPick={(index) => {
+                                        setSummaryError(null)
+                                        setSummaryChoice(index === 0 ? 'update' : 'new-note')
+                                    }}
+                                    options={[
+                                        {label: updateOptionLabel, note: t.updateOptionNote},
+                                        {label: t.newNoteOption, note: t.newNoteOptionNote},
+                                    ]}/>
+                    </div>
+                </Notice>
                     : <Notice
-                        title={summaryTitle}
-                        width={360}
-                        body={<SummaryDialogText error={summaryError}>
+                        title={updateTarget ? t.newNoteTitle : t.createSummary}
+                        width={340}
+                        body={<SummaryDialogText error={summaryError} short={updateTarget != null}>
                             {summaryPending
                                 ? t.startingSummary
-                                : t.summaryBody}
+                                : updateTarget ? t.newNoteBody : t.summaryBody}
                         </SummaryDialogText>}
                         primary={t.summarize}
                         primaryDisabled={summaryHeld}
                         busy={summaryPending}
+                        secondary={updateTarget ? t.back : undefined}
+                        secondaryDisabled={summaryPending}
+                        onSecondary={updateTarget ? () => {
+                            setSummaryError(null)
+                            setPickingPlace(false)
+                            setBranching(false)
+                        } : undefined}
                         showClose
                         onClose={() => {
                             if (!summaryPendingRef.current) setSummaryDialog(false)
                         }}
-                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined)}
+                        onPrimary={() => void confirmSummary(summaryPlace ?? undefined, updateTarget != null)}
                         step={pickingPlace ? {
                             title: t.choosePlace,
                             onBack: () => setPickingPlace(false),
@@ -934,15 +1013,18 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                                                               setPickingPlace(false)
                                                           }}/>,
                         } : undefined}>
-                        <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
-                                          onDictatingChange={setSummaryNameDictating}
-                                          leading={<IconPicker label={t.icon} value={summaryIcon} disabled={summaryPending}
-                                                               dataSource={EMOJI_DATA_URL} onChange={setSummaryIcon}
-                                                               cover/>}/>
-                        <PlaceField label={t.place} placeholder={t.choosePlace} disabled={summaryPending}
-                                    value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
-                                    open={pickingPlace} onOpen={() => setPickingPlace(true)}
-                                    onClear={() => setSummaryPlace(null)}/>
+                        <div className="summary-fields">
+                            <SummaryNameField value={summaryName} onChange={setSummaryName} disabled={summaryPending}
+                                              onDictatingChange={setSummaryNameDictating}
+                                              leading={<IconPicker label={t.icon} value={summaryIcon}
+                                                                   disabled={summaryPending}
+                                                                   dataSource={EMOJI_DATA_URL}
+                                                                   onChange={setSummaryIcon} cover/>}/>
+                            <PlaceField label={t.place} placeholder={t.choosePlace} disabled={summaryPending}
+                                        value={summaryPlace ? summaryPlaces.pathOf(summaryPlace) : null}
+                                        open={pickingPlace} onOpen={() => setPickingPlace(true)}
+                                        onClear={() => setSummaryPlace(null)}/>
+                        </div>
                     </Notice>}
             </NoticeOverlay>}
         </div>

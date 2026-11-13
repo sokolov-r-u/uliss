@@ -209,14 +209,16 @@ Opened 2026-08-31 during the design-system integration refresh
 ## Summarize updates the chat's existing note (`note-service`, `web`)
 
 **Status:** implemented 2026-10-15 (see `module/note/note-app/DECISIONS.md`). The update appends a dated addendum to
-the chat's latest READY note; RAG retrieval embeds only the new messages and excludes that note.
+the chat's main note (since 2026-11-12; before, its latest READY note); RAG retrieval embeds only the new messages and excludes that note.
 
 Deferred follow-ups agreed during that design:
 
-- **Create a new note on a new topic.** A third Summarize choice next to "Update note": send the messages after the
-  boundary plus the current note and ask for a note on the main topic discussed after it. Dropped from the MVP because
-  a new chat is the natural path for a new topic and the model cannot reliably avoid near-duplicates. The schema
-  allows it later as one more outbox event type and prompt.
+- **Create a new note on a new topic.** Done 2026-11-12 as "Save as a new note" in the update dialog
+  (`module/note/note-app/DECISIONS.md`, "Summarize can branch a new note from the chat's unsummarized tail").
+- **"Summarize again" with branched notes.** It still rewrites a note from the whole chat. For the main note that
+  pulls in what its branches already hold; for a branch it produces a second whole-chat summary and moves only that
+  link's boundary, not the chat's. Left as is by the user's choice (the button is a test tool behind
+  `note-resummarize`). A fix stores the message range each note covers and rewrites from that range.
 - **Notify the user about the outcome of an asynchronous update.** `summary_request.status` records `NOTHING_NEW` and
   `FAILED`, but the chat shows only "Updating the note in the background". Deliver the outcome through the planned
   user notification list.
@@ -846,3 +848,22 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   When their migrations grow, move the generator (`NoteSchemaReader`, `SchemaDumpNormalizer`, `SchemaSnapshotRenderer`,
   `SchemaCoverage`) into the `:database` test fixtures with the schema name as a parameter, and give each service a
   section map, a test and an `updateSchemaSnapshot` task.
+
+## A summary with nothing of the user's hangs for minutes, then fails silently (`note`, `web`)
+
+- When the chat part to summarize holds no thought of the user's (seen 2026-11-13: a pasted Wikipedia passage named
+  «Робби Уильямс», task `docs/tasks/2026-11-12-summary-new-note.md`), the model returns a blank main thought.
+  `NoteBodyDraft.toNoteContent` throws an `IllegalStateException`, the outbox retries the same cached prompt three
+  times with backoff, and the note shows "generating" for minutes before it turns `FAILED` with no explanation. Same
+  for a first summary the user named. Treat a blank draft as final at once (non-retryable failure), and tell the user
+  that nothing in the new messages could be saved, instead of a silent `FAILED`.
+
+## Material the user brings into a chat is dropped from notes (`note`)
+
+- `USER_THOUGHT_RULES` in `ChatPrompts` keeps only the user's own statements, so a passage the user pasted and chose
+  to summarize is lost. Agreed direction (2026-11-13): Uliss is a diary, nothing the user brought and did not discard
+  is lost, and nothing borrowed becomes the user's view. The user's own thoughts lead; brought material is kept short
+  and marked as kept, not authored ("you saved a passage about …"), only as far as it explains those thoughts, and
+  makes up the note when there are none. A passage pasted only to ask about it stays out when the user's conclusion
+  covers it. Touches the create, update and branch prompts and the user profile, which must not read kept material
+  as the user's views. Design and check it on real chats (the «Робби Уильямс» chat is one) before changing prompts.

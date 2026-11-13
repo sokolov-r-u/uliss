@@ -178,13 +178,18 @@
     -webkit-line-clamp: 3;
 }
 
+.chat-summary-text-short {
+    height: 3.3em;
+    -webkit-line-clamp: 2;
+}
+
 .chat-summary-error {
     color: var(--terracotta);
 }
 
-/* Name of a new summary note, above the place picker */
-.summary-name {
-    margin-bottom: 14px;
+/* The field area of both summary steps: one height, so the card keeps its size between them */
+.summary-fields {
+    min-height: 174px;
 }
 
 .summary-name-row {

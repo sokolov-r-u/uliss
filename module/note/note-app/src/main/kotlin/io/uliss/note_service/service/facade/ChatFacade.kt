@@ -12,6 +12,7 @@ import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.SummaryMode
+import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.ChatTitleService
@@ -180,20 +181,39 @@ class ChatFacade(
             }
 
             SummaryMode.UPDATE -> {
-                val target = targetNoteId ?: throw BadRequestException("targetNoteId is required to update a summary")
-                if (current?.noteId != target) {
-                    throw SummaryNoteConflictException("note id=$target is not the current summary of chat id=$chatId")
-                }
-                if (current.throughMessageId == latestMessageId) {
-                    throw BadRequestException("chat id=$chatId has no new messages to summarize")
-                }
+                val main = requireMainNoteWithNewMessages(chatId, current, targetNoteId, latestMessageId)
                 noteSummaryService.requestChatSummaryUpdate(
-                    userId, chatId, target, current.throughMessageId, latestMessageId, idempotencyKey,
+                    userId, chatId, main.noteId, main.throughMessageId, latestMessageId, idempotencyKey,
+                )
+            }
+
+            SummaryMode.BRANCH -> {
+                val main = requireMainNoteWithNewMessages(chatId, current, targetNoteId, latestMessageId)
+                noteSummaryService.requestChatSummaryBranch(
+                    userId, chatId, main.noteId, main.throughMessageId, latestMessageId, idempotencyKey,
+                    constellationId, parentNoteId, userTitle, userIcon,
                 )
             }
         }
         chatService.touchActivity(userId, chatId)
         return note
+    }
+
+    /** The chat's main note when it is [targetNoteId] and the chat has messages after its boundary. */
+    private fun requireMainNoteWithNewMessages(
+        chatId: UUID,
+        current: CurrentChatSummary?,
+        targetNoteId: UUID?,
+        latestMessageId: UUID,
+    ): CurrentChatSummary {
+        val target = targetNoteId ?: throw BadRequestException("targetNoteId is required for a chat that has a summary")
+        if (current?.noteId != target) {
+            throw SummaryNoteConflictException("note id=$target is not the current summary of chat id=$chatId")
+        }
+        if (current.throughMessageId == latestMessageId) {
+            throw BadRequestException("chat id=$chatId has no new messages to summarize")
+        }
+        return current
     }
 
     private fun withNoteCount(chat: ChatEntity): ChatWithNoteCount =

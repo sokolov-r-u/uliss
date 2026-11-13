@@ -4,6 +4,7 @@ import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.model.ChatMessageEntity
+import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.repository.RetrievedChunk
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -274,6 +275,34 @@ object ChatPrompts {
         NOTE_WRITING_RULES,
     ).joinToString("\n\n")
 
+    val NOTE_BRANCH_SYSTEM_PROMPT: String = listOf(
+        """
+        Create a standalone note capturing the user's thoughts from the current chat. The current chat contains
+        only the messages written after an existing note, which already captures the earlier part of the chat and
+        is given for reference when it still exists. The new note is separate from it. The unit of the note is a
+        thought, not a topic, a message, or a recommendation.
+        """.trimIndent(),
+        USER_THOUGHT_RULES,
+        """
+        Pick one main thought — the line these messages followed, the user's central view or conclusion, unless
+        the user set the note title (then follow the rule given with it) — and give it the most space. Then add
+        every other thought of these messages worth remembering on its own: a distinct opinion, conclusion,
+        preference, decision, or intention of the user that would still matter without this chat. These messages
+        are saved nowhere else, so nothing is left out for being off the note's subject. Leave out passing remarks
+        and reactions. There is no fixed limit, but never pad.
+
+        Do not restate or summarize what the existing note already says. A thought from it that these messages
+        refine, reverse, or turn into a decision is new: keep it, stated so that it reads on its own. Leave out
+        only what merely repeats the existing note. The new note must be understandable without the existing one.
+
+        The main thought is shown as paragraphs, followed by the secondary thoughts as a bulleted list. Write them
+        so that together they read as one coherent note, not as separate fragments.
+        """.trimIndent(),
+        THOUGHT_DETAIL_RULES,
+        MAIN_THOUGHT_RULES,
+        NOTE_WRITING_RULES,
+    ).joinToString("\n\n")
+
     /** Shown only with the user's own title: it sets the subject of the main thought. */
     private val USER_TITLE_RULE: String = """
         The user's title names the note's subject. When the chat says something about it, the main thought is what
@@ -294,6 +323,38 @@ object ChatPrompts {
         userBackground: UserBackground? = null,
     ): String = buildString {
         appendLine("CURRENT CHAT (authoritative):")
+        appendLine("Title: ${context.title}")
+        appendLine(renderTranscript(context.messages))
+        appendLine()
+        if (userTitle != null) appendLine("Note title (set by the user): $userTitle")
+        if (userIcon != null) appendLine("Note icon (set by the user): $userIcon")
+        if (userTitle != null) appendLine(USER_TITLE_RULE)
+        if (userTitle != null || userIcon != null) appendLine()
+        appendNotePlace(place)
+        appendLine()
+        appendUserBackground(userBackground)
+        appendRelatedNotes(chunks)
+    }
+
+    /** The prompt of a note branched from [mainNote]; a main note deleted meanwhile leaves only the messages. */
+    fun noteBranchUserPrompt(
+        mainNote: NoteEntity?,
+        context: ChatSummaryContext,
+        place: NotePlaceDescription,
+        chunks: List<RetrievedChunk>,
+        /** The new note's name when the user gave one; the model then writes only the body. */
+        userTitle: String? = null,
+        /** The new note's emoji when the user chose one. */
+        userIcon: String? = null,
+        userBackground: UserBackground? = null,
+    ): String = buildString {
+        if (mainNote != null) {
+            appendLine("EXISTING NOTE (already written, a separate note; do not repeat):")
+            appendLine("Title: ${NotePlaceText.titleWithIcon(mainNote.title ?: "(untitled)", mainNote.icon)}")
+            appendLine(mainNote.content.orEmpty())
+            appendLine()
+        }
+        appendLine("CURRENT CHAT — messages after the existing note (authoritative):")
         appendLine("Title: ${context.title}")
         appendLine(renderTranscript(context.messages))
         appendLine()

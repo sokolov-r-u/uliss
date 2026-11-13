@@ -70,15 +70,56 @@ test('a constellation created in the picker takes the summary', async ({page}) =
     await expect(treeRow(page, 'Rock')).toContainText('1')
 })
 
-test('a chat that already has a note updates it without the picker', async ({page}) => {
+test('a chat that already has a note adds to it without the picker', async ({page}) => {
     await openRoute(page, '/chats/c1', 'summary=old')
     await page.getByRole('button', {name: 'Summarize'}).click()
 
-    const dialog = page.getByRole('dialog', {name: 'Update “The empty room”?'})
-    await expect(dialog).toBeVisible()
+    const dialog = page.getByRole('dialog', {name: 'Summarize?'})
+    await expect(dialog.getByRole('radio', {name: /^Add to “The empty room”/})).toHaveAttribute('aria-checked', 'true')
     await expect(dialog.getByRole('button', {name: /^Place:/})).toHaveCount(0)
-    await dialog.getByRole('button', {name: 'Update note'}).click()
+    await dialog.getByRole('button', {name: 'Add to note'}).click()
     await expect(page.getByRole('status', {name: 'Summary note'})).toContainText('Uliss is updating the note')
+})
+
+test('a repeated summary keeps one card size from the choice to the new note under the main one', async ({page}) => {
+    await openRoute(page, '/chats/c1', 'summary=old')
+    await page.getByRole('button', {name: 'Summarize'}).click()
+    const choice = page.getByRole('dialog', {name: 'Summarize?'})
+    const size = await sizeOf(choice)
+
+    await choice.getByRole('radio', {name: /^New note/}).click()
+    await expect(choice.getByRole('button', {name: 'Next'})).toBeVisible()
+    expect(await sizeOf(choice)).toEqual(size)
+
+    await choice.getByRole('button', {name: 'Next'}).click()
+    const newNote = page.getByRole('dialog', {name: 'New note'})
+    await expect(newNote.getByRole('button', {name: /^Place: .*The empty room$/})).toBeVisible()
+    expect(await sizeOf(newNote)).toEqual(size)
+
+    await newNote.getByRole('button', {name: 'Back'}).click()
+    await expect(choice.getByRole('radio', {name: /^New note/})).toHaveAttribute('aria-checked', 'true')
+    expect(await sizeOf(choice)).toEqual(size)
+
+    await choice.getByRole('button', {name: 'Next'}).click()
+    await newNote.getByRole('button', {name: 'Summarize'}).click()
+    await expect(page.getByRole('status', {name: 'Summary note'})).toContainText('Uliss is writing a note')
+})
+
+test('a new note keeps its card size when the request fails', async ({page}) => {
+    await openRoute(page, '/chats/c1', 'summary=old')
+    await page.getByRole('button', {name: 'Summarize'}).click()
+    const choice = page.getByRole('dialog', {name: 'Summarize?'})
+    await choice.getByRole('radio', {name: /^New note/}).click()
+    await choice.getByRole('button', {name: 'Next'}).click()
+    const newNote = page.getByRole('dialog', {name: 'New note'})
+    await expect(newNote.getByRole('button', {name: /^Place: .*The empty room$/})).toBeVisible()
+    const size = await sizeOf(newNote)
+    await page.evaluate(() => sessionStorage.setItem('visual.summary', 'fail-once'))
+
+    await newNote.getByRole('button', {name: 'Summarize'}).click()
+
+    await expect(newNote.getByText('Something went wrong on our side. Try again in a moment.')).toBeVisible()
+    expect(await sizeOf(newNote)).toEqual(size)
 })
 
 test('choosing a place is a step of the same dialog: same size, Back and Escape return', async ({page}) => {
