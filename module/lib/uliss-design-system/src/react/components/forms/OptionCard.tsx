@@ -20,6 +20,8 @@ export interface OptionCardProps {
     /** Fallback preview slot — `preview` wins when both are given. */
     children?: ReactNode
     marker?: 'tick' | 'dot'
+    /** A 66px `dot` row instead of 48px, for a short list that fills a dialog's field area. */
+    tall?: boolean
     on?: boolean
     onPick?: () => void
     disabled?: boolean
@@ -32,6 +34,7 @@ export function OptionCard({
                                preview,
                                children,
                                marker = 'tick',
+                               tall = false,
                                on = false,
                                onPick,
                                disabled = false,
@@ -52,7 +55,7 @@ export function OptionCard({
                 alignItems: 'center',
                 gap: dot ? 12 : 13,
                 padding: dot ? '0 15px' : '13px',
-                minHeight: dot ? 48 : undefined,
+                minHeight: dot ? (tall ? 66 : 48) : undefined,
                 background: on ? 'var(--bg-surface)' : dot ? 'var(--bg-panel)' : 'transparent',
                 border: on
                     ? '1px solid var(--accent)'
@@ -138,6 +141,8 @@ export interface OptionListProps {
     options?: (string | OptionCardProps)[]
     selected?: number
     marker?: 'tick' | 'dot'
+    /** Every row 66px instead of 48px; see [OptionCardProps.tall]. */
+    tall?: boolean
     onPick?: (index: number) => void
     label?: string
     disabled?: boolean
@@ -148,6 +153,7 @@ export function OptionList({
                                options = [],
                                selected = 0,
                                marker = 'dot',
+                               tall = false,
                                onPick,
                                label,
                                disabled = false
@@ -177,6 +183,7 @@ export function OptionList({
                         key={i}
                         {...c}
                         marker={marker}
+                        tall={tall}
                         on={i === selected}
                         onPick={onPick ? () => onPick(i) : undefined}
                         disabled={disabled || c.disabled}
