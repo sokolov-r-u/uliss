@@ -88,6 +88,21 @@ describe('noteApi', () => {
         })
     })
 
+    it('branches a new note from the main note in a BRANCH body with its name, icon and place', async () => {
+        mockedFetch.mockImplementation(async () =>
+            jsonResponse({noteId: 'note-2', chatId: 'chat-1', status: 'GENERATING'}, 202))
+
+        await expect(requestChatSummary('chat-1', 'request-1', undefined, undefined, 'note-1', ' Blackstar ', '🎷',
+            'note-1')).resolves.toMatchObject({noteId: 'note-2'})
+        await requestChatSummary('chat-1', 'request-2', undefined, undefined, undefined, undefined, null, 'note-1')
+
+        expect(mockedFetch.mock.calls.map(([, init]) => (init as RequestInit).body)).toEqual([
+            JSON.stringify({mode: 'BRANCH', targetNoteId: 'note-1', parentNoteId: 'note-1', title: 'Blackstar', icon: '🎷'}),
+            // a branch is always a body: the mode alone tells it from a first summary
+            JSON.stringify({mode: 'BRANCH', targetNoteId: 'note-1'}),
+        ])
+    })
+
     it('creates a placed note with the chosen constellation in a CREATE body', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'}, 202))
 
