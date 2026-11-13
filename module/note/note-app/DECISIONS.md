@@ -962,3 +962,13 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   (`docs/TECH_DEBT.md`). A terminal failure handler reads the stores directly, like the others: `OutboxService`
   depends on them, so they cannot depend on `NoteSummaryService`.
 - **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, blocks 2–3.
+
+## 2026-11-13 — A branch re-checks the chat's boundary once it holds the pending slot
+
+- **Context:** the facade reads the main note's boundary before reserving the request; an update that finishes in
+  between moves the boundary, and a branch built on the old one would save the same messages a second time.
+- **Decision:** `requestChatSummaryBranch` reads the current summary again after `reserve` succeeds (the pending slot
+  now blocks every other request of the chat) and rolls the whole request back with `409 SUMMARY_NOTE_CONFLICT` when
+  the main note or its boundary changed. An update needs no such check: `applyChatSummaryUpdate` already fails a
+  request whose boundary moved.
+- **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, code review.

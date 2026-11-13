@@ -4,6 +4,7 @@ import io.uliss.exception.common.InternalException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
+import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatNoteEntity
 import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
@@ -117,6 +118,12 @@ class NoteSummaryService(
         val note = reservePlaceholder(
             userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = false,
         ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
+        // The reservation now holds the chat's one pending slot, so the boundary cannot move any more; an update that
+        // finished after the caller read it already covers these messages, and the branch would save them twice.
+        val main = findCurrentChatSummary(chatId)
+        if (main?.noteId != mainNoteId || main.throughMessageId != afterMessageId) {
+            throw SummaryNoteConflictException("the summary of chat id=$chatId changed before the branch was reserved")
+        }
         val payload = objectMapper.writeValueAsString(
             NoteSummaryBranchRequestedPayload(note.id, userId, chatId, mainNoteId, afterMessageId, throughMessageId)
         )

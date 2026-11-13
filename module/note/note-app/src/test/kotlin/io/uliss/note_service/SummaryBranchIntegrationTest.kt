@@ -1,5 +1,6 @@
 package io.uliss.note_service
 
+import io.uliss.note_service.exception.SummaryNoteConflictException
 import io.uliss.note_service.model.ChatEntity
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -32,6 +33,7 @@ import org.springframework.test.web.servlet.post
 import tools.jackson.databind.ObjectMapper
 import java.util.UUID
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
@@ -148,7 +150,10 @@ class SummaryBranchIntegrationTest : NoteIntegrationTest() {
         message(chat.id, "A new album")
         val other = noteRepository.saveAndFlush(NoteEntity(userId, "body", title = "Other")).id
 
-        branch(chat.id, """{"mode":"BRANCH","targetNoteId":"$other"}""").andExpect { status { isConflict() } }
+        branch(chat.id, """{"mode":"BRANCH","targetNoteId":"$other"}""").andExpect {
+            status { isConflict() }
+            jsonPath("$.code") { value("SUMMARY_NOTE_CONFLICT") }
+        }
         branch(chat.id, """{"mode":"BRANCH"}""").andExpect { status { isBadRequest() } }
 
         val unsummarized = chatRepository.save(ChatEntity(userId, "No note yet"))
@@ -252,6 +257,39 @@ class SummaryBranchIntegrationTest : NoteIntegrationTest() {
         assertEquals(NoteStatus.FAILED, noteRepository.findById(branchId).orElseThrow().status)
         assertEquals(chat.boundaryId, noteSummaryService.findCurrentChatSummary(chat.id)?.throughMessageId)
         branch(chat.id, body).andExpect { status { isAccepted() } }
+    }
+
+    @Test
+    fun `a branch whose boundary moved before its reservation is refused`() {
+        val chat = summarizedChat()
+        val tail = message(chat.id, "A new album")
+        // an update finished between reading the boundary and reserving the branch: the main note now covers the tail
+        val mainLink = chatNoteRepository.findById(ChatNoteId(chat.id, chat.mainId)).orElseThrow()
+        mainLink.summarizedThroughMessageId = tail
+        chatNoteRepository.save(mainLink)
+        val later = message(chat.id, "Back to Low")
+        val notesBefore = noteRepository.count()
+
+        assertFailsWith<SummaryNoteConflictException> {
+            noteSummaryService.requestChatSummaryBranch(
+                userId, chat.id, chat.mainId, chat.boundaryId, later, UUID.randomUUID(),
+            )
+        }
+
+        assertEquals(notesBefore, noteRepository.count())
+        assertEquals(0, branchPayloads(chat.id).size)
+    }
+
+    @Test
+    fun `a branch follows the title and icon rules of a new note`() {
+        val chat = summarizedChat()
+        message(chat.id, "A new album")
+
+        branch(chat.id, """{"mode":"BRANCH","targetNoteId":"${chat.mainId}","title":"${"x".repeat(51)}"}""")
+            .andExpect { status { isBadRequest() } }
+        branch(chat.id, """{"mode":"BRANCH","targetNoteId":"${chat.mainId}","icon":"ab"}""")
+            .andExpect { status { isBadRequest() } }
+        assertEquals(0, branchPayloads(chat.id).size)
     }
 
     private class SummarizedChat(val id: UUID, val mainId: UUID, val boundaryId: UUID)
