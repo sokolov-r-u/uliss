@@ -162,7 +162,7 @@ These apply in every mode. Obtain explicit per-request permission before crossin
   only when explicitly requested.
 - Do not push without the user's confirmation, never push `main`, and do not rewrite history (see Commits); commits
   themselves follow the current mode.
-- Do not upload to Claude Design (`/design-sync`) unless the request asks for a sync.
+- Do not publish the design-system mirror (`/design-sync`) unless the request asks for a sync.
 - Tests and read-only build/compile tasks may run without additional permission. Anything else that executes project
   behavior requires permission.
 
@@ -196,7 +196,7 @@ These apply in every mode. Obtain explicit per-request permission before crossin
 - Shared JVM libraries: `database`, `exception`, `logging`, `monitoring`, `security`, and `validation` under
   `module/lib`; gRPC contracts are in `module/user/user-api`.
 - The design system in `module/lib/uliss-design-system` is both npm package `@uliss/design-system` and Gradle module
-  `:uliss-design-system`. `.design-sync/` holds its Claude Design sync inputs; the workflow is in that module's
+  `:uliss-design-system`. `.design-sync/` holds its `/design-sync` inputs; the workflow is in that module's
   `CLAUDE.md`.
 - Stable cross-cutting explanations live in `docs/ARCHITECTURE.md`; deployment commands and topology live in
   `docs/DEPLOYMENT.md`; agreed deferred work lives in `docs/TECH_DEBT.md`; decision logs live in each module's

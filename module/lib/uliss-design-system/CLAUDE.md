@@ -21,15 +21,16 @@ system.
 - Keep component source and prompt documentation adjacent and update both when public behavior changes.
 - Prefer shared tokens over one-off values. Preserve the intentionally square default geometry and explicitly documented
   circular exceptions.
-- The Claude Design project pinned in `.design-sync/config.json` is a generated mirror of this package, never a source
-  of truth for existing components.
+- The Design System artifact "Uliss" (https://claude.ai/artifact/FRbUk8RgfNdLPZ3Dr2E1Sy) is a generated mirror of this
+  package, never a source of truth for existing components.
 - The original project "Uliss Design System" (`f1d69f89-fcda-4e49-a0b2-d6ed9e9235d6`) is the design workspace: its
   `PROT *` prototypes specify upcoming features. Read it as a spec when building those features; never sync into it.
 
-## Claude Design sync
+## Design sync (`/design-sync`)
 
-- `/design-sync` publishes this package (bundle, tokens, fonts, `.d.ts`, `.prompt.md`, preview cards) to Claude
-  Design. Upload only when the user asks for a sync in that request.
+- The `/design-sync` converter builds this package (bundle, `.d.ts`, `.prompt.md`, preview cards) and
+  `.design-sync/to-artifact.mjs` lays it out as the mirror artifact's files; `/design-sync` itself cannot publish to an
+  artifact yet (`.design-sync/NOTES.md`). Publish only when the user asks for a sync in that request.
 - Re-sync after a merged change to the public surface: components, props, exports, tokens, fonts, or `.prompt.md`
   files. Web-only changes, tests, and internal refactors with no visible or API change do not need a sync.
 - `.prompt.md` files ship verbatim to the design agent. Keep their examples compiling against the current props.

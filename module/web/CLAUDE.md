@@ -21,7 +21,8 @@ editing the SPA.
 
 - Reuse `@uliss/design-system` components and tokens. Read the component's adjacent `.prompt.md` before use or
   modification.
-- The Claude Design project pinned in `.design-sync/config.json` mirrors the design system and is downstream of code.
+- The Design System artifact "Uliss" (https://claude.ai/artifact/FRbUk8RgfNdLPZ3Dr2E1Sy) mirrors the design system and
+  is downstream of code.
   Screens designed there are proposals: build them from the real kit components, and add a missing component to the
   design system (with its `.prompt.md` and sync preview) before using it here.
 - The original Claude Design project "Uliss Design System" (`f1d69f89-fcda-4e49-a0b2-d6ed9e9235d6`) holds the `PROT *`
