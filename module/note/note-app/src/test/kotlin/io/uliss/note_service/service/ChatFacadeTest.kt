@@ -168,18 +168,17 @@ class ChatFacadeTest {
     }
 
     @Test
-    fun `the notes search of a reply leaves out the chat's current summary note`() {
+    fun `the notes search of a reply leaves out every note of the chat`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        val currentNoteId = UUID.randomUUID()
+        val chatNoteIds = setOf(UUID.randomUUID(), UUID.randomUUID())
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
         val found = listOf(RetrievedChunk(UUID.randomUUID(), 0, "Loves Satori.", 0.9, "Satori", Instant.EPOCH))
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
-        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId))
-            .thenReturn(null, CurrentChatSummary(currentNoteId, "Trip", null))
+        Mockito.`when`(noteSummaryService.getChatNoteIds(chatId)).thenReturn(emptySet(), chatNoteIds)
         Mockito.`when`(ragService.search(userId, "music", 5, 0.7)).thenReturn(found)
-        Mockito.`when`(ragService.searchExcluding(userId, "music", 5, 0.7, currentNoteId)).thenReturn(found)
+        Mockito.`when`(ragService.searchExcludingNotes(userId, "music", 5, 0.7, chatNoteIds)).thenReturn(found)
 
         chatFacade.streamReply(userId, chatId, idempotencyKey, "hello")
         val captor = captorFor<NoteSearch>(NoteSearch::class.java)
@@ -191,7 +190,7 @@ class ChatFacadeTest {
         assertSame(found, captor.value.search("music", 5, 0.7))
         Mockito.verify(ragService).search(userId, "music", 5, 0.7)
         assertSame(found, captor.value.search("music", 5, 0.7))
-        Mockito.verify(ragService).searchExcluding(userId, "music", 5, 0.7, currentNoteId)
+        Mockito.verify(ragService).searchExcludingNotes(userId, "music", 5, 0.7, chatNoteIds)
     }
 
     @Test

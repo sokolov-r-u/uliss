@@ -118,13 +118,13 @@ class ChatFacade(
 
     private fun userBackground(userId: UUID): UserBackground? = userProfileService.findBackground(userId)
 
-    /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
+    /** The user's notes without the chat's own notes: the model already has them or the conversation they retell. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
-        val currentNoteId = noteSummaryService.findCurrentChatSummary(chatId)?.noteId
-        if (currentNoteId == null) {
+        val chatNoteIds = noteSummaryService.getChatNoteIds(chatId)
+        if (chatNoteIds.isEmpty()) {
             ragService.search(userId, query, limit, minSimilarity)
         } else {
-            ragService.searchExcluding(userId, query, limit, minSimilarity, currentNoteId)
+            ragService.searchExcludingNotes(userId, query, limit, minSimilarity, chatNoteIds)
         }
     }
 

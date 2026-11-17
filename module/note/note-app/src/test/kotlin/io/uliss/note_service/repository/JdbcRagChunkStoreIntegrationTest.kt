@@ -68,7 +68,24 @@ class JdbcRagChunkStoreIntegrationTest : NoteIntegrationTest() {
         store.replace(userId, excluded.id, 0, listOf(chunk(0, "excluded", 1.0f, 0.0f)))
         store.replace(userId, kept.id, 0, listOf(chunk(0, "kept", 0.8f, 0.6f)))
 
-        val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7, excludeNoteId = excluded.id)
+        val result = store.search(userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7, excludeNoteIds = setOf(excluded.id))
+
+        assertEquals(listOf("kept"), result.map { it.content })
+    }
+
+    @Test
+    fun `search can exclude several notes`() {
+        val userId = UUID.randomUUID()
+        val first = saveNote(userId)
+        val second = saveNote(userId)
+        val kept = saveNote(userId)
+        store.replace(userId, first.id, 0, listOf(chunk(0, "first", 1.0f, 0.0f)))
+        store.replace(userId, second.id, 0, listOf(chunk(0, "second", 0.9f, 0.1f)))
+        store.replace(userId, kept.id, 0, listOf(chunk(0, "kept", 0.8f, 0.6f)))
+
+        val result = store.search(
+            userId, vector(1.0f, 0.0f), limit = 10, minSimilarity = 0.7, excludeNoteIds = setOf(first.id, second.id),
+        )
 
         assertEquals(listOf("kept"), result.map { it.content })
     }
