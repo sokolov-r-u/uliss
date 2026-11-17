@@ -2,6 +2,7 @@ package io.uliss.note_service.service
 
 import io.uliss.exception.common.InternalException
 import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.exception.SummaryNoteConflictException
@@ -15,6 +16,7 @@ import io.uliss.note_service.model.payload.NoteResummarizeRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryBranchRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
+import io.uliss.note_service.dto.internal.ChatContextNote
 import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxService
@@ -55,6 +57,22 @@ class NoteSummaryService(
      */
     fun findCurrentChatSummary(chatId: UUID): CurrentChatSummary? =
         chatNoteRepository.findMainSummary(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+
+    /**
+     * The chat's READY summary notes with the chat's boundary, read in one query; null while the chat has no READY
+     * main note with a boundary, or none of its notes has text.
+     */
+    fun findChatContext(chatId: UUID): ChatContext? {
+        val rows = chatNoteRepository.findContextNotes(chatId, NoteSource.CHAT_SUMMARY, NoteStatus.READY)
+        val boundary = rows.firstOrNull { it.main }?.summarizedThroughMessageId ?: return null
+        val notes = rows.mapNotNull { row ->
+            row.content?.takeIf { it.isNotBlank() }?.let { ChatContextNote(row.noteId, row.title, it, row.main) }
+        }
+        return if (notes.isEmpty()) null else ChatContext(boundary, notes)
+    }
+
+    /** Every note linked to the chat, in any status; empty when it has none. Callers pass an owned chat id. */
+    fun findChatNoteIds(chatId: UUID): Set<UUID> = chatNoteRepository.findNoteIdsByChatId(chatId).toSet()
 
     /**
      * Prepares the chat's notes for chat message [messageId] (a failed reply) being replaced by a retry: a summary

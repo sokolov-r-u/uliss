@@ -74,7 +74,22 @@ class RagService(
         queryEmbedding = embeddingModel.embed(query),
         limit = limit,
         minSimilarity = minSimilarity,
-        excludeNoteId = excludeNoteId,
+        excludeNoteIds = setOf(excludeNoteId),
+    )
+
+    /** Like [search], but never returns chunks of [excludeNoteIds]. */
+    fun searchExcludingNotes(
+        userId: UUID,
+        query: String,
+        limit: Int,
+        minSimilarity: Double,
+        excludeNoteIds: Set<UUID>,
+    ): List<RetrievedChunk> = ragChunkStore.search(
+        userId = userId,
+        queryEmbedding = embeddingModel.embed(query),
+        limit = limit,
+        minSimilarity = minSimilarity,
+        excludeNoteIds = excludeNoteIds,
     )
 }
 

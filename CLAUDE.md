@@ -55,11 +55,14 @@
 
 ## Commits
 
-- Never commit to `main`. If the current branch is `main`, stop and ask the user which branch to create or switch to.
+- Never commit to `main`. If the current branch is `main` or an already merged task branch, create the task branch
+  yourself from `origin/main` (`git switch -c <name> --no-track origin/main`) and say which one you created.
 - A branch you create is named `<PREFIX>-<short-kebab-name>` with the task-type prefix (e.g. `FE-constellations-tree`).
   A branch the app created for the session (`claude/<name>-<hash>`) keeps its name; it is committed and pushed as is.
 - Work in the main checkout, not in worktrees: no `git worktree`/`EnterWorktree`, and start sessions with
-  `use_worktree: false`. Never switch the checkout's branch (including back to `main`) without the user asking.
+  `use_worktree: false`. Switch branches yourself when the work needs it, with `git switch` only (it refuses to
+  overwrite uncommitted changes); never `git checkout <name>`, a forced, merging or detached switch. Uncommitted
+  changes of other work move with the checkout: never commit them, and tell the user which branch you are on.
 - Work on the current branch. One commit per logical block, containing the block's code and its tests; the touched
   modules' tests are green at every commit. No commits with failing tests.
 - Stage explicit paths, never `git add -A`. Task files are gitignored and never committed.

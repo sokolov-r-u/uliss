@@ -972,3 +972,27 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   the main note or its boundary changed. An update needs no such check: `applyChatSummaryUpdate` already fails a
   request whose boundary moved.
 - **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, code review.
+
+## 2026-11-17 — A summarized chat sends its notes and the tail, with an overlap
+
+- **Context:** every turn sent the whole chat history. Summary notes hold only the user's thoughts
+  (`USER_THOUGHT_RULES`), never the assistant's replies, so cutting the history exactly at the boundary would make the
+  model forget what it just said.
+- **Decision:** while the chat's main note is READY with a boundary and at least one READY `CHAT_SUMMARY` note of the
+  chat has text, a turn sends the system prompt, the user's background, one system message with those notes (the
+  main note first, then branches by creation; `ChatPrompts.chatNotesMessage`), and then the messages: an overlap of up
+  to `note.assistant.context.overlap-messages` (6) non-empty messages through the boundary, the oldest dropped until
+  they fit `overlap-max-chars` (8000), followed by every message after the boundary. The current turn's question is
+  always sent, outside the overlap. Otherwise, and when the boundary is not among the messages (WARN), the whole
+  history goes as before. `NoteSummaryService.findChatContext` reads the notes and the boundary in one query; the chat
+  domain gets it as a function from `ChatFacade`, which `ChatTurnService` calls after reserving the turn, and on a
+  retry after `releaseReplyForRetry` moved the boundary. `searchNotes` leaves out every note of the chat. Each turn
+  logs `context boundary= notes= noteChars= overlap= tail= skipped=`, counts only. Rejected: a strict cut (the model
+  loses its last replies), only the main note (branch topics reachable only by search), and a separate summary of the
+  assistant's replies (another model call and storage).
+- **Consequences:** the prompt prefix stays stable between summaries, so `promptCacheKey` misses once after a
+  Summarize, an Update, a branch or a note edit. Note text has no size limit yet (the unsummarized-tail limit is the
+  next epic task). The overlap repeats part of what the notes hold. A branch rewritten by "Summarize again" from the
+  whole chat may also cover tail messages; that duplication is accepted. The chat history is still loaded whole from
+  the database and cut in memory.
+- **Source:** task `docs/tasks/2026-11-17-chat-context-summary.md`, blocks 1–2.

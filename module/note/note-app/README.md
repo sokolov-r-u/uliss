@@ -19,7 +19,7 @@ dimensions. The required credential is `OPENAI_API_KEY`; `OPENAI_CHAT_MODEL` and
 `spring.ai.model.chat=openai` and `spring.ai.model.embedding=openai` select the providers explicitly.
 Chat replies and summaries pass OpenAI-specific `reasoningEffort` and `verbosity` per call (`note.assistant.*` and
 `note.summary.*`); chat replies also set `promptCacheKey` to the chat ID so each turn reuses the cached
-history prefix. Chat replies use `reasoningEffort: none`: they send the notes search tool, which Chat Completions
+prefix (the chat's notes and the history). Chat replies use `reasoningEffort: none`: they send the notes search tool, which Chat Completions
 rejects on gpt-5.6 with any other effort (moving to the Responses API is in `docs/TECH_DEBT.md`). DeepSeek stays
 configured but inactive; switching back to
 `spring.ai.model.chat=deepseek` (with `DEEPSEEK_API_KEY`) also requires removing those OpenAI per-call
@@ -62,8 +62,9 @@ chronological `messages`, nullable `nextCursor`, and `hasMore`. The `(chat_id, i
 this UI read path, while the existing creation-time index remains available for chronological
 history reads.
 
-Pagination applies only to the browser history endpoint. Chat generation still loads the complete
-ordered conversation, and summary generation still loads every message through its immutable
+Pagination applies only to the browser history endpoint. Chat generation loads the complete ordered
+conversation; once the chat has a READY main note with a boundary, it sends the chat's notes and only the messages
+after the boundary, with an overlap through it (see "Chat context through summary notes"). Summary generation still loads every message through its immutable
 boundary. Summary creation obtains that boundary through a separate ownership-checked latest-message
 lookup rather than from a UI page.
 
@@ -178,6 +179,18 @@ model. Because every call costs a model round trip and Spring AI's tool loop has
 the limit ends the turn, and so does a search whose turn has lost its lease (`NotesSearchAbortedException`, a checked
 exception that Spring AI rethrows). Each search extends the turn's lease by one full lease, because it adds a model call
 to the attempt. Search results are not persisted with the reply.
+
+## Chat context through summary notes
+
+While the chat's main note is READY with a boundary and at least one READY `CHAT_SUMMARY` note of the chat has text,
+a turn sends, after the system prompt and the user's background, one system message with those notes (the main note
+first, then branches by creation, each with its title), then up to `note.assistant.context.overlap-messages` (6)
+messages through the boundary within `overlap-max-chars` (8000) characters, then every later message. Summary notes
+hold only the user's thoughts, so the overlap keeps the model's last replies. The current turn's question is always
+sent. Otherwise, and when the boundary is not among the messages (logged as WARN), the whole history goes. A retry
+reads the notes after its boundary moved before the replaced reply. Each turn logs
+`chat=<id> context boundary=<yes|no> notes= noteChars= overlap= tail= skipped=` (counts only), next to the existing
+`usage prompt= cached=` line. The notes search tool leaves out every note of the chat.
 
 ## User profile
 

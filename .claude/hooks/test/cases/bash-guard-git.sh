@@ -30,8 +30,17 @@ expect allow bash-guard.sh "$(bash_call "git add module/a.kt docs/x.md")" "add e
 expect allow bash-guard.sh "$(bash_call "git add .claude/hooks/bash-guard.sh")" "add a dot-directory path"
 
 # Branches and worktrees
-expect block bash-guard.sh "$(bash_call "git checkout main")" "checkout branch"
-expect block bash-guard.sh "$(bash_call "git switch main")" "switch"
+# git switch moves between branches and refuses to overwrite uncommitted changes
+expect allow bash-guard.sh "$(bash_call "git switch main")" "switch to an existing branch"
+expect allow bash-guard.sh "$(bash_call "git switch -")" "switch to the previous branch"
+expect allow bash-guard.sh "$(bash_call "git switch main 2>&1 | tail -3")" "switch with a redirection"
+expect allow bash-guard.sh "$(bash_call "git switch -c FE-x --no-track origin/main 2>&1")" "switch -c with a redirection"
+# a name alone may be a path whose changes checkout would discard
+expect block bash-guard.sh "$(bash_call "git checkout main")" "checkout by name"
+expect block bash-guard.sh "$(bash_call "git switch -f main")" "switch forced"
+expect block bash-guard.sh "$(bash_call "git switch -m main")" "switch merging local changes"
+expect block bash-guard.sh "$(bash_call "git switch --detach origin/main")" "switch detached"
+expect block bash-guard.sh "$(bash_call "git switch main extra")" "switch with two names"
 # Creating a new branch keeps the work in place; resetting or replacing one does not
 expect allow bash-guard.sh "$(bash_call "git switch -c FE-x --no-track")" "switch -c new branch"
 expect allow bash-guard.sh "$(bash_call "git switch --create=FE-x origin/main")" "switch --create with start point"
@@ -42,7 +51,7 @@ expect block bash-guard.sh "$(bash_call "git switch -c FE-x --discard-changes")"
 expect block bash-guard.sh "$(bash_call "git checkout -f -b FE-x")" "checkout -b forced"
 expect block bash-guard.sh "$(bash_call "git checkout -b FE-x -- file")" "checkout -b with paths"
 expect block bash-guard.sh "$(bash_call "git switch --orphan FE-x")" "switch --orphan"
-expect block bash-guard.sh "$(bash_call "git switch -c FE-x && git switch main")" "create then switch back"
+expect allow bash-guard.sh "$(bash_call "git switch -c FE-x && git switch main")" "create then switch back"
 expect block bash-guard.sh "$(bash_call "git checkout -bFE-x")" "checkout -b glued"
 expect block bash-guard.sh "$(bash_call "git worktree add ../x")" "worktree"
 expect allow bash-guard.sh "$(bash_call "git branch --show-current")" "show current branch"

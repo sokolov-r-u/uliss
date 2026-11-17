@@ -3,6 +3,8 @@ package io.uliss.note_service.service
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.AssistantActivity
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ChatContext
+import io.uliss.note_service.dto.internal.ChatHistoryCut
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.model.ChatMessageEntity
@@ -47,7 +49,7 @@ class AssistantService(
     /**
      * [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. [userBackground] is what
      * the model knows about the user (their profile and own description), sent ahead of the history; null when there
-     * is nothing yet.
+     * is nothing yet. [context] gives the chat's notes, which replace the history before the chat's boundary.
      */
     fun streamReply(
         userId: UUID,
@@ -56,8 +58,9 @@ class AssistantService(
         prompt: String,
         noteSearch: NoteSearch,
         userBackground: UserBackground? = null,
+        context: () -> ChatContext? = { null },
     ): AssistantReplyStream = toReplyStream(
-        chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt), noteSearch, userBackground,
+        chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt, context), noteSearch, userBackground,
     )
 
     /** Regenerates the failed or interrupted reply [messageId] of turn [turnId]; see [ChatTurnService.resolveRetryRequest]. */
@@ -68,9 +71,10 @@ class AssistantService(
         messageId: UUID,
         noteSearch: NoteSearch,
         userBackground: UserBackground? = null,
+        context: () -> ChatContext? = { null },
         beforeReplace: (replyId: UUID) -> Unit,
     ): AssistantReplyStream = toReplyStream(
-        chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId, beforeReplace),
+        chatTurnService.resolveRetryRequest(userId, chatId, turnId, messageId, context, beforeReplace),
         noteSearch,
         userBackground,
     )
@@ -156,7 +160,7 @@ class AssistantService(
                         activities.tryEmitNext(AssistantStreamEvent.Activity(AssistantActivity.THINKING))
                     },
                 )
-                val text = streamProviderTokens(resolution.turn.chatId, resolution.history, userBackground, tool)
+                val text = streamProviderTokens(resolution, userBackground, tool)
                     .doOnNext(reply::append)
                     .map<AssistantStreamEvent> { AssistantStreamEvent.AppendText(it) }
                     .doFinally { activities.tryEmitComplete() }
@@ -192,27 +196,44 @@ class AssistantService(
         }.subscribeOn(Schedulers.boundedElastic())
 
     private fun streamProviderTokens(
-        chatId: UUID,
-        history: List<ChatMessageEntity>,
+        resolution: ChatTurnRequestResolution.StartGeneration,
         userBackground: UserBackground?,
         notesSearchTool: NotesSearchTool,
     ): Flux<String> = Flux.defer {
-        val profile = listOfNotNull(userBackground?.let { SystemMessage(ChatPrompts.userBackgroundMessage(it)) })
+        val chatId = resolution.turn.chatId
+        val cut = resolution.cut
+        val history = toAiMessages(resolution.history)
+        logContext(chatId, cut, history.size)
+        val background = listOfNotNull(
+            userBackground?.let { SystemMessage(ChatPrompts.userBackgroundMessage(it)) },
+            cut?.let { SystemMessage(ChatPrompts.chatNotesMessage(it.notes)) },
+        )
         chatClient.prompt()
             .system(ChatPrompts.CHAT_SYSTEM_PROMPT)
-            .messages(profile + toAiMessages(history))
+            .messages(background + history)
             .tools(notesSearchTool)
             .options(
                 OpenAiChatOptions.builder()
                     .reasoningEffort(properties.reasoningEffort)
                     .verbosity(properties.verbosity)
-                    // Routes every turn of a chat to the same prompt cache; the prefix is the growing history.
+                    // Routes every turn of a chat to the same prompt cache; the prefix is the notes and the growing history.
                     .promptCacheKey(chatId.toString())
             )
             .stream()
             .chatResponse()
             .doOnNext { logUsage(chatId, it) }
             .handle { response, sink -> response.result?.output?.text?.takeIf { it.isNotEmpty() }?.let(sink::next) }
+    }
+
+    /** What the model gets instead of the whole chat; counts only, never the text of messages or notes. */
+    private fun logContext(chatId: UUID, cut: ChatHistoryCut?, sent: Int) {
+        val message = if (cut == null) {
+            "chat=$chatId context boundary=no notes=0 noteChars=0 overlap=0 tail=$sent skipped=0"
+        } else {
+            "chat=$chatId context boundary=yes notes=${cut.notes.size} noteChars=${cut.notes.sumOf { it.content.length }} " +
+                    "overlap=${cut.overlap} tail=${sent - cut.overlap} skipped=${cut.skipped}"
+        }
+        log.info(message, "streamProviderTokens")
     }
 
     /** Only the final stream chunk carries usage; earlier chunks report zero prompt tokens. */

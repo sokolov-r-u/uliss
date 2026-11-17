@@ -7,6 +7,7 @@ import io.uliss.note_service.eqValue
 import io.uliss.note_service.captorFor
 import io.uliss.note_service.captureValue
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
+import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.ChatCreation
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
@@ -66,7 +67,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatTitleService.generateTitle(userId, chatId, "hello")).thenReturn(Mono.just("Greeting"))
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -96,7 +97,7 @@ class ChatFacadeTest {
             .thenReturn(Mono.delay(Duration.ofMillis(100)).map { "Greeting" })
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(AssistantReplyStream(UUID.randomUUID(), Flux.just(AssistantStreamEvent.GenerationCompleted), chatId))
 
@@ -119,7 +120,7 @@ class ChatFacadeTest {
             .thenReturn(ChatCreation(chat, created = false))
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -140,7 +141,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -168,30 +169,46 @@ class ChatFacadeTest {
     }
 
     @Test
-    fun `the notes search of a reply leaves out the chat's current summary note`() {
+    fun `the notes search of a reply leaves out every note of the chat`() {
         val userId = UUID.randomUUID()
         val chatId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
-        val currentNoteId = UUID.randomUUID()
+        val chatNoteIds = setOf(UUID.randomUUID(), UUID.randomUUID())
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
         val found = listOf(RetrievedChunk(UUID.randomUUID(), 0, "Loves Satori.", 0.9, "Satori", Instant.EPOCH))
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
-        Mockito.`when`(noteSummaryService.findCurrentChatSummary(chatId))
-            .thenReturn(null, CurrentChatSummary(currentNoteId, "Trip", null))
+        Mockito.`when`(noteSummaryService.findChatNoteIds(chatId)).thenReturn(emptySet(), chatNoteIds)
         Mockito.`when`(ragService.search(userId, "music", 5, 0.7)).thenReturn(found)
-        Mockito.`when`(ragService.searchExcluding(userId, "music", 5, 0.7, currentNoteId)).thenReturn(found)
+        Mockito.`when`(ragService.searchExcludingNotes(userId, "music", 5, 0.7, chatNoteIds)).thenReturn(found)
 
         chatFacade.streamReply(userId, chatId, idempotencyKey, "hello")
         val captor = captorFor<NoteSearch>(NoteSearch::class.java)
         Mockito.verify(assistantService).streamReply(
             eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"),
-            captor.captureValue(), anyValue(),
+            captor.captureValue(), anyValue(), anyValue(),
         )
 
         assertSame(found, captor.value.search("music", 5, 0.7))
         Mockito.verify(ragService).search(userId, "music", 5, 0.7)
         assertSame(found, captor.value.search("music", 5, 0.7))
-        Mockito.verify(ragService).searchExcluding(userId, "music", 5, 0.7, currentNoteId)
+        Mockito.verify(ragService).searchExcludingNotes(userId, "music", 5, 0.7, chatNoteIds)
+    }
+
+    @Test
+    fun `a reply and a retry read the chat's notes through the note domain`() {
+        val userId = UUID.randomUUID()
+        val chatId = UUID.randomUUID()
+        val context = ChatContext(UUID.randomUUID(), emptyList())
+        Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(ChatEntity(userId, "hello").apply { id = chatId })
+        Mockito.`when`(noteSummaryService.findChatContext(chatId)).thenReturn(context)
+
+        chatFacade.streamReply(userId, chatId, UUID.randomUUID(), "hello")
+        chatFacade.retryReply(userId, chatId, UUID.randomUUID(), UUID.randomUUID())
+
+        val loaders = Mockito.mockingDetails(assistantService).invocations
+            .filter { it.method.name in setOf("streamReply", "retryReply") }
+            .map { invocation -> invocation.arguments.filterIsInstance<Function0<*>>().single() }
+        assertEquals(listOf<Any?>(context, context), loaders.map { it() })
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.uliss.note_service.model.ChatNoteId
 import io.uliss.note_service.model.NoteEntity
 import io.uliss.note_service.model.NoteSource
 import io.uliss.note_service.model.NoteStatus
+import io.uliss.note_service.model.projection.ChatContextNoteRow
 import io.uliss.note_service.model.projection.ChatNoteCount
 import io.uliss.note_service.model.projection.CurrentChatSummary
 import org.springframework.data.jpa.repository.Modifying
@@ -86,6 +87,28 @@ interface ChatNoteRepository : CrudRepository<ChatNoteEntity, ChatNoteId> {
         @Param("source") source: NoteSource,
         @Param("status") status: NoteStatus,
     ): CurrentChatSummary?
+
+    @Query("SELECT cn.chatNoteId.noteId FROM ChatNoteEntity cn WHERE cn.chatNoteId.chatId = :chatId")
+    fun findNoteIdsByChatId(@Param("chatId") chatId: UUID): List<UUID>
+
+    /** The chat's [status] notes of [source], the main note first, then by creation. */
+    @Query(
+        """
+        SELECT new io.uliss.note_service.model.projection.ChatContextNoteRow(
+            n.id, n.title, n.content, cn.main, cn.summarizedThroughMessageId)
+        FROM ChatNoteEntity cn, NoteEntity n
+        WHERE n.id = cn.chatNoteId.noteId
+          AND cn.chatNoteId.chatId = :chatId
+          AND n.source = :source
+          AND n.status = :status
+        ORDER BY cn.main DESC, n.createdAt ASC, n.id ASC
+        """
+    )
+    fun findContextNotes(
+        @Param("chatId") chatId: UUID,
+        @Param("source") source: NoteSource,
+        @Param("status") status: NoteStatus,
+    ): List<ChatContextNoteRow>
 
     @Query("SELECT cn FROM ChatNoteEntity cn WHERE cn.chatNoteId.chatId = :chatId AND cn.main = TRUE")
     fun findMainLink(@Param("chatId") chatId: UUID): ChatNoteEntity?

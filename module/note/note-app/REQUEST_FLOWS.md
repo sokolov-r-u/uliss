@@ -135,7 +135,7 @@ sequenceDiagram
 ```
 
 This endpoint is the only paginated history path. `ChatTurnService` continues loading the complete
-ordered conversation for provider generation. `ChatService.getSummaryContext` continues loading
+ordered conversation for provider generation and cuts it at the chat's summary boundary when there is one. `ChatService.getSummaryContext` continues loading
 all messages through the captured summary boundary.
 
 ## Streamed chat turn
@@ -174,7 +174,8 @@ sequenceDiagram
             L ->> TS: insert backend turn ID<br/>GENERATING, attempt = 1, lease_until set
             L ->> MR: load prior history
             L ->> MR: save COMPLETE user message
-            L -->> A: StartGeneration(turn, history)
+            L ->> L: chat notes + boundary (from ChatFacade), cut history
+            L -->> A: StartGeneration(turn, history, cut)
         else Existing GENERATING turn with a live lease
             L -->> A: AlreadyGenerating(retryAfterMs)
         else Existing terminal turn
@@ -182,13 +183,14 @@ sequenceDiagram
         else Expired GENERATING turn
             L ->> TS: claimExpired<br/>attempt + 1, renew lease
             L ->> MR: reload persisted history
-            L -->> A: StartGeneration(turn, history)
+            L ->> L: chat notes + boundary, cut history
+            L -->> A: StartGeneration(turn, history, cut)
         end
     end
 
     alt StartGeneration
         Note over A, AI: No database transaction is held during provider streaming
-        A ->> AI: prompt(history).tools(searchNotes).stream()
+        A ->> AI: prompt(background, chat notes, history).tools(searchNotes).stream()
         opt The model calls searchNotes(query) (at most 3 times per turn)
             A ->> L: extendLease(turn): lease_until = max(lease_until, now + lease) for the same attempt
             A -->> HC: Activity(SEARCHING_NOTES)
@@ -233,7 +235,7 @@ Important behavior:
 - Finalization is fenced by `turnId + userId + chatId + attempt + GENERATING`. A late provider result
   cannot overwrite a cancellation or the result of a newer attempt.
 - The model searches the user's notes through the `searchNotes` tool (Spring AI tool calling). The server binds the
-  user and leaves out the chat's current summary note; the model sets only the query. A failed search is returned to
+  user and leaves out every note of the chat; the model sets only the query. A failed search is returned to
   the model as text and the turn goes on. Each search extends the attempt's lease, because it adds a model call.
   `activity` events are not part of the reply text, are not persisted, and are never replayed.
 - A completed replay emits the terminal event but does not replay old text chunks. The client

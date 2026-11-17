@@ -1,6 +1,7 @@
 package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.KeysetPage
@@ -98,6 +99,7 @@ class ChatFacade(
         val chat = creation?.chat ?: chatService.getOwnedChat(userId, checkNotNull(chatId))
         val reply = assistantService.streamReply(
             userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userBackground(userId),
+            chatContext(chat.id),
         )
         if (creation?.created != true) return reply
         val title = chatTitleService.generateTitle(userId, chat.id, prompt)
@@ -110,21 +112,24 @@ class ChatFacade(
     fun retryReply(userId: UUID, chatId: UUID, turnId: UUID, messageId: UUID): AssistantReplyStream {
         chatService.getOwnedChat(userId, chatId)
         return assistantService.retryReply(
-            userId, chatId, turnId, messageId, noteSearch(userId, chatId), userBackground(userId),
+            userId, chatId, turnId, messageId, noteSearch(userId, chatId), userBackground(userId), chatContext(chatId),
         ) { replyId ->
             noteSummaryService.releaseReplyForRetry(chatId, replyId)
         }
     }
 
+    /** Read by the turn once it is reserved, inside its transaction; a retry reads it after the boundary moved. */
+    private fun chatContext(chatId: UUID): () -> ChatContext? = { noteSummaryService.findChatContext(chatId) }
+
     private fun userBackground(userId: UUID): UserBackground? = userProfileService.findBackground(userId)
 
-    /** The user's notes without the chat's own summary note: it retells the conversation the model already has. */
+    /** The user's notes without the chat's own notes: the model already has them or the conversation they retell. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
-        val currentNoteId = noteSummaryService.findCurrentChatSummary(chatId)?.noteId
-        if (currentNoteId == null) {
+        val chatNoteIds = noteSummaryService.findChatNoteIds(chatId)
+        if (chatNoteIds.isEmpty()) {
             ragService.search(userId, query, limit, minSimilarity)
         } else {
-            ragService.searchExcluding(userId, query, limit, minSimilarity, currentNoteId)
+            ragService.searchExcludingNotes(userId, query, limit, minSimilarity, chatNoteIds)
         }
     }
 

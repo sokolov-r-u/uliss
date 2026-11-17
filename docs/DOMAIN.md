@@ -57,3 +57,13 @@ updating, the user may save the messages since the last summary as a separate no
 default a sub-note of the main note. Such a note never takes the main note's role. Each message is saved once: what
 went into a separate note is not offered to the main note again. When the main note is deleted, the next Summarize
 creates a new main note from the whole chat.
+
+## 2026-11-17 — A summarized chat continues from its notes
+
+**Decision:** Once a chat has its main note, the assistant no longer rereads the whole conversation. It gets the
+chat's notes (the main note and the notes branched from it, as they are now, with the user's edits), its own last
+few messages before the summary, and everything said since. Notes hold only the user's thoughts, so those last
+messages keep the assistant's latest replies in view. Until the first summary, or after the main note is deleted,
+the assistant reads the whole chat. Searching the user's notes from a chat never returns that chat's own notes.
+
+**Source:** `docs/tasks/2026-11-17-chat-context-summary.md`.
