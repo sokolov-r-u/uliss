@@ -7,8 +7,8 @@ const POSTER = 'data:image/svg+xml;utf8,' + encodeURIComponent(
     + '<rect width="200" height="300" fill="url(#g)"/><circle cx="140" cy="80" r="26" fill="#e8d3a8"/></svg>')
 
 export const States = () => (
-    <Ground width={760}>
-        <div style={{display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 12}}>
+    <Ground width={480}>
+        <div style={{display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12}}>
             <PosterFrame state="hint"/>
             <PosterFrame state="loading"/>
             <PosterFrame state="image" src={POSTER} alt="Dune sea poster"/>

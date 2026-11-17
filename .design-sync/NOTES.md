@@ -29,9 +29,45 @@
 - `npx playwright install` (run from `.ds-sync`) deletes cached browser builds no installed Playwright pins; after a
   version bump only the new Chromium remains in `~/Library/Caches/ms-playwright`.
 
+## Publishing to the Design System artifact (since 2026-11-17)
+
+- The mirror is the artifact https://claude.ai/artifact/FRbUk8RgfNdLPZ3Dr2E1Sy (`74cf0a2d-1535-4a7a-bfaa-5569e498029a`
+  is the same artifact). `/design-sync` 2.1.325 targets only claude.ai/design projects (`projectId`); the old project
+  answers `get_project` with `moveState: "moved"` and refuses uploads. There is no artifact key in `config.json`.
+- Sync: `build-dist.sh`, then the converter, validate and capture as above (no `--remote`: there is no project anchor),
+  then `node .design-sync/to-artifact.mjs --bundle ./ds-bundle --tokens <tokens.json> --out .design-sync/.cache/artifact`.
+  `<tokens.json>` is the artifact's own `project/tokens.json` (Artifact `read` by path); the adapter compiles
+  `tokens.css` from it, because a page in `"editing": "code"` never writes `tokens.css`.
+- Publish with the Artifact tool: `url` the artifact, `root` `.design-sync/.cache/artifact`, `file_path` the index
+  `project/design-system.json` (read it again right before and keep its keys), `files` every other `project/` path.
+  The index goes last; it keeps `"editing": "code"` and the two React 19 `libraries` entries.
+- The type serves only web types: a `.ts` file needs `{"from": …, "contentType": "text/plain"}`. The adapter therefore
+  ships only `components/index.d.ts` (the page reads props there), not per-component `.d.ts`.
+- The type loads React 18 from jsDelivr unless `components/lib/` carries a runtime: the converter's `_vendor/react.js`
+  (React 19, also defines `ReactDOM`) goes there, listed in the index `libraries` with `global` and `file`.
+- `bundle.css` = the package's `@font-face` (urls repointed at `../fonts/`) + `_ds_bundle.css` (all CSS variables).
+  It loads after `tokens.css`, so previews always render the package's own values; the page's colour-theme switch
+  does not restyle them.
+- Providers get no card (`LocaleProvider` stays in the bundle, not in the header's component list).
+- The Artifact tool warns when the page saved `README.md` or the index after your read: read both right before the
+  publish, not at the start of the run.
+- The artifact frame blocks `fetch` to jsDelivr: the adapter ships the app's own `emoji-picker-element-data`
+  (`node_modules`, same 1.8.0 the web app pins) at `project/data/…/data.json` and rewrites the EmojiPicker/IconPicker
+  previews to `../../data/…` (a relative fetch of the artifact's own files works).
+- The artifact's preview column is about 600px wide: keep a preview's `Ground` width at or under ~600px or let it wrap
+  (`PosterFrame` States went from 6 columns at 760px to 3 at 480px). PosterCropper (680px) still fits.
+- The page lazy-mounts cards as they scroll into view. A card that positions itself from `window.innerWidth` at mount
+  (ItemMenu) must wait for a sized window; the ItemMenu preview remounts the menu on resize.
+- Carried-forward grades can hide a regression from another component: the ItemMenu preview had shown no menu since
+  ListRow started rendering its dots only with `onMenu`/`dots` (the preview now passes `dots`). Look at the artifact
+  page, not only at the sheets of changed components.
+- The PosterCropper card zooms on the wheel: scroll the artifact page with the pointer over the name column.
+- The artifact page needs a claude.ai sign-in in the browser pane; local file previews of the cards render only as
+  static snapshots there (relative scripts do not load).
+
 ## Known render warns
 
-- None at the end of the 2026-10-24 sync.
+- None at the end of the 2026-11-17 sync (artifact page checked by eye, all 48 cards).
 
 ## Re-sync risks
 

@@ -197,3 +197,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   reports an `<image>` that failed after the host's preload, so the host can draw the plain star again.
   `SettingsToggle` owns `onClick` and `role`; its props type no longer accepts them.
 - **Source:** task `docs/tasks/2026-11-10-sky-poster-avatars.md`, manual check 1 and the code review.
+
+## 2026-11-17 — The design-system mirror moves to a Design System artifact
+
+- **Context:** standalone Claude Design closes on 2026-12-14; the "Uliss DS (code)" project
+  (`de48cea4-ba3e-40fe-a6e1-f1af598aac3a`) was moved to Claude and the server refuses `/design-sync` uploads to it.
+  `/design-sync` (Claude Code 2.1.325) can only target claude.ai/design projects, so no config key points it at an
+  artifact.
+- **Decision:** the mirror is the Design System artifact "Uliss" (https://claude.ai/artifact/FRbUk8RgfNdLPZ3Dr2E1Sy),
+  still downstream of code and read-only on its page (`"editing": "code"`). The `/design-sync` converter keeps building
+  and verifying `ds-bundle/`; `.design-sync/to-artifact.mjs` lays it out as the artifact's `project/` files (format-4
+  bundle, React 19 runtime under `components/lib/`, inlined previews, `tokens.css` compiled from `tokens.json`), which
+  are published with the Artifact tool. The artifact's `tokens.json`, `README.md` and cover are hand-kept there. The old
+  project is retired; `projectId` stays in `config.json` only until `/design-sync` gains an artifact target.
+- **Consequences:** a sync is the converter run plus the adapter plus one publish (`.design-sync/NOTES.md`); token
+  changes are edited in the artifact's `tokens.json` by hand. Once `/design-sync` publishes to artifacts, it replaces
+  the adapter and owns every file.
+- **Source:** task `docs/tasks/2026-11-17-ds-mirror-artifact.md`.
