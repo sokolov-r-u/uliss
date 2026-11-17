@@ -75,6 +75,10 @@ note:
     # Chat Completions rejects function tools with any other effort on gpt-5.6 (TECH_DEBT: Responses API).
     reasoning-effort: none
     verbosity: low
+    # A summarized chat sends its notes, then these last messages through the boundary, then the rest.
+    context:
+      overlap-messages: 6
+      overlap-max-chars: 8000
     notes-search:
       top-k: 5
       # A short query scores lower than note-to-note; top-k and the model do the selection.

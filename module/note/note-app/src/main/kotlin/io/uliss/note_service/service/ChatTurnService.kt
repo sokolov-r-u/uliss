@@ -3,6 +3,9 @@ package io.uliss.note_service.service
 import io.uliss.database.utils.generateId
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
+import io.uliss.logging.logger.AppLogger
+import io.uliss.note_service.dto.internal.ChatContext
+import io.uliss.note_service.dto.internal.ChatHistoryCut
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.exception.ChatReplyNotRetryableException
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
@@ -17,6 +20,7 @@ import io.uliss.note_service.policy.ChatTurnExecutionPolicy
 import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.ChatTurnStore
+import io.uliss.note_service.util.ChatHistoryWindow
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -43,7 +47,9 @@ class ChatTurnService(
     private val chatMessageRepository: ChatMessageRepository,
     private val chatRepository: ChatRepository,
     private val executionPolicy: ChatTurnExecutionPolicy,
+    private val contextProperties: ChatContextProperties,
 ) {
+    private val log = AppLogger.of(ChatTurnService::class)
 
     /**
      * Resolves a client-submitted turn into the action that [AssistantService] must take.
@@ -67,6 +73,8 @@ class ChatTurnService(
      * A different active turn for the same chat is rejected. This method performs no provider
      * calls; the transaction commits before [AssistantService] starts or resumes generation.
      *
+     * A generation's history is cut by the chat's notes from [context], read once the turn is reserved.
+     *
      * @throws NotFoundException when the chat does not exist or belongs to another user
      * @throws IdempotencyKeyReusedException when [idempotencyKey] is already bound to other content
      * @throws ChatTurnAlreadyGeneratingException when another turn is active for this chat
@@ -78,14 +86,15 @@ class ChatTurnService(
         chatId: UUID,
         idempotencyKey: UUID,
         content: String,
+        context: () -> ChatContext? = { null },
     ): ChatTurnRequestResolution {
         requireAndLockOwnedChat(userId, chatId)
 
         val requestFingerprint = calculateRequestFingerprint(content)
-        findAndResolveExistingTurn(userId, chatId, idempotencyKey, requestFingerprint)?.let { return it }
+        findAndResolveExistingTurn(userId, chatId, idempotencyKey, requestFingerprint, context)?.let { return it }
 
         ensureNoOtherTurnIsGenerating(userId, chatId)
-        return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content)
+        return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content, context)
     }
 
     /**
@@ -96,7 +105,8 @@ class ChatTurnService(
      * - a turn that is generating is resolved like a repeated send (pending, or a reclaim of an expired lease);
      * - a reply that is no longer the turn's reply (a repeated retry) replays the turn's outcome.
      *
-     * [beforeReplace] gets the reply under the chat lock once the retry is certain, before the reply is deleted.
+     * [beforeReplace] gets the reply under the chat lock once the retry is certain, before the reply is deleted;
+     * [context] is read after it, so the history is cut at the boundary it leaves.
      *
      * @throws NotFoundException when the chat or the turn does not exist or belongs to someone else
      * @throws ChatReplyNotRetryableException when the reply is complete, stopped or not the latest message
@@ -108,12 +118,13 @@ class ChatTurnService(
         chatId: UUID,
         turnId: UUID,
         messageId: UUID,
+        context: () -> ChatContext? = { null },
         beforeReplace: (replyId: UUID) -> Unit,
     ): ChatTurnRequestResolution {
         requireAndLockOwnedChat(userId, chatId)
         val turn = chatTurnStore.findById(userId, turnId)?.takeIf { it.chatId == chatId }
             ?: throw NotFoundException("chat turn id=$turnId not found")
-        if (turn.status == ChatTurnStatus.GENERATING) return resolveGeneratingTurn(turn)
+        if (turn.status == ChatTurnStatus.GENERATING) return resolveGeneratingTurn(turn, context)
 
         val reply = chatMessageRepository.findByTurnIdAndRole(turnId, ChatMessageRole.ASSISTANT)
         if (reply?.id != messageId) return ChatTurnRequestResolution.AlreadyFinished(turn)
@@ -126,7 +137,7 @@ class ChatTurnService(
         val restarted = chatTurnStore.restartFinished(turnId, userId, chatId, executionPolicy.lease.toMillis())
             ?: throw InternalException("chat turn id=$turnId could not be restarted from ${turn.status}")
         chatMessageRepository.delete(reply)
-        return ChatTurnRequestResolution.StartGeneration(restarted, loadProviderHistory(restarted))
+        return startGeneration(restarted, loadProviderHistory(restarted), context)
     }
 
     /**
@@ -229,10 +240,11 @@ class ChatTurnService(
         chatId: UUID,
         idempotencyKey: UUID,
         requestFingerprint: RequestFingerprint,
+        context: () -> ChatContext?,
     ): ChatTurnRequestResolution? {
         val existing = chatTurnStore.findByIdempotencyKey(userId, chatId, idempotencyKey) ?: return null
         validateSameRequest(existing, requestFingerprint)
-        return resolveExistingTurn(existing)
+        return resolveExistingTurn(existing, context)
     }
 
     /**
@@ -254,12 +266,42 @@ class ChatTurnService(
         idempotencyKey: UUID,
         requestFingerprint: RequestFingerprint,
         content: String,
+        context: () -> ChatContext?,
     ): ChatTurnRequestResolution.StartGeneration {
         val priorHistory = chatMessageRepository.findByChatIdOrderByCreatedAtAscIdAsc(chatId)
         val turn = reserveNewTurn(userId, chatId, idempotencyKey, requestFingerprint)
         val userMessage = saveUserMessage(chatId, turn.id, content)
         chatRepository.touchActivity(chatId, userId)
-        return ChatTurnRequestResolution.StartGeneration(turn, priorHistory + userMessage)
+        return startGeneration(turn, priorHistory + userMessage, context)
+    }
+
+    /**
+     * The whole [history] while the chat has no [context]; otherwise the messages after its boundary with an overlap
+     * through it. A boundary that is not among the messages falls back to the whole history.
+     */
+    private fun startGeneration(
+        turn: ChatTurn,
+        history: List<ChatMessageEntity>,
+        context: () -> ChatContext?,
+    ): ChatTurnRequestResolution.StartGeneration {
+        val notes = context() ?: return ChatTurnRequestResolution.StartGeneration(turn, history)
+        val selection = ChatHistoryWindow.selectAfterBoundary(
+            history,
+            notes.boundaryMessageId,
+            turn.id,
+            contextProperties.overlapMessages,
+            contextProperties.overlapMaxChars,
+        )
+        if (selection == null) {
+            log.warn(
+                "chat=${turn.chatId} boundary=${notes.boundaryMessageId} is not among its messages; sending the whole history",
+                "startGeneration",
+            )
+            return ChatTurnRequestResolution.StartGeneration(turn, history)
+        }
+        return ChatTurnRequestResolution.StartGeneration(
+            turn, selection.messages, ChatHistoryCut(notes.notes, selection.overlap, selection.skipped),
+        )
     }
 
     private fun reserveNewTurn(
@@ -293,17 +335,20 @@ class ChatTurnService(
             )
         )
 
-    private fun resolveExistingTurn(existing: ChatTurn): ChatTurnRequestResolution = when (existing.status) {
+    private fun resolveExistingTurn(
+        existing: ChatTurn,
+        context: () -> ChatContext?,
+    ): ChatTurnRequestResolution = when (existing.status) {
         ChatTurnStatus.COMPLETE,
         ChatTurnStatus.PARTIAL,
         ChatTurnStatus.FAILED,
         ChatTurnStatus.CANCELED,
             -> ChatTurnRequestResolution.AlreadyFinished(existing)
 
-        ChatTurnStatus.GENERATING -> resolveGeneratingTurn(existing)
+        ChatTurnStatus.GENERATING -> resolveGeneratingTurn(existing, context)
     }
 
-    private fun resolveGeneratingTurn(existing: ChatTurn): ChatTurnRequestResolution {
+    private fun resolveGeneratingTurn(existing: ChatTurn, context: () -> ChatContext?): ChatTurnRequestResolution {
         if (existing.retryAfterMs > 0) return ChatTurnRequestResolution.AlreadyGenerating(existing)
 
         if (existing.attempt >= executionPolicy.maxAttempts) {
@@ -330,7 +375,7 @@ class ChatTurnService(
             leaseMillis = executionPolicy.lease.toMillis(),
         )
         if (claimed != null) {
-            return ChatTurnRequestResolution.StartGeneration(claimed, loadProviderHistory(claimed))
+            return startGeneration(claimed, loadProviderHistory(claimed), context)
         }
 
         val current = loadTurn(
@@ -342,7 +387,7 @@ class ChatTurnService(
             return ChatTurnRequestResolution.AlreadyFinished(current)
         }
         if (current.attempt != existing.attempt || current.retryAfterMs > 0) {
-            return resolveExistingTurn(current)
+            return resolveExistingTurn(current, context)
         }
         throw InternalException(
             "chat turn id=${existing.id} remained expired after its attempt=${existing.attempt} reclaim was rejected"

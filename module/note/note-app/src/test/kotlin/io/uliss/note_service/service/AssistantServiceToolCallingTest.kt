@@ -118,7 +118,7 @@ class AssistantServiceToolCallingTest {
         val history = listOf(
             ChatMessageEntity(chatId, ChatMessageRole.USER, "What music do I like?", ChatMessageStatus.COMPLETE, turnId),
         )
-        Mockito.`when`(chatTurnService.resolveTurnRequest(userId, chatId, turnId, "What music do I like?"))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("What music do I like?"), anyValue()))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history))
         Mockito.`when`(chatTurnService.extendLease(turn)).thenReturn(true)
         return turn
