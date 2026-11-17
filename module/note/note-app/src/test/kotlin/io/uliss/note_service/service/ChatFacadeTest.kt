@@ -177,7 +177,7 @@ class ChatFacadeTest {
         val chat = ChatEntity(userId, "hello").apply { id = chatId }
         val found = listOf(RetrievedChunk(UUID.randomUUID(), 0, "Loves Satori.", 0.9, "Satori", Instant.EPOCH))
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
-        Mockito.`when`(noteSummaryService.getChatNoteIds(chatId)).thenReturn(emptySet(), chatNoteIds)
+        Mockito.`when`(noteSummaryService.findChatNoteIds(chatId)).thenReturn(emptySet(), chatNoteIds)
         Mockito.`when`(ragService.search(userId, "music", 5, 0.7)).thenReturn(found)
         Mockito.`when`(ragService.searchExcludingNotes(userId, "music", 5, 0.7, chatNoteIds)).thenReturn(found)
 

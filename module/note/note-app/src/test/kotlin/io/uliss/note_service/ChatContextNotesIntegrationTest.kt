@@ -107,7 +107,7 @@ class ChatContextNotesIntegrationTest : NoteIntegrationTest() {
         val other = chatRepository.save(ChatEntity(chat.userId, "Other"))
         linkNote(other, NoteStatus.READY, "Other", "other body", null, main = true)
 
-        assertEquals(setOf(main.id, writing.id, failed.id), noteSummaryService.getChatNoteIds(chat.id))
+        assertEquals(setOf(main.id, writing.id, failed.id), noteSummaryService.findChatNoteIds(chat.id))
     }
 
     private fun message(chat: ChatEntity, content: String): ChatMessageEntity = chatMessageRepository.save(

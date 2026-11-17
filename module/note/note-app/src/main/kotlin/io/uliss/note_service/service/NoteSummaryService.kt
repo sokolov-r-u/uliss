@@ -72,7 +72,7 @@ class NoteSummaryService(
     }
 
     /** Every note linked to the chat, in any status; empty when it has none. Callers pass an owned chat id. */
-    fun getChatNoteIds(chatId: UUID): Set<UUID> = chatNoteRepository.findNoteIdsByChatId(chatId).toSet()
+    fun findChatNoteIds(chatId: UUID): Set<UUID> = chatNoteRepository.findNoteIdsByChatId(chatId).toSet()
 
     /**
      * Prepares the chat's notes for chat message [messageId] (a failed reply) being replaced by a retry: a summary

@@ -1,5 +1,6 @@
 package io.uliss.note_service.util
 
+import io.uliss.note_service.dto.internal.ChatContextNote
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.dto.internal.UserBackground
@@ -14,6 +15,23 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ChatPromptsTest {
+
+    @Test
+    fun `the chat's notes say what they replace and mark the main and untitled notes, titles as plain text`() {
+        val message = ChatPrompts.chatNotesMessage(
+            listOf(
+                ChatContextNote(UUID.randomUUID(), "Bowie \"Low\"", "Loves Low.", true),
+                ChatContextNote(UUID.randomUUID(), null, "Blackstar.", false),
+            ),
+        )
+
+        assertTrue(message.contains("no longer available as messages"))
+        assertTrue(message.contains("only the user's own thoughts, not your replies"))
+        assertTrue(message.contains("already covered by these notes"))
+        assertTrue(message.contains("<chat_note kind=\"main\">\nTitle: Bowie \"Low\"\n\nLoves Low.\n</chat_note>"), message)
+        assertTrue(message.contains("<chat_note kind=\"branch\">\nTitle: (untitled)\n\nBlackstar.\n</chat_note>"), message)
+        assertTrue(message.indexOf("Loves Low.") < message.indexOf("Blackstar."))
+    }
 
     @Test
     fun `the user profile is fenced off, so text copied from a note cannot pass for system instructions after it`() {

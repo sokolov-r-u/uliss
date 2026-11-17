@@ -125,7 +125,7 @@ class ChatFacade(
 
     /** The user's notes without the chat's own notes: the model already has them or the conversation they retell. */
     private fun noteSearch(userId: UUID, chatId: UUID) = NoteSearch { query, limit, minSimilarity ->
-        val chatNoteIds = noteSummaryService.getChatNoteIds(chatId)
+        val chatNoteIds = noteSummaryService.findChatNoteIds(chatId)
         if (chatNoteIds.isEmpty()) {
             ragService.search(userId, query, limit, minSimilarity)
         } else {

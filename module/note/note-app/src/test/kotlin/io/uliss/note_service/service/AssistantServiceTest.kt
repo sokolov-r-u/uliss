@@ -7,6 +7,7 @@ import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.ChatContextNote
 import ch.qos.logback.core.read.ListAppender
 import ch.qos.logback.classic.spi.ILoggingEvent
+import ch.qos.logback.classic.Level
 import ch.qos.logback.classic.Logger
 import io.uliss.exception.common.InternalException
 import io.uliss.exception.common.NotFoundException
@@ -1045,13 +1046,23 @@ class ChatTurnServiceTest {
         Mockito.`when`(messages.save(anyValue())).thenAnswer { it.getArgument<ChatMessageEntity>(0) }
         Mockito.`when`(messages.findByChatIdOrderByCreatedAtAscIdAsc(chatId)).thenReturn(listOf(earlier))
         val note = ChatContextNote(UUID.randomUUID(), "Main", "body", true)
+        val boundaryId = UUID.randomUUID()
+        val logger = LoggerFactory.getLogger(ChatTurnService::class.java) as Logger
+        val logEvents = ListAppender<ILoggingEvent>().also { it.start() }
+        logger.addAppender(logEvents)
 
-        val start = assertIs<ChatTurnRequestResolution.StartGeneration>(
-            service.resolveTurnRequest(userId, chatId, key, "hi") { ChatContext(UUID.randomUUID(), listOf(note)) }
-        )
+        val start = try {
+            assertIs<ChatTurnRequestResolution.StartGeneration>(
+                service.resolveTurnRequest(userId, chatId, key, "hi") { ChatContext(boundaryId, listOf(note)) }
+            )
+        } finally {
+            logger.detachAppender(logEvents)
+        }
 
         assertEquals(listOf("earlier", "hi"), start.history.map { it.content })
         assertEquals(null, start.cut)
+        val warning = logEvents.list.single { it.level == Level.WARN }.formattedMessage
+        assertTrue(warning.contains("chat=$chatId") && warning.contains("boundary=$boundaryId"), warning)
     }
 
     @Test

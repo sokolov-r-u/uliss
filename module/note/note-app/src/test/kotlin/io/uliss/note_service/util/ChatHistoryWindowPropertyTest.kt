@@ -45,6 +45,8 @@ class ChatHistoryWindowPropertyTest {
         assertEquals(sent.filter { it in selection.messages }, selection.messages, "a chronological subsequence")
         val overlap = selection.messages.take(selection.overlap)
         assertTrue(overlap.size <= overlapMessages && overlap.sumOf { it.content.length } <= overlapMaxChars)
+        val throughBoundary = sent.filter { history.indexOf(it) <= boundaryIndex && it.turnId != currentTurn }
+        assertEquals(throughBoundary.takeLast(overlap.size), overlap, "the overlap is the newest messages through the boundary")
         val tail = sent.filterIndexed { _, m -> history.indexOf(m) > boundaryIndex || m.turnId == currentTurn }
         assertEquals(tail, selection.messages.drop(selection.overlap), "the whole tail and the question")
         assertEquals(sent.size, selection.messages.size + selection.skipped, "every message is sent or skipped")
