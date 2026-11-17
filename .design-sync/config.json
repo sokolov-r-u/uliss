@@ -130,6 +130,21 @@
     },
     "PlaceField": {
       "cardMode": "column"
+    },
+    "AvatarStar": {
+      "cardMode": "column"
+    },
+    "TextArea": {
+      "cardMode": "column"
+    },
+    "PosterCropper": {
+      "cardMode": "column"
+    },
+    "PosterFrame": {
+      "cardMode": "column"
+    },
+    "Disclosure": {
+      "cardMode": "column"
     }
   },
   "readmeHeader": ".design-sync/conventions.md"

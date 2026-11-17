@@ -72,7 +72,8 @@ text face; the wordmark stays Cinzel.
 
 The visual system originated in the Claude Design project "Uliss Design System", which still holds the `PROT *`
 prototypes for features not yet built. For existing components, committed source, tokens, and `.prompt.md` files are
-authoritative; the "Uliss DS (code)" project is generated from them by `/design-sync`.
+authoritative; the Design System artifact "Uliss" (https://claude.ai/artifact/FRbUk8RgfNdLPZ3Dr2E1Sy) mirrors them and
+is generated from them by the `/design-sync` converter (`.design-sync/`).
 
 ## Verification
 
