@@ -38,6 +38,11 @@
   then `node .design-sync/to-artifact.mjs --bundle ./ds-bundle --tokens <tokens.json> --out .design-sync/.cache/artifact`.
   `<tokens.json>` is the artifact's own `project/tokens.json` (Artifact `read` by path); the adapter compiles
   `tokens.css` from it, because a page in `"editing": "code"` never writes `tokens.css`.
+- `tokens.json` is hand-kept: when `src/tokens` changed, edit the matching entries of the artifact's `tokens.json`
+  first (same names, values as written in the CSS) and publish it with the rest; the adapter does not read
+  `src/tokens`. Previews follow the code anyway (`bundle.css`), the Colors/Typography views only `tokens.json`.
+  Font files follow the package (the adapter copies them to `project/fonts/`); a new or renamed font also needs its
+  `type.fonts` entry in `tokens.json`.
 - Publish with the Artifact tool: `url` the artifact, `root` `.design-sync/.cache/artifact`, `file_path` the index
   `project/design-system.json` (read it again right before and keep its keys), `files` every other `project/` path.
   The index goes last; it keeps `"editing": "code"` and the two React 19 `libraries` entries.
@@ -53,7 +58,8 @@
   publish, not at the start of the run.
 - The artifact frame blocks `fetch` to jsDelivr: the adapter ships the app's own `emoji-picker-element-data`
   (`node_modules`, same 1.8.0 the web app pins) at `project/data/…/data.json` and rewrites the EmojiPicker/IconPicker
-  previews to `../../data/…` (a relative fetch of the artifact's own files works).
+  previews to `../../data/…` (a relative fetch of the artifact's own files works). `EMOJI_VERSION` in the adapter must
+  match the previews and the installed package; the adapter fails otherwise.
 - The artifact's preview column is about 600px wide: keep a preview's `Ground` width at or under ~600px or let it wrap
   (`PosterFrame` States went from 6 columns at 760px to 3 at 480px). PosterCropper (680px) still fits.
 - The page lazy-mounts cards as they scroll into view. A card that positions itself from `window.innerWidth` at mount
@@ -75,7 +81,8 @@
   syntax there needs the sed pattern to keep matching (check `css/uliss.css` size after build).
 - `Ground.tsx` mirrors `app.css` body/focus rules by hand; if the app base changes, update it and the conventions
   header together. Edits to `Ground.tsx` do not re-key grades — recapture affected components deliberately.
-- `EmojiPicker`/`IconPicker` previews load `emoji-picker-element-data@1.8.0` from jsDelivr at render time (the app
-  serves it itself); an offline or blocked CDN leaves the picker grid empty. Keep the version in step with the app's.
+- `EmojiPicker`/`IconPicker` previews load `emoji-picker-element-data@1.8.0` from jsDelivr at render time in the
+  converter's validate/capture (the artifact gets a local copy, see above); an offline or blocked CDN leaves the picker
+  grid empty there. Keep the version in step with the app's and with `EMOJI_VERSION` in `to-artifact.mjs`.
 - Constellation previews use hand-picked `oklch(0.62 0.11 <hue>)` colours, not the app's colour function.
 - Converter deps in `.ds-sync/` were installed from the npm registry (playwright pinned to the repo's `@playwright/test` version).
