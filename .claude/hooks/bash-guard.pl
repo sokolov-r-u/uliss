@@ -65,17 +65,23 @@ my $git = qr/${start}(?:\S*\/)?git(?:\s+(?:-[Cc]\s+\S+|--(?:git-dir|work-tree|na
 decide('block', "history rewrites, tags, PR merges and clean need the user's explicit per-request permission; ask the user to run it.")
   if $code =~ /${git}(?:reset|rebase|revert|tag|cherry-pick|clean|filter-branch|filter-repo|update-ref)$end/m
   || $code =~ /${start}gh\s+pr\s+merge$end/m;
-# Only a new branch keeps the checkout's work: switch -c / checkout -b with a name and an optional start point.
+# Branch moves that keep the checkout's work: a new branch (switch -c / checkout -b, a name and an optional start
+# point), or `git switch` to an existing branch, which refuses to overwrite uncommitted changes. `git checkout <name>`
+# stays blocked: a name alone may be a path, whose changes it would discard.
 while ($code =~ /${git}(checkout|switch|worktree)$end($seg)/mg) {
-  my ($verb, @w) = ($1, split ' ', $2);
+  # redirections (2>&1, >file) are not arguments
+  my ($verb, @w) = ($1, grep { !/^\d*[<>]/ } split ' ', $2);
   my $create = $verb eq 'switch' ? qr/^(?:-c|--create(?:=\S+)?)$/ : qr/^-b$/;
-  my @flags = grep { /^-/ } @w;
-  my $new_branch = $verb ne 'worktree'
-    && scalar(grep { /$create/ } @flags) == 1
-    && !grep({ !/$create/ && !/^--(?:no-)?track$/ } @flags)
-    && scalar(grep { !/^-/ } @w) <= 2;
-  decide('block', "do not switch branches or use worktrees without the user asking (CLAUDE.md, Commits).")
-    unless $new_branch;
+  # a lone "-" is the previous branch, not a flag
+  my @flags = grep { /^-./ } @w;
+  my @names = grep { !/^-./ } @w;
+  my $creates = scalar(grep { /$create/ } @flags);
+  my $plain = !grep({ !/$create/ && !/^--(?:no-)?track$/ } @flags);
+  my $new_branch = $verb ne 'worktree' && $creates == 1 && $plain && @names <= 2;
+  my $existing_branch = $verb eq 'switch' && $creates == 0 && $plain && @names == 1;
+  decide('block', "worktrees, forced, detached or path checkouts need the user's explicit permission (CLAUDE.md, "
+    . "Commits); move between branches with git switch.")
+    unless $new_branch || $existing_branch;
 }
 decide('block', "deleting, renaming or forcing branches needs the user's explicit permission.")
   if $code =~ /${git}branch\s+(?:$seg\s)?(?:--delete|--move|--force|-(?!-)[A-Za-z]*[dDmMf][A-Za-z]*)(?=\s|$)/m;
@@ -276,7 +282,7 @@ for my $source (@sources) {
     decide('block', "amending needs the user's explicit permission; make a new commit.") if $amend;
     decide('block', "commit -a stages every modified file; stage explicit paths with git add <path>.") if $all;
     $branch //= git_out($cwd, 'branch', '--show-current') // '';
-    decide('block', "never commit to main; ask the user which branch to create or switch to.") if $branch eq 'main';
+    decide('block', "never commit to main; create the task branch from origin/main with git switch -c <name> --no-track origin/main.") if $branch eq 'main';
     my $message = join "\n\n", @messages;
     if (defined $file) {
       if ($file eq "-" || $file eq "/dev/stdin") {
