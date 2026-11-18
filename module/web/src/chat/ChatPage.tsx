@@ -2,7 +2,8 @@ import {type ReactNode, useEffect, useRef, useState} from 'react'
 import {Link, useNavigate, useParams} from 'react-router-dom'
 import {describeError} from '../lib/apiHelpers'
 import {
-    ActionChip, Button, IconPicker, LabelRow, noteTitleText, Notice, OptionList, PlaceField, useLocale, useMessages,
+    ActionChip, Button, IconPicker, LabelRow, noteTitleText, Notice, OptionList, PendingStatus, PlaceField, useLocale,
+    useMessages,
 } from '@uliss/design-system'
 import {AuthRequiredError} from '../auth/apiClient'
 import {NoteApiError, notifyNotesChanged, requestChatSummary} from '../notes/noteApi'
@@ -20,6 +21,7 @@ import {
     type ChatMessage,
     type ChatMessagePage,
     type ChatSummaryState,
+    type ChatTailState,
     getMessages,
     notifyChatListChanged,
 } from './chatApi'
@@ -73,6 +75,9 @@ function prependOlderMessages(existing: ChatMessage[], older: ChatMessage[]): Ch
     const existingIds = new Set(existing.map((message) => message.id))
     return [...older.filter((message) => !existingIds.has(message.id)), ...existing]
 }
+
+/** How often the page re-reads the tail while a Summarize runs. */
+const TAIL_POLL_MS = 5000
 
 function isAbortError(error: unknown): boolean {
     return error instanceof DOMException && error.name === 'AbortError'
@@ -204,6 +209,10 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const [summaryPending, setSummaryPending] = useState(false)
     const [summaryError, setSummaryError] = useState<string | null>(null)
     const [summaryState, setSummaryState] = useState<ChatSummaryState | null>(null)
+    /** The unsummarized tail from the latest page; null until it is loaded or in a new chat. */
+    const [tailState, setTailState] = useState<ChatTailState | null>(null)
+    /** The tail size when the server refused a message for it; the block holds until a Summarize shrinks the tail. */
+    const [tailRejectedAt, setTailRejectedAt] = useState<number | null>(null)
     /** Bumped when a picked place turned out deleted, so the place field reloads the tree. */
     const [placeRevision, setPlaceRevision] = useState(0)
     // read only while a new note is being set up; an update keeps the note's place
@@ -262,6 +271,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
         if (!loadedOlderRef.current) updateOlderBoundary(page.nextCursor, page.hasMore)
         setSummaryState(page.summary ?? null)
+        setTailState(page.tail ?? null)
         updateGenerationPhase('idle')
         setStreamNotice(null)
         reconciliationTargetRef.current = null
@@ -359,6 +369,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
             activeChatIdRef.current = null
             replacePersistedWindow([])
             setSummaryState(null)
+            setTailState(null)
+            setTailRejectedAt(null)
             updateOlderBoundary(null, false)
             setPagePhase('ready')
             setLoadError(null)
@@ -414,6 +426,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         updateGenerationPhase('idle')
         setAcceptedSummary(null)
         setSummaryState(null)
+        setTailState(null)
+        setTailRejectedAt(null)
         setSummaryDialog(false)
         setSummaryChoice('update')
         setBranching(false)
@@ -429,6 +443,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 const history = page.messages
                 replacePersistedWindow(history)
                 setSummaryState(page.summary ?? null)
+                setTailState(page.tail ?? null)
                 updateOlderBoundary(page.nextCursor, page.hasMore)
                 setPagePhase('ready')
                 const pendingRequest = pendingChatRequestRef.current
@@ -588,12 +603,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     setStreamNotice(rejected)
                     return
                 }
+                const tailLimit = error.code === 'CHAT_TAIL_LIMIT'
+                // the message waits in the banner and comes back to the field once a Summarize shrinks the tail
+                if (tailLimit) setDraft(request.content)
                 try {
                     const page = await getMessages(resolvedChatId, {signal: controller.signal})
                     const history = page.messages
                     if (!mountedRef.current || routeRevisionRef.current !== routeRevision) return
                     applyPersistedHistory(page)
-                    setStreamNotice(rejected)
+                    if (tailLimit) setTailRejectedAt(page.tail?.chars ?? 0)
+                    else setStreamNotice(rejected)
                     const activeTarget = targetForTrailingUser(history)
                     if (activeTarget) await reconcile(activeTarget, true, routeRevision)
                 } catch (loadError) {
@@ -800,6 +819,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 noteIcon: main?.noteIcon ?? null,
             })
             setAcceptedSummary({noteId: summary.noteId, update: target != null})
+            setTailState((previous) => previous && {...previous, summarizing: true})
             setSummaryDialog(false)
         } catch (error) {
             if (error instanceof NoteApiError && error.kind === 'http'
@@ -832,6 +852,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     .then((page) => {
                         if (mountedRef.current && summaryRequestIdRef.current === requestId) {
                             setSummaryState(page.summary ?? null)
+                            setTailState(page.tail ?? null)
                             // without a main note the typed fields would start a summary of the whole chat
                             if (branch && !page.summary) {
                                 setBranching(false)
@@ -853,6 +874,39 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     /** A name over the limit, or one still being dictated, keeps a new summary from starting. */
     const summaryHeld = isSummaryNameTooLong(summaryName) || summaryNameDictating
+
+    const tailBlocked = tailState != null
+        && (tailState.chars > tailState.hardChars || (tailRejectedAt != null && tailState.chars >= tailRejectedAt))
+    const tailLong = tailState != null && !tailBlocked && tailState.chars > tailState.softChars
+    const tailSaving = tailState?.summarizing === true
+
+    // A Summarize (or its chain) runs in the background: re-read the tail until it ends, to lift the block.
+    useEffect(() => {
+        if (!chatId || !tailSaving || generationPhase !== 'idle') return
+        const controller = new AbortController()
+        const timer = window.setInterval(() => {
+            getMessages(chatId, {limit: 1, signal: controller.signal})
+                .then((page) => {
+                    if (!mountedRef.current || controller.signal.aborted) return
+                    setSummaryState(page.summary ?? null)
+                    setTailState(page.tail ?? null)
+                })
+                .catch(() => undefined)
+        }, TAIL_POLL_MS)
+        return () => {
+            window.clearInterval(timer)
+            controller.abort()
+        }
+    }, [chatId, tailSaving, generationPhase])
+
+    // The field comes back with the kept draft: put the cursor in it.
+    const wasTailBlockedRef = useRef(false)
+    useEffect(() => {
+        if (wasTailBlockedRef.current && !tailBlocked) {
+            document.querySelector<HTMLTextAreaElement>('.chat-composer textarea')?.focus()
+        }
+        wasTailBlockedRef.current = tailBlocked
+    }, [tailBlocked])
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
@@ -876,6 +930,27 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
     const updateOptionLabel = updateTarget?.noteTitle
         ? t.updateOptionNamed(noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon))
         : t.updateOption
+
+    function openSummaryDialog() {
+        setSummaryError(null)
+        setSummaryName('')
+        setSummaryPlace(null)
+        branchPlaceSetRef.current = false
+        setPickingPlace(false)
+        setSummaryIcon(null)
+        setSummaryChoice('update')
+        setBranching(false)
+        setSummaryDialog(true)
+    }
+
+    const summarizeChip = showSummarize
+        ? <ActionChip label={t.summarize} disabled={!canSummarize} onClick={openSummaryDialog}/>
+        : undefined
+    const composerAction = tailLong && tailSaving
+        ? <PendingStatus label={t.tailSaving} pad="0" minHeight={28}/>
+        : tailLong && summarizeChip
+            ? <div className="chat-tail-action">{summarizeChip}<p className="chat-tail-hint">{t.tailSoft}</p></div>
+            : summarizeChip
 
     return (
         <div className="detail-layout">
@@ -905,8 +980,22 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 && <Button size="sm" variant="quiet" onClick={retryReconciliation}>{common.retry}</Button>}</div>}
             {generationPhase === 'settling' &&
                 <p className="chat-settling-notice" aria-live="polite">{t.savingReply}</p>}
-            {/* keyed by chat: switching chats drops a recording instead of sending it into the next chat */}
-            <ChatComposer
+            {tailBlocked ? <section className="chat-tail-banner" aria-label={t.tailBlocked}>
+                {tailSaving
+                    ? <PendingStatus label={t.tailSaving} pad="0" minHeight={20}/>
+                    : <p className="chat-tail-banner-text">{t.tailBlocked}</p>}
+                {draft.trim() !== '' && <div className="chat-tail-draft">
+                    <span className="chat-tail-draft-label">{t.draftKept}</span>
+                    <p className="chat-tail-draft-text">«{draft.trim()}»</p>
+                </div>}
+                {/* hidden, not removed, while saving: the banner keeps its height */}
+                <div className="chat-tail-banner-actions" style={{visibility: tailSaving ? 'hidden' : 'visible'}}>
+                    <Button variant="outline" size="md" disabled={!canSummarize || tailSaving}
+                            onClick={openSummaryDialog}>{t.summarize}</Button>
+                </div>
+            </section>
+            /* keyed by chat: switching chats drops a recording instead of sending it into the next chat */
+            : <ChatComposer
                 key={chatId ?? 'new'}
                 value={draft}
                 onChange={setDraft}
@@ -915,20 +1004,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 generationActive={generationPhase === 'streaming'
                     || (generationPhase === 'settling' && !!pendingChatRequestRef.current)}
                 onStop={stopGeneration}
-                action={showSummarize
-                    ? <ActionChip label={t.summarize} disabled={!canSummarize}
-                                  onClick={() => {
-                                      setSummaryError(null)
-                                      setSummaryName('')
-                                      setSummaryPlace(null)
-                                      branchPlaceSetRef.current = false
-                                      setPickingPlace(false)
-                                      setSummaryIcon(null)
-                                      setSummaryChoice('update')
-                                      setBranching(false)
-                                      setSummaryDialog(true)
-                                  }}/>
-                    : undefined}/>
+                action={composerAction}/>}
             {summaryDialog && <NoticeOverlay blocking={summaryPending}
                                              onBackdropClick={() => setSummaryDialog(false)}>
                 {/* both steps share the width and the field area's height, so the card keeps its size */}

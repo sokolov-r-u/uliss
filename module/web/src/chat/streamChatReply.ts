@@ -31,7 +31,8 @@ type StreamOptions = {
 }
 
 export class ChatStreamHttpError extends Error {
-    constructor(public readonly status: number) {
+    /** `code` is the server's error code when the body has one, e.g. `CHAT_TAIL_LIMIT`. */
+    constructor(public readonly status: number, public readonly code?: string) {
         super(`chat stream request failed (${status})`)
         this.name = 'ChatStreamHttpError'
     }
@@ -150,7 +151,7 @@ async function streamReply(
             body: send.content === undefined ? undefined : JSON.stringify({content: send.content}),
             signal,
         })
-        if (!res.ok) throw new ChatStreamHttpError(res.status)
+        if (!res.ok) throw new ChatStreamHttpError(res.status, await errorCode(res))
         let chatId: string | undefined
         if (opts.onChatId) {
             const responseChatId = res.headers.get('Chat-Id')
@@ -204,6 +205,17 @@ async function streamReply(
             // any exit but a detached tail (a terminal event, a throwing callback) closes the connection
             void events?.return(undefined)
         }
+    }
+}
+
+async function errorCode(res: Response): Promise<string | undefined> {
+    try {
+        const body: unknown = await res.json()
+        return typeof body === 'object' && body !== null && 'code' in body && typeof body.code === 'string'
+            ? body.code
+            : undefined
+    } catch {
+        return undefined
     }
 }
 
