@@ -58,6 +58,35 @@ interface ChatMessageRepository : CrudRepository<ChatMessageEntity, UUID> {
     )
     fun findLatestMessageId(@Param("chatId") chatId: UUID): UUID?
 
+    /**
+     * Messages through [targetMessageId] by id (UUID v7, so in creation order); the target itself may be gone (a retry
+     * replaced it). Ordered like the history.
+     */
+    @Query(
+        value = """
+            SELECT * FROM note.chat_message
+            WHERE chat_id = :chatId AND id <= :targetMessageId
+            ORDER BY created_at, id
+        """,
+        nativeQuery = true,
+    )
+    fun findThroughTarget(@Param("chatId") chatId: UUID, @Param("targetMessageId") targetMessageId: UUID): List<ChatMessageEntity>
+
+    /** Messages after [afterMessageId] through [targetMessageId] by id; see [findThroughTarget]. */
+    @Query(
+        value = """
+            SELECT * FROM note.chat_message
+            WHERE chat_id = :chatId AND id > :afterMessageId AND id <= :targetMessageId
+            ORDER BY created_at, id
+        """,
+        nativeQuery = true,
+    )
+    fun findAfterThroughTarget(
+        @Param("chatId") chatId: UUID,
+        @Param("afterMessageId") afterMessageId: UUID,
+        @Param("targetMessageId") targetMessageId: UUID,
+    ): List<ChatMessageEntity>
+
     @Query(
         value = """
             SELECT COALESCE(SUM(char_length(content)), 0)

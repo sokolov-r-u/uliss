@@ -15,6 +15,7 @@ import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.util.PinLimit
 import io.uliss.note_service.util.TitleNormalizer
+import io.uliss.note_service.util.ChatSummaryChunks
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
@@ -139,6 +140,24 @@ class ChatService(
         getOwnedChat(userId, chatId)
         return afterMessageId?.let { chatMessageRepository.sumContentCharsAfter(chatId, it) }
             ?: chatMessageRepository.sumContentChars(chatId)
+    }
+
+    /**
+     * The last message of the next Summarize chunk: whole turns after [afterMessageId] (from the start without it)
+     * through [targetMessageId] within [limitChars]; null when no message is left before the target.
+     */
+    fun findSummaryChunkEnd(
+        userId: UUID,
+        chatId: UUID,
+        afterMessageId: UUID?,
+        targetMessageId: UUID,
+        limitChars: Int,
+    ): UUID? {
+        getOwnedChat(userId, chatId)
+        val messages = afterMessageId
+            ?.let { chatMessageRepository.findAfterThroughTarget(chatId, it, targetMessageId) }
+            ?: chatMessageRepository.findThroughTarget(chatId, targetMessageId)
+        return if (messages.isEmpty()) null else ChatSummaryChunks.firstChunkEnd(messages, limitChars)
     }
 
     internal fun getSummaryContext(userId: UUID, chatId: UUID, throughMessageId: UUID): ChatSummaryContext {
