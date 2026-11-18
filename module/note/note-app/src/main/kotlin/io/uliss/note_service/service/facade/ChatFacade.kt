@@ -4,6 +4,7 @@ import io.uliss.exception.common.BadRequestException
 import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
+import io.uliss.note_service.dto.internal.ChatTailState
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
@@ -16,6 +17,7 @@ import io.uliss.note_service.model.SummaryMode
 import io.uliss.note_service.model.projection.CurrentChatSummary
 import io.uliss.note_service.service.AssistantService
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.ChatTitleService
 import io.uliss.note_service.service.ChatTurnService
 import io.uliss.note_service.service.NoteService
@@ -41,6 +43,7 @@ class ChatFacade(
     private val ragService: RagService,
     private val userProfileService: UserProfileService,
     private val chatTitleService: ChatTitleService,
+    private val tailProperties: ChatTailProperties,
 ) {
 
     fun getChats(userId: UUID, cursor: ListCursor?, limit: Int): KeysetPage<ChatWithNoteCount> {
@@ -77,11 +80,19 @@ class ChatFacade(
         chatService.deleteChat(userId, chatId)
     }
 
-    /** The latest page (no cursor) also carries the chat's current summary note. */
+    /** The latest page (no cursor) also carries the chat's current summary note and its unsummarized tail. */
     fun getMessages(userId: UUID, chatId: UUID, before: UUID?, limit: Int): ChatMessageCursorPage {
         val page = chatService.getMessages(userId, chatId, before, limit)
         if (before != null) return page
-        return page.copy(summary = noteSummaryService.findCurrentChatSummary(chatId))
+        val summary = noteSummaryService.findCurrentChatSummary(chatId)
+        val tail = ChatTailState(
+            chars = chatService.getTailChars(userId, chatId, summary?.throughMessageId),
+            softChars = tailProperties.softChars,
+            hardChars = tailProperties.hardChars,
+            summaryInputChars = tailProperties.summaryInputChars,
+            summarizing = noteSummaryService.hasPendingSummary(chatId),
+        )
+        return page.copy(summary = summary, tail = tail)
     }
 
     /**
@@ -99,7 +110,7 @@ class ChatFacade(
         val chat = creation?.chat ?: chatService.getOwnedChat(userId, checkNotNull(chatId))
         val reply = assistantService.streamReply(
             userId, chat.id, idempotencyKey, prompt, noteSearch(userId, chat.id), userBackground(userId),
-            chatContext(chat.id),
+            chatContext(chat.id), tailBoundary(chat.id),
         )
         if (creation?.created != true) return reply
         val title = chatTitleService.generateTitle(userId, chat.id, prompt)
@@ -120,6 +131,10 @@ class ChatFacade(
 
     /** Read by the turn once it is reserved, inside its transaction; a retry reads it after the boundary moved. */
     private fun chatContext(chatId: UUID): () -> ChatContext? = { noteSummaryService.findChatContext(chatId) }
+
+    /** The last message of the chat's READY main note; null (the whole chat is the tail) without one. */
+    private fun tailBoundary(chatId: UUID): () -> UUID? =
+        { noteSummaryService.findCurrentChatSummary(chatId)?.throughMessageId }
 
     private fun userBackground(userId: UUID): UserBackground? = userProfileService.findBackground(userId)
 

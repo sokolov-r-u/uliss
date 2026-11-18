@@ -128,7 +128,7 @@ class AssistantServiceTest {
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         val queries = mutableListOf<String>()
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("my taste?"), anyValue()))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("my taste?"), anyValue(), anyValue()))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history(chatId, turnId)))
         Mockito.`when`(chatTurnService.extendLease(turn)).thenReturn(true)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
@@ -168,7 +168,7 @@ class AssistantServiceTest {
         val persistenceStarted = CountDownLatch(1)
         val releasePersistence = CountDownLatch(1)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue()))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue(), anyValue()))
             .thenReturn(ChatTurnRequestResolution.StartGeneration(turn, history(chatId, turnId)))
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.chatResponse())
@@ -219,7 +219,7 @@ class AssistantServiceTest {
         )
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(start)
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.chatResponse())
             .thenReturn(Flux.concat(replies("Hi"), Flux.error(RuntimeException("boom"))))
@@ -244,7 +244,7 @@ class AssistantServiceTest {
         )
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(start)
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(Flux.error(RuntimeException("boom")))
         Mockito.`when`(
@@ -266,7 +266,7 @@ class AssistantServiceTest {
             turn(userId, chatId, turnId, ChatTurnStatus.GENERATING).copy(idempotencyKey = idempotencyKey),
             history(chatId, turnId),
         )
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue()))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue(), anyValue()))
             .thenReturn(start)
         Mockito.doThrow(RuntimeException("provider setup failed")).`when`(chatClient).prompt()
         Mockito.`when`(
@@ -290,7 +290,7 @@ class AssistantServiceTest {
         val turnId = UUID.randomUUID()
         val idempotencyKey = UUID.randomUUID()
         val complete = turn(userId, chatId, turnId, ChatTurnStatus.COMPLETE).copy(idempotencyKey = idempotencyKey)
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue()))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hi"), anyValue(), anyValue()))
             .thenReturn(ChatTurnRequestResolution.AlreadyFinished(complete))
 
         val replay = assistantService.streamReply(userId, chatId, idempotencyKey, "hi", noSearch)
@@ -302,7 +302,7 @@ class AssistantServiceTest {
         val pendingTurnId = UUID.randomUUID()
         val pending = turn(userId, chatId, pendingTurnId, ChatTurnStatus.GENERATING)
             .copy(idempotencyKey = idempotencyKey)
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("next"), anyValue()))
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("next"), anyValue(), anyValue()))
             .thenReturn(ChatTurnRequestResolution.AlreadyGenerating(pending))
         val pendingReply = assistantService.streamReply(userId, chatId, idempotencyKey, "next", noSearch)
         assertEquals(pendingTurnId, pendingReply.turnId)
@@ -332,7 +332,7 @@ class AssistantServiceTest {
         )
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(
             ChatTurnRequestResolution.StartGeneration(turn(userId, chatId, turnId, ChatTurnStatus.GENERATING), history)
         )
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
@@ -356,7 +356,7 @@ class AssistantServiceTest {
         )
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(start)
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(start)
         Mockito.`when`(requestSpec.stream()).thenReturn(streamResponseSpec)
         Mockito.`when`(streamResponseSpec.chatResponse()).thenReturn(replies("obsolete"))
         Mockito.`when`(
@@ -428,7 +428,7 @@ class AssistantServiceTest {
         val overlap = ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "Try Heroes.", ChatMessageStatus.COMPLETE)
         val question = ChatMessageEntity(chatId, ChatMessageRole.USER, "secret question", ChatMessageStatus.COMPLETE, turnId)
         startGeneration(userId, chatId, turnId, replies("ok"))
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(
             ChatTurnRequestResolution.StartGeneration(
                 turn(userId, chatId, turnId, ChatTurnStatus.GENERATING),
                 listOf(overlap, question),
@@ -485,7 +485,7 @@ class AssistantServiceTest {
     private fun startGeneration(userId: UUID, chatId: UUID, turnId: UUID, provider: Flux<ChatResponse>) {
         val streamResponseSpec = Mockito.mock(ChatClient.StreamResponseSpec::class.java)
         mockRequestChain()
-        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue())).thenReturn(
+        Mockito.`when`(chatTurnService.resolveTurnRequest(eqValue(userId), eqValue(chatId), eqValue(turnId), eqValue("hi"), anyValue(), anyValue())).thenReturn(
             ChatTurnRequestResolution.StartGeneration(
                 turn(userId, chatId, turnId, ChatTurnStatus.GENERATING),
                 history(chatId, turnId),
@@ -582,7 +582,7 @@ class ChatTurnServiceTest {
         Mockito.`when`(it.lease).thenReturn(Duration.ofSeconds(300))
     }
     private val chats = Mockito.mock(ChatRepository::class.java)
-    private val service = ChatTurnService(store, messages, chats, executionPolicy, ChatContextProperties())
+    private val service = ChatTurnService(store, messages, chats, executionPolicy, ChatContextProperties(), ChatTailProperties())
 
     @Test
     fun `missing or foreign chat is rejected before any turn lookup`() {
@@ -812,7 +812,7 @@ class ChatTurnServiceTest {
         Mockito.`when`(store.claimExpired(turnId, userId, chatId, 1, 3, 300_000)).thenReturn(matchingClaimed)
 
         val result = assertIs<ChatTurnRequestResolution.StartGeneration>(
-            service.resolveTurnRequest(userId, chatId, idempotencyKey, "hi") { ChatContext(boundary.id, listOf(note)) }
+            service.resolveTurnRequest(userId, chatId, idempotencyKey, "hi", context = { ChatContext(boundary.id, listOf(note)) })
         )
 
         assertEquals(2, result.turn.attempt)
@@ -1053,7 +1053,7 @@ class ChatTurnServiceTest {
 
         val start = try {
             assertIs<ChatTurnRequestResolution.StartGeneration>(
-                service.resolveTurnRequest(userId, chatId, key, "hi") { ChatContext(boundaryId, listOf(note)) }
+                service.resolveTurnRequest(userId, chatId, key, "hi", context = { ChatContext(boundaryId, listOf(note)) })
             )
         } finally {
             logger.detachAppender(logEvents)

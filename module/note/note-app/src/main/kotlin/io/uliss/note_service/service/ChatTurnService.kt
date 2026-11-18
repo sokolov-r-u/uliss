@@ -8,6 +8,7 @@ import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.ChatHistoryCut
 import io.uliss.note_service.dto.internal.ChatTurnRequestResolution
 import io.uliss.note_service.exception.ChatReplyNotRetryableException
+import io.uliss.note_service.exception.ChatTailLimitException
 import io.uliss.note_service.exception.ChatTurnAlreadyGeneratingException
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.model.ChatMessageEntity
@@ -21,6 +22,7 @@ import io.uliss.note_service.repository.ChatMessageRepository
 import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.ChatTurnStore
 import io.uliss.note_service.util.ChatHistoryWindow
+import io.uliss.note_service.util.ChatTailLimit
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Propagation
 import org.springframework.transaction.annotation.Transactional
@@ -48,6 +50,7 @@ class ChatTurnService(
     private val chatRepository: ChatRepository,
     private val executionPolicy: ChatTurnExecutionPolicy,
     private val contextProperties: ChatContextProperties,
+    private val tailProperties: ChatTailProperties,
 ) {
     private val log = AppLogger.of(ChatTurnService::class)
 
@@ -73,11 +76,14 @@ class ChatTurnService(
      * A different active turn for the same chat is rejected. This method performs no provider
      * calls; the transaction commits before [AssistantService] starts or resumes generation.
      *
-     * A generation's history is cut by the chat's notes from [context], read once the turn is reserved.
+     * A generation's history is cut by the chat's notes from [context], read once the turn is reserved. A new turn is
+     * refused while the chat's unsummarized tail, the messages after [tailBoundary] (all of them when it is null),
+     * would grow past the hard limit with [content]; replays, reclaims and retries are never refused.
      *
      * @throws NotFoundException when the chat does not exist or belongs to another user
      * @throws IdempotencyKeyReusedException when [idempotencyKey] is already bound to other content
      * @throws ChatTurnAlreadyGeneratingException when another turn is active for this chat
+     * @throws ChatTailLimitException when the new message would take the tail past the hard limit
      * @throws InternalException when an expired turn cannot be safely reclaimed or reconstructed
      */
     @Transactional
@@ -87,6 +93,7 @@ class ChatTurnService(
         idempotencyKey: UUID,
         content: String,
         context: () -> ChatContext? = { null },
+        tailBoundary: () -> UUID? = { null },
     ): ChatTurnRequestResolution {
         requireAndLockOwnedChat(userId, chatId)
 
@@ -94,6 +101,7 @@ class ChatTurnService(
         findAndResolveExistingTurn(userId, chatId, idempotencyKey, requestFingerprint, context)?.let { return it }
 
         ensureNoOtherTurnIsGenerating(userId, chatId)
+        ensureTailTakes(chatId, content, tailBoundary())
         return startNewTurn(userId, chatId, idempotencyKey, requestFingerprint, content, context)
     }
 
@@ -258,6 +266,18 @@ class ChatTurnService(
             throw ChatTurnAlreadyGeneratingException(chatId, active.id)
         }
         saveFailedAssistantMessage(active)
+    }
+
+    private fun ensureTailTakes(chatId: UUID, content: String, tailBoundary: UUID?) {
+        val tailChars = tailBoundary?.let { chatMessageRepository.sumContentCharsAfter(chatId, it) }
+            ?: chatMessageRepository.sumContentChars(chatId)
+        val messageChars = content.codePointCount(0, content.length)
+        if (!ChatTailLimit.refuses(tailChars, messageChars, tailProperties.hardChars)) return
+        log.info(
+            "chat=$chatId tail limit chars=$tailChars message=$messageChars hard=${tailProperties.hardChars}",
+            "ensureTailTakes",
+        )
+        throw ChatTailLimitException(chatId)
     }
 
     private fun startNewTurn(

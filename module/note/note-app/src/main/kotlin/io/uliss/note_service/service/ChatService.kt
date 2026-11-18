@@ -134,6 +134,13 @@ class ChatService(
         return chatMessageRepository.findLatestMessageId(chatId)
     }
 
+    /** Characters of the owned chat's messages after [afterMessageId]; of all its messages when it is null. */
+    fun getTailChars(userId: UUID, chatId: UUID, afterMessageId: UUID?): Long {
+        getOwnedChat(userId, chatId)
+        return afterMessageId?.let { chatMessageRepository.sumContentCharsAfter(chatId, it) }
+            ?: chatMessageRepository.sumContentChars(chatId)
+    }
+
     internal fun getSummaryContext(userId: UUID, chatId: UUID, throughMessageId: UUID): ChatSummaryContext {
         val chat = getOwnedChat(userId, chatId)
         val history = chatMessageRepository.findThroughMessage(chatId, throughMessageId)

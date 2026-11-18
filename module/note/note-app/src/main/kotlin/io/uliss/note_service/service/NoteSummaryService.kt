@@ -71,6 +71,9 @@ class NoteSummaryService(
         return if (notes.isEmpty()) null else ChatContext(boundary, notes)
     }
 
+    /** Whether a Summarize of the chat (or a step of its chain) is still pending. */
+    fun hasPendingSummary(chatId: UUID): Boolean = summaryRequestStore.hasPendingForChat(chatId)
+
     /** Every note linked to the chat, in any status; empty when it has none. Callers pass an owned chat id. */
     fun findChatNoteIds(chatId: UUID): Set<UUID> = chatNoteRepository.findNoteIdsByChatId(chatId).toSet()
 

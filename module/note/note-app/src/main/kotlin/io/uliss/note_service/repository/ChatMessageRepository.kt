@@ -60,6 +60,31 @@ interface ChatMessageRepository : CrudRepository<ChatMessageEntity, UUID> {
 
     @Query(
         value = """
+            SELECT COALESCE(SUM(char_length(content)), 0)
+            FROM note.chat_message
+            WHERE chat_id = :chatId
+        """,
+        nativeQuery = true,
+    )
+    fun sumContentChars(@Param("chatId") chatId: UUID): Long
+
+    /** Characters of the messages after [afterMessageId]; 0 when it is not a message of the chat. */
+    @Query(
+        value = """
+            SELECT COALESCE(SUM(char_length(message_row.content)), 0)
+            FROM note.chat_message message_row
+            JOIN note.chat_message after_row
+              ON after_row.id = :afterMessageId
+             AND after_row.chat_id = :chatId
+            WHERE message_row.chat_id = :chatId
+              AND (message_row.created_at, message_row.id) > (after_row.created_at, after_row.id)
+        """,
+        nativeQuery = true,
+    )
+    fun sumContentCharsAfter(@Param("chatId") chatId: UUID, @Param("afterMessageId") afterMessageId: UUID): Long
+
+    @Query(
+        value = """
             SELECT message_row.*
             FROM note.chat_message message_row
             JOIN note.chat_message boundary_row

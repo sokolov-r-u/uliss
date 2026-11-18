@@ -79,6 +79,11 @@ note:
     context:
       overlap-messages: 6
       overlap-max-chars: 8000
+    # Unsummarized tail: soft warns, hard refuses a new message, summary-input caps one Summarize call's messages.
+    tail:
+      soft-chars: ${NOTE_TAIL_SOFT_CHARS:40000}
+      hard-chars: ${NOTE_TAIL_HARD_CHARS:60000}
+      summary-input-chars: ${NOTE_TAIL_SUMMARY_INPUT_CHARS:80000}
     notes-search:
       top-k: 5
       # A short query scores lower than note-to-note; top-k and the model do the selection.

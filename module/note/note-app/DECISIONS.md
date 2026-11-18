@@ -996,3 +996,20 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   whole chat may also cover tail messages; that duplication is accepted. The chat history is still loaded whole from
   the database and cut in memory.
 - **Source:** task `docs/tasks/2026-11-17-chat-context-summary.md`, blocks 1–2.
+
+## 2026-11-18 — A chat's unsummarized tail has soft and hard limits, computed on read
+
+- **Context:** after the chat context moved to notes, a long unsummarized tail makes notes worse and Summarize reads
+  it whole. The limit is about note quality, not the model window.
+- **Decision:** the tail is the chat's messages after the READY main note's boundary, or all of them without one; its
+  size is the sum of `char_length(content)` of user and assistant messages, computed by a query on each new turn and
+  on the latest message page, never stored. `note.assistant.tail` sets `soft-chars` (40 000; the UI suggests
+  Summarize), `hard-chars` (60 000) and `summary-input-chars` (80 000). `ChatTurnService` refuses a new turn with
+  `409 CHAT_TAIL_LIMIT` under the chat lock, before reserving it, when the tail plus the new message passes
+  `hard-chars`; an empty tail takes any message. Replays, reclaims and retries are never refused, and a reply already
+  generating always finishes. The latest page carries `tail {chars, softChars, hardChars, summaryInputChars,
+  summarizing}`. Rejected: a counter or flag on `chat`, which every boundary move (Summarize, update, branch,
+  retry, main note deletion) would have to keep in step.
+- **Consequences:** one aggregate query per turn and per latest page over the `(chat_id, …)` messages. A chat over the
+  hard limit stays blocked until a Summarize moves the boundary.
+- **Source:** task `docs/tasks/2026-11-17-chat-tail-limit.md`, block 1.
