@@ -6,6 +6,7 @@ import io.uliss.note_service.anyValue
 import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteAddendumDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
+import io.uliss.note_service.dto.internal.SummaryChunk
 import io.uliss.note_service.dto.internal.UserBackground
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
@@ -17,6 +18,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
@@ -50,7 +52,8 @@ class NoteSummaryUpdateRequestedHandlerTest {
     private val properties = NoteSummaryProperties(retrievalQueryMaxChars = 400, retrievalTopK = 3, retrievalMinSimilarity = 0.75)
     private val clock = Clock.fixed(Instant.parse("2026-10-08T23:30:00Z"), ZoneOffset.UTC)
     private val handler = NoteSummaryUpdateRequestedHandler(
-        objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, profileService, properties, clock,
+        objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, profileService, properties,
+        ChatTailProperties(softChars = 100, hardChars = 150, summaryInputChars = 200), clock,
     )
     private val requestSpec = Mockito.mock(ChatClient.ChatClientRequestSpec::class.java)
     private val callResponseSpec = Mockito.mock(ChatClient.CallResponseSpec::class.java)
@@ -86,6 +89,32 @@ class NoteSummaryUpdateRequestedHandlerTest {
             payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.afterMessageId,
             payload.throughMessageId,
             "Go by night train.", LocalDate.of(2026, 10, 8),
+        )
+    }
+
+    @Test
+    fun `a step of a chain passes the next chunk up to the target on, and the last step passes none`() {
+        val target = UUID.randomUUID()
+        val next = UUID.randomUUID()
+        val payload = payload().copy(targetMessageId = target)
+        stubContext(payload, "ok")
+        stubContext(payload.copy(throughMessageId = target), "ok")
+        Mockito.`when`(noteService.findReadyNote(payload.userId, payload.noteId))
+            .thenReturn(NoteEntity(payload.userId, "body", NoteSource.CHAT_SUMMARY, NoteStatus.READY))
+        stubModel(NoteAddendumDraft(false, "More.", emptyList()))
+        Mockito.`when`(chatService.findSummaryChunkEnd(payload.userId, payload.chatId, payload.throughMessageId, target, 200))
+            .thenReturn(next)
+
+        handler.handle(event(payload))
+        handler.handle(event(payload.copy(throughMessageId = target)))
+
+        Mockito.verify(noteService).applyChatSummaryUpdate(
+            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.afterMessageId,
+            payload.throughMessageId, "More.", LocalDate.of(2026, 10, 8), SummaryChunk(next, target),
+        )
+        Mockito.verify(noteService).applyChatSummaryUpdate(
+            payload.userId, payload.idempotencyKey, payload.noteId, payload.chatId, payload.afterMessageId,
+            target, "More.", LocalDate.of(2026, 10, 8), null,
         )
     }
 
@@ -132,7 +161,7 @@ class NoteSummaryUpdateRequestedHandlerTest {
         assertFailsWith<IllegalStateException> { handler.handle(event(payload)) }
         Mockito.verify(noteService, Mockito.never())
             .applyChatSummaryUpdate(
-                anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+                anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
             )
     }
 

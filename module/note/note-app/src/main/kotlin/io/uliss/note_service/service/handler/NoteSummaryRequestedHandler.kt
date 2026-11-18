@@ -10,11 +10,13 @@ import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.util.ChatPrompts
+import io.uliss.note_service.util.SummaryChainStep
 import io.uliss.note_service.util.SummaryRetrievalQuery
 import io.uliss.note_service.util.TitleNormalizer
 import org.springframework.ai.chat.client.ChatClient
@@ -32,6 +34,7 @@ class NoteSummaryRequestedHandler(
     private val noteHierarchyService: NoteHierarchyService,
     private val userProfileService: UserProfileService,
     private val properties: NoteSummaryProperties,
+    private val tailProperties: ChatTailProperties,
 ) : OutboxHandler {
 
     private val log = AppLogger.of(NoteSummaryRequestedHandler::class)
@@ -79,6 +82,11 @@ class NoteSummaryRequestedHandler(
             val content = checkNotNull(draft) { "summary model returned no draft" }.toNoteContent()
             TitleNormalizer.normalizeNoteTitle(draft.title, content) to content
         }
-        noteSummaryService.completeChatSummary(payload.userId, payload.noteId, title, content)
+        // read before completing, so the next step is queued in the same transaction
+        val next = SummaryChainStep.next(
+            chatService, payload.userId, payload.chatId, payload.throughMessageId, payload.targetMessageId,
+            tailProperties.summaryInputChars,
+        )
+        noteSummaryService.completeChatSummary(payload.userId, payload.noteId, title, content, next)
     }
 }

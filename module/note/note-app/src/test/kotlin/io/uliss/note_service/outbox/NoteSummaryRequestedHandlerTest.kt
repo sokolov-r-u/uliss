@@ -8,6 +8,7 @@ import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
 import io.uliss.note_service.dto.internal.UserBackground
+import io.uliss.note_service.dto.internal.SummaryChunk
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -19,6 +20,7 @@ import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryRequestedPayload
 import io.uliss.note_service.repository.RetrievedChunk
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
@@ -65,6 +67,7 @@ class NoteSummaryRequestedHandlerTest {
         hierarchyService,
         profileService,
         properties,
+        ChatTailProperties(softChars = 100, hardChars = 150, summaryInputChars = 200),
     )
 
     init {
@@ -213,6 +216,21 @@ class NoteSummaryRequestedHandlerTest {
     }
 
     @Test
+    fun `a first chunk passes the next chunk up to its target on`() {
+        val target = UUID.randomUUID()
+        val next = UUID.randomUUID()
+        val payload = payload().copy(targetMessageId = target)
+        Mockito.`when`(chatService.findSummaryChunkEnd(payload.userId, payload.chatId, payload.throughMessageId, target, 200))
+            .thenReturn(next)
+
+        handleWithDraft(payload, NoteDraft("Model title", "Summary", null))
+
+        Mockito.verify(noteService).completeChatSummary(
+            payload.userId, payload.noteId, "Model title", "Summary", SummaryChunk(next, target),
+        )
+    }
+
+    @Test
     fun `a note without a user title asks for a title and does not mention one in the prompt`() {
         val payload = payload()
 
@@ -286,7 +304,7 @@ class NoteSummaryRequestedHandlerTest {
             handleWithDraft(payload, null)
         }
         // nothing is stored from a failed draft; the readiness check before the model is the only call
-        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue())
+        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue(), anyValue())
     }
 
     @Test
@@ -338,7 +356,7 @@ class NoteSummaryRequestedHandlerTest {
         assertFailsWith<IllegalStateException> {
             handleWithDraft(payload, NoteDraft("Title", "   ", listOf("Orphan secondary thought")))
         }
-        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue())
+        Mockito.verify(noteService, Mockito.never()).completeChatSummary(anyValue(), anyValue(), anyValue(), anyValue(), anyValue())
     }
 
     private fun stubRequest(payload: NoteSummaryRequestedPayload): ChatClient.ChatClientRequestSpec {

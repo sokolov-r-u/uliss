@@ -867,3 +867,12 @@ reason, and the side nav says "Your chats and notes did not load" when only a pi
   makes up the note when there are none. A passage pasted only to ask about it stays out when the user's conclusion
   covers it. Touches the create, update and branch prompts and the user profile, which must not read kept material
   as the user's views. Design and check it on real chats (the «Робби Уильямс» chat is one) before changing prompts.
+
+## A main note at the 100 000-character limit keeps its chat blocked (`note`, `web`)
+
+- A Summarize chain step (and a plain Update) that would push the note past `NoteContentNormalizer.MAX_CHARS` fails
+  as `FAILED`; the chain stops and note-service logs WARN `summary chunk does not fit the note limit`. A chat whose
+  tail is past `note.assistant.tail.hard-chars` then stays blocked: every new Summarize fails the same way, and the UI
+  does not say why. The only way out is to shorten or delete the note by hand. Accepted as rare (hundreds of pages of
+  notes, task `docs/tasks/2026-11-17-chat-tail-limit.md`, 2026-11-18). Options when it matters: start a new main note
+  from the chunk that does not fit, or tell the user in the banner.

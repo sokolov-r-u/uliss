@@ -1,10 +1,12 @@
 package io.uliss.note_service.service.facade
 
 import io.uliss.exception.common.BadRequestException
+import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ChatContext
 import io.uliss.note_service.dto.internal.AssistantStreamEvent
 import io.uliss.note_service.dto.internal.ChatMessageCursorPage
 import io.uliss.note_service.dto.internal.ChatTailState
+import io.uliss.note_service.dto.internal.SummaryChunk
 import io.uliss.note_service.dto.internal.KeysetPage
 import io.uliss.note_service.dto.internal.ListCursor
 import io.uliss.note_service.dto.internal.ChatWithNoteCount
@@ -45,6 +47,7 @@ class ChatFacade(
     private val chatTitleService: ChatTitleService,
     private val tailProperties: ChatTailProperties,
 ) {
+    private val log = AppLogger.of(ChatFacade::class)
 
     fun getChats(userId: UUID, cursor: ListCursor?, limit: Int): KeysetPage<ChatWithNoteCount> {
         val page = chatService.getChats(userId, cursor, limit)
@@ -195,28 +198,46 @@ class ChatFacade(
                 if (current != null) {
                     throw SummaryNoteConflictException("chat id=$chatId already has summary note id=${current.noteId}")
                 }
+                val chunk = firstChunk(userId, chatId, null, latestMessageId)
                 noteSummaryService.requestChatSummary(
-                    userId, chatId, latestMessageId, idempotencyKey, constellationId, parentNoteId, userTitle, userIcon,
+                    userId, chatId, chunk.throughMessageId, idempotencyKey, constellationId, parentNoteId, userTitle,
+                    userIcon, chunk.targetMessageId,
                 )
             }
 
             SummaryMode.UPDATE -> {
                 val main = requireMainNoteWithNewMessages(chatId, current, targetNoteId, latestMessageId)
+                val chunk = firstChunk(userId, chatId, main.throughMessageId, latestMessageId)
                 noteSummaryService.requestChatSummaryUpdate(
-                    userId, chatId, main.noteId, main.throughMessageId, latestMessageId, idempotencyKey,
+                    userId, chatId, main.noteId, main.throughMessageId, chunk.throughMessageId, idempotencyKey,
+                    chunk.targetMessageId,
                 )
             }
 
             SummaryMode.BRANCH -> {
                 val main = requireMainNoteWithNewMessages(chatId, current, targetNoteId, latestMessageId)
+                val chunk = firstChunk(userId, chatId, main.throughMessageId, latestMessageId)
                 noteSummaryService.requestChatSummaryBranch(
-                    userId, chatId, main.noteId, main.throughMessageId, latestMessageId, idempotencyKey,
-                    constellationId, parentNoteId, userTitle, userIcon,
+                    userId, chatId, main.noteId, main.throughMessageId, chunk.throughMessageId, idempotencyKey,
+                    constellationId, parentNoteId, userTitle, userIcon, chunk.targetMessageId,
                 )
             }
         }
         chatService.touchActivity(userId, chatId)
         return note
+    }
+
+    /**
+     * The first step of a Summarize of the messages after [afterMessageId] through [latestMessageId]: all of them when
+     * they fit one call, else the first chunk, with [latestMessageId] as the target the chain continues to.
+     */
+    private fun firstChunk(userId: UUID, chatId: UUID, afterMessageId: UUID?, latestMessageId: UUID): SummaryChunk {
+        val end = chatService.findSummaryChunkEnd(
+            userId, chatId, afterMessageId, latestMessageId, tailProperties.summaryInputChars,
+        ) ?: latestMessageId
+        if (end == latestMessageId) return SummaryChunk(end, null)
+        log.info("chat=$chatId summary chunk through=$end target=$latestMessageId", "firstChunk")
+        return SummaryChunk(end, latestMessageId)
     }
 
     /** The chat's main note when it is [targetNoteId] and the chat has messages after its boundary. */

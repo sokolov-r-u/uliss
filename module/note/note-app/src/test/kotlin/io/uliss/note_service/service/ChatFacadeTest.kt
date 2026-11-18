@@ -398,7 +398,7 @@ class ChatFacadeTest {
             chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId, UUID.randomUUID())
         }
         Mockito.verify(noteSummaryService, Mockito.never()).requestChatSummaryUpdate(
-            anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+            anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
         )
         Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }
