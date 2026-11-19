@@ -19,7 +19,10 @@ import io.uliss.note_service.repository.ChatRepository
 import io.uliss.note_service.repository.ChatNoteRepository
 import io.uliss.note_service.repository.NoteRepository
 import io.uliss.note_service.repository.OutboxEventRepository
+import io.uliss.note_service.service.ChatService
 import io.uliss.note_service.service.NoteSummaryService
+import io.uliss.note_service.service.handler.NoteSummaryUpdateTerminalFailureHandler
+import io.uliss.note_service.util.SummaryChainStep
 import io.uliss.note_service.util.NoteContentNormalizer
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -28,6 +31,7 @@ import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequ
 import org.springframework.test.context.TestPropertySource
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.ResultActionsDsl
+import org.springframework.test.web.servlet.get
 import org.springframework.test.web.servlet.post
 import tools.jackson.databind.ObjectMapper
 import java.time.LocalDate
@@ -70,7 +74,17 @@ class SummaryChainIntegrationTest : NoteIntegrationTest() {
     @Autowired
     lateinit var chatNoteRepository: ChatNoteRepository
 
+    @Autowired
+    lateinit var chatService: ChatService
+
+    @Autowired
+    lateinit var updateFailureHandler: NoteSummaryUpdateTerminalFailureHandler
+
     private val userId = UUID.randomUUID()
+
+    private companion object {
+        const val LIMIT = 200
+    }
 
     @Test
     fun `a first summary of a chat longer than one call asks only for the first chunk and keeps the latest message as its target`() {
@@ -190,6 +204,107 @@ class SummaryChainIntegrationTest : NoteIntegrationTest() {
         assertEquals(1, payloads<NoteSummaryUpdateRequestedPayload>(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, chat.id).size)
         assertEquals(boundary.id, noteSummaryService.findCurrentChatSummary(chat.id)?.throughMessageId)
         assertFalse(noteSummaryService.hasPendingSummary(chat.id))
+    }
+
+    @Test
+    fun `every step of a chain reads at most one call's input and together they cover the tail through the target`() {
+        val chat = chatRepository.save(ChatEntity(userId, "Coverage"))
+        val boundary = message(chat, 10)
+        val messages = (1..7).map { message(chat, 70) }
+        val read = mutableListOf<UUID>()
+        var after = boundary.id
+        var chunk = SummaryChainStep.next(chatService, userId, chat.id, boundary.id, messages.last().id, LIMIT)
+
+        while (chunk != null) {
+            val input = chatService.getSummaryUpdateContext(userId, chat.id, after, chunk.throughMessageId).messages
+            assertTrue(input.sumOf { it.content.length } <= LIMIT, "a step reads ${input.size} messages over the limit")
+            read += input.map { it.id }
+            after = chunk.throughMessageId
+            chunk = SummaryChainStep.next(chatService, userId, chat.id, after, chunk.targetMessageId, LIMIT)
+        }
+
+        assertEquals(messages.map { it.id }, read)
+    }
+
+    @Test
+    fun `a chain whose target a retry removed ends on the last message before it, and an old step without a target is one step`() {
+        val chat = chatRepository.save(ChatEntity(userId, "Retried"))
+        val messages = (1..5).map { message(chat, 80) }
+        chatMessageRepository.delete(messages.last())
+
+        assertEquals(
+            SummaryChunk(messages[3].id, messages.last().id),
+            SummaryChainStep.next(chatService, userId, chat.id, messages[1].id, messages.last().id, LIMIT),
+        )
+        assertEquals(null, SummaryChainStep.next(chatService, userId, chat.id, messages[3].id, messages.last().id, LIMIT))
+        assertEquals(null, SummaryChainStep.next(chatService, userId, chat.id, messages[1].id, null, LIMIT))
+    }
+
+    @Test
+    fun `a new Summarize while a chain step is pending is refused`() {
+        val chat = chatRepository.save(ChatEntity(userId, "Busy"))
+        val messages = (1..6).map { message(chat, 80) }
+        val noteId = noteIdOf(summarize(chat.id, """{"mode":"CREATE"}"""))
+        noteSummaryService.completeChatSummary(userId, noteId, "Busy", "first", SummaryChunk(messages[3].id, messages.last().id))
+
+        summarize(chat.id, """{"mode":"UPDATE","targetNoteId":"$noteId"}""").andExpect { status { isConflict() } }
+    }
+
+    @Test
+    fun `a redelivered first step queues no second chain step`() {
+        val chat = chatRepository.save(ChatEntity(userId, "Redelivered"))
+        val messages = (1..6).map { message(chat, 80) }
+        val noteId = noteIdOf(summarize(chat.id, """{"mode":"CREATE"}"""))
+        val next = SummaryChunk(messages[3].id, messages.last().id)
+
+        assertTrue(noteSummaryService.completeChatSummary(userId, noteId, "Redelivered", "first", next))
+        assertFalse(noteSummaryService.completeChatSummary(userId, noteId, "Redelivered", "again", next))
+
+        assertEquals(1, payloads<NoteSummaryUpdateRequestedPayload>(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, chat.id).size)
+    }
+
+    @Test
+    fun `a step failed mid-chain keeps the written chunks, and the next Summarize continues from the boundary`() {
+        val chat = chatRepository.save(ChatEntity(userId, "Failed"))
+        val boundary = message(chat, 10)
+        val main = mainNote(chat, boundary.id)
+        val messages = (1..6).map { message(chat, 80) }
+        summarize(chat.id, """{"mode":"UPDATE","targetNoteId":"$main"}""").andExpect { status { isAccepted() } }
+        val first = payloads<NoteSummaryUpdateRequestedPayload>(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, chat.id).single()
+        assertTrue(apply(first, "first chunk", SummaryChunk(messages[3].id, messages.last().id)))
+        val failed = outboxEventRepository.findAll().single {
+            it.type == OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED && it.payload.contains(chat.id.toString()) &&
+                !it.payload.contains(first.idempotencyKey.toString())
+        }
+
+        updateFailureHandler.handleTerminalFailure(failed)
+
+        assertFalse(noteSummaryService.hasPendingSummary(chat.id))
+        assertEquals(messages[1].id, noteSummaryService.findCurrentChatSummary(chat.id)?.throughMessageId)
+        assertTrue(noteRepository.findById(main).orElseThrow().content.orEmpty().endsWith("first chunk"))
+        summarize(chat.id, """{"mode":"UPDATE","targetNoteId":"$main"}""").andExpect { status { isAccepted() } }
+        val resumed = payloads<NoteSummaryUpdateRequestedPayload>(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, chat.id)
+            .single { it.afterMessageId == messages[1].id && it.idempotencyKey.toString() !in failed.payload }
+        assertEquals(messages[3].id, resumed.throughMessageId)
+    }
+
+    @Test
+    fun `messages written after the target stay the chat's tail once the chain reaches it`() {
+        val chat = chatRepository.save(ChatEntity(userId, "After"))
+        val boundary = message(chat, 10)
+        val main = mainNote(chat, boundary.id)
+        val messages = (1..2).map { message(chat, 80) }
+        summarize(chat.id, """{"mode":"UPDATE","targetNoteId":"$main"}""").andExpect { status { isAccepted() } }
+        val step = payloads<NoteSummaryUpdateRequestedPayload>(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, chat.id).single()
+        message(chat, 30)
+
+        // the whole tail fits one call: one step, no chain
+        assertEquals(messages.last().id, step.throughMessageId)
+        assertTrue(apply(step, "all of it", null))
+
+        mockMvc.get("/note/chats/${chat.id}/messages") {
+            with(jwt().jwt { it.claim("userId", userId.toString()) })
+        }.andExpect { jsonPath("$.tail.chars") { value(30) } }
     }
 
     private fun apply(payload: NoteSummaryUpdateRequestedPayload, addendum: String?, next: SummaryChunk?): Boolean =
