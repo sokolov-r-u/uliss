@@ -55,7 +55,7 @@ vi.mock('./streamChatReply', () => ({
     streamRetriedReply: vi.fn(),
     cancelChatTurn: vi.fn(),
     ChatStreamHttpError: class ChatStreamHttpError extends Error {
-        constructor(public readonly status: number) {
+        constructor(public readonly status: number, public readonly code?: string) {
             super(`chat stream request failed (${status})`)
         }
     },
@@ -1612,5 +1612,106 @@ describe('ChatPage summary place picker', () => {
         // the typed name and place must not become a summary of the whole chat
         await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
         expect(mockedSummary).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe('ChatPage unsummarized tail limit', () => {
+    const history: ChatMessage[] = [
+        {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
+        {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
+    ]
+    const limits = {softChars: 2000, hardChars: 3000, summaryInputChars: 4000}
+
+    function pageWithTail(chars: number, summarizing = false): ChatMessagePage {
+        return {...messagePage(history), tail: {chars, ...limits, summarizing}}
+    }
+
+    beforeEach(() => {
+        mockedGetMessages.mockReset()
+        mockedSummary.mockReset()
+        mockedStream.mockReset()
+        mockedInitialStream.mockReset()
+        mockedRetry.mockReset()
+        vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
+        sessionStorage.clear()
+        mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
+    })
+
+    it('suggests saving a long chat under Summarize and still lets the user write', async () => {
+        mockedGetMessages.mockResolvedValue(pageWithTail(2500))
+        renderPage()
+
+        expect(await screen.findByText('This chat is getting long — save it to a note')).toBeInTheDocument()
+        expect(screen.getByRole('button', {name: 'Summarize'})).toBeEnabled()
+        expect(screen.getByRole('textbox', {name: 'Message'})).toBeInTheDocument()
+    })
+
+    it('says nothing about the length of a chat under the soft limit', async () => {
+        mockedGetMessages.mockResolvedValue(pageWithTail(2000))
+        renderPage()
+
+        expect(await screen.findByRole('textbox', {name: 'Message'})).toBeInTheDocument()
+        expect(screen.queryByText(/getting long/)).not.toBeInTheDocument()
+    })
+
+    it('replaces the composer with a banner past the hard limit, whose action opens Summarize', async () => {
+        mockedGetMessages.mockResolvedValue(pageWithTail(3001))
+        renderPage()
+
+        const banner = await screen.findByRole('region', {name: 'This chat is too long. Save it to a note to continue'})
+        expect(screen.queryByRole('textbox', {name: 'Message'})).not.toBeInTheDocument()
+
+        await userEvent.click(within(banner).getByRole('button', {name: 'Summarize'}))
+        expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
+    })
+
+    it('keeps a refused message in the banner and gives it back once the summary shrinks the tail', async () => {
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            mockedGetMessages.mockResolvedValue(pageWithTail(2900))
+            mockedStream.mockRejectedValue(new ChatStreamHttpError(409, 'CHAT_TAIL_LIMIT'))
+            renderPage()
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'One more thing')
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+            const banner = await screen.findByRole('region', {name: /too long/})
+            expect(within(banner).getByText('Not sent')).toBeInTheDocument()
+            expect(within(banner).getByText('«One more thing»')).toBeInTheDocument()
+            // the block is explained by the banner, not by a generic rejection notice
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+            await userEvent.click(within(banner).getByRole('button', {name: 'Summarize'}))
+            await userEvent.click(summarizeInDialog())
+            expect(await within(banner).findByText('saving the chat to a note…')).toBeInTheDocument()
+            // the action is hidden, not removed, so the banner keeps its height
+            expect(within(banner).queryByRole('button', {name: 'Summarize'})).not.toBeInTheDocument()
+            expect(banner.querySelector('.chat-tail-banner-actions button')).toBeDisabled()
+
+            mockedGetMessages.mockResolvedValue({...pageWithTail(0), summary: {
+                throughMessageId: 'a-1', noteId: 'note-1', noteTitle: 'Trip',
+            }})
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000)
+            })
+
+            const input = await screen.findByRole('textbox', {name: 'Message'})
+            expect(input).toHaveValue('One more thing')
+            expect(input).toHaveFocus()
+            expect(screen.queryByRole('region', {name: /too long/})).not.toBeInTheDocument()
+            expect(mockedGetMessages).toHaveBeenLastCalledWith('chat-1', expect.objectContaining({limit: 1}))
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('stays blocked after a refusal while the tail has not shrunk', async () => {
+        mockedGetMessages.mockResolvedValue(pageWithTail(2900))
+        mockedStream.mockRejectedValue(new ChatStreamHttpError(409, 'CHAT_TAIL_LIMIT'))
+        renderPage()
+        await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Long text')
+        await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+
+        expect(await screen.findByRole('region', {name: /too long/})).toBeInTheDocument()
+        expect(mockedStream).toHaveBeenCalledOnce()
     })
 })

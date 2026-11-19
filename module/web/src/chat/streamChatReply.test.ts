@@ -50,6 +50,16 @@ describe('streamAssistantReply', () => {
         })
     })
 
+    it('carries the server error code of a refused message, and none for a body without one', async () => {
+        mockedFetch.mockResolvedValueOnce(new Response(JSON.stringify({code: 'CHAT_TAIL_LIMIT'}), {status: 409}))
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {onAppendText: vi.fn(), onTurnId: vi.fn()}))
+            .rejects.toMatchObject({status: 409, code: 'CHAT_TAIL_LIMIT'})
+
+        mockedFetch.mockResolvedValueOnce(new Response('busy', {status: 409}))
+        await expect(streamAssistantReply('chat-1', 'Hi', 'key-1', {onAppendText: vi.fn(), onTurnId: vi.fn()}))
+            .rejects.toMatchObject({status: 409, code: undefined})
+    })
+
     it('reports assistant activity and ignores activity values it does not know', async () => {
         mockedFetch.mockResolvedValue(sseResponse([
             'event:activity\ndata:SEARCHING_NOTES\n\n',
