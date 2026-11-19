@@ -433,3 +433,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   lifetime (90 days at most per sign-in). Tokens of the old `sessionStorage` are not migrated: one sign-in after the
   deploy. A BFF with an HttpOnly refresh cookie remains the stronger option.
 - **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, block 1.
+
+## 2026-11-19 — Shared tokens: another user's tokens, sign-out order, refresh timeout
+
+- **Context:** the code review of the shared-token change found that a tab could send another user's token stored by
+  another tab before its reload, and that the sign-out listener wiped the shared tokens. Refines the entry above.
+- **Decision:** a tab never uses tokens whose `sub` differs from its user mark: it goes to `/` without touching them.
+  The sign-out listener drops only the tab's chat state; the signing-out tab broadcasts before it revokes. `/callback`
+  leaves the chat state to `claimChatState`. A refresh that timed out is repeated once like any network failure, so the
+  lock may be held for twice the 15-second timeout: a later refresh with a token the lost answer rotated would be taken
+  for reuse and end the session. Without `AbortSignal.timeout` a timer aborts the request.
+- **Consequences:** accepted risks: a second 401 after a refresh signs every tab out (the session is shared); a
+  throttled background tab may hold the lock longer.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, code review.

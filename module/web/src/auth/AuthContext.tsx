@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { adoptStoredTokens, clearSession, getTokens, onOtherUserSignedIn } from './tokenStore'
+import { adoptStoredTokens, clearSession, clearTabChatState, getTokens, onOtherUserSignedIn } from './tokenStore'
 import { login as startLogin, logout as revokeAndClear } from './authApi'
 import { announceSignOut, onSignOutElsewhere } from './signOutBroadcast'
 
@@ -17,8 +17,10 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  // before any screen mounts: a tab restored with another user's chat state drops it
-  const [isAuthenticated, setIsAuthenticated] = useState(adoptStoredTokens)
+  // Before any screen mounts, a tab restored with another user's chat state drops it. On /callback the sign-in decides
+  // (`claimChatState`): the stored tokens may be another user's while this tab comes back as its own.
+  const [isAuthenticated, setIsAuthenticated] = useState(() =>
+    window.location.pathname.startsWith('/callback') ? getTokens() != null : adoptStoredTokens())
   // read by the sign-out listener, which outlives renders
   const signedIn = useRef(isAuthenticated)
   useEffect(() => {
@@ -29,18 +31,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // The auth server keeps its own browser session after a revocation: the whole page goes to its end-session endpoint,
   // which comes back to /signed-out. React state is left alone so RequireAuth does not start a new login meanwhile.
+  // The other tabs hear first, so none of them starts a silent sign-in while this one revokes.
   const logout = useCallback(async () => {
     const tokens = getTokens()
+    announceSignOut()
     const endSession = await revokeAndClear(tokens?.refreshToken ?? null, tokens?.idToken ?? null)
     clearSession()
-    announceSignOut()
     window.location.assign(endSession ?? '/signed-out')
   }, [])
 
-  // Signed out in another tab: the shared tokens are already gone, so this tab leaves if it was signed in itself. Its
-  // chat state goes too, including what a session that ended on its own kept for that user's return.
+  // Signed out in another tab: that tab removes the shared tokens, so a late message (a frozen tab resuming after a new
+  // sign-in) cannot wipe a newer session. This tab drops its chat state, including what a session that ended on its own
+  // kept for that user's return, and leaves if it was signed in itself.
   useEffect(() => onSignOutElsewhere(() => {
-    clearSession()
+    clearTabChatState()
     if (signedIn.current) window.location.assign('/signed-out')
   }), [])
 

@@ -4,7 +4,14 @@
  * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
-import {endSessionKeepingChatState, getTokens, isExpired, replaceTokens, type Tokens} from './tokenStore'
+import {
+  belongsToAnotherUser,
+  endSessionKeepingChatState,
+  getTokens,
+  isExpired,
+  replaceTokens,
+  type Tokens,
+} from './tokenStore'
 import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {readJwtClaims} from './jwtClaims'
 
@@ -55,12 +62,30 @@ function signInAgain(): never {
   throw new AuthRequiredError()
 }
 
+/**
+ * Another user signed in in another tab: their tokens are not this tab's to use or to clear. The tab starts over and
+ * its listener for that sign-in drops its chat state.
+ */
+function anotherUsersSession(): never {
+  window.location.assign('/')
+  throw new AuthRequiredError()
+}
+
+/** The tokens this tab may use: none when they are gone, and never those of another user. */
+function tabTokens(): Tokens | null {
+  const tokens = getTokens()
+  if (tokens && belongsToAnotherUser(tokens)) anotherUsersSession()
+  return tokens
+}
+
 /** Pause before repeating a refresh that failed on the network or server side. */
 export const REFRESH_RETRY_DELAY_MS = 1_000
 
 /**
  * A failed refresh may still have rotated the token on the auth server (its answer was lost); the auth server accepts
- * a repeat with the old token shortly after, so one retry recovers instead of showing an error.
+ * a repeat with the old token shortly after, so one retry recovers instead of showing an error. A timeout is repeated
+ * too: the lock is then held for up to twice the refresh timeout, but a later refresh with that old token would be
+ * taken for a stolen one and end the session.
  */
 async function refreshWithRetry(refreshToken: string, idToken: string | null): Promise<Tokens> {
   try {
@@ -90,7 +115,7 @@ function underRefreshLock<T>(task: () => Promise<T>): Promise<T> {
  */
 function runRefresh(rejected: string | undefined, force: boolean): Promise<Tokens> {
   return underRefreshLock(async () => {
-    const tokens = getTokens()
+    const tokens = tabTokens()
     if (!tokens) signInAgain()
     if (!force && tokens.accessToken !== rejected && !isExpired(tokens)) return tokens
     if (!tokens.refreshToken) signInAgain()
@@ -104,6 +129,7 @@ function runRefresh(rejected: string | undefined, force: boolean): Promise<Token
     // a sign-out (or another user's sign-in) in another tab meanwhile wins over this refresh
     const stored = replaceTokens(tokens.refreshToken, rotated)
     if (!stored) signInAgain()
+    if (belongsToAnotherUser(stored)) anotherUsersSession()
     return stored
   })
 }
@@ -121,7 +147,7 @@ function refreshOnce(rejected: string | undefined, force = false): Promise<Token
  */
 export async function getAccessToken(rejected?: string): Promise<string> {
   if (refreshing) return (await refreshing).accessToken
-  const tokens = getTokens()
+  const tokens = tabTokens()
   if (!tokens) signInAgain()
   if (tokens.accessToken !== rejected && !isExpired(tokens)) return tokens.accessToken
   return (await refreshOnce(rejected)).accessToken
@@ -133,7 +159,7 @@ export async function getAccessToken(rejected?: string): Promise<string> {
  */
 export async function refreshSession(): Promise<void> {
   // a refresh already in flight may have been issued before the server-side change
-  if (refreshing) await refreshing.catch(() => undefined)
+  while (refreshing) await refreshing.catch(() => undefined)
   await refreshOnce(undefined, true)
 }
 

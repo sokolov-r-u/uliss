@@ -67,6 +67,27 @@ describe('refreshTokens timeout', () => {
     })
 })
 
+describe('refreshTokens timeout without AbortSignal.timeout', () => {
+    const original = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout')
+    afterEach(() => {
+        if (original) Object.defineProperty(AbortSignal, 'timeout', original)
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
+
+    it('aborts a hanging refresh with its own timer in browsers that lack AbortSignal.timeout', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        Object.defineProperty(AbortSignal, 'timeout', {configurable: true, value: undefined})
+        vi.stubGlobal('fetch', vi.fn((_path: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })))
+
+        const pending = expect(refreshTokens('refresh-1')).rejects.toMatchObject({name: 'TimeoutError'})
+        await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+        await pending
+    })
+})
+
 describe('exchangeCode', () => {
     afterEach(() => vi.unstubAllGlobals())
 

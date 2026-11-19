@@ -83,6 +83,17 @@ export function onOtherUserSignedIn(onOtherUser: () => void): () => void {
   return () => window.removeEventListener('storage', listener)
 }
 
+/** Whether [tokens] belong to another user than the one this tab signed in as; such a tab must not use them. */
+export function belongsToAnotherUser(tokens: Tokens): boolean {
+  const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
+  return owner != null && owner !== subjectOf(tokens.accessToken)
+}
+
+/** Another tab signed out: it removes the shared tokens itself, this tab drops only its own chat state. */
+export function clearTabChatState(): void {
+  clearChatState()
+}
+
 function markTabUser(user: string | null): void {
   const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
   if (owner && owner !== user) clearChatState()

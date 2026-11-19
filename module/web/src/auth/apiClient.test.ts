@@ -330,6 +330,8 @@ describe('onboarding required signal', () => {
     })
 })
 
+const jwtOf = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+
 function deferred() {
     let resolve: () => void = () => undefined
     const promise = new Promise<void>((done) => {
@@ -413,17 +415,36 @@ describe('refresh across tabs', () => {
         expect(login).toHaveBeenCalledOnce()
     })
 
-    it("keeps another user's sign-in that happened during the refresh", async () => {
-        setTokens(expired)
-        const otherUser: Tokens = {accessToken: 'access-other', refreshToken: 'refresh-other', expiresAt: Date.now() + 60_000}
+    it("neither uses nor overwrites another user's sign-in that happened during the refresh", async () => {
+        const assign = vi.fn()
+        vi.stubGlobal('location', {...window.location, assign})
+        setTokens({...expired, accessToken: jwtOf('user-1')})
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        const otherUser: Tokens = {accessToken: jwtOf('user-2'), refreshToken: 'refresh-other', expiresAt: Date.now() + 60_000}
         vi.mocked(refreshTokens).mockImplementation(async () => {
             setTokens(otherUser)
             return fresh
         })
 
-        await expect(getAccessToken()).resolves.toBe('access-other')
+        await expect(getAccessToken()).rejects.toBeInstanceOf(AuthRequiredError)
 
         expect(getTokens()).toEqual(otherUser)
+        expect(assign).toHaveBeenCalledWith('/')
+        expect(login).not.toHaveBeenCalled()
+    })
+
+    it("never sends another user's stored token from this tab", async () => {
+        const assign = vi.fn()
+        vi.stubGlobal('location', {...window.location, assign})
+        vi.stubGlobal('fetch', vi.fn())
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        setTokens({...fresh, accessToken: jwtOf('user-2')})
+
+        await expect(authFetch('/note/chats')).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(fetch).not.toHaveBeenCalled()
+        expect(assign).toHaveBeenCalledWith('/')
+        expect(getTokens()?.accessToken).toBe(jwtOf('user-2'))
     })
 
     it('keeps the tokens and frees the lock when a refresh times out', async () => {

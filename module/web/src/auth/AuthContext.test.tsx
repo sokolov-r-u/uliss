@@ -30,6 +30,40 @@ describe('AuthProvider', () => {
     })
     afterEach(() => vi.unstubAllGlobals())
 
+    it('tells the other tabs before revoking, so none of them signs in again meanwhile', async () => {
+        const tab = otherTab()
+        const heardBeforeRevoke = new Promise<boolean>((resolve) => {
+            vi.mocked(revokeAndClear).mockImplementation(async () => {
+                // BroadcastChannel delivers asynchronously: give the message a turn to arrive
+                await new Promise((done) => setTimeout(done, 20))
+                resolve(heard)
+                return null
+            })
+        })
+        let heard = false
+        tab.onmessage = () => {
+            heard = true
+        }
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        await userEvent.click(screen.getByRole('button', {name: 'Sign out'}))
+
+        expect(await heardBeforeRevoke).toBe(true)
+        tab.close()
+    })
+
+    it('leaves the stored tokens to the sign-in on the callback page', () => {
+        const jwt = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+        setTokens({accessToken: jwt('user-2'), refreshToken: 'r', expiresAt: Date.now() + 60_000})
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
+        vi.stubGlobal('location', {...window.location, assign, pathname: '/callback'})
+
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:c1')).toBe('{"text":"hello"}')
+    })
+
     it('signs out through the end-session address and tells the other tabs', async () => {
         vi.mocked(revokeAndClear).mockResolvedValue('https://auth/connect/logout?id_token_hint=i')
         const tab = otherTab()
@@ -54,14 +88,15 @@ describe('AuthProvider', () => {
         expect(assign).toHaveBeenCalledWith('/signed-out')
     })
 
-    it('drops its own tokens and leaves when another tab signs out', async () => {
+    it("leaves when another tab signs out, leaving the shared tokens to that tab", async () => {
         render(<AuthProvider><SignOut/></AuthProvider>)
         const tab = otherTab()
 
         act(() => tab.postMessage('signed-out'))
 
         await waitFor(() => expect(assign).toHaveBeenCalledWith('/signed-out'))
-        expect(getTokens()).toBeNull()
+        // a late message from a tab that resumed must not wipe a session signed in since
+        expect(getTokens()).not.toBeNull()
         tab.close()
     })
 

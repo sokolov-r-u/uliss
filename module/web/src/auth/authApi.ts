@@ -31,6 +31,14 @@ function toTokens(json: TokenResponse, previousIdToken: string | null): Tokens {
 /** How long a refresh may take: every tab waits for it, so a hung one must not hold them all. */
 export const REFRESH_TIMEOUT_MS = 15_000
 
+/** `AbortSignal.timeout` came to browsers later than Web Locks; without it a timer aborts the same way. */
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms)
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+  return controller.signal
+}
+
 /**
  * Hand control to the service login endpoint via full-page navigation. The service drives the
  * OAuth redirects (→ Authorization Server → login page → back to `/callback`). We remember where
@@ -133,7 +141,7 @@ export async function refreshTokens(refreshToken: string, idToken: string | null
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
-    signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
+    signal: timeoutSignal(REFRESH_TIMEOUT_MS),
   })
   if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
   if (!res.ok) throw new RefreshFailedError(res.status)
