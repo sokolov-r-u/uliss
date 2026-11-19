@@ -1,5 +1,5 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { clearSession, getTokens } from './tokenStore'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { adoptStoredTokens, clearSession, getTokens, onOtherUserSignedIn } from './tokenStore'
 import { login as startLogin, logout as revokeAndClear } from './authApi'
 import { announceSignOut, onSignOutElsewhere } from './signOutBroadcast'
 
@@ -17,7 +17,13 @@ type AuthState = {
 const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => getTokens() != null)
+  // before any screen mounts: a tab restored with another user's chat state drops it
+  const [isAuthenticated, setIsAuthenticated] = useState(adoptStoredTokens)
+  // read by the sign-out listener, which outlives renders
+  const signedIn = useRef(isAuthenticated)
+  useEffect(() => {
+    signedIn.current = isAuthenticated
+  }, [isAuthenticated])
 
   const syncFromStore = useCallback(() => setIsAuthenticated(getTokens() != null), [])
 
@@ -31,13 +37,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     window.location.assign(endSession ?? '/signed-out')
   }, [])
 
-  // Signed out in another tab: this tab's tokens belong to the same user and go too, and so does chat state a session
-  // that ended on its own kept for that user's return.
+  // Signed out in another tab: the shared tokens are already gone, so this tab leaves if it was signed in itself. Its
+  // chat state goes too, including what a session that ended on its own kept for that user's return.
   useEffect(() => onSignOutElsewhere(() => {
-    const signedIn = getTokens() != null
     clearSession()
-    if (signedIn) window.location.assign('/signed-out')
+    if (signedIn.current) window.location.assign('/signed-out')
   }), [])
+
+  // Another user signed in in another tab: this tab's screens and chat state belong to the previous one.
+  useEffect(() => onOtherUserSignedIn(() => window.location.assign('/')), [])
 
   const value = useMemo<AuthState>(
     () => ({ isAuthenticated, login: startLogin, logout, syncFromStore }),

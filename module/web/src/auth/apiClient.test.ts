@@ -31,6 +31,7 @@ function okFor(token: string) {
 describe('authFetch refresh', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(login).mockReset()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             await new Promise((resolve) => setTimeout(resolve, 5))
@@ -192,6 +193,7 @@ describe('authFetch refresh', () => {
 describe('getAccessToken', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(login).mockReset()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             await new Promise((resolve) => setTimeout(resolve, 5))
@@ -225,6 +227,7 @@ describe('getAccessToken', () => {
 describe('refreshSession', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             setTokens({...fresh, accessToken: 'access-3'})
             return {...fresh, accessToken: 'access-3'}
@@ -265,7 +268,10 @@ describe('refreshSession', () => {
 })
 
 describe('tokenRequiresOnboarding', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     function jwt(payload: object): string {
         const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -290,6 +296,7 @@ describe('tokenRequiresOnboarding', () => {
 describe('onboarding required signal', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         setTokens(fresh)
     })
     afterEach(() => vi.unstubAllGlobals())

@@ -1,10 +1,10 @@
 /**
  * `getAccessToken` is the only owner of the session: it returns the stored access token or refreshes it,
- * with at most one refresh in flight. `authFetch` — the single entry point for calling the current
+ * with at most one refresh in flight per tab and, through a Web Lock, per browser. `authFetch` — the single entry point for calling the current
  * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
-import {endSessionKeepingChatState, getTokens, isExpired, type Tokens} from './tokenStore'
+import {endSessionKeepingChatState, getTokens, isExpired, replaceTokens, type Tokens} from './tokenStore'
 import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {readJwtClaims} from './jwtClaims'
 
@@ -42,8 +42,11 @@ function needsAuth(res: Response): boolean {
 }
 
 // One refresh at a time: refresh tokens rotate on every use, so a second refresh with the same token would fail
-// with invalid_grant and send the user to sign-in.
+// with invalid_grant and send the user to sign-in. Within a tab callers share `refreshing`; across the tabs, which share
+// the tokens, the refresh runs under a Web Lock.
 let refreshing: Promise<Tokens> | null = null
+
+const REFRESH_LOCK = 'uliss.token-refresh'
 
 function signInAgain(): never {
   // the session ended on its own: a turn the user just sent survives the sign-in if the same user comes back
@@ -75,18 +78,38 @@ function isWorthRepeating(error: unknown): boolean {
   return !(error instanceof RefreshFailedError) || error.status >= 500
 }
 
-async function runRefresh(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
-  if (!refreshToken) signInAgain()
-  try {
-    return await refreshWithRetry(refreshToken, idToken)
-  } catch (error) {
-    if (error instanceof RefreshRejectedError) signInAgain()
-    throw new SessionRefreshError(error)
-  }
+/** Runs [task] while no other tab of this browser refreshes; without Web Locks only this tab's refresh is shared. */
+function underRefreshLock<T>(task: () => Promise<T>): Promise<T> {
+  const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
+  return locks ? locks.request(REFRESH_LOCK, task) : task()
 }
 
-function refreshOnce(refreshToken: string | null, idToken: string | null): Promise<Tokens> {
-  refreshing ??= runRefresh(refreshToken, idToken).finally(() => {
+/**
+ * Refreshes unless another tab already did while this one waited for the lock: then its tokens are taken. [force]
+ * always refreshes, for claims that changed on the server after the stored token was issued.
+ */
+function runRefresh(rejected: string | undefined, force: boolean): Promise<Tokens> {
+  return underRefreshLock(async () => {
+    const tokens = getTokens()
+    if (!tokens) signInAgain()
+    if (!force && tokens.accessToken !== rejected && !isExpired(tokens)) return tokens
+    if (!tokens.refreshToken) signInAgain()
+    let rotated: Tokens
+    try {
+      rotated = await refreshWithRetry(tokens.refreshToken, tokens.idToken ?? null)
+    } catch (error) {
+      if (error instanceof RefreshRejectedError) signInAgain()
+      throw new SessionRefreshError(error)
+    }
+    // a sign-out (or another user's sign-in) in another tab meanwhile wins over this refresh
+    const stored = replaceTokens(tokens.refreshToken, rotated)
+    if (!stored) signInAgain()
+    return stored
+  })
+}
+
+function refreshOnce(rejected: string | undefined, force = false): Promise<Tokens> {
+  refreshing ??= runRefresh(rejected, force).finally(() => {
     refreshing = null
   })
   return refreshing
@@ -101,7 +124,7 @@ export async function getAccessToken(rejected?: string): Promise<string> {
   const tokens = getTokens()
   if (!tokens) signInAgain()
   if (tokens.accessToken !== rejected && !isExpired(tokens)) return tokens.accessToken
-  return (await refreshOnce(tokens.refreshToken, tokens.idToken ?? null)).accessToken
+  return (await refreshOnce(rejected)).accessToken
 }
 
 /**
@@ -111,7 +134,7 @@ export async function getAccessToken(rejected?: string): Promise<string> {
 export async function refreshSession(): Promise<void> {
   // a refresh already in flight may have been issued before the server-side change
   if (refreshing) await refreshing.catch(() => undefined)
-  await getAccessToken(getTokens()?.accessToken)
+  await refreshOnce(undefined, true)
 }
 
 /** Whether the current access token says blocking onboarding is pending; the services enforce it either way. */

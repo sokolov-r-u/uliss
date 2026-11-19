@@ -415,3 +415,21 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   is read whenever the dialog opens, also for an update that never needs it. A body text or error longer than two
   lines is cut with an ellipsis on these steps.
 - **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 4 and UI review 2026-11-13.
+
+## 2026-11-19 — Tokens in localStorage, shared by every tab
+
+- **Context:** tokens in `sessionStorage` vanished with the tab: closing it, opening a new tab, or Android Chrome
+  discarding it sent the user to sign in, while every refresh in a week of logs succeeded. This replaces the
+  "tokens stay in `sessionStorage` until a BFF change" invariant.
+- **Decision:** access and refresh tokens live in `localStorage`. Refresh tokens rotate and a reused one revokes the
+  whole authorization, so a refresh runs under the `uliss.token-refresh` Web Lock and re-reads the store inside it;
+  without Web Locks only the per-tab single flight remains (the auth server accepts one repeat within its grace).
+  Rotated tokens are stored by compare-and-set on the refresh token (`replaceTokens`); sign-out and the code exchange
+  take no lock. A forced refresh (new claims after onboarding) always refreshes under the lock. Refresh times out after
+  15 seconds. Chat drafts and pending turns stay per tab in `sessionStorage`, marked with the tab's user; another
+  user's chat state is wiped, and a tab that sees another user's tokens stored elsewhere reloads to `/`. Sign-out in
+  another tab is acted on by the in-memory signed-in state, since the shared tokens are already gone.
+- **Consequences:** an XSS can read the tokens as before, but the refresh token now stays on disk for up to its 30-day
+  lifetime (90 days at most per sign-in). Tokens of the old `sessionStorage` are not migrated: one sign-in after the
+  deploy. A BFF with an HttpOnly refresh cookie remains the stronger option.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, block 1.

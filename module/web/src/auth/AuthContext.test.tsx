@@ -23,6 +23,7 @@ describe('AuthProvider', () => {
 
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         assign = vi.fn()
         vi.stubGlobal('location', {...window.location, assign})
         setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 60_000, idToken: 'i'})
@@ -66,6 +67,7 @@ describe('AuthProvider', () => {
 
     it("stays put on another tab's sign-out when it holds no tokens", async () => {
         sessionStorage.clear()
+        localStorage.clear()
         render(<AuthProvider><SignOut/></AuthProvider>)
         const tab = otherTab()
         const probe = otherTab()
@@ -85,6 +87,7 @@ describe('AuthProvider', () => {
 
     it("drops chat state kept for the user's return when another tab signs out", async () => {
         sessionStorage.clear()
+        localStorage.clear()
         sessionStorage.setItem('uliss.chatOwner', 'user-1')
         sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
         render(<AuthProvider><SignOut/></AuthProvider>)

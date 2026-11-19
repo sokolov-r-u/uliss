@@ -9,7 +9,10 @@ function tokensOf(sub: string): Tokens {
 }
 
 describe('clearSession', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     it("drops the tokens and the user's unsent chat turns and summary requests, nothing else", () => {
         setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: 1, idToken: 'i'})
@@ -28,13 +31,16 @@ describe('clearSession', () => {
     })
 
     it('reads a corrupt entry as no tokens', () => {
-        sessionStorage.setItem('uliss.tokens', '{not json')
+        localStorage.setItem('uliss.tokens', '{not json')
         expect(getTokens()).toBeNull()
     })
 })
 
 describe('endSessionKeepingChatState', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     it('drops the tokens and marks the chat state with their user', () => {
         setTokens(tokensOf('user-1'))
@@ -59,25 +65,26 @@ describe('endSessionKeepingChatState', () => {
 describe('claimChatState', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         sessionStorage.setItem(TURN, 'hello')
     })
 
-    it('keeps the chat state for the user who left it', () => {
+    it('keeps the chat state for the user who left it and marks the tab as theirs', () => {
         sessionStorage.setItem(OWNER, 'user-1')
 
         claimChatState(tokensOf('user-1'))
 
         expect(sessionStorage.getItem(TURN)).toBe('hello')
-        expect(sessionStorage.getItem(OWNER)).toBeNull()
+        expect(sessionStorage.getItem(OWNER)).toBe('user-1')
     })
 
-    it('wipes the chat state when another user signs in', () => {
+    it('wipes the chat state when another user signs in and marks the tab as theirs', () => {
         sessionStorage.setItem(OWNER, 'user-1')
 
         claimChatState(tokensOf('user-2'))
 
         expect(sessionStorage.getItem(TURN)).toBeNull()
-        expect(sessionStorage.getItem(OWNER)).toBeNull()
+        expect(sessionStorage.getItem(OWNER)).toBe('user-2')
     })
 
     it('wipes chat state nobody claimed', () => {

@@ -37,14 +37,14 @@ describe('refreshTokens', () => {
         expect(error).not.toBeInstanceOf(RefreshRejectedError)
     })
 
-    it('stores and returns the rotated tokens', async () => {
+    it('returns the rotated tokens without storing them: the caller stores them only if no other tab changed the session', async () => {
         respondWith(200, JSON.stringify({access_token: 'a', refresh_token: 'r', expires_in: 900, token_type: 'Bearer'}))
 
         const tokens = await refreshTokens('refresh-1')
 
         expect(tokens.accessToken).toBe('a')
         expect(tokens.refreshToken).toBe('r')
-        expect(JSON.parse(sessionStorage.getItem('uliss.tokens') ?? 'null')?.accessToken).toBe('a')
+        expect(getTokens()).toBeNull()
     })
 })
 
@@ -89,7 +89,10 @@ function stubLocation(path: string) {
 }
 
 describe('login', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('remembers the current route and hands the login to the service', () => {
@@ -113,7 +116,10 @@ describe('login', () => {
 })
 
 describe('retryLoginOnce', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('restarts the first rejected login and refuses the second, so a rejected login never loops', () => {
@@ -146,7 +152,10 @@ describe('retryLoginOnce', () => {
 })
 
 describe('takeReturnTo', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     const returnTo = (saved: string) => {
         sessionStorage.setItem('uliss.returnTo', saved)
@@ -174,7 +183,10 @@ describe('takeReturnTo', () => {
 })
 
 describe('logout', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('revokes with the id token and returns the end-session address', async () => {
