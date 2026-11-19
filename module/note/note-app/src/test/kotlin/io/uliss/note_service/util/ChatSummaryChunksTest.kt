@@ -42,6 +42,16 @@ class ChatSummaryChunksTest {
         assertEquals(next.last().id, ChatSummaryChunks.firstChunkEnd(failed + next, limitChars = 100))
     }
 
+    @Test
+    fun `a historical question and its reply without a turn stay in one chunk`() {
+        val historical = listOf(
+            ChatMessageEntity(chatId, ChatMessageRole.USER, "q".repeat(50), ChatMessageStatus.COMPLETE),
+            ChatMessageEntity(chatId, ChatMessageRole.ASSISTANT, "a".repeat(50), ChatMessageStatus.COMPLETE),
+        )
+
+        assertEquals(historical.last().id, ChatSummaryChunks.firstChunkEnd(historical + turn("q", "a"), limitChars = 60))
+    }
+
     private fun turn(question: String, answer: String): List<ChatMessageEntity> {
         val turnId = UUID.randomUUID()
         return listOf(

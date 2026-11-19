@@ -1,6 +1,7 @@
 package io.uliss.note_service.util
 
 import io.uliss.note_service.model.ChatMessageEntity
+import io.uliss.note_service.model.ChatMessageRole
 import java.util.UUID
 
 /** Splits the messages a Summarize reads into chunks one model call can take. */
@@ -22,14 +23,24 @@ object ChatSummaryChunks {
         return end.last().id
     }
 
-    /** Consecutive messages of one turn; a message without a turn stands alone. */
+    /**
+     * Consecutive messages of one turn. Historical messages have no turn: a question without one is paired with the
+     * reply right after it, and any other such message stands alone.
+     */
     private fun turnsOf(messages: List<ChatMessageEntity>): List<List<ChatMessageEntity>> {
         val turns = mutableListOf<MutableList<ChatMessageEntity>>()
         for (message in messages) {
             val last = turns.lastOrNull()
-            if (last != null && message.turnId != null && last.last().turnId == message.turnId) last += message
+            if (last != null && sameTurn(last, message)) last += message
             else turns += mutableListOf(message)
         }
         return turns
+    }
+
+    private fun sameTurn(turn: List<ChatMessageEntity>, message: ChatMessageEntity): Boolean {
+        val previous = turn.last()
+        if (message.turnId != null) return previous.turnId == message.turnId
+        return previous.turnId == null && turn.size == 1 &&
+            previous.role == ChatMessageRole.USER && message.role == ChatMessageRole.ASSISTANT
     }
 }
