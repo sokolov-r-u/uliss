@@ -370,6 +370,13 @@ message); the note is not changed. `BRANCH` reserves a new `GENERATING` note lik
 both links. A second request of the chat while one is `PENDING` violates
 `uq_summary_request_pending_chat` and returns 409.
 
+When the messages to summarize exceed `note.assistant.tail.summary-input-chars`, `throughMessageId` is the end of the
+first chunk of whole turns (`ChatService.findSummaryChunkEnd`) and the payload carries `targetMessageId`, the latest
+message. Each handler reads the next chunk up to the target before it applies its step;
+`completeChatSummary` / `applyChatSummaryUpdate` then reserve the next `summary_request` under a server-made key and
+publish `NOTE_SUMMARY_UPDATE_REQUESTED` for the same note in the transaction that finished the step, so the chat's one
+pending slot passes on without a gap. A step that fails or is redelivered queues nothing.
+
 ```mermaid
 sequenceDiagram
     autonumber

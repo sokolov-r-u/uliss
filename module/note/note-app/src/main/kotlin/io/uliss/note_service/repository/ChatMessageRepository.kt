@@ -58,6 +58,60 @@ interface ChatMessageRepository : CrudRepository<ChatMessageEntity, UUID> {
     )
     fun findLatestMessageId(@Param("chatId") chatId: UUID): UUID?
 
+    /**
+     * Messages through [targetMessageId] by id (UUID v7, so in creation order); the target itself may be gone (a retry
+     * replaced it). Ordered like the history.
+     */
+    @Query(
+        value = """
+            SELECT * FROM note.chat_message
+            WHERE chat_id = :chatId AND id <= :targetMessageId
+            ORDER BY created_at, id
+        """,
+        nativeQuery = true,
+    )
+    fun findThroughTarget(@Param("chatId") chatId: UUID, @Param("targetMessageId") targetMessageId: UUID): List<ChatMessageEntity>
+
+    /** Messages after [afterMessageId] through [targetMessageId] by id; see [findThroughTarget]. */
+    @Query(
+        value = """
+            SELECT * FROM note.chat_message
+            WHERE chat_id = :chatId AND id > :afterMessageId AND id <= :targetMessageId
+            ORDER BY created_at, id
+        """,
+        nativeQuery = true,
+    )
+    fun findAfterThroughTarget(
+        @Param("chatId") chatId: UUID,
+        @Param("afterMessageId") afterMessageId: UUID,
+        @Param("targetMessageId") targetMessageId: UUID,
+    ): List<ChatMessageEntity>
+
+    @Query(
+        value = """
+            SELECT COALESCE(SUM(char_length(content)), 0)
+            FROM note.chat_message
+            WHERE chat_id = :chatId
+        """,
+        nativeQuery = true,
+    )
+    fun sumContentChars(@Param("chatId") chatId: UUID): Long
+
+    /** Characters of the messages after [afterMessageId]; 0 when it is not a message of the chat. */
+    @Query(
+        value = """
+            SELECT COALESCE(SUM(char_length(message_row.content)), 0)
+            FROM note.chat_message message_row
+            JOIN note.chat_message after_row
+              ON after_row.id = :afterMessageId
+             AND after_row.chat_id = :chatId
+            WHERE message_row.chat_id = :chatId
+              AND (message_row.created_at, message_row.id) > (after_row.created_at, after_row.id)
+        """,
+        nativeQuery = true,
+    )
+    fun sumContentCharsAfter(@Param("chatId") chatId: UUID, @Param("afterMessageId") afterMessageId: UUID): Long
+
     @Query(
         value = """
             SELECT message_row.*

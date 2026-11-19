@@ -16,6 +16,8 @@
  * `?pins=refuse` answers every pin with the limit refusal, as when another tab filled the list.
  * Note posters (link and crop) are kept in memory (none at first); `?poster=<link>` gives note n1 that poster.
  * sessionStorage `visual.poster` = `hold` keeps a poster save waiting, `fail-once` fails the next one.
+ * `?tail=long` reports chat tails past the soft limit; `?tail=full` puts them just under the hard limit, so a message
+ * is refused with `CHAT_TAIL_LIMIT` until a Summarize, which the next page read reports as finished.
  */
 import {CHAT_MESSAGES, CHATS, K, NOTES} from './fixtures'
 import {createConstellationStore} from './constellationsFake'
@@ -180,6 +182,16 @@ function hierarchyResponse(path: string, method: string, body: string, search: U
 const summaries = new Map<string, { throughMessageId: string; noteId: string; noteTitle: string; noteIcon?: string }>(
     params.get('summary') === 'old' ? [['c1', {throughMessageId: 'm2', noteId: 'n1', noteTitle: 'The empty room'}]] : [])
 
+const TAIL_LIMITS = {softChars: 40_000, hardChars: 60_000, summaryInputChars: 80_000}
+/** Chats whose tail a Summarize has saved; their next page read reports an empty tail. */
+const savedTails = new Set<string>()
+
+function tailOf(chatId: string) {
+    const mode = params.get('tail')
+    const chars = !mode || savedTails.has(chatId) ? 0 : mode === 'full' ? 59_990 : 45_000
+    return {chars, ...TAIL_LIMITS, summarizing: false}
+}
+
 /** Starts a summary like the service: a new note is generating at once, in the picked place if any. */
 function summarize(chatId: string, body: string): Response {
     // Fails once when asked to, so a dialog's error state can be checked
@@ -193,7 +205,11 @@ function summarize(chatId: string, body: string): Response {
             icon?: string
         }
         : null
-    if (request?.mode === 'UPDATE') return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
+    if (request?.mode === 'UPDATE') {
+        savedTails.add(chatId)
+        return json({noteId: request.targetNoteId, chatId, status: 'READY'}, 202)
+    }
+    savedTails.add(chatId)
     const noteId = `summary-${chatId}`
     if (request?.constellationId && constellations.addPlace(noteId, request.constellationId).status === 404) {
         return json({code: 'CONSTELLATION_NOT_FOUND'}, 404)
@@ -467,6 +483,7 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
 
     const chatMessages = url.pathname.match(/^\/note\/chats\/([^/]+)\/messages$/)
     if (chatMessages && method === 'POST') {
+        if (tailOf(chatMessages[1]).chars > 0 && params.get('tail') === 'full') return json({code: 'CHAT_TAIL_LIMIT'}, 409)
         // Like the server, an accepted message lifts its chat in chat lists.
         const active = chats.find((item) => item.id === chatMessages[1])
         if (active) active.updatedAt = '2026-06-24T11:00:00Z'
@@ -474,7 +491,7 @@ export async function authFetch(path: string, init?: RequestInit): Promise<Respo
     }
     if (chatMessages) {
         return json({messages: CHAT_MESSAGES[chatMessages[1]] ?? [], nextCursor: null, hasMore: false,
-            summary: summaries.get(chatMessages[1]) ?? null})
+            summary: summaries.get(chatMessages[1]) ?? null, tail: tailOf(chatMessages[1])})
     }
     const retry = url.pathname.match(/^\/note\/chats\/([^/]+)\/turns\/([^/]+)\/retry$/)
     if (retry && method === 'POST') return retryReply(retry[1], retry[2], url.searchParams.get('messageId'))

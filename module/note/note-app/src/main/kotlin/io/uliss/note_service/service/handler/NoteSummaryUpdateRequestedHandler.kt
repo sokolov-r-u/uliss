@@ -9,11 +9,13 @@ import io.uliss.note_service.model.payload.NoteSummaryUpdateRequestedPayload
 import io.uliss.note_service.outbox.OutboxEventType
 import io.uliss.note_service.outbox.OutboxHandler
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
 import io.uliss.note_service.service.UserProfileService
 import io.uliss.note_service.util.ChatPrompts
+import io.uliss.note_service.util.SummaryChainStep
 import io.uliss.note_service.util.SummaryRetrievalQuery
 import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -32,6 +34,7 @@ class NoteSummaryUpdateRequestedHandler(
     private val noteHierarchyService: NoteHierarchyService,
     private val userProfileService: UserProfileService,
     private val properties: NoteSummaryProperties,
+    private val tailProperties: ChatTailProperties,
     /** Addendum dates are UTC; tests pass a fixed clock. */
     private val clock: Clock = Clock.systemUTC(),
 ) : OutboxHandler {
@@ -76,6 +79,11 @@ class NoteSummaryUpdateRequestedHandler(
             .call()
             .entity(NoteAddendumDraft::class.java) { it.useProviderStructuredOutput() }
         val addendum = checkNotNull(draft) { "summary update model returned no draft" }.toAddendumContent()
+        // read before applying, so the next step is queued in the same transaction
+        val next = SummaryChainStep.next(
+            chatService, payload.userId, payload.chatId, payload.throughMessageId, payload.targetMessageId,
+            tailProperties.summaryInputChars,
+        )
         noteSummaryService.applyChatSummaryUpdate(
             payload.userId,
             payload.idempotencyKey,
@@ -85,6 +93,7 @@ class NoteSummaryUpdateRequestedHandler(
             payload.throughMessageId,
             addendum,
             LocalDate.now(clock),
+            next,
         )
     }
 }

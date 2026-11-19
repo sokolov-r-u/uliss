@@ -7,6 +7,7 @@ import io.uliss.note_service.dto.internal.ChatSummaryContext
 import io.uliss.note_service.dto.internal.NoteBodyDraft
 import io.uliss.note_service.dto.internal.NoteDraft
 import io.uliss.note_service.dto.internal.NotePlaceDescription
+import io.uliss.note_service.dto.internal.SummaryChunk
 import io.uliss.note_service.exception.NonRetryableOutboxException
 import io.uliss.note_service.model.ChatMessageEntity
 import io.uliss.note_service.model.ChatMessageRole
@@ -17,6 +18,7 @@ import io.uliss.note_service.model.NoteStatus
 import io.uliss.note_service.model.OutboxEventEntity
 import io.uliss.note_service.model.payload.NoteSummaryBranchRequestedPayload
 import io.uliss.note_service.service.ChatService
+import io.uliss.note_service.service.ChatTailProperties
 import io.uliss.note_service.service.NoteHierarchyService
 import io.uliss.note_service.service.NoteSummaryService
 import io.uliss.note_service.service.RagService
@@ -55,6 +57,7 @@ class NoteSummaryBranchRequestedHandlerTest {
     )
     private val handler = NoteSummaryBranchRequestedHandler(
         objectMapper, chatClient, chatService, ragService, noteService, hierarchyService, profileService, properties,
+        ChatTailProperties(softChars = 100, hardChars = 150, summaryInputChars = 200),
     )
     private val payload = NoteSummaryBranchRequestedPayload(
         noteId = UUID.randomUUID(),
@@ -92,6 +95,21 @@ class NoteSummaryBranchRequestedHandlerTest {
             .thenReturn(NoteDraft("Blackstar", "A farewell album.", null))
         Mockito.`when`(callResponseSpec.entity(Mockito.eq(NoteBodyDraft::class.java), anyValue()))
             .thenReturn(NoteBodyDraft("A farewell album.", emptyList()))
+    }
+
+    @Test
+    fun `a first chunk of a branch passes the next chunk up to its target on`() {
+        val target = UUID.randomUUID()
+        val next = UUID.randomUUID()
+        val chained = payload.copy(targetMessageId = target)
+        Mockito.`when`(chatService.findSummaryChunkEnd(payload.userId, payload.chatId, payload.throughMessageId, target, 200))
+            .thenReturn(next)
+
+        handler.handle(event(chained))
+
+        Mockito.verify(noteService).completeChatSummary(
+            payload.userId, payload.noteId, "Blackstar", "A farewell album.", SummaryChunk(next, target),
+        )
     }
 
     @Test
@@ -161,7 +179,7 @@ class NoteSummaryBranchRequestedHandlerTest {
         .single { it.method.name == method }
         .arguments[0] as String
 
-    private fun event() = OutboxEventEntity(
+    private fun event(payload: NoteSummaryBranchRequestedPayload = this.payload) = OutboxEventEntity(
         type = OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED,
         payload = objectMapper.writeValueAsString(payload),
         status = OutboxEventStatus.PROCESSING,

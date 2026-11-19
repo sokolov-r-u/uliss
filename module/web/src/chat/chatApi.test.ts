@@ -37,6 +37,20 @@ describe('chatApi', () => {
         await expect(getMessages('chat-1')).resolves.toMatchObject({summary: {noteIcon: null}})
     })
 
+    it('reads the unsummarized tail of the latest page and rejects a broken one', async () => {
+        const tail = {chars: 2500, softChars: 2000, hardChars: 3000, summaryInputChars: 4000, summarizing: false}
+        mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false, tail}))
+        await expect(getMessages('chat-1')).resolves.toMatchObject({tail})
+
+        mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false}))
+        await expect(getMessages('chat-1')).resolves.toMatchObject({tail: undefined})
+
+        for (const broken of [{...tail, chars: '2500'}, {...tail, summarizing: 'no'}, 7]) {
+            mockedFetch.mockResolvedValueOnce(jsonResponse({messages: [], nextCursor: null, hasMore: false, tail: broken}))
+            await expect(getMessages('chat-1'), JSON.stringify(broken)).rejects.toMatchObject({kind: 'protocol'})
+        }
+    })
+
     it('encodes an older-page cursor and explicit limit', async () => {
         mockedFetch.mockResolvedValue(jsonResponse({messages: [], nextCursor: null, hasMore: false}))
         const controller = new AbortController()

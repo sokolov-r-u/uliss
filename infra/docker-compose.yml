@@ -156,6 +156,10 @@ services:
       NOTE_PROFILE_REFRESH_CRON: ${NOTE_PROFILE_REFRESH_CRON:-0 0 3 * * *}
       NOTE_PROFILE_DELETION_REBUILD_INTERVAL: ${NOTE_PROFILE_DELETION_REBUILD_INTERVAL:-30d}
       NOTE_PROFILE_SHRINK_RETRY_DELAY: ${NOTE_PROFILE_SHRINK_RETRY_DELAY:-1h}
+      # unsummarized chat tail limits (characters); lower them only for a manual check
+      NOTE_TAIL_SOFT_CHARS: ${NOTE_TAIL_SOFT_CHARS:-40000}
+      NOTE_TAIL_HARD_CHARS: ${NOTE_TAIL_HARD_CHARS:-60000}
+      NOTE_TAIL_SUMMARY_INPUT_CHARS: ${NOTE_TAIL_SUMMARY_INPUT_CHARS:-80000}
       # no .gz suffix: archives stay plain text so IDE/grep can search them
       LOGGING_LOGBACK_ROLLINGPOLICY_FILE_NAME_PATTERN: /logs/archive/note-%d{yyyy-MM-dd}.%i.log
     ports:

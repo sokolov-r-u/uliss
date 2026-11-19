@@ -10,11 +10,20 @@ data class ChatSummaryStateResponse(
     val noteIcon: String? = null,
 )
 
+data class ChatTailStateResponse(
+    val chars: Long,
+    val softChars: Int,
+    val hardChars: Int,
+    val summaryInputChars: Int,
+    val summarizing: Boolean,
+)
+
 data class ChatMessagePageResponse(
     val messages: List<ChatMessageResponse>,
     val nextCursor: UUID?,
     val hasMore: Boolean,
     val summary: ChatSummaryStateResponse?,
+    val tail: ChatTailStateResponse? = null,
 )
 
 fun ChatMessageCursorPage.toResponse() = ChatMessagePageResponse(
@@ -22,4 +31,7 @@ fun ChatMessageCursorPage.toResponse() = ChatMessagePageResponse(
     nextCursor = nextCursor,
     hasMore = hasMore,
     summary = summary?.let { ChatSummaryStateResponse(it.throughMessageId, it.noteId, it.noteTitle, it.noteIcon) },
+    tail = tail?.let {
+        ChatTailStateResponse(it.chars, it.softChars, it.hardChars, it.summaryInputChars, it.summarizing)
+    },
 )

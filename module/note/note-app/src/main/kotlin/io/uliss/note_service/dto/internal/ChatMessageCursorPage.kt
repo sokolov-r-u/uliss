@@ -10,4 +10,6 @@ data class ChatMessageCursorPage(
     val hasMore: Boolean,
     /** The chat's current summary note; set on the latest page only. */
     val summary: CurrentChatSummary? = null,
+    /** The chat's unsummarized tail; set on the latest page only. */
+    val tail: ChatTailState? = null,
 )

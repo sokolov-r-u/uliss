@@ -1,8 +1,10 @@
 package io.uliss.note_service.service
 
+import io.uliss.database.utils.generateId
 import io.uliss.exception.common.InternalException
 import io.uliss.logging.logger.AppLogger
 import io.uliss.note_service.dto.internal.ChatContext
+import io.uliss.note_service.dto.internal.SummaryChunk
 import io.uliss.note_service.exception.IdempotencyKeyReusedException
 import io.uliss.note_service.exception.SummaryInProgressException
 import io.uliss.note_service.exception.SummaryNoteConflictException
@@ -71,6 +73,9 @@ class NoteSummaryService(
         return if (notes.isEmpty()) null else ChatContext(boundary, notes)
     }
 
+    /** Whether a Summarize of the chat (or a step of its chain) is still pending. */
+    fun hasPendingSummary(chatId: UUID): Boolean = summaryRequestStore.hasPendingForChat(chatId)
+
     /** Every note linked to the chat, in any status; empty when it has none. Callers pass an owned chat id. */
     fun findChatNoteIds(chatId: UUID): Set<UUID> = chatNoteRepository.findNoteIdsByChatId(chatId).toSet()
 
@@ -104,12 +109,13 @@ class NoteSummaryService(
         parentNoteId: UUID? = null,
         title: String? = null,
         icon: String? = null,
+        targetMessageId: UUID? = null,
     ): NoteEntity {
         val note = reservePlaceholder(
             userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = true,
         ) ?: return getReplayedSummary(userId, chatId, idempotencyKey)
         val payload = objectMapper.writeValueAsString(
-            NoteSummaryRequestedPayload(note.id, userId, chatId, throughMessageId)
+            NoteSummaryRequestedPayload(note.id, userId, chatId, throughMessageId, targetMessageId)
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_REQUESTED, payload)
         return note
@@ -132,6 +138,7 @@ class NoteSummaryService(
         parentNoteId: UUID? = null,
         title: String? = null,
         icon: String? = null,
+        targetMessageId: UUID? = null,
     ): NoteEntity {
         val note = reservePlaceholder(
             userId, chatId, throughMessageId, idempotencyKey, constellationId, parentNoteId, title, icon, main = false,
@@ -143,7 +150,9 @@ class NoteSummaryService(
             throw SummaryNoteConflictException("the summary of chat id=$chatId changed before the branch was reserved")
         }
         val payload = objectMapper.writeValueAsString(
-            NoteSummaryBranchRequestedPayload(note.id, userId, chatId, mainNoteId, afterMessageId, throughMessageId)
+            NoteSummaryBranchRequestedPayload(
+                note.id, userId, chatId, mainNoteId, afterMessageId, throughMessageId, targetMessageId,
+            )
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_BRANCH_REQUESTED, payload)
         return note
@@ -210,11 +219,14 @@ class NoteSummaryService(
         afterMessageId: UUID?,
         throughMessageId: UUID,
         idempotencyKey: UUID,
+        targetMessageId: UUID? = null,
     ): NoteEntity {
         summaryRequestStore.reserve(userId, idempotencyKey, chatId, throughMessageId, noteId)
             ?: return getReplayedSummary(userId, chatId, idempotencyKey)
         val payload = objectMapper.writeValueAsString(
-            NoteSummaryUpdateRequestedPayload(noteId, userId, chatId, idempotencyKey, afterMessageId, throughMessageId)
+            NoteSummaryUpdateRequestedPayload(
+                noteId, userId, chatId, idempotencyKey, afterMessageId, throughMessageId, targetMessageId,
+            )
         )
         outboxService.publish(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, payload)
         return noteRepository.getOwnedNote(userId, noteId)
@@ -291,7 +303,13 @@ class NoteSummaryService(
      * A title the user gave the placeholder stays; [title] names only an unnamed note.
      */
     @Transactional
-    fun completeChatSummary(userId: UUID, noteId: UUID, title: String?, content: String): Boolean {
+    fun completeChatSummary(
+        userId: UUID,
+        noteId: UUID,
+        title: String?,
+        content: String,
+        next: SummaryChunk? = null,
+    ): Boolean {
         require(content.isNotBlank()) { "summary content must not be blank" }
         val note = noteRepository.findByIdAndUserId(noteId, userId) ?: return false
         if (note.status != NoteStatus.GENERATING) return false
@@ -300,8 +318,10 @@ class NoteSummaryService(
         note.content = content
         note.status = NoteStatus.READY
         noteRepository.save(note)
-        summaryRequestStore.finishPendingForNote(noteId, SummaryRequestStatus.APPLIED)
-            ?.let { moveSummaryBoundary(it.chatId, noteId, it.throughMessageId) }
+        summaryRequestStore.finishPendingForNote(noteId, SummaryRequestStatus.APPLIED)?.let {
+            moveSummaryBoundary(it.chatId, noteId, it.throughMessageId)
+            next?.let { chunk -> requestNextChunk(userId, it.chatId, noteId, it.throughMessageId, chunk) }
+        }
         // a new note is searchable at once; only later changes wait for the reindex delay
         noteIndexRequestService.requestNow(userId, note.id)
         return true
@@ -329,13 +349,21 @@ class NoteSummaryService(
         throughMessageId: UUID,
         addendum: String?,
         appliedOn: LocalDate,
+        next: SummaryChunk? = null,
     ): Boolean {
         val note = findReadyNote(userId, noteId)
         val link = note?.let { chatNoteRepository.findByIdOrNull(ChatNoteId(chatId, noteId)) }
         val content = addendum?.let { "${note?.content.orEmpty().trimEnd()}\n\n---\n\n## $appliedOn\n\n$it" }
         // a note past the editable limit could not be saved by its owner any more
         val tooLong = content != null && content.length > NoteContentNormalizer.MAX_CHARS
-        if (note == null || link == null || link.summarizedThroughMessageId != afterMessageId || tooLong) {
+        // a branch is only updated as a step of its chain, which also moves the chat's boundary on the main note
+        val mainLink = if (link?.main == false) chatNoteRepository.findMainLink(chatId) else null
+        val chatBoundaryMoved = link?.main == false && mainLink?.summarizedThroughMessageId != afterMessageId
+        val stale = link == null || link.summarizedThroughMessageId != afterMessageId || chatBoundaryMoved
+        if (note == null || stale || tooLong) {
+            if (tooLong) {
+                log.warn("chat=$chatId note=$noteId summary chunk does not fit the note limit", "applyChatSummaryUpdate")
+            }
             summaryRequestStore.finish(userId, idempotencyKey, SummaryRequestStatus.FAILED)
             return false
         }
@@ -348,7 +376,32 @@ class NoteSummaryService(
         }
         link.summarizedThroughMessageId = throughMessageId
         chatNoteRepository.save(link)
+        mainLink?.let {
+            it.summarizedThroughMessageId = throughMessageId
+            chatNoteRepository.save(it)
+        }
+        next?.let { requestNextChunk(userId, chatId, noteId, throughMessageId, it) }
         return true
+    }
+
+    /**
+     * Continues a chain: an update of [noteId] by the messages after [afterMessageId] through [next], under a key of
+     * its own. Called where the previous step left PENDING, so the chat's one pending slot passes on without a gap.
+     */
+    private fun requestNextChunk(userId: UUID, chatId: UUID, noteId: UUID, afterMessageId: UUID, next: SummaryChunk) {
+        val idempotencyKey = generateId()
+        summaryRequestStore.reserve(userId, idempotencyKey, chatId, next.throughMessageId, noteId)
+            ?: throw InternalException("the next summary chunk of chat id=$chatId could not be reserved")
+        val payload = objectMapper.writeValueAsString(
+            NoteSummaryUpdateRequestedPayload(
+                noteId, userId, chatId, idempotencyKey, afterMessageId, next.throughMessageId, next.targetMessageId,
+            )
+        )
+        outboxService.publish(OutboxEventType.NOTE_SUMMARY_UPDATE_REQUESTED, payload)
+        log.info(
+            "chat=$chatId summary chunk through=${next.throughMessageId} target=${next.targetMessageId}",
+            "requestNextChunk",
+        )
     }
 
     private fun getReplayedSummary(userId: UUID, chatId: UUID, idempotencyKey: UUID): NoteEntity =

@@ -49,7 +49,7 @@ class ChatFacadeTest {
     private val chatTitleService = Mockito.mock(ChatTitleService::class.java)
     private val chatFacade = ChatFacade(
         chatService, assistantService, noteService, noteSummaryService, chatTurnService, ragService, userProfileService,
-        chatTitleService,
+        chatTitleService, ChatTailProperties(),
     )
 
     @Test
@@ -67,7 +67,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatTitleService.generateTitle(userId, chatId, "hello")).thenReturn(Mono.just("Greeting"))
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -97,7 +97,7 @@ class ChatFacadeTest {
             .thenReturn(Mono.delay(Duration.ofMillis(100)).map { "Greeting" })
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(AssistantReplyStream(UUID.randomUUID(), Flux.just(AssistantStreamEvent.GenerationCompleted), chatId))
 
@@ -120,7 +120,7 @@ class ChatFacadeTest {
             .thenReturn(ChatCreation(chat, created = false))
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -141,7 +141,7 @@ class ChatFacadeTest {
         Mockito.`when`(chatService.getOwnedChat(userId, chatId)).thenReturn(chat)
         Mockito.`when`(
             assistantService.streamReply(
-                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(),
+                eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"), anyValue(), anyValue(), anyValue(), anyValue(),
             ),
         ).thenReturn(assistantReply)
 
@@ -185,7 +185,7 @@ class ChatFacadeTest {
         val captor = captorFor<NoteSearch>(NoteSearch::class.java)
         Mockito.verify(assistantService).streamReply(
             eqValue(userId), eqValue(chatId), eqValue(idempotencyKey), eqValue("hello"),
-            captor.captureValue(), anyValue(), anyValue(),
+            captor.captureValue(), anyValue(), anyValue(), anyValue(),
         )
 
         assertSame(found, captor.value.search("music", 5, 0.7))
@@ -207,7 +207,7 @@ class ChatFacadeTest {
 
         val loaders = Mockito.mockingDetails(assistantService).invocations
             .filter { it.method.name in setOf("streamReply", "retryReply") }
-            .map { invocation -> invocation.arguments.filterIsInstance<Function0<*>>().single() }
+            .map { invocation -> invocation.arguments.filterIsInstance<Function0<*>>().first() }
         assertEquals(listOf<Any?>(context, context), loaders.map { it() })
     }
 
@@ -398,7 +398,7 @@ class ChatFacadeTest {
             chatFacade.requestSummary(userId, chatId, key, SummaryMode.UPDATE, current.noteId, UUID.randomUUID())
         }
         Mockito.verify(noteSummaryService, Mockito.never()).requestChatSummaryUpdate(
-            anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
+            anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(), anyValue(),
         )
         Mockito.verify(chatService, Mockito.never()).touchActivity(anyValue(), anyValue())
     }

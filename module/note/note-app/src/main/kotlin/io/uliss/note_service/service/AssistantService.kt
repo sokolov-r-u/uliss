@@ -49,7 +49,8 @@ class AssistantService(
     /**
      * [noteSearch] backs the model's `searchNotes` tool; it is already bound to the user. [userBackground] is what
      * the model knows about the user (their profile and own description), sent ahead of the history; null when there
-     * is nothing yet. [context] gives the chat's notes, which replace the history before the chat's boundary.
+     * is nothing yet. [context] gives the chat's notes, which replace the history before the chat's boundary;
+     * [tailBoundary] is where the chat's unsummarized tail starts (see [ChatTurnService.resolveTurnRequest]).
      */
     fun streamReply(
         userId: UUID,
@@ -59,8 +60,11 @@ class AssistantService(
         noteSearch: NoteSearch,
         userBackground: UserBackground? = null,
         context: () -> ChatContext? = { null },
+        tailBoundary: () -> UUID? = { null },
     ): AssistantReplyStream = toReplyStream(
-        chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt, context), noteSearch, userBackground,
+        chatTurnService.resolveTurnRequest(userId, chatId, idempotencyKey, prompt, context, tailBoundary),
+        noteSearch,
+        userBackground,
     )
 
     /** Regenerates the failed or interrupted reply [messageId] of turn [turnId]; see [ChatTurnService.resolveRetryRequest]. */

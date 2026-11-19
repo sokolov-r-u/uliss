@@ -47,6 +47,9 @@ class SummaryRequestStore(
     fun hasPendingThrough(chatId: UUID, messageId: UUID): Boolean =
         jdbcTemplate.queryForObject(HAS_PENDING_THROUGH_SQL, Boolean::class.java, chatId, messageId) == true
 
+    fun hasPendingForChat(chatId: UUID): Boolean =
+        jdbcTemplate.queryForObject(HAS_PENDING_FOR_CHAT_SQL, Boolean::class.java, chatId) == true
+
     fun hasPendingForNote(noteId: UUID): Boolean =
         jdbcTemplate.queryForObject(HAS_PENDING_FOR_NOTE_SQL, Boolean::class.java, noteId) == true
 
@@ -105,6 +108,10 @@ class SummaryRequestStore(
                 SELECT 1 FROM note.summary_request
                 WHERE chat_id = ? AND through_message_id = ? AND status = 'PENDING'
             )
+        """
+
+        const val HAS_PENDING_FOR_CHAT_SQL = """
+            SELECT EXISTS (SELECT 1 FROM note.summary_request WHERE chat_id = ? AND status = 'PENDING')
         """
 
         const val HAS_PENDING_FOR_NOTE_SQL = """

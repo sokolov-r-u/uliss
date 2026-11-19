@@ -996,3 +996,40 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   whole chat may also cover tail messages; that duplication is accepted. The chat history is still loaded whole from
   the database and cut in memory.
 - **Source:** task `docs/tasks/2026-11-17-chat-context-summary.md`, blocks 1–2.
+
+## 2026-11-18 — A chat's unsummarized tail has soft and hard limits, computed on read
+
+- **Context:** after the chat context moved to notes, a long unsummarized tail makes notes worse and Summarize reads
+  it whole. The limit is about note quality, not the model window.
+- **Decision:** the tail is the chat's messages after the READY main note's boundary, or all of them without one; its
+  size is the sum of `char_length(content)` of user and assistant messages, computed by a query on each new turn and
+  on the latest message page, never stored. `note.assistant.tail` sets `soft-chars` (40 000; the UI suggests
+  Summarize), `hard-chars` (60 000) and `summary-input-chars` (80 000). `ChatTurnService` refuses a new turn with
+  `409 CHAT_TAIL_LIMIT` under the chat lock, before reserving it, when the tail plus the new message passes
+  `hard-chars`; an empty tail takes any message. Replays, reclaims and retries are never refused, and a reply already
+  generating always finishes. The latest page carries `tail {chars, softChars, hardChars, summaryInputChars,
+  summarizing}`. Rejected: a counter or flag on `chat`, which every boundary move (Summarize, update, branch,
+  retry, main note deletion) would have to keep in step.
+- **Consequences:** one aggregate query per turn and per latest page over the `(chat_id, …)` messages. A chat over the
+  hard limit stays blocked until a Summarize moves the boundary.
+- **Source:** task `docs/tasks/2026-11-17-chat-tail-limit.md`, block 1.
+
+## 2026-11-18 — A Summarize longer than one call runs as a chain of whole-turn chunks
+
+- **Context:** a deleted main note or an old chat makes the whole chat the tail, and Summarize must neither send a chat
+  of any size to the model nor drop the user's messages.
+- **Decision:** a Summarize (first, update or branch) of more than `note.assistant.tail.summary-input-chars` of chat
+  messages asks only for the first chunk: whole turns from the start of the tail while they fit, at least one turn
+  (`ChatSummaryChunks`). Its outbox payload keeps the chat's latest message as `targetMessageId`. The handler computes
+  the next chunk (by message id, so a retry that removed the target ends the chain before it) and passes it to
+  `completeChatSummary` / `applyChatSummaryUpdate`, which, where the step leaves PENDING, reserves an update of the
+  same note under a server-made key and publishes it: the chat's one pending slot passes on in one transaction, and a
+  redelivered step queues nothing. Nothing new continues the chain; a failed step ends it, keeping what was applied,
+  and the next Summarize goes on from the boundary. A branch chain updates the branch, and each step also moves the
+  main note's boundary (the chat's one boundary), failing if that boundary moved elsewhere. The limit counts chat
+  messages only; the note text, related notes and the profile come on top. An event without a target is one step.
+  Rejected: all chunks in one event (calls outlive the outbox lease, a failure redoes everything) and taking only the
+  latest messages (the user's earlier thoughts would be lost).
+- **Consequences:** a note is partly written while its chain runs. A note at the 100 000-character limit stops the
+  chain and keeps the chat blocked (`docs/TECH_DEBT.md`). "Summarize again" keeps reading the whole chat.
+- **Source:** task `docs/tasks/2026-11-17-chat-tail-limit.md`, block 3.

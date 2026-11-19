@@ -37,11 +37,22 @@ export type ChatSummaryState = {
     noteIcon?: string | null
 }
 
+/** The chat's unsummarized tail against its limits (characters); only on the latest page. */
+export type ChatTailState = {
+    chars: number
+    softChars: number
+    hardChars: number
+    summaryInputChars: number
+    /** A Summarize of the chat, or a step of its chain, is still running. */
+    summarizing: boolean
+}
+
 export type ChatMessagePage = {
     messages: ChatMessage[]
     nextCursor: string | null
     hasMore: boolean
     summary?: ChatSummaryState | null
+    tail?: ChatTailState
 }
 
 export type GetMessagesOptions = {
@@ -188,6 +199,23 @@ function parseSummaryState(value: unknown): ChatSummaryState | null | undefined 
     }
 }
 
+// absent off the latest page
+function parseTailState(value: unknown): ChatTailState | undefined {
+    if (value === undefined || value === null) return undefined
+    if (!isRecord(value) || typeof value.summarizing !== 'boolean') throw protocol('tail')
+    const number = (field: unknown, name: string) => {
+        if (typeof field !== 'number') throw protocol(name)
+        return field
+    }
+    return {
+        chars: number(value.chars, 'tail chars'),
+        softChars: number(value.softChars, 'tail softChars'),
+        hardChars: number(value.hardChars, 'tail hardChars'),
+        summaryInputChars: number(value.summaryInputChars, 'tail summaryInputChars'),
+        summarizing: value.summarizing,
+    }
+}
+
 function parseMessagePage(value: unknown): ChatMessagePage {
     if (!isRecord(value) || typeof value.hasMore !== 'boolean') throw protocol('message page')
     return {
@@ -195,6 +223,7 @@ function parseMessagePage(value: unknown): ChatMessagePage {
         nextCursor: optionalText(value.nextCursor, 'nextCursor') ?? null,
         hasMore: value.hasMore,
         summary: parseSummaryState(value.summary),
+        tail: parseTailState(value.tail),
     }
 }
 
