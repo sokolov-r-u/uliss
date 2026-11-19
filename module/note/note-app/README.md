@@ -64,7 +64,8 @@ history reads.
 
 Pagination applies only to the browser history endpoint. Chat generation loads the complete ordered
 conversation; once the chat has a READY main note with a boundary, it sends the chat's notes and only the messages
-after the boundary, with an overlap through it (see "Chat context through summary notes"). Summary generation still loads every message through its immutable
+after the boundary, with an overlap through it (see "Chat context through summary notes"). A new turn is refused
+while the unsummarized tail is too long (see "Unsummarized tail limit"). Summary generation still loads every message through its immutable
 boundary. Summary creation obtains that boundary through a separate ownership-checked latest-message
 lookup rather than from a UI page.
 
@@ -191,6 +192,23 @@ sent. Otherwise, and when the boundary is not among the messages (logged as WARN
 reads the notes after its boundary moved before the replaced reply. Each turn logs
 `chat=<id> context boundary=<yes|no> notes= noteChars= overlap= tail= skipped=` (counts only), next to the existing
 `usage prompt= cached=` line. The notes search tool leaves out every note of the chat.
+
+## Unsummarized tail limit
+
+The tail is the chat's messages after the READY main note's boundary, or all of them without one; its size is the sum
+of their characters (user and assistant), computed by a query, never stored. `note.assistant.tail` sets `soft-chars`
+(40 000; the UI suggests Summarize), `hard-chars` (60 000) and `summary-input-chars` (80 000), overridable by
+`NOTE_TAIL_SOFT_CHARS`, `NOTE_TAIL_HARD_CHARS` and `NOTE_TAIL_SUMMARY_INPUT_CHARS`. A new turn whose message would take a
+non-empty tail past `hard-chars` is refused with `409 CHAT_TAIL_LIMIT` before it is reserved (INFO
+`chat= tail limit chars= message= hard=`); replays, reclaims and retries pass, and a reply already generating
+finishes. The latest message page carries `tail {chars, softChars, hardChars, summaryInputChars, summarizing}`.
+
+A Summarize (first, update or branch) of more than `summary-input-chars` of chat messages runs as a chain: the request
+covers whole turns from the start of the tail while they fit, and its event keeps the chat's latest message as
+`targetMessageId`. Each written step queues an update of the same note by the next chunk in its own transaction
+(`chat= summary chunk through= target=`), until the target; a branch's steps also move the main note's boundary. A
+failed step ends the chain, keeping what was written; the next Summarize continues from the boundary. "Summarize
+again" is not limited.
 
 ## User profile
 

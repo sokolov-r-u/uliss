@@ -67,3 +67,13 @@ messages keep the assistant's latest replies in view. Until the first summary, o
 the assistant reads the whole chat. Searching the user's notes from a chat never returns that chat's own notes.
 
 **Source:** `docs/tasks/2026-11-17-chat-context-summary.md`.
+
+## 2026-11-18 — A long unsaved part of a chat asks for a Summarize
+
+**Decision:** What the chat said since its last summary is limited. Past about 40 000 characters the chat suggests
+saving it to a note; past about 60 000 it takes no new message until the user summarizes, keeping the unsent text for
+later. A summary never loses the user's messages: when there is more than one model call can read well (after the
+main note was deleted, or in an old long chat), Uliss writes the note piece by piece, the first piece creating it and
+the next ones adding to it.
+
+**Source:** `docs/tasks/2026-11-17-chat-tail-limit.md`.
