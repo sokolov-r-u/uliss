@@ -877,6 +877,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
 
     const tailBlocked = tailState != null
         && (tailState.chars > tailState.hardChars || (tailRejectedAt != null && tailState.chars >= tailRejectedAt))
+    // a reply still being written keeps the composer and its Stop; the banner comes once it settles
+    const tailBanner = tailBlocked && generationPhase === 'idle'
     const tailLong = tailState != null && !tailBlocked && tailState.chars > tailState.softChars
     const tailSaving = tailState?.summarizing === true
 
@@ -899,14 +901,19 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         }
     }, [chatId, tailSaving, generationPhase])
 
+    // A Summarize shrank the tail below the refused size: the refusal no longer applies.
+    useEffect(() => {
+        if (tailRejectedAt != null && tailState != null && tailState.chars < tailRejectedAt) setTailRejectedAt(null)
+    }, [tailRejectedAt, tailState])
+
     // The field comes back with the kept draft: put the cursor in it.
     const wasTailBlockedRef = useRef(false)
     useEffect(() => {
-        if (wasTailBlockedRef.current && !tailBlocked) {
+        if (wasTailBlockedRef.current && !tailBanner) {
             document.querySelector<HTMLTextAreaElement>('.chat-composer textarea')?.focus()
         }
-        wasTailBlockedRef.current = tailBlocked
-    }, [tailBlocked])
+        wasTailBlockedRef.current = tailBanner
+    }, [tailBanner])
 
     if (pagePhase === 'loading') {
         return <div className="chat-page">
@@ -925,7 +932,8 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
         && RETRYABLE_STATUSES.includes(latestPersisted.status) ? latestPersisted.id : undefined
     const latestPersistedId = latestPersisted?.id
     const showSummarize = latestPersistedId != null && latestPersistedId !== summaryState?.throughMessageId
-    const canSummarize = generationPhase === 'idle' && !summaryPending
+    // a running chain (reported by the tail) refuses another Summarize, whatever the summary state says meanwhile
+    const canSummarize = generationPhase === 'idle' && !summaryPending && tailState?.summarizing !== true
     const updateTarget = summaryState
     const updateOptionLabel = updateTarget?.noteTitle
         ? t.updateOptionNamed(noteTitleText(updateTarget.noteTitle, updateTarget.noteIcon))
@@ -980,7 +988,7 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                 && <Button size="sm" variant="quiet" onClick={retryReconciliation}>{common.retry}</Button>}</div>}
             {generationPhase === 'settling' &&
                 <p className="chat-settling-notice" aria-live="polite">{t.savingReply}</p>}
-            {tailBlocked ? <section className="chat-tail-banner" aria-label={t.tailBlocked}>
+            {tailBanner ? <section className="chat-tail-banner" aria-label={t.tailBlocked}>
                 {tailSaving
                     ? <PendingStatus label={t.tailSaving} pad="0" minHeight={20}/>
                     : <p className="chat-tail-banner-text">{t.tailBlocked}</p>}
@@ -989,9 +997,16 @@ export function ChatPage({newChat = false}: { newChat?: boolean }) {
                     <p className="chat-tail-draft-text">«{draft.trim()}»</p>
                 </div>}
                 {/* hidden, not removed, while saving: the banner keeps its height */}
+                {/* the phone gets the full-width touch size; CSS shows one of the two */}
                 <div className="chat-tail-banner-actions" style={{visibility: tailSaving ? 'hidden' : 'visible'}}>
-                    <Button variant="outline" size="md" disabled={!canSummarize || tailSaving}
-                            onClick={openSummaryDialog}>{t.summarize}</Button>
+                    <span className="chat-tail-action-desktop">
+                        <Button variant="outline" size="md" disabled={!canSummarize}
+                                onClick={openSummaryDialog}>{t.summarize}</Button>
+                    </span>
+                    <span className="chat-tail-action-mobile">
+                        <Button variant="outline" size="lg" full disabled={!canSummarize}
+                                onClick={openSummaryDialog}>{t.summarize}</Button>
+                    </span>
                 </div>
             </section>
             /* keyed by chat: switching chats drops a recording instead of sending it into the next chat */

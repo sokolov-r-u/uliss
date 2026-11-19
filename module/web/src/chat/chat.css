@@ -346,9 +346,17 @@
     justify-content: flex-end;
 }
 
+.chat-tail-action-mobile {
+    display: none;
+}
+
 @media (max-width: 767px) {
-    .chat-tail-banner-actions button {
+    .chat-tail-action-desktop {
+        display: none;
+    }
+
+    .chat-tail-action-mobile {
+        display: block;
         width: 100%;
-        min-height: 44px;
     }
 }

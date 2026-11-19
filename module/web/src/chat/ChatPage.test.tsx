@@ -1661,7 +1661,7 @@ describe('ChatPage unsummarized tail limit', () => {
         const banner = await screen.findByRole('region', {name: 'This chat is too long. Save it to a note to continue'})
         expect(screen.queryByRole('textbox', {name: 'Message'})).not.toBeInTheDocument()
 
-        await userEvent.click(within(banner).getByRole('button', {name: 'Summarize'}))
+        await userEvent.click(within(banner).getAllByRole('button', {name: 'Summarize'})[0])
         expect(screen.getByRole('dialog', {name: 'Create a summary note?'})).toBeInTheDocument()
     })
 
@@ -1680,7 +1680,7 @@ describe('ChatPage unsummarized tail limit', () => {
             // the block is explained by the banner, not by a generic rejection notice
             expect(screen.queryByRole('alert')).not.toBeInTheDocument()
 
-            await userEvent.click(within(banner).getByRole('button', {name: 'Summarize'}))
+            await userEvent.click(within(banner).getAllByRole('button', {name: 'Summarize'})[0])
             await userEvent.click(summarizeInDialog())
             expect(await within(banner).findByText('saving the chat to a note…')).toBeInTheDocument()
             // the action is hidden, not removed, so the banner keeps its height
@@ -1702,6 +1702,51 @@ describe('ChatPage unsummarized tail limit', () => {
         } finally {
             vi.useRealTimers()
         }
+    })
+
+    it('lets a later long tail under the hard limit write again once a summary lifted a refusal', async () => {
+        vi.useFakeTimers({shouldAdvanceTime: true})
+        try {
+            mockedGetMessages.mockResolvedValue(pageWithTail(2900))
+            mockedStream.mockRejectedValueOnce(new ChatStreamHttpError(409, 'CHAT_TAIL_LIMIT'))
+            renderPage()
+            await userEvent.type(await screen.findByRole('textbox', {name: 'Message'}), 'Long text')
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+            const banner = await screen.findByRole('region', {name: /too long/})
+            await userEvent.click(within(banner).getAllByRole('button', {name: 'Summarize'})[0])
+            await userEvent.click(summarizeInDialog())
+
+            mockedGetMessages.mockResolvedValue(pageWithTail(0))
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(5_000)
+            })
+            await screen.findByRole('textbox', {name: 'Message'})
+
+            // the chat grows back to the refused size, still under the hard limit
+            mockedGetMessages.mockResolvedValue({...pageWithTail(2900), messages: [...history,
+                {id: 'u-2', turnId: 'turn-2', role: 'USER', status: 'COMPLETE', content: 'Long text'},
+                {id: 'a-2', turnId: 'turn-2', role: 'ASSISTANT', status: 'COMPLETE', content: 'Long reply'}]})
+            mockedStream.mockImplementationOnce(async (_chat, _content, _key, options) => {
+                options.onTurnId('turn-2')
+                return 'done'
+            })
+            const readsBefore = mockedGetMessages.mock.calls.length
+            await userEvent.click(screen.getByRole('button', {name: 'Send'}))
+            await waitFor(() => expect(mockedStream).toHaveBeenCalledTimes(2))
+            await waitFor(() => expect(mockedGetMessages.mock.calls.length).toBeGreaterThan(readsBefore))
+            // idle again with the composer, not the banner
+            await waitFor(() => expect(screen.getByRole('textbox', {name: 'Message'})).toBeEnabled())
+            expect(screen.queryByRole('region', {name: /too long/})).not.toBeInTheDocument()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('keeps Summarize disabled while the tail reports a running summary', async () => {
+        mockedGetMessages.mockResolvedValue(pageWithTail(1000, true))
+        renderPage()
+
+        expect(await screen.findByRole('button', {name: 'Summarize'})).toBeDisabled()
     })
 
     it('stays blocked after a refusal while the tail has not shrunk', async () => {
