@@ -100,4 +100,28 @@ describe('AuthProvider', () => {
         expect(assign).not.toHaveBeenCalled()
         tab.close()
     })
+
+    it('leaves when another tab signs out, although that tab already removed the shared tokens', async () => {
+        render(<AuthProvider><SignOut/></AuthProvider>)
+        const tab = otherTab()
+
+        localStorage.removeItem('uliss.tokens')
+        act(() => tab.postMessage('signed-out'))
+
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('/signed-out'))
+        tab.close()
+    })
+
+    it('reloads to the start when another tab signs in as another user', () => {
+        const jwt = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+        setTokens({accessToken: jwt('user-1'), refreshToken: 'r', expiresAt: Date.now() + 60_000})
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        const other = JSON.stringify({accessToken: jwt('user-2'), refreshToken: 'r2', expiresAt: Date.now() + 60_000})
+        act(() => {
+            window.dispatchEvent(new StorageEvent('storage', {key: 'uliss.tokens', newValue: other, storageArea: localStorage}))
+        })
+
+        expect(assign).toHaveBeenCalledWith('/')
+    })
 })

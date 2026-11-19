@@ -329,3 +329,129 @@ describe('onboarding required signal', () => {
         unsubscribe()
     })
 })
+
+function deferred() {
+    let resolve: () => void = () => undefined
+    const promise = new Promise<void>((done) => {
+        resolve = done
+    })
+    return {promise, resolve}
+}
+
+/** Web Locks of one browser: a lock is granted to one holder at a time, in request order. */
+function fakeLocks() {
+    let queue: Promise<unknown> = Promise.resolve()
+    const request = vi.fn((_name: string, task: () => Promise<unknown>) => {
+        const run = queue.then(task)
+        queue = run.catch(() => undefined)
+        return run
+    })
+    return {request}
+}
+
+describe('refresh across tabs', () => {
+    let locks: ReturnType<typeof fakeLocks>
+
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+        vi.mocked(login).mockReset()
+        vi.mocked(refreshTokens).mockReset().mockResolvedValue(fresh)
+        locks = fakeLocks()
+        Object.defineProperty(navigator, 'locks', {configurable: true, value: locks})
+    })
+    afterEach(() => {
+        Reflect.deleteProperty(navigator, 'locks')
+        vi.unstubAllGlobals()
+    })
+
+    it('refreshes under the browser-wide lock and stores the rotated tokens', async () => {
+        setTokens(expired)
+
+        await expect(getAccessToken()).resolves.toBe('access-2')
+
+        expect(locks.request).toHaveBeenCalledWith('uliss.token-refresh', expect.any(Function))
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-1', null)
+        expect(getTokens()).toEqual(fresh)
+    })
+
+    it('takes the tokens another tab stored while this one waited for the lock, without refreshing', async () => {
+        setTokens(expired)
+        // another tab holds the lock and stores its rotated tokens before releasing it
+        const otherTab = deferred()
+        void locks.request('uliss.token-refresh', () => otherTab.promise.then(() => setTokens(fresh)))
+
+        const pending = getAccessToken()
+        otherTab.resolve()
+
+        await expect(pending).resolves.toBe('access-2')
+        expect(refreshTokens).not.toHaveBeenCalled()
+    })
+
+    it('refreshes after the wait when the other tab left the tokens expired', async () => {
+        setTokens(expired)
+        const otherTab = deferred()
+        void locks.request('uliss.token-refresh', () => otherTab.promise)
+
+        const pending = getAccessToken()
+        otherTab.resolve()
+
+        await expect(pending).resolves.toBe('access-2')
+        expect(refreshTokens).toHaveBeenCalledOnce()
+    })
+
+    it('stores nothing when another tab signed out during the refresh, and sends this tab to sign in', async () => {
+        setTokens(expired)
+        vi.mocked(refreshTokens).mockImplementation(async () => {
+            localStorage.removeItem('uliss.tokens')
+            return fresh
+        })
+
+        await expect(getAccessToken()).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(getTokens()).toBeNull()
+        expect(login).toHaveBeenCalledOnce()
+    })
+
+    it("keeps another user's sign-in that happened during the refresh", async () => {
+        setTokens(expired)
+        const otherUser: Tokens = {accessToken: 'access-other', refreshToken: 'refresh-other', expiresAt: Date.now() + 60_000}
+        vi.mocked(refreshTokens).mockImplementation(async () => {
+            setTokens(otherUser)
+            return fresh
+        })
+
+        await expect(getAccessToken()).resolves.toBe('access-other')
+
+        expect(getTokens()).toEqual(otherUser)
+    })
+
+    it('keeps the tokens and frees the lock when a refresh times out', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        try {
+            setTokens(expired)
+            vi.mocked(refreshTokens).mockRejectedValue(new DOMException('signal timed out', 'TimeoutError'))
+
+            const timedOut = expect(getAccessToken()).rejects.toBeInstanceOf(SessionRefreshError)
+            await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS)
+            await timedOut
+
+            expect(getTokens()).toEqual(expired)
+            expect(login).not.toHaveBeenCalled()
+            vi.mocked(refreshTokens).mockResolvedValue(fresh)
+            await expect(getAccessToken()).resolves.toBe('access-2')
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('forces a refresh for new claims even when another tab stored a newer, still valid token', async () => {
+        setTokens(fresh)
+        vi.mocked(refreshTokens).mockResolvedValue({...fresh, accessToken: 'access-3', refreshToken: 'refresh-3'})
+
+        await refreshSession()
+
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-2', null)
+        expect(getTokens()?.accessToken).toBe('access-3')
+    })
+})

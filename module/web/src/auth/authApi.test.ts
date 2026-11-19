@@ -7,6 +7,7 @@ import {
     LoginRejectedError,
     logout,
     RefreshFailedError,
+    REFRESH_TIMEOUT_MS,
     RefreshRejectedError,
     refreshTokens,
     retryLoginOnce,
@@ -48,6 +49,24 @@ describe('refreshTokens', () => {
     })
 })
 
+describe('refreshTokens timeout', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('gives up on a refresh that hangs, so a stuck request does not hold every tab', async () => {
+        const timeout = new AbortController()
+        const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal)
+        vi.stubGlobal('fetch', vi.fn((_path: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })))
+
+        const pending = refreshTokens('refresh-1')
+        timeout.abort(new DOMException('signal timed out', 'TimeoutError'))
+
+        await expect(pending).rejects.toMatchObject({name: 'TimeoutError'})
+        expect(timeoutSpy).toHaveBeenCalledWith(REFRESH_TIMEOUT_MS)
+    })
+})
+
 describe('exchangeCode', () => {
     afterEach(() => vi.unstubAllGlobals())
 
@@ -57,6 +76,8 @@ describe('exchangeCode', () => {
         vi.stubGlobal('fetch', fetchMock)
 
         await exchangeCode('code 1', 'state&1')
+
+        expect(getTokens()?.accessToken).toBe('a')
 
         expect(fetchMock).toHaveBeenCalledWith(
             '/user/oauth2/callback?code=code+1&state=state%261',
