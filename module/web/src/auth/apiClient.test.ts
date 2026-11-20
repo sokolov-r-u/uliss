@@ -11,6 +11,7 @@ import {
 } from './apiClient'
 import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {getTokens, setTokens, type Tokens} from './tokenStore'
+import {LEASE_MS, LEASE_POLL_MS, LEASE_SETTLE_MS} from './refreshLease'
 
 vi.mock('./authApi', async (importOriginal) => ({
     ...await importOriginal<typeof import('./authApi')>(),
@@ -20,6 +21,14 @@ vi.mock('./authApi', async (importOriginal) => ({
 
 const fresh: Tokens = {accessToken: 'access-2', refreshToken: 'refresh-2', expiresAt: Date.now() + 15 * 60_000}
 const expired: Tokens = {accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: Date.now() - 1000}
+
+// Refresh tests run with Web Locks, as in every current browser; the lease used without them is tested on its own.
+beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', {configurable: true, value: fakeLocks()})
+})
+afterEach(() => {
+    Reflect.deleteProperty(navigator, 'locks')
+})
 
 function okFor(token: string) {
     return (_path: RequestInfo | URL, init?: RequestInit) => {
@@ -31,6 +40,7 @@ function okFor(token: string) {
 describe('authFetch refresh', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(login).mockReset()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             await new Promise((resolve) => setTimeout(resolve, 5))
@@ -192,6 +202,7 @@ describe('authFetch refresh', () => {
 describe('getAccessToken', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(login).mockReset()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             await new Promise((resolve) => setTimeout(resolve, 5))
@@ -225,6 +236,7 @@ describe('getAccessToken', () => {
 describe('refreshSession', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         vi.mocked(refreshTokens).mockReset().mockImplementation(async () => {
             setTokens({...fresh, accessToken: 'access-3'})
             return {...fresh, accessToken: 'access-3'}
@@ -256,6 +268,8 @@ describe('refreshSession', () => {
 
         const earlier = getAccessToken()
         const forced = refreshSession()
+        // the first refresh starts once the lock is granted
+        await vi.waitFor(() => expect(refreshTokens).toHaveBeenCalledOnce())
         finishFirst()
         await Promise.all([earlier, forced])
 
@@ -265,7 +279,10 @@ describe('refreshSession', () => {
 })
 
 describe('tokenRequiresOnboarding', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     function jwt(payload: object): string {
         const encode = (value: object) => btoa(JSON.stringify(value)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_')
@@ -290,6 +307,7 @@ describe('tokenRequiresOnboarding', () => {
 describe('onboarding required signal', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         setTokens(fresh)
     })
     afterEach(() => vi.unstubAllGlobals())
@@ -320,5 +338,172 @@ describe('onboarding required signal', () => {
 
         expect(listener).not.toHaveBeenCalled()
         unsubscribe()
+    })
+})
+
+const jwtOf = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+
+function deferred() {
+    let resolve: () => void = () => undefined
+    const promise = new Promise<void>((done) => {
+        resolve = done
+    })
+    return {promise, resolve}
+}
+
+/** Web Locks of one browser: a lock is granted to one holder at a time, in request order. */
+function fakeLocks() {
+    let queue: Promise<unknown> = Promise.resolve()
+    const request = vi.fn((_name: string, task: () => Promise<unknown>) => {
+        const run = queue.then(task)
+        queue = run.catch(() => undefined)
+        return run
+    })
+    return {request}
+}
+
+describe('refresh across tabs', () => {
+    let locks: ReturnType<typeof fakeLocks>
+
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+        vi.mocked(login).mockReset()
+        vi.mocked(refreshTokens).mockReset().mockResolvedValue(fresh)
+        locks = fakeLocks()
+        Object.defineProperty(navigator, 'locks', {configurable: true, value: locks})
+    })
+    afterEach(() => {
+        Reflect.deleteProperty(navigator, 'locks')
+        vi.unstubAllGlobals()
+    })
+
+    it('refreshes under the browser-wide lock and stores the rotated tokens', async () => {
+        setTokens(expired)
+
+        await expect(getAccessToken()).resolves.toBe('access-2')
+
+        expect(locks.request).toHaveBeenCalledWith('uliss.token-refresh', expect.any(Function))
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-1', null)
+        expect(getTokens()).toEqual(fresh)
+    })
+
+    it('takes the tokens another tab stored while this one waited for the lock, without refreshing', async () => {
+        setTokens(expired)
+        // another tab holds the lock and stores its rotated tokens before releasing it
+        const otherTab = deferred()
+        void locks.request('uliss.token-refresh', () => otherTab.promise.then(() => setTokens(fresh)))
+
+        const pending = getAccessToken()
+        otherTab.resolve()
+
+        await expect(pending).resolves.toBe('access-2')
+        expect(refreshTokens).not.toHaveBeenCalled()
+    })
+
+    it('refreshes after the wait when the other tab left the tokens expired', async () => {
+        setTokens(expired)
+        const otherTab = deferred()
+        void locks.request('uliss.token-refresh', () => otherTab.promise)
+
+        const pending = getAccessToken()
+        otherTab.resolve()
+
+        await expect(pending).resolves.toBe('access-2')
+        expect(refreshTokens).toHaveBeenCalledOnce()
+    })
+
+    it('stores nothing when another tab signed out during the refresh, and sends this tab to sign in', async () => {
+        setTokens(expired)
+        vi.mocked(refreshTokens).mockImplementation(async () => {
+            localStorage.removeItem('uliss.tokens')
+            return fresh
+        })
+
+        await expect(getAccessToken()).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(getTokens()).toBeNull()
+        expect(login).toHaveBeenCalledOnce()
+    })
+
+    it("neither uses nor overwrites another user's sign-in that happened during the refresh", async () => {
+        const assign = vi.fn()
+        vi.stubGlobal('location', {...window.location, assign})
+        setTokens({...expired, accessToken: jwtOf('user-1')})
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        const otherUser: Tokens = {accessToken: jwtOf('user-2'), refreshToken: 'refresh-other', expiresAt: Date.now() + 60_000}
+        vi.mocked(refreshTokens).mockImplementation(async () => {
+            setTokens(otherUser)
+            return fresh
+        })
+
+        await expect(getAccessToken()).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(getTokens()).toEqual(otherUser)
+        expect(assign).toHaveBeenCalledWith('/')
+        expect(login).not.toHaveBeenCalled()
+    })
+
+    it("never sends another user's stored token from this tab", async () => {
+        const assign = vi.fn()
+        vi.stubGlobal('location', {...window.location, assign})
+        vi.stubGlobal('fetch', vi.fn())
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        setTokens({...fresh, accessToken: jwtOf('user-2')})
+
+        await expect(authFetch('/note/chats')).rejects.toBeInstanceOf(AuthRequiredError)
+
+        expect(fetch).not.toHaveBeenCalled()
+        expect(assign).toHaveBeenCalledWith('/')
+        expect(getTokens()?.accessToken).toBe(jwtOf('user-2'))
+    })
+
+    it("without Web Locks waits for another tab's lease and takes the tokens it stored", async () => {
+        Reflect.deleteProperty(navigator, 'locks')
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        try {
+            setTokens(expired)
+            localStorage.setItem('uliss.token-refresh-lease', JSON.stringify({owner: 'other-tab', until: Date.now() + LEASE_MS}))
+
+            const pending = getAccessToken()
+            await vi.advanceTimersByTimeAsync(LEASE_POLL_MS * 4)
+            setTokens(fresh)
+            localStorage.removeItem('uliss.token-refresh-lease')
+            await vi.advanceTimersByTimeAsync(LEASE_POLL_MS + LEASE_SETTLE_MS)
+
+            await expect(pending).resolves.toBe('access-2')
+            expect(refreshTokens).not.toHaveBeenCalled()
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('keeps the tokens and frees the lock when a refresh times out', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        try {
+            setTokens(expired)
+            vi.mocked(refreshTokens).mockRejectedValue(new DOMException('signal timed out', 'TimeoutError'))
+
+            const timedOut = expect(getAccessToken()).rejects.toBeInstanceOf(SessionRefreshError)
+            await vi.advanceTimersByTimeAsync(REFRESH_RETRY_DELAY_MS)
+            await timedOut
+
+            expect(getTokens()).toEqual(expired)
+            expect(login).not.toHaveBeenCalled()
+            vi.mocked(refreshTokens).mockResolvedValue(fresh)
+            await expect(getAccessToken()).resolves.toBe('access-2')
+        } finally {
+            vi.useRealTimers()
+        }
+    })
+
+    it('forces a refresh for new claims even when another tab stored a newer, still valid token', async () => {
+        setTokens(fresh)
+        vi.mocked(refreshTokens).mockResolvedValue({...fresh, accessToken: 'access-3', refreshToken: 'refresh-3'})
+
+        await refreshSession()
+
+        expect(refreshTokens).toHaveBeenCalledWith('refresh-2', null)
+        expect(getTokens()?.accessToken).toBe('access-3')
     })
 })

@@ -9,13 +9,19 @@ whose backends do not exist yet.
 The SPA uses only relative same-origin routes. In development, Vite proxies `/user` and `/note` using node-side
 environment variables; those service addresses are not included in the browser bundle.
 
-- `auth/tokenStore.ts` stores access and refresh tokens in `sessionStorage`. An explicit sign-out (`clearSession`)
-  also wipes chat drafts and pending turns (`uliss.chat-*`); a session that ended on its own
-  (`endSessionKeepingChatState`) keeps them marked with the token's `sub` (`uliss.chatOwner`).
+- `auth/tokenStore.ts` stores access and refresh tokens in `localStorage`, shared by every tab and kept across browser
+  restarts. Chat drafts and pending turns (`uliss.chat-*`) stay per tab in `sessionStorage`, marked with the tab's user
+  (`uliss.chatOwner`, the token's `sub`): chat state of another user is wiped at start-up, at sign-in, and when another
+  tab stores another user's tokens (the tab then reloads to `/`). An explicit sign-out (`clearSession`) wipes it too;
+  a session that ended on its own (`endSessionKeepingChatState`) keeps it for the same user's return.
 - `auth/authApi.ts` calls the shared security mediator under `/user/oauth2/*`.
 - `auth/apiClient.ts` provides `authFetch`, adds bearer authorization, refreshes proactively and after authentication
   failures, and redirects to login when refresh cannot recover. A refresh that failed on the network or with a 5xx is
-  repeated once after `REFRESH_RETRY_DELAY_MS` with the same token; 400/401 sends the user to sign in.
+  repeated once after `REFRESH_RETRY_DELAY_MS` with the same token; 400/401 sends the user to sign in. Across tabs the
+  refresh runs under a Web Lock (`auth/refreshLease.ts`, a `localStorage` lease, where Web Locks are missing): a tab
+  that waited takes the tokens another tab already stored. Rotated tokens are
+  stored only while the refresh token they replace is still stored, so a sign-out or another user's sign-in in another
+  tab meanwhile wins. A refresh request times out after `REFRESH_TIMEOUT_MS` and keeps the tokens.
 - `pages/Callback.tsx` exchanges the authorization code once, keeps chat state left behind only for the same `sub`
   (`claimChatState`), and restores the original route.
 

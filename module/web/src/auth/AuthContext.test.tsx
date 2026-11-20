@@ -23,11 +23,46 @@ describe('AuthProvider', () => {
 
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         assign = vi.fn()
         vi.stubGlobal('location', {...window.location, assign})
         setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: Date.now() + 60_000, idToken: 'i'})
     })
     afterEach(() => vi.unstubAllGlobals())
+
+    it('tells the other tabs before revoking, so none of them signs in again meanwhile', async () => {
+        const tab = otherTab()
+        const heardBeforeRevoke = new Promise<boolean>((resolve) => {
+            vi.mocked(revokeAndClear).mockImplementation(async () => {
+                // BroadcastChannel delivers asynchronously: give the message a turn to arrive
+                await new Promise((done) => setTimeout(done, 20))
+                resolve(heard)
+                return null
+            })
+        })
+        let heard = false
+        tab.onmessage = () => {
+            heard = true
+        }
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        await userEvent.click(screen.getByRole('button', {name: 'Sign out'}))
+
+        expect(await heardBeforeRevoke).toBe(true)
+        tab.close()
+    })
+
+    it('leaves the stored tokens to the sign-in on the callback page', () => {
+        const jwt = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+        setTokens({accessToken: jwt('user-2'), refreshToken: 'r', expiresAt: Date.now() + 60_000})
+        sessionStorage.setItem('uliss.chatOwner', 'user-1')
+        sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
+        vi.stubGlobal('location', {...window.location, assign, pathname: '/callback'})
+
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        expect(sessionStorage.getItem('uliss.chat-turn.v1:c1')).toBe('{"text":"hello"}')
+    })
 
     it('signs out through the end-session address and tells the other tabs', async () => {
         vi.mocked(revokeAndClear).mockResolvedValue('https://auth/connect/logout?id_token_hint=i')
@@ -53,19 +88,21 @@ describe('AuthProvider', () => {
         expect(assign).toHaveBeenCalledWith('/signed-out')
     })
 
-    it('drops its own tokens and leaves when another tab signs out', async () => {
+    it("leaves when another tab signs out, leaving the shared tokens to that tab", async () => {
         render(<AuthProvider><SignOut/></AuthProvider>)
         const tab = otherTab()
 
         act(() => tab.postMessage('signed-out'))
 
         await waitFor(() => expect(assign).toHaveBeenCalledWith('/signed-out'))
-        expect(getTokens()).toBeNull()
+        // a late message from a tab that resumed must not wipe a session signed in since
+        expect(getTokens()).not.toBeNull()
         tab.close()
     })
 
     it("stays put on another tab's sign-out when it holds no tokens", async () => {
         sessionStorage.clear()
+        localStorage.clear()
         render(<AuthProvider><SignOut/></AuthProvider>)
         const tab = otherTab()
         const probe = otherTab()
@@ -85,6 +122,7 @@ describe('AuthProvider', () => {
 
     it("drops chat state kept for the user's return when another tab signs out", async () => {
         sessionStorage.clear()
+        localStorage.clear()
         sessionStorage.setItem('uliss.chatOwner', 'user-1')
         sessionStorage.setItem('uliss.chat-turn.v1:c1', '{"text":"hello"}')
         render(<AuthProvider><SignOut/></AuthProvider>)
@@ -96,5 +134,29 @@ describe('AuthProvider', () => {
         expect(sessionStorage.getItem('uliss.chatOwner')).toBeNull()
         expect(assign).not.toHaveBeenCalled()
         tab.close()
+    })
+
+    it('leaves when another tab signs out, although that tab already removed the shared tokens', async () => {
+        render(<AuthProvider><SignOut/></AuthProvider>)
+        const tab = otherTab()
+
+        localStorage.removeItem('uliss.tokens')
+        act(() => tab.postMessage('signed-out'))
+
+        await waitFor(() => expect(assign).toHaveBeenCalledWith('/signed-out'))
+        tab.close()
+    })
+
+    it('reloads to the start when another tab signs in as another user', () => {
+        const jwt = (sub: string) => `h.${btoa(JSON.stringify({sub}))}.s`
+        setTokens({accessToken: jwt('user-1'), refreshToken: 'r', expiresAt: Date.now() + 60_000})
+        render(<AuthProvider><SignOut/></AuthProvider>)
+
+        const other = JSON.stringify({accessToken: jwt('user-2'), refreshToken: 'r2', expiresAt: Date.now() + 60_000})
+        act(() => {
+            window.dispatchEvent(new StorageEvent('storage', {key: 'uliss.tokens', newValue: other, storageArea: localStorage}))
+        })
+
+        expect(assign).toHaveBeenCalledWith('/')
     })
 })

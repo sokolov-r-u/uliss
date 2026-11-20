@@ -415,3 +415,47 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
   is read whenever the dialog opens, also for an update that never needs it. A body text or error longer than two
   lines is cut with an ellipsis on these steps.
 - **Source:** task `docs/tasks/2026-11-12-summary-new-note.md`, block 4 and UI review 2026-11-13.
+
+## 2026-11-19 — Tokens in localStorage, shared by every tab
+
+- **Context:** tokens in `sessionStorage` vanished with the tab: closing it, opening a new tab, or Android Chrome
+  discarding it sent the user to sign in, while every refresh in a week of logs succeeded. This replaces the
+  "tokens stay in `sessionStorage` until a BFF change" invariant.
+- **Decision:** access and refresh tokens live in `localStorage`. Refresh tokens rotate and a reused one revokes the
+  whole authorization, so a refresh runs under the `uliss.token-refresh` Web Lock and re-reads the store inside it;
+  without Web Locks only the per-tab single flight remains (the auth server accepts one repeat within its grace).
+  Rotated tokens are stored by compare-and-set on the refresh token (`replaceTokens`); sign-out and the code exchange
+  take no lock. A forced refresh (new claims after onboarding) always refreshes under the lock. Refresh times out after
+  15 seconds. Chat drafts and pending turns stay per tab in `sessionStorage`, marked with the tab's user; another
+  user's chat state is wiped, and a tab that sees another user's tokens stored elsewhere reloads to `/`. Sign-out in
+  another tab is acted on by the in-memory signed-in state, since the shared tokens are already gone.
+- **Consequences:** an XSS can read the tokens as before, but the refresh token now stays on disk for up to its 30-day
+  lifetime (90 days at most per sign-in). Tokens of the old `sessionStorage` are not migrated: one sign-in after the
+  deploy. A BFF with an HttpOnly refresh cookie remains the stronger option.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, block 1.
+
+## 2026-11-19 — Shared tokens: another user's tokens, sign-out order, refresh timeout
+
+- **Context:** the code review of the shared-token change found that a tab could send another user's token stored by
+  another tab before its reload, and that the sign-out listener wiped the shared tokens. Refines the entry above.
+- **Decision:** a tab never uses tokens whose `sub` differs from its user mark: it goes to `/` without touching them.
+  The sign-out listener drops only the tab's chat state; the signing-out tab broadcasts before it revokes. `/callback`
+  leaves the chat state to `claimChatState`. A refresh that timed out is repeated once like any network failure, so the
+  lock may be held for twice the 15-second timeout: a later refresh with a token the lost answer rotated would be taken
+  for reuse and end the session. Without `AbortSignal.timeout` a timer aborts the request.
+- **Consequences:** accepted risks: a second 401 after a refresh signs every tab out (the session is shared); a
+  throttled background tab may hold the lock longer.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, code review.
+
+## 2026-11-20 — Refresh lease in localStorage without Web Locks
+
+- **Context:** replaces "without Web Locks only the per-tab single flight remains" from the first entry above. Two tabs
+  refreshing with the same token both succeed on the auth server (the second as a retry within its grace), but the
+  compare-and-set keeps the first tab's token, which the second refresh already rotated: the next refresh after the
+  grace is taken for reuse and ends the session. Found by the Codex review of PR #119.
+- **Decision:** without Web Locks a refresh runs under a lease in `localStorage` (`uliss.token-refresh-lease`): a tab
+  claims it, waits 50 ms for the claim to reach other tabs and runs only if its claim survived; others poll every
+  250 ms. A lease expires after 40 seconds, longer than a refresh with its one retry, so a closed tab never blocks.
+- **Consequences:** best effort, not a real lock: two claims within the propagation delay can still both run. Every
+  current browser has Web Locks, so the lease only covers old ones.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, Codex review.

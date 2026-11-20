@@ -7,6 +7,7 @@ import {
     LoginRejectedError,
     logout,
     RefreshFailedError,
+    REFRESH_TIMEOUT_MS,
     RefreshRejectedError,
     refreshTokens,
     retryLoginOnce,
@@ -37,14 +38,53 @@ describe('refreshTokens', () => {
         expect(error).not.toBeInstanceOf(RefreshRejectedError)
     })
 
-    it('stores and returns the rotated tokens', async () => {
+    it('returns the rotated tokens without storing them: the caller stores them only if no other tab changed the session', async () => {
         respondWith(200, JSON.stringify({access_token: 'a', refresh_token: 'r', expires_in: 900, token_type: 'Bearer'}))
 
         const tokens = await refreshTokens('refresh-1')
 
         expect(tokens.accessToken).toBe('a')
         expect(tokens.refreshToken).toBe('r')
-        expect(JSON.parse(sessionStorage.getItem('uliss.tokens') ?? 'null')?.accessToken).toBe('a')
+        expect(getTokens()).toBeNull()
+    })
+})
+
+describe('refreshTokens timeout', () => {
+    afterEach(() => vi.unstubAllGlobals())
+
+    it('gives up on a refresh that hangs, so a stuck request does not hold every tab', async () => {
+        const timeout = new AbortController()
+        const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(timeout.signal)
+        vi.stubGlobal('fetch', vi.fn((_path: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })))
+
+        const pending = refreshTokens('refresh-1')
+        timeout.abort(new DOMException('signal timed out', 'TimeoutError'))
+
+        await expect(pending).rejects.toMatchObject({name: 'TimeoutError'})
+        expect(timeoutSpy).toHaveBeenCalledWith(REFRESH_TIMEOUT_MS)
+    })
+})
+
+describe('refreshTokens timeout without AbortSignal.timeout', () => {
+    const original = Object.getOwnPropertyDescriptor(AbortSignal, 'timeout')
+    afterEach(() => {
+        if (original) Object.defineProperty(AbortSignal, 'timeout', original)
+        vi.useRealTimers()
+        vi.unstubAllGlobals()
+    })
+
+    it('aborts a hanging refresh with its own timer in browsers that lack AbortSignal.timeout', async () => {
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        Object.defineProperty(AbortSignal, 'timeout', {configurable: true, value: undefined})
+        vi.stubGlobal('fetch', vi.fn((_path: RequestInfo | URL, init?: RequestInit) => new Promise<Response>((_, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+        })))
+
+        const pending = expect(refreshTokens('refresh-1')).rejects.toMatchObject({name: 'TimeoutError'})
+        await vi.advanceTimersByTimeAsync(REFRESH_TIMEOUT_MS)
+        await pending
     })
 })
 
@@ -57,6 +97,8 @@ describe('exchangeCode', () => {
         vi.stubGlobal('fetch', fetchMock)
 
         await exchangeCode('code 1', 'state&1')
+
+        expect(getTokens()?.accessToken).toBe('a')
 
         expect(fetchMock).toHaveBeenCalledWith(
             '/user/oauth2/callback?code=code+1&state=state%261',
@@ -89,7 +131,10 @@ function stubLocation(path: string) {
 }
 
 describe('login', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('remembers the current route and hands the login to the service', () => {
@@ -113,7 +158,10 @@ describe('login', () => {
 })
 
 describe('retryLoginOnce', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('restarts the first rejected login and refuses the second, so a rejected login never loops', () => {
@@ -146,7 +194,10 @@ describe('retryLoginOnce', () => {
 })
 
 describe('takeReturnTo', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     const returnTo = (saved: string) => {
         sessionStorage.setItem('uliss.returnTo', saved)
@@ -174,7 +225,10 @@ describe('takeReturnTo', () => {
 })
 
 describe('logout', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
     afterEach(() => vi.unstubAllGlobals())
 
     it('revokes with the id token and returns the end-session address', async () => {

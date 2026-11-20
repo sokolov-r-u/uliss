@@ -275,6 +275,9 @@ diagnosed; suspects, most likely first:
    **Fixed 2026-10-14:** startup syncs secret, client/token settings and exact callback URLs from config.
 3. **`sessionStorage`.** Tokens live per tab and vanish when the tab closes; a new tab or reopened browser always
    signs in again. This is the agreed BFF-deferred convention (`module/web/CLAUDE.md`), so expected, not a bug.
+   **Fixed 2026-11-19:** tokens in `localStorage`, shared by every tab, refresh under a Web Lock
+   (`docs/tasks/2026-11-19-tokens-local-storage.md`). Logs of 13–18.11 showed no refused refresh before any sign-in:
+   every drop was a tab without tokens. A BFF with an HttpOnly refresh cookie is still the stronger design.
 
 ## Manual note creation (`note-service`, `web`)
 

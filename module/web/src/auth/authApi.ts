@@ -28,11 +28,15 @@ function toTokens(json: TokenResponse, previousIdToken: string | null): Tokens {
   }
 }
 
-async function readTokens(res: Response, what: string, previousIdToken: string | null = null): Promise<Tokens> {
-  if (!res.ok) throw new Error(`${what} failed (${res.status})`)
-  const tokens = toTokens((await res.json()) as TokenResponse, previousIdToken)
-  setTokens(tokens)
-  return tokens
+/** How long a refresh may take: every tab waits for it, so a hung one must not hold them all. */
+export const REFRESH_TIMEOUT_MS = 15_000
+
+/** `AbortSignal.timeout` came to browsers later than Web Locks; without it a timer aborts the same way. */
+function timeoutSignal(ms: number): AbortSignal {
+  if (typeof AbortSignal.timeout === 'function') return AbortSignal.timeout(ms)
+  const controller = new AbortController()
+  setTimeout(() => controller.abort(new DOMException('signal timed out', 'TimeoutError')), ms)
+  return controller.signal
 }
 
 /**
@@ -96,7 +100,10 @@ export async function exchangeCode(code: string, state: string): Promise<Tokens>
     credentials: 'include',
   })
   if (res.status === 400) throw new LoginRejectedError()
-  return readTokens(res, 'token exchange')
+  if (!res.ok) throw new Error(`token exchange failed (${res.status})`)
+  const tokens = toTokens((await res.json()) as TokenResponse, null)
+  setTokens(tokens)
+  return tokens
 }
 
 /** The service rejected this login (state mismatch, expired login cookies, or an invalid code): start it again. */
@@ -124,8 +131,9 @@ export class RefreshFailedError extends Error {
 }
 
 /**
- * Rotates the tokens. Throws `RefreshRejectedError` on 400/401 and `RefreshFailedError` on any other error status;
- * network failures stay plain errors.
+ * Rotates the tokens and returns them without storing: the caller stores them only if no other tab changed the session
+ * meanwhile. Throws `RefreshRejectedError` on 400/401 and `RefreshFailedError` on any other error status; network
+ * failures and a timeout after [REFRESH_TIMEOUT_MS] stay plain errors.
  */
 export async function refreshTokens(refreshToken: string, idToken: string | null = null): Promise<Tokens> {
   const res = await fetch('/user/oauth2/refresh', {
@@ -133,10 +141,11 @@ export async function refreshTokens(refreshToken: string, idToken: string | null
     credentials: 'include',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ refreshToken }),
+    signal: timeoutSignal(REFRESH_TIMEOUT_MS),
   })
   if (res.status === 400 || res.status === 401) throw new RefreshRejectedError(res.status)
   if (!res.ok) throw new RefreshFailedError(res.status)
-  return readTokens(res, 'token refresh', idToken)
+  return toTokens((await res.json()) as TokenResponse, idToken)
 }
 
 /**

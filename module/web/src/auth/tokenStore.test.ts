@@ -1,5 +1,15 @@
-import {beforeEach, describe, expect, it} from 'vitest'
-import {claimChatState, clearSession, endSessionKeepingChatState, getTokens, setTokens, type Tokens} from './tokenStore'
+import {beforeEach, describe, expect, it, vi} from 'vitest'
+import {
+    adoptStoredTokens,
+    claimChatState,
+    clearSession,
+    endSessionKeepingChatState,
+    getTokens,
+    onOtherUserSignedIn,
+    replaceTokens,
+    setTokens,
+    type Tokens,
+} from './tokenStore'
 
 const OWNER = 'uliss.chatOwner'
 const TURN = 'uliss.chat-turn.v1:c1'
@@ -9,7 +19,10 @@ function tokensOf(sub: string): Tokens {
 }
 
 describe('clearSession', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     it("drops the tokens and the user's unsent chat turns and summary requests, nothing else", () => {
         setTokens({accessToken: 'a', refreshToken: 'r', expiresAt: 1, idToken: 'i'})
@@ -28,13 +41,16 @@ describe('clearSession', () => {
     })
 
     it('reads a corrupt entry as no tokens', () => {
-        sessionStorage.setItem('uliss.tokens', '{not json')
+        localStorage.setItem('uliss.tokens', '{not json')
         expect(getTokens()).toBeNull()
     })
 })
 
 describe('endSessionKeepingChatState', () => {
-    beforeEach(() => sessionStorage.clear())
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
 
     it('drops the tokens and marks the chat state with their user', () => {
         setTokens(tokensOf('user-1'))
@@ -59,25 +75,26 @@ describe('endSessionKeepingChatState', () => {
 describe('claimChatState', () => {
     beforeEach(() => {
         sessionStorage.clear()
+        localStorage.clear()
         sessionStorage.setItem(TURN, 'hello')
     })
 
-    it('keeps the chat state for the user who left it', () => {
+    it('keeps the chat state for the user who left it and marks the tab as theirs', () => {
         sessionStorage.setItem(OWNER, 'user-1')
 
         claimChatState(tokensOf('user-1'))
 
         expect(sessionStorage.getItem(TURN)).toBe('hello')
-        expect(sessionStorage.getItem(OWNER)).toBeNull()
+        expect(sessionStorage.getItem(OWNER)).toBe('user-1')
     })
 
-    it('wipes the chat state when another user signs in', () => {
+    it('wipes the chat state when another user signs in and marks the tab as theirs', () => {
         sessionStorage.setItem(OWNER, 'user-1')
 
         claimChatState(tokensOf('user-2'))
 
         expect(sessionStorage.getItem(TURN)).toBeNull()
-        expect(sessionStorage.getItem(OWNER)).toBeNull()
+        expect(sessionStorage.getItem(OWNER)).toBe('user-2')
     })
 
     it('wipes chat state nobody claimed', () => {
@@ -92,5 +109,107 @@ describe('claimChatState', () => {
         claimChatState({accessToken: 'not-a-jwt', refreshToken: 'r', expiresAt: 1})
 
         expect(sessionStorage.getItem(TURN)).toBeNull()
+    })
+})
+
+describe('shared tokens', () => {
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+    })
+
+    it('keeps the tokens in storage every tab of the browser reads', () => {
+        setTokens(tokensOf('user-1'))
+
+        expect(JSON.parse(localStorage.getItem('uliss.tokens') ?? 'null')).toEqual(tokensOf('user-1'))
+        expect(sessionStorage.getItem('uliss.tokens')).toBeNull()
+    })
+
+    it('replaces the tokens only while the refresh token they rotate is still stored', () => {
+        setTokens(tokensOf('user-1'))
+        const rotated = {...tokensOf('user-1'), refreshToken: 'r2'}
+
+        expect(replaceTokens('r', rotated)).toEqual(rotated)
+        expect(replaceTokens('r', {...rotated, refreshToken: 'r3'})).toEqual(rotated)
+        expect(getTokens()).toEqual(rotated)
+    })
+
+    it('stores nothing once the tokens are gone', () => {
+        expect(replaceTokens('r', tokensOf('user-1'))).toBeNull()
+        expect(getTokens()).toBeNull()
+    })
+})
+
+describe('adoptStoredTokens', () => {
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+        sessionStorage.setItem(TURN, 'hello')
+    })
+
+    it("wipes another user's chat state left in a restored tab and marks the tab with the stored user", () => {
+        sessionStorage.setItem(OWNER, 'user-1')
+        setTokens(tokensOf('user-2'))
+
+        expect(adoptStoredTokens()).toBe(true)
+
+        expect(sessionStorage.getItem(TURN)).toBeNull()
+        expect(sessionStorage.getItem(OWNER)).toBe('user-2')
+    })
+
+    it("keeps the same user's chat state", () => {
+        sessionStorage.setItem(OWNER, 'user-1')
+        setTokens(tokensOf('user-1'))
+
+        expect(adoptStoredTokens()).toBe(true)
+
+        expect(sessionStorage.getItem(TURN)).toBe('hello')
+    })
+
+    it('leaves the chat state for the sign-in to decide when there are no tokens', () => {
+        sessionStorage.setItem(OWNER, 'user-1')
+
+        expect(adoptStoredTokens()).toBe(false)
+
+        expect(sessionStorage.getItem(TURN)).toBe('hello')
+        expect(sessionStorage.getItem(OWNER)).toBe('user-1')
+    })
+})
+
+describe('onOtherUserSignedIn', () => {
+    beforeEach(() => {
+        sessionStorage.clear()
+        localStorage.clear()
+        sessionStorage.setItem(TURN, 'hello')
+        sessionStorage.setItem(OWNER, 'user-1')
+    })
+
+    /** What another tab's write looks like to this one. */
+    function storedElsewhere(newValue: string | null, key = 'uliss.tokens') {
+        window.dispatchEvent(new StorageEvent('storage', {key, newValue, storageArea: localStorage}))
+    }
+
+    it("wipes this tab's chat state and reports when another tab stores another user's tokens", () => {
+        const onOtherUser = vi.fn()
+        const unsubscribe = onOtherUserSignedIn(onOtherUser)
+
+        storedElsewhere(JSON.stringify(tokensOf('user-2')))
+
+        expect(onOtherUser).toHaveBeenCalledOnce()
+        expect(sessionStorage.getItem(TURN)).toBeNull()
+        unsubscribe()
+    })
+
+    it("ignores the same user's refresh, a sign-out and other keys", () => {
+        const onOtherUser = vi.fn()
+        const unsubscribe = onOtherUserSignedIn(onOtherUser)
+
+        storedElsewhere(JSON.stringify(tokensOf('user-1')))
+        storedElsewhere(null)
+        storedElsewhere(JSON.stringify(tokensOf('user-2')), 'uliss.theme')
+
+        expect(onOtherUser).not.toHaveBeenCalled()
+        expect(sessionStorage.getItem(TURN)).toBe('hello')
+        unsubscribe()
     })
 })

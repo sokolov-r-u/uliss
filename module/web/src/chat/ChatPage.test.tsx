@@ -149,6 +149,7 @@ describe('ChatPage summary flow', () => {
         vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
         vi.mocked(deleteChat).mockReset()
         sessionStorage.clear()
+        localStorage.clear()
         mockedGetMessages.mockResolvedValue(messagePage([
             {id: 'u-1', role: 'USER', status: 'COMPLETE', content: 'Question'},
             {id: 'a-1', role: 'ASSISTANT', status: 'COMPLETE', content: 'Answer'},
@@ -1222,12 +1223,12 @@ describe('ChatPage summary flow', () => {
     })
 
     it('clears pending operation identities on sign-out but keeps preferences', () => {
-        sessionStorage.setItem('uliss.tokens', '{}')
+        localStorage.setItem('uliss.tokens', '{}')
         sessionStorage.setItem('uliss.chat-turn.v1:chat-1', '{"turnId":"turn-1"}')
         sessionStorage.setItem('uliss.chat-summary.v1:chat-1', 'key')
         sessionStorage.setItem('preference', 'keep')
         clearSession()
-        expect(sessionStorage.getItem('uliss.tokens')).toBeNull()
+        expect(localStorage.getItem('uliss.tokens')).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-turn.v1:chat-1')).toBeNull()
         expect(sessionStorage.getItem('uliss.chat-summary.v1:chat-1')).toBeNull()
         expect(sessionStorage.getItem('preference')).toBe('keep')
@@ -1256,6 +1257,7 @@ describe('ChatPage summary place picker', () => {
         vi.mocked(listConstellations).mockReset().mockResolvedValue(tree)
         vi.mocked(createConstellation).mockReset()
         sessionStorage.clear()
+        localStorage.clear()
     })
 
     async function openPicker() {
@@ -1634,6 +1636,7 @@ describe('ChatPage unsummarized tail limit', () => {
         mockedRetry.mockReset()
         vi.mocked(getChat).mockReset().mockResolvedValue({id: 'chat-1', title: 'Trip', noteCount: 0})
         sessionStorage.clear()
+        localStorage.clear()
         mockedSummary.mockResolvedValue({noteId: 'note-1', chatId: 'chat-1', status: 'GENERATING'})
     })
 

@@ -1,7 +1,8 @@
 /**
  * Token storage for the thin frontend. The service delivers tokens as JSON
  * (`POST /user/oauth2/callback`), the SPA holds them here and attaches `Authorization: Bearer`.
- * sessionStorage keeps the current convention (cleared when the tab closes).
+ * Tokens live in localStorage, shared by every tab and kept across browser restarts; chat drafts, pending turns and the
+ * tab's user mark stay per tab in sessionStorage.
  */
 import {readJwtClaims} from './jwtClaims'
 
@@ -16,14 +17,13 @@ export type Tokens = {
 
 const KEY = 'uliss.tokens'
 const CHAT_STATE_PREFIX = 'uliss.chat-'
-/** The user whose chat state survived a session that ended on its own; not under the chat prefix it guards. */
+/** The user this tab signed in as and whose chat state it holds; not under the chat prefix it guards. */
 const CHAT_OWNER_KEY = 'uliss.chatOwner'
 
 /** Refresh a bit before the real expiry to absorb clock skew / in-flight latency. */
 const EXPIRY_SKEW_MS = 30_000
 
-export function getTokens(): Tokens | null {
-  const raw = sessionStorage.getItem(KEY)
+function parseTokens(raw: string | null): Tokens | null {
   if (!raw) return null
   try {
     return JSON.parse(raw) as Tokens
@@ -32,12 +32,72 @@ export function getTokens(): Tokens | null {
   }
 }
 
+export function getTokens(): Tokens | null {
+  return parseTokens(localStorage.getItem(KEY))
+}
+
 export function setTokens(tokens: Tokens): void {
-  sessionStorage.setItem(KEY, JSON.stringify(tokens))
+  localStorage.setItem(KEY, JSON.stringify(tokens))
 }
 
 export function clearTokens(): void {
-  sessionStorage.removeItem(KEY)
+  localStorage.removeItem(KEY)
+}
+
+/**
+ * Stores [fresh] only while the stored refresh token is still [expected], the one the refresh was made with: a sign-out
+ * or another user's sign-in in another tab meanwhile must not be overwritten. Returns the tokens stored afterwards.
+ */
+export function replaceTokens(expected: string, fresh: Tokens): Tokens | null {
+  const stored = getTokens()
+  if (stored?.refreshToken !== expected) return stored
+  setTokens(fresh)
+  return fresh
+}
+
+/**
+ * At start-up: whether there are tokens, marking this tab with their user. Chat state of another user (a tab restored
+ * with its old sessionStorage after someone else signed in) goes first.
+ */
+export function adoptStoredTokens(): boolean {
+  const tokens = getTokens()
+  if (!tokens) return false
+  markTabUser(subjectOf(tokens.accessToken))
+  return true
+}
+
+/**
+ * Calls [onOtherUser] when another tab stores tokens of a different user than this tab's; this tab's chat state goes
+ * first. Returns the unsubscribe.
+ */
+export function onOtherUserSignedIn(onOtherUser: () => void): () => void {
+  const listener = (event: StorageEvent) => {
+    if (event.key !== KEY || event.storageArea !== localStorage) return
+    const user = subjectOf(parseTokens(event.newValue)?.accessToken)
+    const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
+    if (!user || !owner || user === owner) return
+    clearChatState()
+    onOtherUser()
+  }
+  window.addEventListener('storage', listener)
+  return () => window.removeEventListener('storage', listener)
+}
+
+/** Whether [tokens] belong to another user than the one this tab signed in as; such a tab must not use them. */
+export function belongsToAnotherUser(tokens: Tokens): boolean {
+  const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
+  return owner != null && owner !== subjectOf(tokens.accessToken)
+}
+
+/** Another tab signed out: it removes the shared tokens itself, this tab drops only its own chat state. */
+export function clearTabChatState(): void {
+  clearChatState()
+}
+
+function markTabUser(user: string | null): void {
+  const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
+  if (owner && owner !== user) clearChatState()
+  if (user) sessionStorage.setItem(CHAT_OWNER_KEY, user)
 }
 
 /** An explicit sign-out: tokens and every chat draft and pending turn go, nothing is left for the next user. */
@@ -48,8 +108,8 @@ export function clearSession(): void {
 
 /**
  * A session that ended on its own (refresh refused): the tokens go, the chat state stays marked with its user, so a
- * turn sent just before is sent after the sign-in. Without tokens the owner already marked (or none) stays as it is;
- * [claimChatState] decides at the sign-in.
+ * turn sent just before is sent after the sign-in. Without tokens (another tab removed them) the owner already marked
+ * (or none) stays as it is; [claimChatState] decides at the sign-in.
  */
 export function endSessionKeepingChatState(): void {
   const owner = subjectOf(getTokens()?.accessToken)
@@ -57,11 +117,12 @@ export function endSessionKeepingChatState(): void {
   if (owner) sessionStorage.setItem(CHAT_OWNER_KEY, owner)
 }
 
-/** After a sign-in: chat state left behind stays only when the same user signed in again. */
+/** After a sign-in: chat state left behind stays only when the same user signed in again; the tab is marked as theirs. */
 export function claimChatState(tokens: Tokens): void {
   const owner = sessionStorage.getItem(CHAT_OWNER_KEY)
-  if (!owner || owner !== subjectOf(tokens.accessToken)) clearChatState()
-  sessionStorage.removeItem(CHAT_OWNER_KEY)
+  const user = subjectOf(tokens.accessToken)
+  if (!owner || owner !== user) clearChatState()
+  if (user) sessionStorage.setItem(CHAT_OWNER_KEY, user)
 }
 
 function clearChatState(): void {

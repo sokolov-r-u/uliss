@@ -1,6 +1,6 @@
 /**
- * Tells the other tabs of this browser that the user signed out. Every tab keeps its own tokens in sessionStorage, so
- * without this a second tab would keep working until its access token expires (or for its own whole session).
+ * Tells the other tabs of this browser that the user signed out. The tabs share the tokens, which the signing-out tab
+ * removes itself; the others drop their own chat state and leave the screens of a session that is over.
  */
 const CHANNEL = 'uliss.auth'
 const SIGNED_OUT = 'signed-out'
