@@ -8,8 +8,8 @@ editing the SPA.
 - Browser calls use relative same-origin URLs. Do not expose auth or service addresses through `VITE_*` variables.
 - Protected requests go through `authFetch`; do not bypass its bearer-token and refresh handling.
 - Access and refresh tokens live in `localStorage`, shared by every tab; a refresh runs under the `uliss.token-refresh`
-  Web Lock and stores its result only through `replaceTokens`. Chat drafts and pending turns stay per tab in
-  `sessionStorage`.
+  Web Lock (a `localStorage` lease where Web Locks are missing) and stores its result only through `replaceTokens`.
+  Chat drafts and pending turns stay per tab in `sessionStorage`.
 - Native `EventSource` is not suitable for authenticated streams. Keep streaming on `authFetch` plus the reusable
   `ReadableStream` SSE parser.
 - After chat streaming ends or fails, re-fetch server history and replace optimistic state with persisted truth.

@@ -1,6 +1,6 @@
 /**
  * `getAccessToken` is the only owner of the session: it returns the stored access token or refreshes it,
- * with at most one refresh in flight per tab and, through a Web Lock, per browser. `authFetch` — the single entry point for calling the current
+ * with at most one refresh in flight per tab and, through a Web Lock or a localStorage lease, per browser. `authFetch` — the single entry point for calling the current
  * service's protected API — attaches that token as `Authorization: Bearer` and retries once with a new
  * token on 401 / auth-redirect. Paths are relative (Vite proxy in dev / same-origin gateway in prod).
  */
@@ -14,6 +14,7 @@ import {
 } from './tokenStore'
 import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {readJwtClaims} from './jwtClaims'
+import {underRefreshLease} from './refreshLease'
 
 /** Thrown once a login/refresh redirect has been triggered — callers should stop, not show an error. */
 export class AuthRequiredError extends Error {
@@ -50,7 +51,7 @@ function needsAuth(res: Response): boolean {
 
 // One refresh at a time: refresh tokens rotate on every use, so a second refresh with the same token would fail
 // with invalid_grant and send the user to sign-in. Within a tab callers share `refreshing`; across the tabs, which share
-// the tokens, the refresh runs under a Web Lock.
+// the tokens, the refresh runs under a Web Lock (or, without it, a lease in localStorage).
 let refreshing: Promise<Tokens> | null = null
 
 const REFRESH_LOCK = 'uliss.token-refresh'
@@ -103,10 +104,13 @@ function isWorthRepeating(error: unknown): boolean {
   return !(error instanceof RefreshFailedError) || error.status >= 500
 }
 
-/** Runs [task] while no other tab of this browser refreshes; without Web Locks only this tab's refresh is shared. */
+/**
+ * Runs [task] while no other tab of this browser refreshes. Without Web Locks a lease in localStorage stands in: two
+ * tabs refreshing with the same token would leave a token the auth server already rotated, and end the session.
+ */
 function underRefreshLock<T>(task: () => Promise<T>): Promise<T> {
   const locks = typeof navigator === 'undefined' ? undefined : navigator.locks
-  return locks ? locks.request(REFRESH_LOCK, task) : task()
+  return locks ? locks.request(REFRESH_LOCK, task) : underRefreshLease(task)
 }
 
 /**

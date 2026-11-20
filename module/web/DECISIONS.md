@@ -446,3 +446,16 @@ one it replaces. Format: see the repository `CLAUDE.md` ("Architecture decisions
 - **Consequences:** accepted risks: a second 401 after a refresh signs every tab out (the session is shared); a
   throttled background tab may hold the lock longer.
 - **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, code review.
+
+## 2026-11-20 — Refresh lease in localStorage without Web Locks
+
+- **Context:** replaces "without Web Locks only the per-tab single flight remains" from the first entry above. Two tabs
+  refreshing with the same token both succeed on the auth server (the second as a retry within its grace), but the
+  compare-and-set keeps the first tab's token, which the second refresh already rotated: the next refresh after the
+  grace is taken for reuse and ends the session. Found by the Codex review of PR #119.
+- **Decision:** without Web Locks a refresh runs under a lease in `localStorage` (`uliss.token-refresh-lease`): a tab
+  claims it, waits 50 ms for the claim to reach other tabs and runs only if its claim survived; others poll every
+  250 ms. A lease expires after 40 seconds, longer than a refresh with its one retry, so a closed tab never blocks.
+- **Consequences:** best effort, not a real lock: two claims within the propagation delay can still both run. Every
+  current browser has Web Locks, so the lease only covers old ones.
+- **Source:** task `docs/tasks/2026-11-19-tokens-local-storage.md`, Codex review.

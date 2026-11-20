@@ -11,6 +11,7 @@ import {
 } from './apiClient'
 import {login, RefreshFailedError, RefreshRejectedError, refreshTokens} from './authApi'
 import {getTokens, setTokens, type Tokens} from './tokenStore'
+import {LEASE_MS, LEASE_POLL_MS, LEASE_SETTLE_MS} from './refreshLease'
 
 vi.mock('./authApi', async (importOriginal) => ({
     ...await importOriginal<typeof import('./authApi')>(),
@@ -20,6 +21,14 @@ vi.mock('./authApi', async (importOriginal) => ({
 
 const fresh: Tokens = {accessToken: 'access-2', refreshToken: 'refresh-2', expiresAt: Date.now() + 15 * 60_000}
 const expired: Tokens = {accessToken: 'access-1', refreshToken: 'refresh-1', expiresAt: Date.now() - 1000}
+
+// Refresh tests run with Web Locks, as in every current browser; the lease used without them is tested on its own.
+beforeEach(() => {
+    Object.defineProperty(navigator, 'locks', {configurable: true, value: fakeLocks()})
+})
+afterEach(() => {
+    Reflect.deleteProperty(navigator, 'locks')
+})
 
 function okFor(token: string) {
     return (_path: RequestInfo | URL, init?: RequestInit) => {
@@ -259,6 +268,8 @@ describe('refreshSession', () => {
 
         const earlier = getAccessToken()
         const forced = refreshSession()
+        // the first refresh starts once the lock is granted
+        await vi.waitFor(() => expect(refreshTokens).toHaveBeenCalledOnce())
         finishFirst()
         await Promise.all([earlier, forced])
 
@@ -445,6 +456,26 @@ describe('refresh across tabs', () => {
         expect(fetch).not.toHaveBeenCalled()
         expect(assign).toHaveBeenCalledWith('/')
         expect(getTokens()?.accessToken).toBe(jwtOf('user-2'))
+    })
+
+    it("without Web Locks waits for another tab's lease and takes the tokens it stored", async () => {
+        Reflect.deleteProperty(navigator, 'locks')
+        vi.useFakeTimers({toFake: ['setTimeout']})
+        try {
+            setTokens(expired)
+            localStorage.setItem('uliss.token-refresh-lease', JSON.stringify({owner: 'other-tab', until: Date.now() + LEASE_MS}))
+
+            const pending = getAccessToken()
+            await vi.advanceTimersByTimeAsync(LEASE_POLL_MS * 4)
+            setTokens(fresh)
+            localStorage.removeItem('uliss.token-refresh-lease')
+            await vi.advanceTimersByTimeAsync(LEASE_POLL_MS + LEASE_SETTLE_MS)
+
+            await expect(pending).resolves.toBe('access-2')
+            expect(refreshTokens).not.toHaveBeenCalled()
+        } finally {
+            vi.useRealTimers()
+        }
     })
 
     it('keeps the tokens and frees the lock when a refresh times out', async () => {

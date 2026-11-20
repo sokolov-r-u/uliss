@@ -18,7 +18,8 @@ environment variables; those service addresses are not included in the browser b
 - `auth/apiClient.ts` provides `authFetch`, adds bearer authorization, refreshes proactively and after authentication
   failures, and redirects to login when refresh cannot recover. A refresh that failed on the network or with a 5xx is
   repeated once after `REFRESH_RETRY_DELAY_MS` with the same token; 400/401 sends the user to sign in. Across tabs the
-  refresh runs under a Web Lock: a tab that waited takes the tokens another tab already stored. Rotated tokens are
+  refresh runs under a Web Lock (`auth/refreshLease.ts`, a `localStorage` lease, where Web Locks are missing): a tab
+  that waited takes the tokens another tab already stored. Rotated tokens are
   stored only while the refresh token they replace is still stored, so a sign-out or another user's sign-in in another
   tab meanwhile wins. A refresh request times out after `REFRESH_TIMEOUT_MS` and keeps the tokens.
 - `pages/Callback.tsx` exchanges the authorization code once, keeps chat state left behind only for the same `sub`
